@@ -64,6 +64,31 @@ test('stores only citation metadata in the records and puts geospatial evidence 
   await expect(readRisSnapshot(directory, 'bonn')).resolves.toEqual({ manifest, records, features });
 });
 
+test.each([1, 2])('preserves a supplied map label and derives new labels normally in snapshot v%s', async schemaVersion => {
+  const locations = [
+    { kind: 'junction', label: 'Adenauerallee / Zweite Fährgasse',
+      mapLabel: 'Adenauerallee / Zweite Fährgasse — Amtlicher Lagebeleg',
+      geometry: { type: 'Point', coordinates: [7.108, 50.727] },
+      evidence: { source: 'title', text: original.title } },
+    { kind: 'street', label: 'Adenauerallee', extent: 'part', attribution: 'LGLN',
+      geometry: { type: 'LineString', coordinates: [[7.108, 50.727], [7.109, 50.728]] },
+      evidence: { source: 'title', text: original.title } },
+  ];
+  await writeRisSnapshot(directory, 'bonn', catalogue([{ ...original, locations }]), { schemaVersion });
+  const snapshot = await readRisSnapshot(directory, 'bonn');
+  expect(snapshot.features.features.map(feature => feature.properties.label)).toEqual([
+    locations[0].mapLabel, 'Adenauerallee — kartierter Teil des Straßenverlaufs als Orientierung · LGLN',
+  ]);
+  expect(snapshot.records[0].locations).toEqual(locations.map(({ label, kind, evidence }) => ({ label, kind, evidence, mapped: true })));
+});
+
+test.each([null, '', 'x'.repeat(4097)])('rejects an invalid supplied map label %#', async mapLabel => {
+  await expect(writeRisSnapshot(directory, 'bonn', catalogue([{ ...original, locations: [{
+    kind: 'place', label: 'Öffentlicher Ort', mapLabel, geometry: { type: 'Point', coordinates: [7.108, 50.727] },
+    evidence: { source: 'title', text: original.title },
+  }] }]))).rejects.toThrow('Invalid RIS location map label');
+});
+
 test('retains records with untrusted or malformed geometry and maps only supported WGS84 evidence', async () => {
   const rows = [
     { id: 'outside-range', geometry: { type: 'Point', coordinates: [7.108, 950] } },
@@ -100,9 +125,9 @@ test('keeps location mentions in the record and publishes each supported geometr
   const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([{
     ...original, locations: [
       { ...locations[0], geometry: point, attribution: '© OpenStreetMap-Mitwirkende' },
-      { ...locations[1], geometry: { type: 'Point', coordinates: [7, 150] } },
+      { ...locations[1], geometry: { type: 'Point', coordinates: [7, 150] }, mapLabel: 'Geprüfte Beschriftung ohne gültige Geometrie' },
       { ...locations[2], geometry: line },
-      { ...locations[3], geometry: point },
+      { ...locations[3], geometry: point, mapLabel: 'Geprüfte Beschriftung mit unpassendem Geometrietyp' },
     ],
   }]));
 
@@ -120,9 +145,23 @@ test('keeps location mentions in the record and publishes each supported geometr
       recordId: original.id, accuracy: 'derived', locationIndex: 0, label: 'Adenauerallee / Zweite Fährgasse — © OpenStreetMap-Mitwirkende',
     } },
     { type: 'Feature', geometry: line, properties: {
-      recordId: original.id, accuracy: 'derived', locationIndex: 2, label: 'Adenauerallee',
+      recordId: original.id, accuracy: 'derived', locationIndex: 2, label: 'Adenauerallee — Straßenverlauf als Orientierung',
     } },
   ]);
+});
+
+test.each([
+  [undefined, 'Straßenverlauf als Orientierung'],
+  ['part', 'kartierter Teil des Straßenverlaufs als Orientierung'],
+])('labels the scale of a mapped street with extent %s', async (extent, expectedScope) => {
+  await writeRisSnapshot(directory, 'bonn', catalogue([{
+    ...original, locations: [{ label: 'Adenauerallee', kind: 'street', extent,
+      geometry: { type: 'LineString', coordinates: [[7.108, 50.727], [7.109, 50.728]] },
+      attribution: 'LGLN', evidence: { source: 'title', text: 'auf der Adenauerallee' },
+    }],
+  }]));
+  const snapshot = await readRisSnapshot(directory, 'bonn');
+  expect(snapshot.features.features[0].properties.label).toBe(`Adenauerallee — ${expectedScope} · LGLN`);
 });
 
 test('does not publish malformed location lists', async () => {
@@ -158,6 +197,96 @@ test('publishes Bonn and Hannover independently with the source links for each c
   expect(hannover.locationRevision).toBe(1);
   await expect(readRisSnapshot(directory, 'bonn')).resolves.toMatchObject({ manifest: bonn, records: [original] });
   await expect(readRisSnapshot(directory, 'hannover')).resolves.toMatchObject({ manifest: hannover, records: [motion] });
+});
+
+test.each(['citywide', 'selected-bodies'])('preserves the common coverage scope %s when writing and reading', async scope => {
+  const manifest = await writeRisSnapshot(directory, 'bonn', {
+    ...catalogue([original]), coverage: { ...coverage, scope },
+  });
+  expect(manifest.coverage.scope).toBe(scope);
+  expect((await readRisSnapshot(directory, 'bonn')).manifest.coverage.scope).toBe(scope);
+});
+
+test('rejects an unknown coverage scope before publishing or reading a snapshot', async () => {
+  await expect(writeRisSnapshot(directory, 'bonn', {
+    ...catalogue([original]), coverage: { ...coverage, scope: 'probably-everywhere' },
+  })).rejects.toThrow(/coverage/i);
+  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([original]));
+  manifest.coverage.scope = 'probably-everywhere';
+  await fs.writeFile(path.join(directory, manifestName), JSON.stringify(manifest));
+  await expect(readRisSnapshot(directory, 'bonn')).rejects.toThrow(/coverage/i);
+});
+
+test('publishes per-record location assessments and verifies the manifest totals on read', async () => {
+  const mention = { kind: 'street', label: 'Adenauerallee', evidence: { source: 'title', text: 'auf der Adenauerallee' } };
+  const line = { type: 'LineString', coordinates: [[7.108, 50.727], [7.109, 50.728]] };
+  const rows = [
+    { ...original, id: 'mapped', locations: [{ ...mention, geometry: line }], locationAssessment: {
+      status: 'mapped', sources: ['title'], reasons: [], truncated: false,
+    } },
+    { ...original, id: 'partial', locations: [{ ...mention, geometry: line }, { ...mention, label: 'Ungeklärter Abschnitt' }],
+      locationAssessment: { status: 'partial', sources: ['title', 'document'],
+        reasons: ['unmapped_location', 'location_limit'], truncated: true } },
+    { ...original, id: 'unresolved', locations: [], locationAssessment: {
+      status: 'unresolved', sources: ['title'], reasons: ['no_specific_location'], truncated: false,
+    } },
+    { ...original, id: 'unavailable', locations: [], locationAssessment: {
+      status: 'unavailable', sources: ['title'], reasons: ['gazetteer_unavailable'], truncated: false,
+    } },
+    { ...original, id: 'legacy' },
+  ];
+  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue(rows));
+  const totals = { attempted: 4, mapped: 1, partial: 1, unresolved: 1, unavailable: 1, truncated: 1 };
+  expect(manifest.locationAssessment).toEqual(totals);
+  const published = await readRisSnapshot(directory, 'bonn');
+  expect(published.manifest.locationAssessment).toEqual(totals);
+  expect(published.records.map(row => row.locationAssessment)).toEqual([
+    { status: 'mapped', sources: ['title'], reasons: [], truncated: false },
+    { status: 'partial', sources: ['title', 'document'], reasons: ['unmapped_location', 'location_limit'], truncated: true },
+    { status: 'unresolved', sources: ['title'], reasons: ['no_specific_location'], truncated: false },
+    { status: 'unavailable', sources: ['title'], reasons: ['gazetteer_unavailable'], truncated: false },
+    undefined,
+  ]);
+  manifest.locationAssessment = { ...totals, mapped: 2, unresolved: 0 };
+  await fs.writeFile(path.join(directory, manifestName), JSON.stringify(manifest));
+  await expect(readRisSnapshot(directory, 'bonn')).rejects.toThrow(/location assessment/i);
+});
+
+test.each([
+  { status: 'guess', sources: ['title'], reasons: [], truncated: false },
+  { status: 'unresolved', sources: ['meeting'], reasons: ['no_specific_location'], truncated: false },
+  { status: 'unresolved', sources: ['title'], reasons: ['unknown_reason'], truncated: false },
+  { status: 'unresolved', sources: ['title', 'title'], reasons: ['no_specific_location'], truncated: false },
+  { status: 'unresolved', sources: ['title'], reasons: ['no_specific_location'], truncated: true },
+  { status: 'mapped', sources: ['title'], reasons: [], truncated: false },
+])('rejects a malformed or unsupported location assessment %j', async locationAssessment => {
+  await expect(writeRisSnapshot(directory, 'bonn', catalogue([{
+    ...original, locations: [], locationAssessment,
+  }]))).rejects.toThrow(/location assessment/i);
+  expect(await fs.readdir(directory)).toEqual([]);
+});
+
+test('preserves an official map feature alongside additional derived location features', async () => {
+  const official = { type: 'Point', coordinates: [7.108, 50.727] };
+  const derived = { type: 'LineString', coordinates: [[7.11, 50.73], [7.12, 50.74]] };
+  const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([{
+    ...original, geometry: official, locationSource: 'official', locationLabel: 'Amtlicher Lageplan',
+    locations: [{ kind: 'street', label: 'Weitere Straße', geometry: derived,
+      evidence: { source: 'title', text: 'Maßnahme an der weiteren Straße' } }],
+    locationAssessment: { status: 'mapped', sources: ['title', 'official'], reasons: [], truncated: false },
+  }]));
+  expect(manifest.map.count).toBe(2);
+  const result = await readRisSnapshot(directory, 'bonn');
+  expect(result.features.features).toEqual([
+    { type: 'Feature', geometry: official, properties: { recordId: original.id, accuracy: 'official', label: 'Amtlicher Lageplan' } },
+    { type: 'Feature', geometry: derived, properties: { recordId: original.id, accuracy: 'derived', locationIndex: 0, label: 'Weitere Straße — Straßenverlauf als Orientierung' } },
+  ]);
+});
+
+test('rejects an assessment claiming official evidence when no valid official map feature exists', async () => {
+  await expect(writeRisSnapshot(directory, 'bonn', catalogue([{
+    ...original, locationAssessment: { status: 'mapped', sources: ['official'], reasons: [], truncated: false },
+  }]))).rejects.toThrow(/map|location assessment/i);
 });
 
 test('accepts the repository city key for a city whose name has spaces', async () => {

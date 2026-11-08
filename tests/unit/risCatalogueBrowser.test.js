@@ -165,6 +165,81 @@ test('rejects a hashed search asset that includes geometry in its location metad
     .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
 });
 
+test.each(['citywide', 'selected-bodies'])('accepts the shared %s coverage scope in the browser', async scope => {
+  const data = fixture();
+  data.manifest.coverage.scope = scope;
+  const result = await data.catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] });
+  expect(result.meta.coverage.scope).toBe(scope);
+});
+
+test('rejects an unknown coverage scope in the browser', async () => {
+  const data = fixture();
+  data.manifest.coverage.scope = 'probably-everywhere';
+  await expect(data.catalogue.loadMap('Hannover')).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
+test('preserves an unresolved assessment through search without sharing mutable cached state', async () => {
+  const data = fixture();
+  const locationAssessment = {
+    status: 'unresolved', sources: ['title'], reasons: ['no_specific_location'], truncated: false,
+  };
+  replaceAsset(data, 'records', [{ ...records[0], locationAssessment }], 1);
+  data.manifest.locationAssessment = { attempted: 1, mapped: 0, partial: 0, unresolved: 1, unavailable: 0, truncated: 0 };
+  const params = { city: 'Hannover', searchTerms: ['Stichkanal'] };
+  const result = await data.catalogue.search(params);
+  expect(result.references[0].locationAssessment).toEqual(locationAssessment);
+  result.references[0].locationAssessment.sources.push('official');
+  result.references[0].locationAssessment.reasons.length = 0;
+  expect((await data.catalogue.search(params)).references[0].locationAssessment).toEqual({
+    status: 'unresolved', sources: ['title'], reasons: ['no_specific_location'], truncated: false,
+  });
+});
+
+test.each([
+  { status: 'invented', sources: ['title'], reasons: ['no_specific_location'], truncated: false },
+  { status: 'unresolved', sources: ['meeting'], reasons: ['no_specific_location'], truncated: false },
+  { status: 'unresolved', sources: ['title'], reasons: ['<img src=x>'], truncated: false },
+  { status: 'mapped', sources: ['title'], reasons: [], truncated: false },
+])('rejects an unsupported or inconsistent assessment in a hashed record %j', async locationAssessment => {
+  const data = fixture();
+  replaceAsset(data, 'records', [{ ...records[0], locationAssessment }], 1);
+  await expect(data.catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
+test('rejects manifest assessment totals that disagree with the verified record asset', async () => {
+  const data = fixture();
+  replaceAsset(data, 'records', [{ ...records[0], locationAssessment: {
+    status: 'unresolved', sources: ['title'], reasons: ['no_specific_location'], truncated: false,
+  } }], 1);
+  data.manifest.locationAssessment = { attempted: 1, mapped: 1, partial: 0, unresolved: 0, unavailable: 0, truncated: 0 };
+  await expect(data.catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
+test('loads an official feature and an indexed derived feature from the same assessed record', async () => {
+  const data = fixture();
+  replaceAsset(data, 'records', [{ ...records[0],
+    locations: [{ kind: 'street', label: 'Schneiderberg', mapped: true,
+      evidence: { source: 'document', text: 'auf dem Schneiderberg' } }],
+    locationAssessment: { status: 'mapped', sources: ['title', 'document', 'official'], reasons: [], truncated: false },
+  }], 1);
+  const features = { type: 'FeatureCollection', features: [
+    { ...geo.features[0], properties: { recordId: records[0].id, accuracy: 'official' } },
+    { ...geo.features[0], properties: { recordId: records[0].id, accuracy: 'derived', locationIndex: 0, label: 'Schneiderberg' } },
+  ] };
+  replaceAsset(data, 'map', features, 2);
+  expect((await data.catalogue.loadMap('Hannover')).features).toEqual(features);
+});
+
+test('rejects an official assessment without an official feature when loading the map', async () => {
+  const data = fixture();
+  replaceAsset(data, 'records', [{ ...records[0],
+    locationAssessment: { status: 'mapped', sources: ['title', 'official'], reasons: [], truncated: false },
+  }], 1);
+  await expect(data.catalogue.loadMap('Hannover')).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
 test('cannot turn incomplete or stale coverage into a completed zero result', () => {
   const { manifest } = fixture();
   const params = { city: 'Hannover', searchTerms: ['Oxfordstraße'] };
@@ -249,6 +324,33 @@ test('documents the provenance fields emitted in a fallback search response', ()
   expect(Object.keys(result.meta).filter(field => !Object.hasOwn(metaProperties, field))).toEqual([]);
   expect(Object.keys(result.meta.refreshFailure).sort()).toEqual(metaProperties.refreshFailure.required.slice().sort());
   expect(Object.keys(result.references[0].snapshot).filter(field => !Object.hasOwn(referenceProperties, field))).toEqual([]);
+});
+
+test.each([
+  ['mapped', 'citywide', [], false],
+  ['partial', 'selected-bodies', ['document_text_unavailable', 'evidence_truncated', 'location_limit'], true],
+  ['unresolved', 'citywide', ['unverified_name', 'unmapped_location', 'non_traffic_address'], false],
+  ['unavailable', 'selected-bodies', ['gazetteer_unavailable'], false],
+])('the JSON schema contract covers a %s search reference and its coverage scope', async (status, scope, reasons, truncated) => {
+  const data = fixture();
+  const locations = status === 'mapped' || status === 'partial' ? [{
+    kind: 'street', label: 'Lindener Stichkanal', mapped: true, evidence: { source: 'title', text: records[0].title },
+  }] : [];
+  replaceAsset(data, 'records', [{ ...records[0], locations,
+    locationAssessment: { status, sources: ['title'], reasons, truncated },
+  }], 1);
+  data.manifest.coverage.scope = scope;
+  const result = await data.catalogue.search({ city: 'Hannover', searchTerms: ['Stichkanal'] });
+  const reference = result.references[0];
+  expect(Object.keys(reference).filter(field => !Object.hasOwn(referenceSchema.properties, field))).toEqual([]);
+  const assessment = referenceSchema.properties.locationAssessment;
+  expect(Object.keys(reference.locationAssessment).sort()).toEqual(assessment.required.slice().sort());
+  expect(assessment.properties.status.enum).toContain(reference.locationAssessment.status);
+  for (const source of reference.locationAssessment.sources) expect(assessment.properties.sources.items.enum).toContain(source);
+  for (const reason of reference.locationAssessment.reasons) expect(assessment.properties.reasons.items.enum).toContain(reason);
+  const coverageProperties = resultSchema.properties.meta.properties.coverage.properties;
+  expect(Object.keys(result.meta.coverage).filter(field => !Object.hasOwn(coverageProperties, field))).toEqual([]);
+  expect(coverageProperties.scope.enum).toContain(result.meta.coverage.scope);
 });
 
 test('checks the current verified catalogue before adopting a reference', async () => {

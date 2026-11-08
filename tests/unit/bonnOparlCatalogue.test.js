@@ -108,6 +108,153 @@ function loadClientWithCacheOptions(options) {
 
 afterEach(() => jest.restoreAllMocks());
 
+test('mixed source-cache pages retain their oldest verification time through publication', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCache } = require('../../server/political-context/services/risSourceCache');
+  const { refreshRisCatalogues } = require('../../scripts/refresh-ris-catalogues');
+  const { readRisSnapshot } = require('../../server/political-context/services/risSnapshot');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-source-clock-'));
+  let now = new Date('2026-11-01T10:00:00Z');
+  try {
+    const sourceCache = createRisSourceCache({ directory: path.join(folder, 'cache'), now: () => now.getTime() });
+    const fetchJsonImpl = fetchFixture({
+      1: { data: [original], links: { next: pageUrl(2), last: pageUrl(2) } },
+      2: { data: [answer], links: { prev: pageUrl(1) } },
+    });
+    const olderPage = `${DIRECT_PAPER_LIST_URL}?page=2&limit=100&size=100`;
+    await sourceCache.getOrLoad(olderPage, 'bonn-json-v1', () => fetchJsonImpl(olderPage));
+    now = new Date('2026-11-07T10:00:00Z');
+    const catalogue = await collectBonnCatalogue({ ...opts, now, sourceCache, fetchJsonImpl });
+    expect(catalogue.generatedAt).toBe('2026-11-01T10:00:00.000Z');
+    expect(catalogue.cache).toMatchObject({
+      status: 'mixed', refreshedAt: '2026-11-01T10:00:00.000Z', retrievedAt: '2026-11-07T10:00:00.000Z',
+      ageMs: 6 * 86400000, hits: 1, misses: 3, networkRequests: 3, pages: 2, items: 2,
+      sourceUrl: SYSTEM_URL, truncated: false, refreshFailure: null,
+    });
+    const directory = path.join(folder, 'published');
+    const publish = time => refreshRisCatalogues({ directory, cities: ['bonn'], now: time,
+      fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => catalogue });
+    await expect(publish(now)).resolves.toMatchObject([{ status: 'published' }]);
+    expect((await readRisSnapshot(directory, 'bonn')).manifest.generatedAt).toBe('2026-11-01T10:00:00.000Z');
+    await fs.rm(directory, { recursive: true });
+    await expect(publish(new Date('2026-11-20T10:00:00Z'))).resolves.toMatchObject([{ status: 'unavailable' }]);
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('reports distinct catalogue miss, coalesced and hit metadata for ten simultaneous searches', async () => {
+  let clock = Date.parse('2026-11-07T00:00:00Z');
+  jest.spyOn(Date, 'now').mockImplementation(() => clock);
+  const client = loadClientWithCacheOptions({ BONN_OPARL_CACHE_TTL_MS: '300000' });
+  const requests = mockBonnTransport(fixture({ 1: { data: [original] } }));
+  const searches = await Promise.all(Array.from({ length: 10 }, (_, index) => client.searchOparl({
+    ...opts, searchTerms: [index % 2 ? 'Adenauerallee' : 'Radverkehr'],
+  })));
+  expect(searches[0].meta.catalogueCache).toMatchObject({
+    status: 'miss', refreshedAt: '2026-11-07T00:00:00.000Z', ageMs: 0,
+    networkRequests: 3, pages: 1, items: 1, truncated: false, refreshFailure: null,
+  });
+  expect(searches.slice(1).map(result => result.meta.catalogueCache.status)).toEqual(Array(9).fill('coalesced'));
+  expect(requests).toHaveLength(3);
+  clock += 60_000;
+  const hit = await client.searchOparl({ ...opts, now: new Date(clock), searchTerms: ['Adenauerallee'] });
+  expect(hit.meta.catalogueCache).toMatchObject({ status: 'hit', ageMs: 60_000, networkRequests: 0 });
+  expect(requests).toHaveLength(3);
+});
+
+test('an expired catalogue followed by source failure exposes failure without stale results', async () => {
+  let clock = Date.parse('2026-11-07T00:00:00Z');
+  jest.spyOn(Date, 'now').mockImplementation(() => clock);
+  const client = loadClientWithCacheOptions({ BONN_OPARL_CACHE_TTL_MS: '1000' });
+  const pages = { 1: { data: [original] } };
+  mockBonnTransport(fixture(pages));
+  await client.searchOparl({ ...opts, searchTerms: ['Adenauerallee'] });
+  clock += 1000;
+  pages[1] = new Error('Source unavailable during refresh');
+  await expect(client.searchOparl({ ...opts, now: new Date(clock), searchTerms: ['Adenauerallee'] }))
+    .rejects.toMatchObject({ catalogueCache: {
+      status: 'failed', networkRequests: 3, truncated: true,
+      refreshFailure: { message: expect.stringContaining('Source unavailable during refresh') },
+    } });
+});
+
+test('failure metadata retains the counts of source pages observed before a later page fails', async () => {
+  const out = await collectBonnCatalogue({ ...opts, fetchJsonImpl: fetchFixture({
+    1: { data: [original], links: { next: pageUrl(2), last: pageUrl(2) } },
+    2: new Error('Second page unavailable'),
+  }) });
+  expect(out.cache).toMatchObject({ status: 'failed', pages: 1, items: 1, networkRequests: 4, truncated: true });
+  expect(out.coverage.complete).toBe(false);
+});
+
+test('coalesced failed callers receive independent metadata with no extra network work', async () => {
+  const client = loadClientWithCacheOptions({ BONN_OPARL_CACHE_TTL_MS: '1000' });
+  const requests = mockBonnTransport(fixture({ 1: new Error('Shared refresh failure') }));
+  const outcomes = await Promise.allSettled(Array.from({ length: 3 }, () => client.searchOparl({
+    ...opts, searchTerms: ['Adenauerallee'],
+  })));
+  expect(outcomes.every(outcome => outcome.status === 'rejected')).toBe(true);
+  const errors = outcomes.map(outcome => outcome.reason);
+  expect(requests).toHaveLength(3);
+  expect(errors.map(error => error.catalogueCache.networkRequests)).toEqual([3, 0, 0]);
+  expect(errors.map(error => error.catalogueCache.status)).toEqual(['failed', 'failed', 'failed']);
+  expect(errors[1]).not.toBe(errors[0]);
+  expect(errors[2].catalogueCache).not.toBe(errors[1].catalogueCache);
+  expect(errors.map(error => error.code)).toEqual(Array(3).fill(errors[0].code));
+});
+
+test('a completed checkpoint resume keeps the original time of papers fetched on earlier pages', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-resume-clock-'));
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const fetchJsonImpl = fetchFixture({
+      1: { data: [original], links: { next: pageUrl(2), last: pageUrl(2) } },
+      2: { data: [answer], links: { prev: pageUrl(1) } },
+    });
+    const first = await collectBonnCatalogue({ ...opts, now: '2026-11-01T10:00:00Z', checkpoint, workBudget: 1, fetchJsonImpl });
+    expect(first.coverage.complete).toBe(false);
+    const resumed = await collectBonnCatalogue({ ...opts, now: '2026-11-07T10:00:00Z', checkpoint, workBudget: 1, fetchJsonImpl });
+    expect(resumed.coverage.complete).toBe(true);
+    expect(resumed.records).toHaveLength(2);
+    expect(resumed.generatedAt).toBe('2026-11-01T10:00:00.000Z');
+    expect(resumed.cache.ageMs).toBe(6 * 86400000);
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('legacy checkpoint papers without source clocks require revalidation before complete publication', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-unknown-clock-'));
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const fetchJsonImpl = fetchFixture({
+      1: { data: [original], links: { next: pageUrl(2), last: pageUrl(2) } },
+      2: { data: [answer], links: { prev: pageUrl(1) } },
+    });
+    await collectBonnCatalogue({ ...opts, checkpoint, workBudget: 1, fetchJsonImpl });
+    const scope = `official-pages:${DIRECT_PAPER_LIST_URL}?page=1&limit=100&size=100`;
+    const annual = await checkpoint.read('bonn-oparl', scope, 2026, 'bonn-pages-v1');
+    delete annual.sourceTimes;
+    await checkpoint.write('bonn-oparl', scope, 2026, 'bonn-pages-v1', annual);
+    const resumed = await collectBonnCatalogue({ ...opts, checkpoint, workBudget: 1, fetchJsonImpl });
+    expect(resumed.records).toHaveLength(2);
+    expect(resumed.coverage.complete).toBe(false);
+    expect(resumed.coverage.warnings.join(' ')).toMatch(/Quellenzeit/);
+    expect(resumed.cache.refreshedAt).toBeNull();
+    expect(resumed).not.toHaveProperty('generatedAt');
+    const verified = await collectBonnCatalogue({ ...opts, checkpoint, workBudget: 3, fetchJsonImpl });
+    expect(verified.coverage.complete).toBe(true);
+    expect(verified.generatedAt).toBe('2026-11-07T00:00:00.000Z');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
 test('catalogues official Papers across pages with exact references, dates and document geography', async () => {
   const out = await collectBonnCatalogue({
     ...opts,
@@ -447,4 +594,119 @@ test('keeps simultaneous caller-injected readers isolated', async () => {
 
   expect(first.records.map(record => record.id)).toEqual([paperId(42)]);
   expect(second.records.map(record => record.id)).toEqual([paperId(43)]);
+});
+
+test('resumes official page work from a durable cursor and retains completed historical years', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-history-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const fetchJsonImpl = fetchFixture({
+      1: { data: [paper(10, { date: '2014-05-01' })], links: { next: pageUrl(2), last: pageUrl(3) } },
+      2: { data: [original], links: { prev: pageUrl(1), next: pageUrl(3) } },
+      3: { data: [answer], links: { prev: pageUrl(2) } },
+    });
+    const first = await collectBonnCatalogue({ ...opts, lookbackYears: 12, checkpoint, workBudget: 1, fetchJsonImpl });
+    expect(first.records.map(record => record.id)).toEqual([paperId(43)]);
+    expect(first.coverage.complete).toBe(false);
+    const second = await collectBonnCatalogue({ ...opts, lookbackYears: 12, checkpoint, workBudget: 3, fetchJsonImpl });
+    expect(second.records.map(record => record.id)).toEqual(expect.arrayContaining([paperId(10), paperId(42), paperId(43)]));
+    expect(second.coverage.complete).toBe(true);
+    expect(second.coverage.from).toBe('2014-05-01');
+    const third = await collectBonnCatalogue({ ...opts, checkpoint, workBudget: 3, fetchJsonImpl });
+    expect(third.records).toHaveLength(3);
+    expect(third.coverage.from).toBe('2014-05-01');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('reconciles a corrected Paper year and an undated deletion by stable ID', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-year-correction-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const collect = data => collectBonnCatalogue({ ...opts, checkpoint, fetchJsonImpl: fetchFixture({
+      1: { data: [...data, answer], pagination: { currentPage: 1, totalPages: 1, totalElements: data.length + 1 } },
+    }) });
+    expect((await collect([paper(42, { name: 'Old title', date: '2025-01-01' })])).coverage.complete).toBe(true);
+    const corrected = await collect([paper(42, { name: 'Corrected title', date: '2026-01-01' })]);
+    expect(corrected.records.find(record => record.id === paperId(42))).toMatchObject({ title: 'Corrected title', date: '2026-01-01' });
+    expect(corrected.coverage.complete).toBe(true);
+    const deleted = await collect([{ id: paperId(42), deleted: true }]);
+    expect(deleted.records.map(record => record.id)).toEqual([paperId(43)]);
+    expect(deleted.coverage.complete).toBe(true);
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test.each([[false, 'annual'], [false, 'cursor'], [true, 'annual'], [true, 'cursor']])(
+  'recovers a Paper move/deletion after interruption (deleted=%s, write=%s)', async (deleted, phase) => {
+    const fs = require('node:fs/promises');
+    const os = require('node:os');
+    const path = require('node:path');
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-page-journal-'));
+    try {
+      const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+      const checkpoint = createRisSourceCheckpoint({ directory: folder });
+      const payload = changed => ({ 1: { data: [changed, answer], pagination: { currentPage: 1, totalPages: 1, totalElements: 2 } } });
+      await collectBonnCatalogue({ ...opts, checkpoint, fetchJsonImpl: fetchFixture(payload(paper(42, { name: 'Old title', date: '2025-01-01' }))) });
+      let interrupted = false;
+      const unreliable = { ...checkpoint, write: async (source, scope, year, revision, work) => {
+        const target = phase === 'annual' ? !scope.endsWith(':cursor') && year === 2026 : scope.endsWith(':cursor') && !work.pendingPage;
+        if (!interrupted && target) { interrupted = true; throw new Error('Simulated interruption during annual reconciliation'); }
+        return checkpoint.write(source, scope, year, revision, work);
+      } };
+      const changed = deleted ? { id: paperId(42), deleted: true } : paper(42, { name: 'Corrected title', date: '2026-01-01' });
+      const failed = await collectBonnCatalogue({ ...opts, checkpoint: unreliable, fetchJsonImpl: fetchFixture(payload(changed)) });
+      expect(interrupted).toBe(true);
+      expect(failed.coverage.complete).toBe(false);
+      const recovered = await collectBonnCatalogue({ ...opts, workBudget: 0,
+        checkpoint: createRisSourceCheckpoint({ directory: folder }), fetchJsonImpl: fetchFixture(payload(changed)) });
+      expect(recovered.coverage.complete).toBe(true);
+      if (deleted) expect(recovered.records.map(record => record.id)).toEqual([paperId(43)]);
+      else expect(recovered.records.find(record => record.id === paperId(42))).toMatchObject({ title: 'Corrected title', date: '2026-01-01' });
+      expect(recovered.coverage.warnings.join(' ')).not.toMatch(/mehrfach/);
+    } finally { await fs.rm(folder, { recursive: true, force: true }); }
+  }
+);
+
+test.each([false, true])('recovers pending December page work in January without a source scan (deleted=%s)', async deleted => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bonn-calendar-journal-'));
+  try {
+    const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const payload = changed => ({ 1: { data: [changed, answer], pagination: { currentPage: 1, totalPages: 1, totalElements: 2 } } });
+    const december = { ...opts, now: '2026-12-31T23:55:00Z' };
+    await collectBonnCatalogue({ ...december, checkpoint, fetchJsonImpl: fetchFixture(payload(paper(42, { name: 'Old title', date: '2025-01-01' }))) });
+    let interrupted = false;
+    const unreliable = { ...checkpoint, write: async (source, scope, year, revision, work) => {
+      // A correction loses its old durable copy before the destination write;
+      // a deletion is interrupted before removing the old durable live copy.
+      if (!interrupted && !scope.endsWith(':cursor') && year === (deleted ? 2025 : 2026)) {
+        interrupted = true;
+        throw new Error('Simulated annual write interruption on New Year Eve');
+      }
+      return checkpoint.write(source, scope, year, revision, work);
+    } };
+    const changed = deleted ? { id: paperId(42), deleted: true } : paper(42, { name: 'Corrected title', date: '2026-01-01' });
+    await collectBonnCatalogue({ ...december, checkpoint: unreliable, fetchJsonImpl: fetchFixture(payload(changed)) });
+    expect(interrupted).toBe(true);
+    const reopened = createRisSourceCheckpoint({ directory: folder });
+    const recovered = await collectBonnCatalogue({ ...opts, now: '2027-01-01T00:05:00Z', workBudget: 0,
+      checkpoint: reopened, fetchJsonImpl: fetchFixture(payload(changed)) });
+    if (deleted) expect(recovered.records.map(record => record.id)).toEqual([paperId(43)]);
+    else expect(recovered.records.find(record => record.id === paperId(42))).toMatchObject({ title: 'Corrected title', date: '2026-01-01' });
+    expect(recovered.coverage.complete).toBe(true);
+    const scope = `official-pages:${DIRECT_PAPER_LIST_URL}?page=1&limit=100&size=100`;
+    const saved = await reopened.read('bonn-oparl', scope, 2026, 'bonn-pages-v1');
+    expect(saved.papers[paperId(42)]).toMatchObject(deleted ? { deleted: true } : { name: 'Corrected title' });
+    expect((await reopened.read('bonn-oparl', `${scope}:cursor`, 2026, 'bonn-pages-v1')).pendingPage).toBeUndefined();
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });

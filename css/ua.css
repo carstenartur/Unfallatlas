@@ -206,6 +206,12 @@ code { background: rgba(243,243,243,.92); padding: 1px 4px; border-radius: 6px; 
   user-select:none;
 }
 .smallBtn:hover{ background: rgba(240,240,240,.98); }
+/* Lazy council-document actions remain reachable in the bounded popup. */
+.ua-ris-popup .smallBtn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 
 :where(button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 3px solid #1d5fd0;
@@ -256,6 +262,59 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
   width: auto;
   margin: 0 6px 0 0;
   vertical-align: middle;
+}
+
+/* The settings menu shares existing bindings, with readable full-text rows. */
+.carte-control {
+  width: min(300px, calc(100vw - 78px));
+  color: #222;
+  background: rgba(255,255,255,.96);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+.carte-control:has(> .mapControlToggle[aria-expanded="false"]) { width: auto; min-width: 100px; }
+.carte-control .mapControlToggle { min-height: 44px; }
+.carte-control .mapControlBody {
+  max-height: calc(100dvh - 100px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.mapSettingsGroup {
+  min-width: 0;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid #ddd;
+}
+.mapSettingsGroup[hidden] { display: none; }
+.mapSettingsGroup legend { padding: 0 4px 0 0; font-weight: 800; }
+.carte-control .toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.carte-control .row { grid-template-columns: minmax(0, 1fr); }
+.carte-control .btn,
+.carte-control .mapSettingButton {
+  min-height: 44px;
+  width: 100%;
+  margin-bottom: 4px;
+  opacity: 1;
+  color: #222;
+  font-size: 12px;
+  filter: none;
+}
+.carte-control .mapSettingButton { text-align: left; }
+.carte-control .mapSettingButton[aria-pressed="true"] { background: #e9f2ff; border-color: #4287f5; }
+.carte-control label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 4px;
+  padding: 6px 2px;
+}
+.carte-control input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; }
+.carte-control input[type="range"] { min-height: 44px; }
+.carte-control [data-map-group="ris"] > div { max-width: none !important; }
+@media (min-width: 641px) and (max-width: 780px) {
+  .panel { width: calc(100vw - 330px); }
+  .panel .row { grid-template-columns: minmax(0, 1fr); }
 }
 
 .legend-item {
@@ -594,7 +653,7 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
     overscroll-behavior: contain;
   }
   .context-overlay-control .mapControlBody {
-    max-width: 230px;
+    max-width: none;
     overflow-wrap: anywhere;
   }
   .context-overlay-control label {
@@ -602,6 +661,7 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
     padding: 8px 2px;
   }
   .context-overlay-control input[type="checkbox"] { width: 22px; height: 22px; }
+  .carte-control .mapControlBody { max-height: clamp(64px, calc(100dvh - 190px), 56dvh); }
   .layerLegendItems { flex-direction: row; flex-wrap: wrap; max-width: 150px; }
   .legend-item { width: 44px; height: 44px; flex: 0 0 44px; }
   .row {

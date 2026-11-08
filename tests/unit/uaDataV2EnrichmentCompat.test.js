@@ -13,6 +13,8 @@ function loadDataModule(options) {
   if (!options || options.idle !== false) win.requestIdleCallback = callback => callback();
   evaluate(win, '../../js/ua.core.js');
   evaluate(win, '../../js/ua.data_paths.js');
+  if (!options || options.context !== false) evaluate(win, '../../js/ua.spatial-grid.js');
+  if (!options || options.context !== false) evaluate(win, '../../js/ua.data-budget.js');
   if (!options || options.context !== false) evaluate(win, '../../js/ua.context_layers.js');
   evaluate(win, '../../js/ua.data_v2.js');
   return win.UA;

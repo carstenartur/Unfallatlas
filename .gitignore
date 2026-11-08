@@ -9,6 +9,8 @@ out/qa/
 
 # Official council catalogue snapshots generated for publication.
 /data/ris/
+# Resumable verified public council source responses, shared by all adapters.
+/.cache/ris-sources/
 
 # Testing
 node_modules/

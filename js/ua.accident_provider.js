@@ -66,19 +66,7 @@
     return value && !value.endsWith('/') ? `${value}/` : value;
   }
 
-  function lonToTileX(lon, zoom) {
-    return Math.floor(((lon + 180) / 360) * Math.pow(2, zoom));
-  }
-
-  function latToTileY(lat, zoom) {
-    const bounded = Math.max(-85.05112878, Math.min(85.05112878, lat));
-    const radians = bounded * Math.PI / 180;
-    return Math.floor(
-      ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2)
-        * Math.pow(2, zoom)
-    );
-  }
-
+  const { tilesForBounds, tileRange } = UA.SpatialGrid;
   function tileKey(x, y) {
     return `${x}/${y}`;
   }
@@ -87,32 +75,6 @@
     const [lx, ly] = String(left).split('/').map(Number);
     const [rx, ry] = String(right).split('/').map(Number);
     return lx - rx || ly - ry;
-  }
-
-  function tilesForBounds(bounds, zoom) {
-    if (!bounds) return [];
-    let south, north, west, east;
-    if (typeof bounds.getSouth === 'function') {
-      south = bounds.getSouth();
-      north = bounds.getNorth();
-      west = bounds.getWest();
-      east = bounds.getEast();
-    } else if (Array.isArray(bounds) && bounds.length === 4) {
-      [south, west, north, east] = bounds;
-    } else if (typeof bounds === 'object') {
-      ({ south, north, west, east } = bounds);
-    }
-    if (![south, north, west, east].every(Number.isFinite)) return [];
-
-    const xMin = lonToTileX(Math.min(west, east), zoom);
-    const xMax = lonToTileX(Math.max(west, east), zoom);
-    const yMin = latToTileY(Math.max(south, north), zoom);
-    const yMax = latToTileY(Math.min(south, north), zoom);
-    const result = [];
-    for (let x = xMin; x <= xMax; x++) {
-      for (let y = yMin; y <= yMax; y++) result.push([x, y]);
-    }
-    return result;
   }
 
   function rotateRight(value, count) {
@@ -540,21 +502,25 @@
     }
 
     function requestedTiles(manifest, bounds) {
-      return tilesForBounds(bounds, manifest.z)
-        .map(([x, y]) => manifest.tileByKey.get(tileKey(x, y)))
-        .filter(Boolean)
+      // Filter published cells without enumerating a potentially world-sized grid.
+      const range = tileRange(bounds, manifest.z);
+      if (!range) return [];
+      return Array.from(manifest.tileByKey.values())
+        .filter(({ x, y }) => x >= range.xMin && x <= range.xMax && y >= range.yMin && y <= range.yMax)
         .sort((left, right) => left.x - right.x || left.y - right.y);
     }
 
+    const tileScheduler = UA.DataBudget.createScheduler(6);
+
     async function fetchTileDescriptors(slug, manifest, descriptors) {
-      const settled = await Promise.all(descriptors.map(async descriptor => {
+      const settled = await Promise.all(descriptors.map(descriptor => tileScheduler.run(async () => {
         try {
           const payload = await fetchTile(slug, manifest, descriptor);
           return { descriptor, payload, error: null };
         } catch (error) {
           return { descriptor, payload: null, error };
         }
-      }));
+      })));
       const loaded = [];
       const missingTileKeys = [];
       for (const item of settled) {

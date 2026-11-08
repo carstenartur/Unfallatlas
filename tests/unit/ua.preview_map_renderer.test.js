@@ -220,6 +220,14 @@ describe('UA.PreviewMapRenderer', () => {
     expect(btn.getAttribute('aria-pressed')).toBe('true');
   });
 
+  test('the unified map settings own the background choice without a second toolbar', () => {
+    const { UA } = loadModules({ L: { control: () => ({ addTo() { return this; } }) } });
+    const ctx = { map: {}, mapSettingsControl: {}, mapMode: 'hybrid' };
+    expect(UA.installDirectMapModeControl(ctx)).toBeNull();
+    expect(ctx.directMapModeControl).toBeUndefined();
+    expect(ctx.mapMode).toBe('hybrid');
+  });
+
   test('render() accepts a TrafficSituation as read-only input', async () => {
     const mapStub = {
       setView: jest.fn(),

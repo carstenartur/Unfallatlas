@@ -21,6 +21,8 @@ function loadModules() {
     (function (window) { eval(fs.readFileSync(p, 'utf8')); })(win);
   };
   load('ua.core.js');
+  load('ua.spatial-grid.js');
+  load('ua.data-budget.js');
   load('ua.context_layers.js');
   load('ua.popup_context.js');
   return win.UA;

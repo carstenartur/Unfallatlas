@@ -356,23 +356,7 @@ function encodeGeometry(points) {
 
 const CTX_TILE_ZOOM = 13;
 
-function lonToTileX(lon, z) {
-  return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
-}
-function latToTileY(lat, z) {
-  const rad = (lat * Math.PI) / 180;
-  return Math.floor(
-    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
-      Math.pow(2, z)
-  );
-}
-function tileXToLon(x, z) {
-  return (x / Math.pow(2, z)) * 360 - 180;
-}
-function tileYToLat(y, z) {
-  const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z);
-  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-}
+const { lonToTileX, latToTileY, tileXToLon, tileYToLat } = require('../js/ua.spatial-grid');
 
 /**
  * Return every (x,y) tile coordinate covered by the *vertex bounding

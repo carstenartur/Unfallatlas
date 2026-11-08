@@ -52,6 +52,71 @@ describe('map control disclosure', () => {
     delete window.L;
   });
 
+  test('one labelled Karte groups background and independently selectable accident layers', () => {
+    document.body.insertAdjacentHTML('beforeend', '<section id="mapBackgroundControls"><button id="mapModeStandard">Standardkarte</button></section><div id="mapAccidentControls"><button id="toggleCluster">Cluster</button><button id="toggleHeat">Heatmap</button></div>');
+    const background = document.getElementById('mapBackgroundControls');
+    UA.renderLayers = jest.fn();
+    ctx.showCluster = ctx.showHeatmap = true;
+    UA.addLayerLegend(ctx, ctx.map);
+    UA.refreshContextOverlays(ctx);
+    expect([...document.querySelectorAll('.mapControlToggle')].filter(button => button.textContent === 'Karte')).toHaveLength(1);
+    expect([...document.querySelectorAll('.mapControlToggle')].some(button => /^(Ebenen|Karten-Layer)$/.test(button.textContent))).toBe(false);
+    const card = document.querySelector('.carte-control');
+    expect(card.contains(background)).toBe(true);
+    expect(card.querySelector('.mapControlToggle').getAttribute('aria-label')).toBe('Karte');
+    expect([...card.querySelectorAll('legend')].map(node => node.textContent)).toEqual(['Hintergrund', 'Unfalldarstellung', 'Umgebung', 'Straßeninformationen', 'Ratsvorgänge']);
+    expect(document.querySelectorAll('#toggleCluster')).toHaveLength(1);
+    expect(card.querySelector('[data-layer="cluster"]')).toBe(document.getElementById('toggleCluster'));
+    expect(card.querySelector('[data-layer="heatmap"]')).toBe(document.getElementById('toggleHeat'));
+    expect(card.querySelector('[data-layer="cluster"]').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  test('cluster and heatmap remain independent and report pressed state', () => {
+    UA.renderLayers = jest.fn();
+    UA.addLayerLegend(ctx, ctx.map);
+    const cluster = document.querySelector('[data-layer="cluster"]');
+    const heat = document.querySelector('[data-layer="heatmap"]');
+    cluster.click();
+    expect(ctx.showCluster).toBe(false);
+    expect(ctx.showHeatmap).toBe(true);
+    expect(cluster.getAttribute('aria-pressed')).toBe('false');
+    heat.click();
+    expect(ctx.showCluster).toBe(false);
+    expect(ctx.showHeatmap).toBe(false);
+    cluster.click();
+    heat.click();
+    expect(ctx.showCluster && ctx.showHeatmap).toBe(true);
+  });
+
+  test('Escape folds Karte and returns focus without changing layer state', () => {
+    UA.refreshContextOverlays(ctx);
+    const card = document.querySelector('.context-overlay-control');
+    card.querySelector('.mapControlToggle').click();
+    const slope = card.querySelector('[data-context-overlay="slope"]');
+    slope.focus();
+    slope.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(card.querySelector('.mapControlBody').hidden).toBe(true);
+    expect(document.activeElement).toBe(card.querySelector('.mapControlToggle'));
+  });
+
+  test('capabilities remove unavailable road controls and retain one Karte entry', () => {
+    UA.addLayerLegend(ctx, ctx.map);
+    UA.refreshContextOverlays(ctx);
+    ctx.contextCapabilities = {};
+    UA.refreshContextOverlays(ctx);
+    expect(document.querySelector('[data-context-overlay="slope"]')).toBeNull();
+    expect(document.querySelector('[data-context-overlay="traffic"]')).toBeNull();
+    expect(document.querySelector('.carte-control')).not.toBeNull();
+    expect(document.querySelectorAll('.carte-control')).toHaveLength(1);
+  });
+
+  test('refreshing road and RIS controls never enables unrelated accident layers', () => {
+    UA.refreshContextOverlays(ctx);
+    expect(ctx.showCluster).toBeUndefined();
+    expect(ctx.showHeatmap).toBeUndefined();
+    expect(ctx.showSchools).toBeUndefined();
+  });
+
   test('phone layer settings start compact and collapsing keeps the selected road layer', async () => {
     UA.refreshContextOverlays(ctx);
     const container = document.querySelector('.context-overlay-control');

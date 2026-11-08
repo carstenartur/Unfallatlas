@@ -2,6 +2,8 @@
 
 const { streetJunction, streetSection } = require('./risStreetGeometry');
 const { classifyTrafficRelevance } = require('./trafficRelevanceService');
+const { MAX_LOCATIONS_PER_RECORD, validGeometry: validSourceGeometry, validLocationGeometry } =
+  require('../../../js/ua.ris-catalogue.js').snapshotFormat;
 
 const WORD = /[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N}'-]*/gu;
 const WORD_CHAR = /^[\p{L}\p{M}\p{N}'-]/u;
@@ -13,6 +15,7 @@ const ADJACENT_CUE = /(?:^|\s)(?:neben|vor|hinter|parallel zu[rm])\s+(?:(?:der|d
 const SPECIFIC_TAIL = /^\s*"?\s*(?:,|(?:nr\.?\s*)?\d|(?:nord|süd|ost|west)\b)/u;
 const MULTIPLE_LOCATIONS = /[\/;&]|\b(?:und|oder|sowie|bzw)\b/u;
 const LIMITED_SCOPE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll|zwischen|bis|bereich|\p{L}*abschnitt(?:e|en|es|s)?|kreuzung(?:en)?|einmündung|abzweig|ecke|höhe|gegenüber|hausnummern?|unterführung(?:en)?|fussgängerzone(?:n)?)\b/u;
+const MEETING_CUE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll)\b/u;
 const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispiel|im vergleich zu|als vorbild)\b/u;
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
 const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
@@ -114,7 +117,7 @@ function matchSingleLocation(text, byFirstWord, fromDocument = false) {
   return { entry, geometry };
 }
 
-function mentions(subject, byFirstWord) {
+function mentions(subject, byFirstWord, includeUnverified = false) {
   const matches = [];
   let end = 0;
   for (const word of subject.matchAll(WORD)) {
@@ -128,7 +131,7 @@ function mentions(subject, byFirstWord) {
     }
     if (!longest) continue;
     end = word.index + longest.name.length;
-    if (longest.entry) matches.push({ entry: longest.entry, index: word.index, end });
+    if (longest.entry || includeUnverified) matches.push({ entry: longest.entry, index: word.index, end });
   }
   return matches;
 }
@@ -137,6 +140,7 @@ function location(kind, label, geometry, entries) {
   return {
     kind, label,
     ...(geometry ? { geometry, attribution: [...new Set(entries.map(entry => entry.attribution))].join(' · ') } : {}),
+    ...(geometry && kind === 'street' && entries.some(entry => entry.extent === 'part') ? { extent: 'part' } : {}),
   };
 }
 
@@ -262,11 +266,13 @@ function parseMeasureLocations(text, byFirstWord, gazetteer) {
   ];
 }
 
-function measureLocations(record, byFirstWord, gazetteer) {
-  const document = record.locationEvidence.flatMap(paragraph =>
+function measureLocations(record, byFirstWord, gazetteer, limit) {
+  const document = (Array.isArray(record.locationEvidence) ? record.locationEvidence : [])
+    .filter(paragraph => typeof paragraph === 'string' && paragraph.trim()).flatMap(paragraph =>
     paragraph.split(/(?<=[.!?])\s+(?=[\p{Lu}„])/u));
   const evidence = [...document.map(text => ({ source: 'document', text })), { source: 'title', text: record.title }];
   const locations = new Map();
+  const reasons = new Set();
   const general = [];
   const keep = (found, proof) => {
     const key = `${found.kind}:${normalize(found.label)}`;
@@ -274,6 +280,9 @@ function measureLocations(record, byFirstWord, gazetteer) {
     if (!existing || (!existing.geometry && found.geometry)) locations.set(key, { ...found, evidence: proof });
   };
   for (const proof of evidence) {
+    const normalized = normalize(proof.text);
+    if (MEETING_CUE.test(normalized) || COMPARISON_CUE.test(normalized)) continue;
+    if (mentions(normalized, byFirstWord, true).some(hit => !hit.entry)) reasons.add('unverified_name');
     const specific = parseMeasureLocations(proof.text, byFirstWord, gazetteer);
     for (const found of specific) keep(found, proof);
     if (!specific.length) {
@@ -286,14 +295,19 @@ function measureLocations(record, byFirstWord, gazetteer) {
   for (const { entry, geometry, proof } of general) {
     if (!specified.has(entry)) keep(location(entry.kind, entry.name, geometry, [entry]), proof);
   }
-  const selected = [...locations.values()].slice(0, 8);
-  if (!selected.some(found => found.kind === 'address' && found.geometry)) return selected;
-  const relevance = classifyTrafficRelevance({ title: record.title, snippet: document.join(' '), gremium: record.gremium });
-  if (relevance.isTrafficRelevant) return selected;
+  let selected = [...locations.values()].slice(0, limit);
+  const truncated = locations.size > limit;
+  if (truncated) reasons.add('location_limit');
+  if (selected.some(found => !validLocationGeometry(found.geometry, found.kind))) reasons.add('unmapped_location');
   // Exact residential address markers belong to the traffic analysis only
   // when the document has a traffic connection. Its text remains searchable.
-  return selected.map(found => found.kind === 'address'
-    ? { kind: found.kind, label: found.label, evidence: found.evidence } : found);
+  if (selected.some(found => found.kind === 'address' && found.geometry)
+      && !classifyTrafficRelevance({ title: record.title, snippet: document.join(' '), gremium: record.gremium }).isTrafficRelevant) {
+    reasons.add('non_traffic_address');
+    selected = selected.map(found => found.kind === 'address'
+      ? { kind: found.kind, label: found.label, evidence: found.evidence } : found);
+  }
+  return { locations: selected, truncated, reasons: [...reasons] };
 }
 
 /**
@@ -302,29 +316,43 @@ function measureLocations(record, byFirstWord, gazetteer) {
  * attribution }] }; attribution can also be supplied at the gazetteer level.
  * `extent: 'part'` labels a street line that covers only part of the street.
  * Accident-network tiles carry no street names or public access tags.
- * Geometry already supplied by the RIS and unresolved records pass through.
+ * Every record receives an explicit assessment. Official RIS geometries are
+ * preserved; derived locations are replaced on each run, including no matches.
  */
-function enrichRisLocations(records, { city, gazetteer } = {}) {
-  if (!city || gazetteer?.city !== city || !Array.isArray(gazetteer.entries)) return records;
-  const byFirstWord = indexGazetteer(gazetteer);
+function enrichRisLocations(records, { city, gazetteer, maxLocationsPerRecord = MAX_LOCATIONS_PER_RECORD } = {}) {
+  if (maxLocationsPerRecord !== Infinity && (!Number.isInteger(maxLocationsPerRecord) || maxLocationsPerRecord < 1)) {
+    throw new RangeError('maxLocationsPerRecord must be a positive integer or Infinity');
+  }
+  const byFirstWord = city && gazetteer?.city === city && Array.isArray(gazetteer.entries) && gazetteer.entries.length
+    ? indexGazetteer(gazetteer) : null;
   return records.map(record => {
-    if (record.geometry != null) return record;
-    if (Array.isArray(record.locationEvidence)) {
-      const locations = measureLocations(record, byFirstWord, gazetteer);
-      return locations.length ? { ...record, locations } : record;
+    const official = record.locationSource === 'official' && validSourceGeometry(record.geometry);
+    const sources = ['title'];
+    if (Array.isArray(record.locationEvidence) && record.locationEvidence.some(text => typeof text === 'string' && text.trim())) {
+      sources.push('document');
     }
-    const match = matchSingleLocation(record.title, byFirstWord);
-    if (!match?.geometry) return record;
-    const { entry, geometry } = match;
-    const scope = entry.kind === 'street'
-      ? `${entry.extent === 'part' ? 'kartierter Teil des Straßenverlaufs' : 'Straßenverlauf'} als Orientierung`
-      : 'benannter Ort';
-    return {
-      ...record,
-      geometry,
-      locationSource: 'derived',
-      locationLabel: `${entry.name} – Namensabgleich im Titel, ${scope} · ${entry.attribution}`,
-    };
+    if (official) sources.push('official');
+    const reasons = [];
+    if (!byFirstWord) reasons.push('gazetteer_unavailable');
+    if (record.locationEvidenceUnavailable === true) reasons.push('document_text_unavailable');
+    if (record.locationEvidenceTruncated === true) reasons.push('evidence_truncated');
+    // The legacy format reserves one slot for official geometry. Partitioned
+    // publication pages locations and can retain every identified mention.
+    const result = byFirstWord ? measureLocations(record, byFirstWord, gazetteer, maxLocationsPerRecord - Number(official))
+      : { locations: [], truncated: false, reasons: [] };
+    reasons.push(...result.reasons);
+    if (byFirstWord && !official && !result.locations.length && !reasons.includes('unverified_name')) reasons.push('no_specific_location');
+    const mapped = official || result.locations.some(found => validLocationGeometry(found.geometry, found.kind));
+    const status = mapped ? (reasons.length ? 'partial' : 'mapped') : (byFirstWord ? 'unresolved' : 'unavailable');
+    const assessed = { ...record, locations: result.locations, locationAssessment: {
+      status, sources, reasons: [...new Set(reasons)], truncated: record.locationEvidenceTruncated === true || result.truncated,
+    } };
+    if (!official) {
+      delete assessed.geometry;
+      delete assessed.locationSource;
+      delete assessed.locationLabel;
+    }
+    return assessed;
   });
 }
 

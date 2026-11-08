@@ -917,7 +917,7 @@
   };
 
   // ----------------------------
-  // Layer Legend Control (bottom right)
+  // Unified map settings and layer legend
   // ----------------------------
   const mapControlDisclosures = new WeakMap();
   const compactMapQuery = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
@@ -945,6 +945,7 @@
           (target && !target.closest('[hidden]') ? target : current.button).focus({ preventScroll: true });
         }
       }
+      syncMapPanelOcclusion(ctx, state);
       if (ctx.contextOverlays?.legendControl) _refreshContextLegend(ctx);
     };
     if (typeof media?.addEventListener === 'function') media.addEventListener('change', resize);
@@ -956,6 +957,22 @@
     });
     return state;
   }
+
+  function syncMapPanelOcclusion(ctx, state) {
+    const open = state.mobile && [...state.controls.values()]
+      .some(entry => entry.control._map && !entry.body.hidden && entry.container.style.display !== 'none');
+    UA.setPanelMapOccluded?.(ctx, open);
+  }
+
+  UA.closeMapControls = function closeMapControls(ctx) {
+    const state = mapControlDisclosures.get(ctx);
+    if (!state?.mobile) return;
+    for (const [key, entry] of state.controls) {
+      state.choices.get(key).mobile = true;
+      entry.apply();
+    }
+    syncMapPanelOcclusion(ctx, state);
+  };
 
   // Only the disclosure changes: selected layers and their data keep running.
   // State belongs to the map context because lazy loading rebuilds controls.
@@ -969,6 +986,7 @@
     button.className = 'mapControlToggle';
     button.id = key + '-title';
     button.textContent = label;
+    button.setAttribute('aria-label', label);
     const body = document.createElement('div');
     body.id = key + '-body';
     body.className = 'mapControlBody';
@@ -993,6 +1011,16 @@
       }
       body.scrollTop = 0;
       apply();
+      syncMapPanelOcclusion(ctx, state);
+    });
+    container.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || body.hidden) return;
+      event.preventDefault();
+      event.stopPropagation();
+      choices[state.mobile ? 'mobile' : 'desktop'] = true;
+      apply();
+      button.focus({ preventScroll: true });
+      syncMapPanelOcclusion(ctx, state);
     });
     container.append(button, body);
     state.controls.set(key, { control, desktopPosition, container, body, button, apply });
@@ -1000,81 +1028,89 @@
     return body;
   }
 
-  UA.addLayerLegend = function addLayerLegend(ctx, map) {
-    const LayerLegend = L.Control.extend({
-      options: {
-        position: mapControlState(ctx).mobile ? 'topright' : 'bottomright'
-      },
-
-      onAdd: function(map) {
-        const container = L.DomUtil.create('div', 'layer-legend-control');
-        
-        // Prevent map interactions when clicking on legend
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.disableScrollPropagation(container);
-        const body = mapControlBody(ctx, this, container, 'layer-legend-control', 'Ebenen', 'bottomright');
-        body.classList.add('layerLegendItems');
-
-        // Use existing layer states from ctx (initialized in ua.app_v2.js)
-        // Default to true if not set
-        if (ctx.showSchools === undefined) ctx.showSchools = true;
-        if (ctx.showKindergartens === undefined) ctx.showKindergartens = true;
-        if (ctx.showCluster === undefined) ctx.showCluster = true;
-        if (ctx.showHeatmap === undefined) ctx.showHeatmap = true;
-        if (ctx.showArgumentation === undefined) ctx.showArgumentation = true;
-
-        // Create legend items
-        const items = [
-          { id: 'argumentation', icon: '🎯', label: 'Argumentation (Top-Hotspots)', stateKey: 'showArgumentation' },
-          { id: 'schools', icon: '🏫', label: 'Schulen', stateKey: 'showSchools' },
-          { id: 'kindergartens', icon: '👶', label: 'Kindergärten', stateKey: 'showKindergartens' },
-          { id: 'cluster', icon: '📍', label: 'Cluster', stateKey: 'showCluster' },
-          { id: 'heatmap', icon: '🔥', label: 'Heatmap', stateKey: 'showHeatmap' }
-        ];
-
-        items.forEach(item => {
-          const cls = ctx[item.stateKey] ? 'legend-item active' : 'legend-item';
-          const btn = L.DomUtil.create('button', cls, body);
-          btn.type = 'button';
-          btn.innerHTML = `<span class="legend-icon">${item.icon}</span>`;
-          btn.title = item.label;
-          btn.setAttribute('aria-label', item.label);
-          btn.setAttribute('data-layer', item.id);
-
-          btn.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            // Toggle state
-            ctx[item.stateKey] = !ctx[item.stateKey];
-
-            // Update button appearance
-            if (ctx[item.stateKey]) {
-              btn.classList.add('active');
-            } else {
-              btn.classList.remove('active');
-            }
-
-            // Sync panel buttons if they exist
-            if (item.stateKey === 'showCluster' && ctx.ui?.btnCluster) {
-              UA.setBtnState(ctx.ui.btnCluster, ctx[item.stateKey]);
-            }
-            if (item.stateKey === 'showHeatmap' && ctx.ui?.btnHeat) {
-              UA.setBtnState(ctx.ui.btnHeat, ctx[item.stateKey]);
-            }
-
-            // Rebuild layers to reflect changes
-            ctx._dataChanged = true;
-            UA.syncAllToUrl(ctx);
-            UA.renderLayers(ctx);
-          };
-        });
-
-        return container;
+  // One persistent settings surface. Moving the original DOM keeps background
+  // handlers, source feedback, opacity and export policy on their existing path.
+  function ensureMapSettings(ctx, map) {
+    const disclosure = mapControlState(ctx);
+    const existing = disclosure.controls.get('context-overlay-control');
+    if (existing?.control._map === map) return existing;
+    const control = L.control({ position: 'topright' });
+    let groups;
+    control.onAdd = function() {
+      const container = L.DomUtil.create('div', 'carte-control context-overlay-control layer-legend-control');
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+      container.setAttribute('role', 'group');
+      container.setAttribute('aria-labelledby', 'context-overlay-control-title');
+      const body = mapControlBody(ctx, control, container, 'context-overlay-control', 'Karte', 'topright');
+      groups = {};
+      for (const [key, label] of Object.entries({ background: 'Hintergrund', accidents: 'Unfalldarstellung', surroundings: 'Umgebung', roads: 'Straßeninformationen', ris: 'Ratsvorgänge' })) {
+        const group = document.createElement('fieldset');
+        group.className = 'mapSettingsGroup';
+        group.dataset.mapGroup = key;
+        const title = document.createElement('legend');
+        title.textContent = label;
+        group.appendChild(title);
+        groups[key] = group;
+        body.appendChild(group);
       }
-    });
+      const background = document.getElementById('mapBackgroundControls');
+      if (background) groups.background.appendChild(background);
+      else groups.background.hidden = true;
+      const accidents = document.getElementById('mapAccidentControls');
+      if (accidents) groups.accidents.appendChild(accidents);
+      const items = [
+        { id: 'cluster', label: 'Cluster', stateKey: 'showCluster', group: 'accidents', domId: 'toggleCluster' },
+        { id: 'heatmap', label: 'Heatmap', stateKey: 'showHeatmap', group: 'accidents', domId: 'toggleHeat' },
+        { id: 'argumentation', label: 'Argumentation (Top-Hotspots)', stateKey: 'showArgumentation', group: 'surroundings', icon: '🎯' },
+        { id: 'schools', label: 'Schulen', stateKey: 'showSchools', group: 'surroundings', icon: '🏫' },
+        { id: 'kindergartens', label: 'Kindergärten', stateKey: 'showKindergartens', group: 'surroundings', icon: '👶' },
+      ];
+      for (const item of items) {
+        const original = item.domId && (accidents?.querySelector('#' + item.domId) || document.getElementById(item.domId));
+        const button = original || document.createElement('button');
+        button.type = 'button';
+        button.dataset.layer = item.id;
+        button.setAttribute('aria-label', item.label);
+        button.classList.add('mapSettingButton');
+        if (!original) {
+          button.classList.add('btn');
+          if (item.icon) {
+            const icon = document.createElement('span');
+            icon.textContent = item.icon;
+            icon.setAttribute('aria-hidden', 'true');
+            button.append(icon, document.createTextNode(' '));
+          }
+          button.appendChild(document.createTextNode(item.label));
+          groups[item.group].appendChild(button);
+          button.addEventListener('click', () => {
+            ctx[item.stateKey] = !ctx[item.stateKey];
+            UA.syncLegendButtons(ctx);
+            UA.syncAllToUrl(ctx);
+            if (ctx.store) ctx.store.dispatch('layerToggled');
+            else { ctx._dataChanged = true; UA.renderLayers(ctx); }
+          });
+        }
+        button.classList.toggle('active', !!ctx[item.stateKey]);
+        button.setAttribute('aria-pressed', String(!!ctx[item.stateKey]));
+      }
+      return container;
+    };
+    control.addTo(map);
+    const entry = disclosure.controls.get('context-overlay-control');
+    entry.groups = groups;
+    ctx.mapSettingsControl = control;
+    return entry;
+  }
 
-    map.addControl(new LayerLegend());
+  UA.addLayerLegend = function addLayerLegend(ctx, map) {
+    // Preserve the original initialization boundary. A lazy road/RIS refresh
+    // may use a context with no accident layers and must never enable them.
+    for (const key of ['showCluster', 'showHeatmap', 'showSchools', 'showKindergartens', 'showArgumentation']) {
+      if (ctx[key] === undefined) ctx[key] = true;
+    }
+    ensureMapSettings(ctx, map);
+    UA.syncLegendButtons(ctx);
   };
 
   // Sync legend button CSS classes from ctx state
@@ -1091,6 +1127,7 @@
       const btn = document.querySelector(`.layer-legend-control button[data-layer="${layerId}"]`);
       if (btn) {
         btn.classList.toggle('active', !!ctx[stateKey]);
+        btn.setAttribute('aria-pressed', String(!!ctx[stateKey]));
       }
     }
   };
@@ -1762,7 +1799,9 @@
   UA.refreshContextOverlays = function refreshContextOverlays(ctx) {
     if (!ctx || !ctx.map || !window.L) return;
     const risControl = UA.RisLayer?.controlContent(ctx);
-    if (!UA.contextRoadLayer && !risControl) return;
+    const settings = ensureMapSettings(ctx, ctx.map);
+    const roadGroup = settings.groups.roads;
+    const risGroup = settings.groups.ris;
     const focusedRis = risControl?.contains(document.activeElement) ? document.activeElement : null;
     const reg  = _ensureOverlayRegistry(ctx);
     const focusedControl = [reg.layerControl, reg.legendControl]
@@ -1776,6 +1815,10 @@
         || document.getElementById('context-overlay-control-title');
       (target && !target.closest('[hidden]') ? target : opener)?.focus({ preventScroll: true });
     };
+    for (const node of [...roadGroup.children]) { if (node.tagName !== 'LEGEND') node.remove(); }
+    for (const node of [...risGroup.children]) { if (node.tagName !== 'LEGEND' && node !== risControl) node.remove(); }
+    if (risControl && risControl.parentElement !== risGroup) risGroup.appendChild(risControl);
+    risGroup.hidden = !risControl;
     const caps = ctx.contextCapabilities || {};
     const state = ctx.contextLayerState;
     // PR-E (full-network v3): a state with `tileIndex` is considered
@@ -1804,10 +1847,7 @@
         reg.layers[kind] = null;
       }
     }
-    if (reg.layerControl) {
-      try { reg.layerControl.remove(); } catch (_) {}
-      reg.layerControl = null;
-    }
+    reg.layerControl = settings.control;
     if (reg.legendControl) {
       try { reg.legendControl.remove(); } catch (_) {}
       reg.legendControl = null;
@@ -1829,94 +1869,75 @@
       if (changed && typeof UA.syncAllToUrl === 'function') {
         try { UA.syncAllToUrl(ctx); } catch (_) {}
       }
-      if (!risControl) return;
+      roadGroup.hidden = true;
     }
     // Drop active flags only for capabilities that actually disappeared
     // (mirroring the chip-filter pruning in refreshContextFilterVisibility).
     if (!showSlope)   reg.active.slope   = false;
     if (!showTraffic) reg.active.traffic = false;
 
-    // Keep the layer control clear of the left-side analysis panel.
-    // We use a custom control rather than
-    // `L.control.layers` so capability gating + URL persistence stay
-    // explicit and the styling matches the existing layer-legend UX.
-    const ctrl = window.L.control({ position: 'topright' });
-    ctrl.onAdd = function() {
-      const c = window.L.DomUtil.create('div', 'context-overlay-control leaflet-bar');
-      window.L.DomEvent.disableClickPropagation(c);
-      window.L.DomEvent.disableScrollPropagation(c);
-      c.style.background = '#fff';
-      c.style.padding    = '6px 8px';
-      c.style.font       = '12px/1.3 system-ui, sans-serif';
-      c.style.borderRadius = '4px';
-      // A11y: this is a logically grouped set of layer toggles.
-      c.setAttribute('role', 'group');
-      const body = mapControlBody(ctx, ctrl, c, 'context-overlay-control', 'Karten-Layer', 'topright');
-      c.setAttribute('aria-labelledby', 'context-overlay-control-title');
+    roadGroup.hidden = !showSlope && !showTraffic;
+    const body = roadGroup;
+    // Pending vs. unavailable hint — the overlay control is built
+    // even for capability-positive cities whose geometry table is
+    // missing (legacy v1 ways file or unsupported future schema),
+    // so we must distinguish the two cases:
+    //   * isLoadingGeom    → "(lädt …)" — transient, will resolve.
+    //   * geomUnavailable  → permanent "Layer nicht verfügbar"
+    //                        hint, no spinner-like wording.
+    if ((showSlope || showTraffic) && isLoadingGeom) {
+      const hint = document.createElement('div');
+      hint.textContent = '(lädt …)';
+      hint.style.fontSize = '11px';
+      hint.style.color    = '#555';
+      hint.style.marginBottom = '4px';
+      body.appendChild(hint);
+    } else if ((showSlope || showTraffic) && geomUnavailable) {
+      const hint = document.createElement('div');
+      hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
+      hint.style.fontSize = '11px';
+      hint.style.color    = '#555';
+      hint.style.marginBottom = '4px';
+      body.appendChild(hint);
+    }
 
-      // Pending vs. unavailable hint — the overlay control is built
-      // even for capability-positive cities whose geometry table is
-      // missing (legacy v1 ways file or unsupported future schema),
-      // so we must distinguish the two cases:
-      //   * isLoadingGeom    → "(lädt …)" — transient, will resolve.
-      //   * geomUnavailable  → permanent "Layer nicht verfügbar"
-      //                        hint, no spinner-like wording.
-      if ((showSlope || showTraffic) && isLoadingGeom) {
-        const hint = document.createElement('div');
-        hint.textContent = '(lädt …)';
-        hint.style.fontSize = '11px';
-        hint.style.color    = '#555';
-        hint.style.marginBottom = '4px';
-        body.appendChild(hint);
-      } else if ((showSlope || showTraffic) && geomUnavailable) {
-        const hint = document.createElement('div');
-        hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
-        hint.style.fontSize = '11px';
-        hint.style.color    = '#555';
-        hint.style.marginBottom = '4px';
-        body.appendChild(hint);
-      }
-
-      const add = (kind, label) => {
-        const id  = 'ctxOverlay_' + kind;
-        const row = document.createElement('label');
-        row.style.display = 'block';
-        // Cursor: 'wait' for transient loading, default for permanent
-        // unavailability so it doesn't look like a spinner forever.
-        row.style.cursor  = hasGeom ? 'pointer' : (isLoadingGeom ? 'wait' : 'not-allowed');
-        row.htmlFor = id;
-        if (!hasGeom) row.style.opacity = '0.6';
-        const cb  = document.createElement('input');
-        cb.type   = 'checkbox';
-        cb.id     = id;
-        cb.checked = !!reg.active[kind];
-        cb.disabled = !hasGeom;
-        cb.setAttribute('data-context-overlay', kind);
-        cb.setAttribute('aria-label', label);
-        // A11y (item 6, post-PR #261): make the toggles part of the
-        // natural keyboard tab order alongside the existing Leaflet
-        // controls (zoom, attribution), and announce the legend as
-        // their description so screen-reader users get the colour
-        // semantics without having to physically locate the
-        // bottom-left legend.
-        cb.setAttribute('tabindex', '0');
-        cb.setAttribute('aria-describedby', 'context-overlay-legend');
-        cb.addEventListener('change', () => {
-          UA.setContextOverlayActive(ctx, kind, cb.checked);
-        });
-        row.appendChild(cb);
-        row.appendChild(document.createTextNode(' ' + label));
-        body.appendChild(row);
-      };
-      if (showSlope)   add('slope',   'Straßensteigung');
-      if (showTraffic) add('traffic', 'Verkehrsbelastung');
-      if (risControl) body.appendChild(risControl);
-      return c;
+    const add = (kind, label) => {
+      const id  = 'ctxOverlay_' + kind;
+      const row = document.createElement('label');
+      row.style.display = 'block';
+      // Cursor: 'wait' for transient loading, default for permanent
+      // unavailability so it doesn't look like a spinner forever.
+      row.style.cursor  = hasGeom ? 'pointer' : (isLoadingGeom ? 'wait' : 'not-allowed');
+      row.htmlFor = id;
+      if (!hasGeom) row.style.opacity = '0.6';
+      const cb  = document.createElement('input');
+      cb.type   = 'checkbox';
+      cb.id     = id;
+      cb.checked = !!reg.active[kind];
+      cb.disabled = !hasGeom;
+      cb.setAttribute('data-context-overlay', kind);
+      cb.setAttribute('aria-label', label);
+      // A11y (item 6, post-PR #261): make the toggles part of the
+      // natural keyboard tab order alongside the existing Leaflet
+      // controls (zoom, attribution), and announce the legend as
+      // their description so screen-reader users get the colour
+      // semantics without having to physically locate the
+      // bottom-left legend.
+      cb.setAttribute('tabindex', '0');
+      cb.setAttribute('aria-describedby', 'context-overlay-legend');
+      cb.addEventListener('change', () => {
+        UA.setContextOverlayActive(ctx, kind, cb.checked);
+      });
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(' ' + label));
+      body.appendChild(row);
     };
-    ctrl.addTo(ctx.map);
-    reg.layerControl = ctrl;
+    if (showSlope)   add('slope',   'Straßensteigung');
+    if (showTraffic) add('traffic', 'Verkehrsbelastung');
+
     if (!showSlope && !showTraffic) {
       restoreControlFocus();
+      syncMapPanelOcclusion(ctx, mapControlState(ctx));
       return;
     }
 
@@ -1957,6 +1978,7 @@
     }
     _refreshContextLegend(ctx);
     restoreControlFocus();
+    syncMapPanelOcclusion(ctx, mapControlState(ctx));
     _ensureMoveEndHandler(ctx);
     if (hasV3Tiles && CONTEXT_OVERLAY_KINDS.some(kind => reg.active[kind])) {
       _ensureViewportTilesLoaded(ctx).then(() => {

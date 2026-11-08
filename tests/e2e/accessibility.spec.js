@@ -43,14 +43,14 @@ test.describe('Accessibility – Werkbank V2', () => {
     ).toHaveLength(0);
   });
 
-  test('Hinweise der Karten-Layer haben beim Laden und bei fehlenden Daten genug Kontrast', async ({ page }) => {
+  test('Hinweise unter Karte haben beim Laden und bei fehlenden Daten genug Kontrast', async ({ page }) => {
     const contextData = Promise.withResolvers();
     await page.route(/\/out\/(?:ways_hannover|output_all_years_hannover\.enrichment\.meta)\.json(?:\.gz)?$/u,
       async route => {
         await contextData.promise;
         await route.fulfill({ status: 404 });
       });
-    const control = page.getByRole('group', { name: 'Karten-Layer' });
+    const control = page.getByRole('group', { name: 'Karte', exact: true });
     const audit = () => new AxeBuilder({ page })
       .include('.context-overlay-control')
       .withRules(['color-contrast'])

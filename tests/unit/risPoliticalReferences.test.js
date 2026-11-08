@@ -134,3 +134,34 @@ test('shows the named places and their evidence in a search result, including te
     search.mockRestore();
   }
 });
+
+test.each([
+  ['unresolved', ['no_specific_location'], false, /Kein eindeutiger Ortsbezug/],
+  ['unavailable', ['gazetteer_unavailable'], false, /Keine geeigneten Geodaten/],
+  ['partial', ['document_text_unavailable', 'location_limit'], true, /Teilweise auf der Karte verortet/],
+])('shows the %s assessment even without a list of named locations', async (status, reasons, truncated, explanation) => {
+  require('../../js/ua.utils.js');
+  require('../../js/ua.political-context.js');
+  document.body.innerHTML = '<input id="polCtxSearchInput" value="Radverkehr">'
+    + '<div id="polCtxStatus"></div><div id="polCtxResults"></div>';
+  const api = window.UA.PoliticalContext;
+  const search = jest.spyOn(api, 'search').mockResolvedValue({
+    references: [{
+      id: 'bonn-paper-123', title: 'Radverkehr verbessern', type: 'Antrag',
+      url: 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=123',
+      locationAssessment: { status, sources: ['title'], reasons, truncated },
+    }], meta: { supported: true, searchStatus: 'results-found' },
+  });
+  try {
+    await api._runSearch({ CITY_RAW: 'Bonn' });
+    const result = document.querySelector('.polCtxRef');
+    const assessment = result.querySelector('[aria-label="Ortsprüfung"]');
+    expect(assessment?.textContent).toMatch(explanation);
+    expect(assessment.textContent).toContain('Titel');
+    if (truncated) expect(assessment.textContent).toMatch(/begrenzt|nicht alle/i);
+    if (reasons.includes('document_text_unavailable')) expect(assessment.textContent).toMatch(/Dokumenttext.*nicht.*verfügbar/i);
+    expect([...result.querySelectorAll('button')].some(button => button.textContent === 'Auf Karte zeigen')).toBe(false);
+  } finally {
+    search.mockRestore();
+  }
+});

@@ -2,7 +2,7 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { cityKey, searchSnapshot } = require('../../../js/ua.ris-catalogue.js');
+const { cityKey, searchSnapshot, createCatalogue } = require('../../../js/ua.ris-catalogue.js');
 const { readRisSnapshot } = require('./risSnapshot.js');
 
 function createRisSnapshotSearch(directory) {
@@ -21,10 +21,19 @@ function createRisSnapshotSearch(directory) {
     let entry = cache.get(city);
     if (entry?.revision !== revision) {
       if (cache.size >= 4 && !entry) cache.delete(cache.keys().next().value);
-      entry = { revision, snapshot: readRisSnapshot(directory, city) };
+      const manifest = JSON.parse(await fs.readFile(path.join(directory, `${city}.json`), 'utf8'));
+      if (manifest.schemaVersion === 2) {
+        const catalogue = createCatalogue({ base: 'https://ris.local/', fetch: async url => {
+          const name = new URL(url).pathname.split('/').pop();
+          if (!/^[a-z0-9_.-]+$/.test(name)) throw new Error('Invalid RIS asset name');
+          try { return new Response(await require('./risSnapshot').partitionInternals.readBounded(path.join(directory, name), 5 * 1024 * 1024, 'asset')); }
+          catch (error) { if (error.code === 'ENOENT') return new Response(null, { status: 404 }); throw error; }
+        }});
+        entry = { revision, catalogue };
+      } else entry = { revision, snapshot: readRisSnapshot(directory, city) };
       cache.set(city, entry);
     }
-    return searchSnapshot(await entry.snapshot, params);
+    return entry.catalogue ? entry.catalogue.search(params) : searchSnapshot(await entry.snapshot, params);
   };
 }
 

@@ -41,6 +41,8 @@ function loadArchModules(win) {
   load('ua.core.js');
   installJsonTransport(win);
   load('ua.data_paths.js');
+  load('ua.spatial-grid.js');
+  load('ua.data-budget.js');
   load('ua.accident_provider.js');
   load('ua.render_scheduler.js');
   load('ua.map_store.js');
