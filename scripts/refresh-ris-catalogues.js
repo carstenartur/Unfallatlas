@@ -57,7 +57,14 @@ async function collectOfficial(city, now, { previousCoverage, historyStartYear =
     concurrency: 8, maxDurationMs: maxDurationMs ?? 58 * 60_000, timeoutMs: 20_000,
     includeLocationEvidence: true, sourceCache, checkpoint, workBudget, report: progress,
   });
-  return withCollectionSettings(catalogue, { maxDocuments: 50_000, workBudget, maxDurationMs: maxDurationMs ?? 58 * 60_000 });
+  const { collectHannoverAdditionalSources } = require('../server/political-context/providers/hannoverAdditionalSources');
+  const { composeHannoverCatalogue } = require('../server/political-context/providers/hannoverCatalogueComposition');
+  // Additional public documents have their own cache/checkpoints and bounded
+  // discovery. They do not inherit SIM's historical year range or crawl budget.
+  const additional = await collectHannoverAdditionalSources({ now, sourceCache, checkpoint, workBudget,
+    maxPages: workBudget === 0 ? 0 : 2, maxNotices: workBudget === 0 ? 0 : 4 });
+  return withCollectionSettings(composeHannoverCatalogue(catalogue, additional, { now }),
+    { maxDocuments: 50_000, workBudget, maxDurationMs: maxDurationMs ?? 58 * 60_000 });
 }
 
 function withCollectionSettings(catalogue, limits, scope = {}) {
@@ -298,6 +305,8 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
     throw new Error(coverage?.warnings?.join(' ') || 'The official source did not return a usable catalogue');
   }
   let inputs = catalogue.records;
+  let sourceStatuses = catalogue.sourceStatuses;
+  const historicalSourceClocks = [];
   const retainedDetails = new Map();
   // Checkpoint evidence can outlive a published snapshot. Its original detail
   // clock must constrain publication even when no previous manifest exists.
@@ -306,10 +315,29 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   if (previous?.manifest && catalogue.history) {
     const old = await readRisSnapshot(previous.directory, city);
     const priorRecords = new Map(snapshotInputs(old).map(record => [record.id, record]));
+    const incoming = new Set(inputs.map(record => record.id));
+    const historicalAdditional = [...priorRecords.values()].filter(record => !incoming.has(record.id) &&
+      ['niedersachsen-landtag', 'region-hannover-bekanntmachungen'].includes(record.source));
+    if (historicalAdditional.length) {
+      historicalSourceClocks.push(old.manifest.generatedAt);
+      coverage = { ...coverage, warnings: [...coverage.warnings,
+        `${historicalAdditional.length} ältere Datensätze aus Zusatzquellen bleiben mit dem verifizierten Stand vom ${old.manifest.generatedAt} erhalten.`] };
+      if (sourceStatuses && old.manifest.sourceStatuses) {
+        const retained = new Set(historicalAdditional.map(record => record.source));
+        sourceStatuses = sourceStatuses.map(current => {
+          const relevant = retained.has('niedersachsen-landtag') && current.source.startsWith('landtag-') ||
+            retained.has('region-hannover-bekanntmachungen') && current.source === 'region-hannover-bekanntmachungen';
+          const prior = old.manifest.sourceStatuses.find(status => status.source === current.source);
+          if (!relevant || !prior?.retrievedAt) return current;
+          return { ...current, retrievedAt: [current.retrievedAt, prior.retrievedAt].filter(Boolean).sort()[0],
+            message: `${current.message} Frühere verifizierte Datensätze bleiben historisch erhalten.`.slice(0, 512) };
+        });
+      }
+    }
     for (const next of inputs) {
       const prior = priorRecords.get(next.id);
       const unavailable = next.locationEvidenceUnavailable === true;
-      const verifiedDetail = prior && (prior.geometry || prior.locations?.length || prior.relatedTo || prior.locationAssessment?.sources.includes('document'));
+      const verifiedDetail = prior && (prior.geometry || prior.locations?.length || prior.relatedTo || prior.events?.length || prior.relationships?.length || prior.locationAssessment?.sources.includes('document'));
       if (unavailable && verifiedDetail) {
         // Year-list fields can be newer than the last successful detail. Keep
         // independently verified detail evidence and relationships verbatim.
@@ -339,12 +367,12 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   const retainedAt = retainedClocks.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   if (retainedAt) coverage = { ...coverage, warnings: [...new Set([...coverage.warnings,
     `Nicht aktuell verfügbare Details behalten ihren zuletzt verifizierten Stand vom ${retainedAt}.`])] };
-  const sourceClock = [catalogue.generatedAt, retainedAt, ...inputs.map(record => record.detailVerifiedAt)].filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] || now.toISOString();
+  const sourceClock = [catalogue.generatedAt, retainedAt, ...historicalSourceClocks, ...inputs.map(record => record.detailVerifiedAt)].filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] || now.toISOString();
   const retainedSource = { generatedAt: sourceClock,
     ...(retainedAt && previous?.manifest.refreshFailure ? { refreshFailure: { ...previous.manifest.refreshFailure,
       expiresAt: new Date(Date.parse(sourceClock) + RIS_FALLBACK_MAX_AGE_MS).toISOString() } } : {}) };
   const provenance = collectionProvenance({ catalogue, city, records, sourceRecords: inputs, sourceVerifiedAt: sourceClock, now, sourceOptions });
-  await writeRisSnapshot(directory, city, { ...catalogue, ...retainedSource, provenance, coverage, records, locationRevision: LOCATION_REVISION }, { now, schemaVersion: 2 });
+  await writeRisSnapshot(directory, city, { ...catalogue, ...(sourceStatuses ? { sourceStatuses } : {}), ...retainedSource, provenance, coverage, records, locationRevision: LOCATION_REVISION }, { now, schemaVersion: 2 });
   const { manifest } = await readRisSnapshot(directory, city);
   if (manifest.locationAssessment?.attempted !== recordCount(manifest)) throw new Error('Not every indexed record received a location assessment');
   assertUnexpiredSnapshot(manifest, now);
@@ -384,6 +412,7 @@ async function prepareLocalAssessment(directory, selected, builtAt) {
   const gazetteer = await loadGazetteer(source.city);
   const next = await writeRisSnapshot(directory, source.city, {
     sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISION,
+    ...(source.sourceStatuses === undefined ? {} : { sourceStatuses: source.sourceStatuses }),
     records: enrichRisLocations(inputs, { city: source.city, gazetteer, maxLocationsPerRecord: Infinity }),
     generatedAt: source.generatedAt, ...(source.provenance === undefined ? {} : { provenance: source.provenance }), ...(source.refreshFailure ? { refreshFailure: source.refreshFailure } : {}),
   }, { now: builtAt, schemaVersion: 2 });

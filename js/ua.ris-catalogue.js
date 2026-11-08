@@ -256,6 +256,7 @@
         || !validAsset(manifest.records, key, 'records') || !manifest.records.count
         || !validAsset(manifest.map, key, 'map', manifest.records.count * MAX_LOCATIONS_PER_RECORD)
         || !validLocationAssessmentSummary(manifest.locationAssessment, manifest.records.count)) throw invalid();
+    if (!partitions()?.validSourceStatuses(manifest.sourceStatuses, manifest.sources)) throw invalid('Invalid RIS source statuses');
     if (manifest.provenance !== undefined && !partitions()?.validProvenance(manifest.provenance, manifest.generatedAt, manifest.records.count, coverage)) throw invalid('Invalid RIS provenance');
     return manifest;
   }
@@ -420,6 +421,7 @@
         providerKey: 'ris-snapshot', sourceType: 'ris-snapshot', sourceUrl: manifest.sources[0],
         sourceFingerprint: manifest.generation || manifest.records.sha256, generatedAt: manifest.generatedAt,
         coverage: manifest.coverage, warnings,
+        ...(manifest.sourceStatuses === undefined ? {} : { sourceStatuses: manifest.sourceStatuses.map(value => ({ ...value })) }),
         ...(manifest.refreshFailure ? { refreshFailure: manifest.refreshFailure } : {}),
         // A published selection has a bounded scope and cannot certify full live research.
         truncated: !complete
@@ -478,6 +480,7 @@
       if (!Array.isArray(records) || records.length !== manifest.records.count
           || records.some(record => !validText(record?.id) || !validText(record.title) || !validText(record.type)
             || !validText(record.source) || !validDay(record.date) || !isSourceUrl(record.url, manifest.sources)
+            || !partitions().validRecordFacts(record, manifest.sources)
             || !validLocations(record.locations) || !validLocationAssessment(record.locationAssessment, record.locations))
           || !validLocationAssessmentSummary(manifest.locationAssessment, records.length, records)) {
         throw invalid();
@@ -521,7 +524,7 @@
       };
     }
     function validPartitionRecord(record, manifest) {
-      if (!record || !validText(record.id) || !validText(record.title) || !validText(record.type) || !validText(record.source) || !validDay(record.date) || !isSourceUrl(record.url, manifest.sources) || !Number.isSafeInteger(record.locationCount) || record.locationCount < 0) throw invalid();
+      if (!record || !partitions().validRecordFacts(record, manifest.sources, { directory: true }) || !validText(record.id) || !validText(record.title) || !validText(record.type) || !validText(record.source) || !validDay(record.date) || !isSourceUrl(record.url, manifest.sources) || !Number.isSafeInteger(record.locationCount) || record.locationCount < 0) throw invalid();
       return record;
     }
     async function recordFrom(part, id) {
@@ -590,6 +593,29 @@
         locations: items
       };
     }
+    async function loadRecordHistory(city, id, field, page = 0, options = {}) {
+      if (!Number.isSafeInteger(page) || page < 0) throw invalid();
+      const part = await partition(city, options);
+      const count = partitions().HISTORY_FIELDS[field];
+      if (!part) {
+        const record = await loadRecord(city, id, options);
+        if (!record || page !== 0) throw invalid();
+        const known = record[field] !== undefined;
+        return { [field]: record[field] || [], known, total: known ? record[field].length : null,
+          start: 0, page, nextPage: null, complete: true, missing: [] };
+      }
+      const record = await part.reader.get('records', id);
+      validPartitionRecord(record, part.manifest);
+      if (record.id !== id) throw invalid();
+      if (record[count] === undefined) return { [field]: [], known: false, total: null,
+        start: 0, page, nextPage: null, complete: true, missing: [] };
+      const result = await part.reader.page('links', `${field}:${id}`, page);
+      if (result.total !== record[count]) throw invalid('RIS history count mismatch');
+      const { items, ...meta } = result;
+      return { ...meta, [field]: items, known: true };
+    }
+    const loadRecordEvents = (city, id, page = 0, options = {}) => loadRecordHistory(city, id, 'events', page, options);
+    const loadRecordRelationships = (city, id, page = 0, options = {}) => loadRecordHistory(city, id, 'relationships', page, options);
     async function relationPage(part, id, page = 0) {
       const membership = await part.reader.get('relations', `member:${id}`);
       if (!membership) return {
@@ -1089,7 +1115,7 @@
           return attachSnapshot(record, snapshot);
         });
       },
-      loadRecord, loadRecordLocations, loadRecordGeometries, loadRelatedRecords, loadFeatureRecords, loadGeometry,
+      loadRecord, loadRecordLocations, loadRecordEvents, loadRecordRelationships, loadRecordGeometries, loadRelatedRecords, loadFeatureRecords, loadGeometry,
       loadMap: loadPartitionMap
     };
   }
