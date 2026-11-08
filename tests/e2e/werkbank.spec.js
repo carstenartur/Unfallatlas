@@ -357,9 +357,10 @@ test.describe('Werkbank V2 - Export Modal Functionality', () => {
     const exportTextArea = page.locator('#exportBoxTa');
     await expect(exportTextArea).toBeVisible();
     
-    // Should have some content after report generation
-    const content = await exportTextArea.inputValue();
-    expect(content.length).toBeGreaterThan(0);
+    // "…" is non-empty too. Require the generated report for the active city.
+    const city = await page.locator('#citySel').inputValue();
+    await expect.poll(async () => (await exportTextArea.inputValue()).includes(`Stadt: ${city}`),
+      { timeout: 15000 }).toBe(true);
   });
 
   test('should have copy buttons', async ({ page }) => {
