@@ -184,4 +184,14 @@ zweite gegen Originaldaten geprüfte kommunale Quelle. Jahres-DTV und
 Fahrrad-Stundenwerte bleiben unterschiedliche Messgrößen; dieser Quellenbaustein
 behauptet keine Straßenpassung oder vollständige Abnahme von #413.
 
+Für die vollständige Abnahme von #413 fehlen weiterhin:
+
+- die fachliche Abnahme schwacher oder gemeinsam zugeordneter Straßensegmente;
+- Coverage-Bericht, Frischeprüfung und sichtbare Warnung bei alten Messständen;
+- die Übernahme ausgewählter Evidenz in Unfall-GeoJSON, Way-Tiles, Sidecar,
+  Popups und Exporte;
+- manuell gegen die Originalquellen geprüfte Goldfälle.
+
+Die generischen Berliner Source-Descriptoren oben ersetzen keine geprüften
+WFS/GML-/XLSX-Importe und zählen nicht als real aktivierte Quellen.
 Die Provider bleiben opt-in; der ausgelieferte Standardbestand bleibt qualitativ.

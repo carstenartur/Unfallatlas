@@ -263,13 +263,24 @@
     return { ui, contextFilters, involvementMode: ctx?.involvementMode };
   }
 
+  function copyContext(ctx, overrides) {
+    // Year adapters own only their normalized points and inherit the live
+    // context. Materialize inherited state too, without assigning through the
+    // adapter's read-only allPts property or retaining a live prototype link.
+    const inherited = [];
+    for (const key in ctx) {
+      if (!Object.prototype.hasOwnProperty.call(ctx, key)) inherited.push([key, ctx[key]]);
+    }
+    return { ...Object.fromEntries(inherited), ...ctx, ...overrides };
+  }
+
   function bindExportContext(UA, ctx, manifest) {
     const cached = snapshotFor(ctx, manifest);
     const points = cached?.projectedPoints || exportPoints(UA, ctx);
     const activePoints = cached?.activePoints || (UA?.AnalysisScope?.getActiveFilteredPoints
-      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: points }) : points);
+      ? UA.AnalysisScope.getActiveFilteredPoints(copyContext(ctx, { allPts: points })) : points);
     const filterContext = cached?.filterContext || captureFilterContext(ctx);
-    const bound = { ...ctx, ...filterContext, allPts: points, exportSourceManifest: manifest };
+    const bound = copyContext(ctx, { ...filterContext, allPts: points, exportSourceManifest: manifest });
     const snapshot = { dataFingerprint: manifest.dataFingerprint, projectedPoints: points, activePoints, filterContext };
     manifestCache.set(bound, snapshot);
     manifestSnapshots.set(manifest, snapshot);
@@ -283,7 +294,7 @@
     // Document notes retain the active population captured before hashing;
     // an ordinary standalone preview intentionally follows current controls.
     const points = cached?.activePoints || (UA?.AnalysisScope?.getActiveFilteredPoints
-      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: boundPoints }) : boundPoints);
+      ? UA.AnalysisScope.getActiveFilteredPoints(copyContext(ctx, { allPts: boundPoints })) : boundPoints);
     const groups = new Map();
     const sources = new Map();
     const safeUrl = value => {
@@ -611,7 +622,7 @@
 
     const points = environment.projectedPoints || exportPoints(UA, ctx);
     const activePoints = UA?.AnalysisScope?.getActiveFilteredPoints
-      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: points }) : points;
+      ? UA.AnalysisScope.getActiveFilteredPoints(copyContext(ctx, { allPts: points })) : points;
     const filterContext = captureFilterContext(ctx);
     const city = String(ctx?.CITY_RAW || "").trim();
     if (!city) fail("missing_city", "A city is required for export provenance");
