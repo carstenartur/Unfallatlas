@@ -11,8 +11,17 @@
     'niedersachsen-landtag': 'Niedersächsischer Landtag',
     'bonn-oparl': 'Bundesstadt Bonn · Ratsinformationssystem',
   };
+  const SOURCE_LEVELS = { 'hannover-sim': 'city', 'region-hannover-ris': 'region',
+    'region-hannover-bekanntmachungen': 'region', 'niedersachsen-landtag': 'state', 'bonn-oparl': 'city' };
   const LEVELS = { city: 'Stadt', region: 'Region', state: 'Land' };
   const DOCUMENT_KINDS = { proposal: 'Vorlage / Antrag', answer: 'Antwort', agenda: 'Tagesordnung', minutes: 'Protokoll', other: 'Sonstiges' };
+  const DOCUMENT_KIND_NAMES = {
+    proposal: /^(?:vorlage|antrag|änderungsantrag|anfrage|beschlussdrucksache|beschlussvorlage|beschlussempfehlung)$/i,
+    answer: /^(?:antwort|verwaltungsantwort|stellungnahme)$/i,
+    agenda: /^(?:tagesordnung|bekanntmachung)$/i,
+    minutes: /^(?:protokoll|niederschrift|stenografischer bericht)$/i,
+    other: /^(?:sonstige|sonstiges)$/i,
+  };
   const LOCATION_KINDS = { junction: 'Kreuzung', section: 'Abschnitt', street: 'Straßenbezug', address: 'Adresse', place: 'Ort' };
   let nextId = 0;
 
@@ -49,6 +58,26 @@
 
   function sourceLabel(record) {
     return SOURCE_LABELS[record.source] || record.sourceContext?.publisher || record.source || 'Quelle nicht angegeben';
+  }
+
+  function headerQualifiers(record, kind) {
+    const context = record.sourceContext;
+    if (!context) return [];
+    const key = value => String(value).trim().replace(/\s+/g, ' ').toLocaleLowerCase('de');
+    const source = sourceLabel(record);
+    const seen = new Set([kind, source, ...source.split('·')].map(key));
+    if (SOURCE_LEVELS[record.source] === context.level) seen.add(key(LEVELS[context.level]));
+    // Suppress a coarse category only when the displayed type already states it.
+    // Unrecognized or differing document metadata remains visible.
+    if ([kind, context.documentKind].some(value => value && DOCUMENT_KIND_NAMES[context.status]?.test(value.trim()))) {
+      seen.add(key(DOCUMENT_KINDS[context.status]));
+    }
+    return [LEVELS[context.level], context.publisher, context.issuer, context.documentKind, DOCUMENT_KINDS[context.status]]
+      .filter(value => {
+        if (!value || seen.has(key(value))) return false;
+        seen.add(key(value));
+        return true;
+      });
   }
 
   function dateLabel(value) {
@@ -111,16 +140,15 @@
 
     const header = append(root, 'header', null, 'ris-record-view__header');
     const eyebrow = append(header, 'div', null, 'ris-record-view__eyebrow');
-    append(eyebrow, 'span', record.type || record.sourceContext?.documentKind || 'Ratsvorgang', 'ris-record-view__kind');
+    const kind = record.type || record.sourceContext?.documentKind || 'Ratsvorgang';
+    append(eyebrow, 'span', kind, 'ris-record-view__kind');
     if (record.number) append(eyebrow, 'span', record.number, 'ris-record-view__number');
     const title = append(header, 'h3', record.title || 'Ratsvorgang ohne Titel', 'ris-record-view__title');
     title.tabIndex = -1;
     append(header, 'p', `Quelle: ${sourceLabel(record)}`, 'ris-record-view__source');
     const context = record.sourceContext;
-    if (context) {
-      const qualifiers = [LEVELS[context.level], context.publisher, context.issuer, context.documentKind, DOCUMENT_KINDS[context.status]].filter(Boolean);
-      if (qualifiers.length) append(header, 'p', qualifiers.join(' · '), 'ris-record-view__metadata');
-    }
+    const qualifiers = headerQualifiers(record, kind);
+    if (qualifiers.length) append(header, 'p', qualifiers.join(' · '), 'ris-record-view__metadata');
     const dates = [['publicationDate', 'Veröffentlicht'], ['documentDate', 'Dokumentdatum'], ['meetingDate', 'Sitzungsdatum']];
     const dateRows = context ? dates.filter(([field]) => context[field]).map(([field, label]) => [context[field], label]) : [];
     if (!dateRows.length && record.date) dateRows.push([record.date, 'Datum']);
@@ -166,7 +194,7 @@
         () => options.onAdopt(record), 'Vorgang für den Bericht übernommen.'));
     }
     if (snapshot?.stale) append(header, 'p', 'Dieser Datenstand ist älter. Neuere Beratungen können noch fehlen.', 'ris-record-view__notice');
-    else if (snapshot?.complete === false) append(header, 'p', 'Der geprüfte Datenbestand ist unvollständig; weitere Vorgänge oder Belege können fehlen.', 'ris-record-view__notice');
+    else if (snapshot?.complete === false) append(header, 'p', 'Unvollständiger Datenbestand: Vorgänge oder Belege können fehlen.', 'ris-record-view__notice');
 
     const tablist = append(root, 'div', null, 'ris-record-view__tabs');
     tablist.setAttribute('role', 'tablist');

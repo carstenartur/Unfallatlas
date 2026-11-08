@@ -863,6 +863,9 @@
     if (!window.L) throw new Error("Leaflet fehlt.");
 
     const map = L.map("map", { preferCanvas: true });
+    // The main analysis panel occupies the left corner, including when folded.
+    // Reuse Leaflet's native control before Draw and Karte join the right column.
+    map.zoomControl.setPosition("topright");
     map.setView([52.3759, 9.732], 12);
     ctx.map = map;
     window._uaMap = map;  // expose for E2E tests / debugging

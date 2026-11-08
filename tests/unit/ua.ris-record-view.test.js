@@ -81,6 +81,42 @@ describe('shared council record presentation', () => {
     expect(UA.RisCatalogue.loadRelatedRecords).not.toHaveBeenCalled();
   });
 
+  // Break caught: source and type metadata crowding the first screen with duplicate labels.
+  test('shows the source and precise document type once while retaining dated facts and the incomplete-data notice', () => {
+    const { element } = mount({ ...BASE_RECORD, date: '2023-09-19', gremium: 'Regionsversammlung', events: [],
+      sourceContext: { level: 'region', publisher: 'Region Hannover', issuer: 'Region Hannover',
+        documentKind: 'Beschlussdrucksache', status: 'proposal', documentDate: '2023-08-24' } }, {},
+    { snapshot: { ...SNAPSHOT, complete: false } });
+    const header = element.querySelector('.ris-record-view__header');
+    expect(header.textContent.match(/Region Hannover/g)).toHaveLength(1);
+    expect(header.textContent.match(/Beschlussdrucksache/g)).toHaveLength(1);
+    expect(header.querySelector('.ris-record-view__metadata')).toBeNull();
+    expect(header.querySelector('time').dateTime).toBe('2023-08-24');
+    expect(header.textContent).toContain('Regionsversammlung');
+    expect(header.querySelector('.ris-record-view__notice').textContent)
+      .toBe('Unvollständiger Datenbestand: Vorgänge oder Belege können fehlen.');
+    expect(header.querySelector('details')).toBeNull();
+  });
+
+  // Break caught: compacting the header by deleting genuinely additional issuer or document facts.
+  test('retains a distinct issuer, document kind and classification while removing known source qualifiers', () => {
+    const { element } = mount({ ...BASE_RECORD, type: 'Unterlage', events: [],
+      sourceContext: { level: 'region', publisher: 'Region Hannover', issuer: 'Fachbereich Verkehr',
+        documentKind: 'Drucksache', status: 'answer' } });
+    expect(element.querySelector('.ris-record-view__metadata').textContent)
+      .toBe('Fachbereich Verkehr · Drucksache · Antwort');
+  });
+
+  // Break caught: treating unknown source IDs as proof of a governmental level, or case-only repeats as new facts.
+  test('retains the supplied level for an unknown source and deduplicates only equivalent visible labels', () => {
+    const { element } = mount({ ...BASE_RECORD, source: 'gemeinsames-archiv', type: 'Tagesordnung', events: [],
+      sourceContext: { level: 'region', publisher: 'Gemeinsames Archiv', issuer: 'Gemeinsames Archiv',
+        documentKind: '  TAGESORDNUNG  ', status: 'agenda' } });
+    expect(element.querySelector('.ris-record-view__source').textContent).toBe('Quelle: Gemeinsames Archiv');
+    expect(element.querySelector('.ris-record-view__metadata').textContent).toBe('Region');
+    expect(element.querySelector('.ris-record-view__kind').textContent).toBe('Tagesordnung');
+  });
+
   // Break caught: treating a shared page as a request to replay all preceding pages.
   test('loads exactly the selected history page with its snapshot and replaces it on navigation', async () => {
     UA.RisCatalogue.loadRecordEvents.mockImplementation(async (_city, _id, index) => index === 2

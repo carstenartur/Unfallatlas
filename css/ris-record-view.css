@@ -245,7 +245,7 @@
   top: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.2fr) minmax(0, .65fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(44px, max-content);
   gap: 4px;
   padding: 8px 20px;
   border-top: 1px solid #ebe5f0;
@@ -433,16 +433,25 @@
     border-radius: 12px;
   }
 
-  .ris-details__toolbar { display: block; padding: 8px 10px 10px; }
-  .ris-details__toolbar h2 { margin-bottom: 6px; font-size: .8rem; }
+  .ris-details__toolbar { display: block; padding: 8px 10px; }
+  .ris-details__toolbar h2 { margin-bottom: 4px; font-size: .8rem; }
   .ris-details__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
   .ris-details__actions button { min-width: 0; padding: 8px 5px; font-size: .76rem; }
   .ris-details__status { padding: 10px 14px; }
-  .ris-record-view__header { padding: 18px 16px 16px; }
-  .ris-record-view__tabs { padding: 7px 10px; gap: 3px; }
+  .ris-record-view__header { padding: 14px 16px 12px; }
+  .ris-record-view__eyebrow { margin-bottom: 6px; }
+  .ris-record-view__title { margin-bottom: 10px; }
+  .ris-record-view__metadata,
+  .ris-record-view__intro { margin: 4px 0 8px; }
+  .ris-record-view__actions { margin-top: 8px; }
+  .ris-record-view__notice { margin: 10px 0 0; padding: 9px 11px; line-height: 1.45; }
+  .ris-record-view__tabs { padding: 6px 10px; gap: 3px; }
   .ris-record-view__tabs [role="tab"] { padding: 9px 4px; font-size: .75rem; }
-  .ris-record-view__panel { padding: 18px 16px 24px; }
-  .ris-record-view__facts { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 4px 10px; }
+  .ris-record-view__panel { padding: 14px 16px 20px; }
+  .ris-record-view__facts { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 4px 10px; margin: 10px 0 12px; }
+  .ris-record-view__status { margin: 8px 0; }
+  .ris-process,
+  .ris-record-view__cards { margin-top: 12px; }
   .ris-record-view__card { padding: 12px; }
   .ris-process-step { padding-left: 23px; }
   .ris-record-view__evidence { padding: 10px; }
@@ -450,11 +459,16 @@
   .ris-record-view__pager button { padding-inline: 7px; }
 
   .ris-details.ris-details--collapsed {
-    inset-block-start: auto;
-    inset-block-end: max(8px, env(safe-area-inset-bottom));
-    width: auto;
+    inset-block-start: max(8px, env(safe-area-inset-top));
+    inset-inline-start: max(8px, env(safe-area-inset-left));
+    inset-inline-end: auto;
+    inset-block-end: auto;
+    width: min(16rem, calc(100vw - 8.5rem));
     height: auto;
   }
+
+  .ris-details--collapsed .ris-details__actions { display: flex; }
+  .ris-details--collapsed .ris-details__actions button { flex: 1 1 auto; overflow-wrap: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
