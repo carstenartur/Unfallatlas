@@ -16,7 +16,10 @@ function composeHannoverCatalogue(cityCatalogue, additional, { now = new Date() 
     url: cityCatalogue.sources[0], retrievedAt: cityClock, from: cityCatalogue.coverage.from, to: cityCatalogue.coverage.to,
     recordCount: cityRecords.length, message: 'Städtischer SIM-Katalog; Quellenabdeckung siehe eigenen Zeitraum und Sammlungsstatus.' };
   const sourceStatuses = [cityStatus, ...additional.sourceStatuses];
-  const generatedAt = [cityClock, ...sourceStatuses.map(s => s.retrievedAt)].filter(Boolean).sort()[0];
+  // Only sources contributing records constrain data freshness. An old empty
+  // failed checkpoint remains visible in sourceStatuses, without expiring SIM.
+  const generatedAt = [cityClock, ...additional.sourceStatuses.filter(s => s.recordCount > 0).map(s => s.retrievedAt)]
+    .filter(Boolean).sort()[0];
   return { ...cityCatalogue, records, generatedAt,
     sources: [...new Set([...cityCatalogue.sources, ...(additional.sources || sourceStatuses.map(s => s.url))])],
     sourceStatuses,

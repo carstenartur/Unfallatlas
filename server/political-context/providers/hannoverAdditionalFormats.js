@@ -29,8 +29,50 @@ function entities(value) {
   });
 }
 function text(value) {
-  return entities(String(value || '').replace(/<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>/gi, '')
-    .replace(/<[^>]*>/g, ' ')).replace(/[\s\u0000-\u001f]+/g, ' ').trim();
+  // Extract source text with a forward-only scanner. Removing nested HTML
+  // fragments with replacement regexes can reassemble markup. This returns
+  // plain text, never HTML; consumers must still use their normal text sinks.
+  const source = String(value || ''), lower = source.toLowerCase();
+  const pieces = [];
+  let cursor = 0, rawTag = null;
+  function tagEnd(start) {
+    let quote = null;
+    for (let i = start; i < source.length; i++) {
+      const character = source[i];
+      if (quote) { if (character === quote) quote = null; }
+      else if (character === '"' || character === "'") quote = character;
+      else if (character === '>') return i;
+    }
+    return -1;
+  }
+  while (cursor < source.length) {
+    if (rawTag) {
+      const closing = lower.indexOf(`</${rawTag}`, cursor);
+      if (closing < 0) break;
+      const afterName = closing + rawTag.length + 2;
+      if (!/[\s/>]/.test(source[afterName] || '')) { cursor = afterName; continue; }
+      const end = tagEnd(afterName);
+      if (end < 0) break;
+      cursor = end + 1; rawTag = null; pieces.push(' ');
+      continue;
+    }
+    const opening = source.indexOf('<', cursor);
+    if (opening < 0) { pieces.push(source.slice(cursor)); break; }
+    pieces.push(source.slice(cursor, opening), ' ');
+    if (source.startsWith('<!--', opening)) {
+      const end = source.indexOf('-->', opening + 4);
+      if (end < 0) break;
+      cursor = end + 3;
+      continue;
+    }
+    const end = tagEnd(opening + 1);
+    if (end < 0) break;
+    const tag = source.slice(opening + 1, end).match(/^(script|style)(?:[\s/]|$)/i);
+    if (tag) rawTag = tag[1].toLowerCase();
+    cursor = end + 1;
+  }
+  // Decode once, then discard every angle bracket, including encoded input.
+  return entities(pieces.join('')).replace(/[<>]/g, ' ').replace(/[\s\u0000-\u001f]+/g, ' ').trim();
 }
 function input(value) {
   if (typeof value !== 'string' || Buffer.byteLength(value) > MAX_INPUT) throw new Error('Invalid source response size');

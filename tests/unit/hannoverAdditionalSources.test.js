@@ -8,6 +8,19 @@ const BASE = 'https://www.landtag-niedersachsen.de/dokumentensuche/';
 const PDF = 'https://www.landtag-niedersachsen.de/drucksachen/drucksachen_19_10000/08501-09000/19-08980.pdf';
 const NOTICE = 'https://bekanntmachungen.region-hannover.de/Regionsversammlung-und-Aussch%C3%BCsse/21.04.2026-Regionsversammlung';
 
+test.each(['script', 'style'])('plain text extraction discards %s content through malformed closing attributes', kind => {
+  expect(formats.text(`Vor<${kind}>hidden()</${kind}\t\n data-x="ignored">Nach`)).toBe('Vor Nach');
+  expect(formats.text(`Vor<${kind}>unterminated`)).toBe('Vor');
+});
+
+test('plain text extraction never reconstructs markup from nested removal or decoded entities', () => {
+  for (const value of ['<scr<!--comment-->ipt>alert(1)</script>', '&lt;img src=x onerror=alert(1)&gt;',
+    '&#60;script&#62;alert(1)&#60;/script&#62;', '<!-- comment --!><script>hidden</script>']) {
+    expect(formats.text(value)).not.toMatch(/[<>]/);
+  }
+  expect(formats.text('Rad<b title="a > b">weg</b> &amp; &Uuml;berweg')).toBe('Rad weg & Überweg');
+});
+
 test('catalogue keeps real document URL, answer status and unknown date roles for 19/8980', () => {
   const parsed = formats.parseLandtagCatalogue(fixture('landtag-catalogue.html'), BASE);
   expect(parsed.total).toBe(1);

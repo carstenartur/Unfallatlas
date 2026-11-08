@@ -67,6 +67,16 @@ test('normalization rejects untrusted PDF hosts and malformed optional source cl
   expect(normalizeSourceStatuses([{ ...STATUS, url: 'https://user@www.landtag-niedersachsen.de/' }])).toEqual([]);
 });
 
+test('exact Landtag number matches while the independent local traffic requirement remains enforced', async () => {
+  const provider = createHannoverCompositeProvider({ collectCatalogue: async () => ({
+    records: [local(), { ...local(), id: 'statewide', title: 'Radverkehr in Niedersachsen', snippet: '', number: '19/8980' }],
+    sourceStatus: STATUS, pagesFetched: 1,
+  }) });
+  const result = await provider.search({ city: 'Hannover', searchTerms: ['19/8980'], context: { landtagNumber: '19/8980' } });
+  expect(result.results).toHaveLength(1);
+  expect(result.results[0]).toMatchObject({ number: '19/8980', topicMatch: ['19/8980'] });
+});
+
 test('distinct Region agenda items retain their official page URL and do not collapse during normalization', () => {
   const { normalizeAll } = require('../../server/political-context/services/portalNormalizationService');
   const { parseRegionNotice } = require('../../server/political-context/providers/hannoverAdditionalFormats');

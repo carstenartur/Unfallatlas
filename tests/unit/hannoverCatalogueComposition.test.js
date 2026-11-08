@@ -39,6 +39,15 @@ test('source identity and date-role changes alter provenance independently of de
   expect(sourceProjectionFingerprint([first]).sha256).not.toBe(sourceProjectionFingerprint([{ ...first, originalPdfUrl: 'https://www.landtag-niedersachsen.de/updated.pdf' }]).sha256);
 });
 
+test('a failed empty supplementary checkpoint cannot expire a fresh city catalogue', () => {
+  const status = { source: 'landtag-rss', status: 'failed', url: 'https://www.landtag-niedersachsen.de/rss/drucksachen.xml',
+    retrievedAt: '2026-01-01T00:00:00.000Z', from: null, to: null, recordCount: 0, message: 'Retained empty checkpoint; refresh failed' };
+  const result = composeHannoverCatalogue(sim(), { records: [], sourceStatuses: [status] }, { now: NOW });
+  expect(result.generatedAt).toBe(sim().generatedAt);
+  expect(result.sourceStatuses).toContainEqual(status);
+  expect(result.coverage.complete).toBe(false);
+});
+
 
 test('public event and relationship evidence participates in the source projection', () => {
   const first = local();

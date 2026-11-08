@@ -10,7 +10,7 @@ function termsFrom(values) {
 }
 function matchingAdditional(record, terms) {
   if (!hasLocalTrafficEvidence(record)) return null;
-  const haystack = substantiveText(record).toLocaleLowerCase('de');
+  const haystack = `${substantiveText(record)}\n${record.number || ''}`.toLocaleLowerCase('de');
   const matched = terms.filter(term => haystack.includes(term.toLocaleLowerCase('de')));
   if (!matched.length) return null;
   const streetHints = matched.filter(term => /straße|strasse|weg\b|platz\b|allee\b|ufer\b/i.test(term));
