@@ -20,9 +20,13 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each([
-    'css/ua.css', 'js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.ris-layer.js', 'js/ua.preview_map_renderer.js',
+    'css/ua.css', 'js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.preview_map_renderer.js',
   ])('%s invalidates the cache for unified map controls', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-scalable-catalogue"`);
+  });
+
+  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
   });
 
   test('the tour invalidates the cache for the political research UI', () => {
@@ -38,7 +42,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each([
-    'js/ua.ris-catalogue.js', 'js/ua.political-context.js',
+    'js/ua.political-context.js',
   ])('%s invalidates the cache for the common location assessment contract', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-scalable-catalogue"`);
   });

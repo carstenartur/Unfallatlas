@@ -71,6 +71,15 @@ test('fresh collection retains reliable page counters without claiming projected
   expect(value.rights).toEqual({ status: 'not-specified', license: null, attribution: [] });
 });
 
+test('a combined Hannover catalogue declares both providers even when regional evidence was retained', () => {
+  const sourceRecords = [{ ...row, source: 'hannover-sim' }, { ...row, id: 'region:one', source: 'region-hannover-ris' }];
+  const value = collectionProvenance({ catalogue: input(), city: 'hannover', records: sourceRecords, sourceRecords,
+    sourceVerifiedAt: verified, now: new Date(built) });
+  expect(value.provider).toBe('hannover-official-sources');
+  expect(value.normalizationRevision).toBe('hannover-multi-source-citation-v1');
+  expect(value.sourceFingerprint).toEqual(sourceProjectionFingerprint(sourceRecords));
+});
+
 test('server and browser share strict bounded provenance validation', async () => {
   const context = { window: { UA: {} } };
   vm.runInNewContext(await fs.readFile(path.resolve(__dirname, '../../js/ua.ris-partitions.js'), 'utf8'), context);

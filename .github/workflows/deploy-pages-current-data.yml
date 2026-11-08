@@ -2,6 +2,10 @@ name: "04 · Aktuelle Daten veröffentlichen"
 
 on:
   workflow_dispatch:
+  schedule:
+    # Continue bounded RIS detail acquisition and renewal daily. Sunday's
+    # existing full data workflow supplies the remaining weekly run.
+    - cron: '17 4 * * 1-6'
   push:
     branches: [main]
     paths:

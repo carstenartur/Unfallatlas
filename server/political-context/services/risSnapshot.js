@@ -359,6 +359,7 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, sc
   const date = new Date(typeof now === 'function' ? now() : now);
   if (!Number.isFinite(date.getTime())) throw new Error('Invalid RIS generation timestamp');
   const generatedAt = timestamp(catalogue.generatedAt || date.toISOString());
+  const withdrawalsRecordedAt = catalogue.withdrawalsRecordedAt === undefined ? undefined : timestamp(catalogue.withdrawalsRecordedAt, 'withdrawal timestamp', true);
 
   const [recordsAsset, mapAsset] = await Promise.all([
     encodeAsset(city, 'records', records),
@@ -370,6 +371,7 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, sc
   const provenance = buildProvenance(catalogue.provenance, { generatedAt, recordCount: records.length, coverage, now, assets: [recordsAsset, mapAsset] });
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
+    ...(withdrawalsRecordedAt === undefined ? {} : { withdrawalsRecordedAt }),
     ...(provenance === undefined ? {} : { provenance }),
     ...(catalogue.sourceStatuses === undefined ? {} : { sourceStatuses: catalogue.sourceStatuses }),
     records: recordsAsset.reference, map: mapAsset.reference,
@@ -394,6 +396,7 @@ async function readRisSnapshot(directory, city) {
   const { locationRevision } = value;
   if (!validLocationRevision(locationRevision)) throw new Error('Invalid RIS location revision');
   const generatedAt = timestamp(value.generatedAt);
+  const withdrawalsRecordedAt = value.withdrawalsRecordedAt === undefined ? undefined : timestamp(value.withdrawalsRecordedAt, 'withdrawal timestamp', true);
   const refreshFailure = Object.hasOwn(value, 'refreshFailure') ? normalizeRefreshFailure(value.refreshFailure, generatedAt) : null;
   const { sources, hosts } = normalizeSources(value.sources, city);
   const coverage = normalizeCoverage(value.coverage);
@@ -412,6 +415,7 @@ async function readRisSnapshot(directory, city) {
   await verifyDistribution(directory, value.provenance, [recordsAsset, mapAsset]);
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
+    ...(withdrawalsRecordedAt === undefined ? {} : { withdrawalsRecordedAt }),
     records: recordsAsset, map: mapAsset,
     ...(value.provenance === undefined ? {} : { provenance: value.provenance }),
     ...(value.sourceStatuses === undefined ? {} : { sourceStatuses: value.sourceStatuses }),

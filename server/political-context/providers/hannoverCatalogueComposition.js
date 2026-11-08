@@ -11,7 +11,8 @@ function composeHannoverCatalogue(cityCatalogue, additional, { now = new Date() 
       record.type === 'Antrag' || record.type === 'Anfrage' || record.type === 'Änderungsantrag' ? 'proposal'
         : record.type === 'Verwaltungsantwort' ? 'answer' : record.type === 'Protokoll' ? 'minutes' : 'other'), publisher: 'Landeshauptstadt Hannover' } }));
   const records = [...new Map([...cityRecords, ...additional.records].map(record => [record.id, record])).values()];
-  const cityClock = cityCatalogue.generatedAt || now.toISOString();
+  const cityClock = [cityCatalogue.generatedAt, ...cityRecords.map(record => record.detailVerifiedAt)]
+    .filter(Boolean).sort()[0] || now.toISOString();
   const cityStatus = { source: 'hannover-sim', status: cityCatalogue.coverage.complete ? 'available' : 'partial',
     url: cityCatalogue.sources[0], retrievedAt: cityClock, from: cityCatalogue.coverage.from, to: cityCatalogue.coverage.to,
     recordCount: cityRecords.length, message: 'Städtischer SIM-Katalog; Quellenabdeckung siehe eigenen Zeitraum und Sammlungsstatus.' };

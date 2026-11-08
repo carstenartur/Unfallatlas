@@ -30,11 +30,14 @@ const knownCount = v => Number.isSafeInteger(v) && v >= 0 ? v : null;
 function collectionProvenance({ catalogue, city, records, sourceRecords, sourceVerifiedAt, now, sourceOptions = {} }) {
   const facts = catalogue.provenance?.collection || {};
   const history = catalogue.history;
+  const includesRegion = city === 'hannover' && sourceRecords.some(record => record.source === 'region-hannover-ris');
+  const multipleSources = city === 'hannover' && (includesRegion || catalogue.sourceStatuses?.length > 0);
   return {
     schemaVersion: 1, producer: { name: 'unfallwerkbank-ris', version: PRODUCER_VERSION },
     builtAt: new Date(now).toISOString(), sourceVerifiedAt,
-    provider: city === 'bonn' ? 'bonn-oparl' : catalogue.sourceStatuses ? 'hannover-official-sources' : 'hannover-sim',
-    normalizationRevision: city === 'hannover' && catalogue.sourceStatuses ? 'hannover-multi-source-citation-v1' : NORMALIZATION_REVISIONS[city], sourceFingerprint: sourceProjectionFingerprint(sourceRecords),
+    provider: city === 'bonn' ? 'bonn-oparl' : multipleSources ? 'hannover-official-sources' : 'hannover-sim',
+    normalizationRevision: multipleSources ? 'hannover-multi-source-citation-v1' : NORMALIZATION_REVISIONS[city],
+    sourceFingerprint: sourceProjectionFingerprint(sourceRecords),
     collection: {
       pages: knownCount(facts.pages ?? catalogue.cache?.pages), rawItems: knownCount(facts.rawItems), normalizedItems: records.length,
       requestedFrom: facts.requestedFrom ?? history?.requestedFrom ?? null, requestedTo: facts.requestedTo ?? history?.requestedTo ?? null,
