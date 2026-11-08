@@ -97,15 +97,29 @@ async function waitForServer(url, timeoutMs = 120000) {
 }
 
 async function stopChild(child) {
-  if (child.exitCode !== null) return;
-  child.kill('SIGTERM');
-  await Promise.race([
-    new Promise((resolve) => child.once('exit', resolve)),
-    new Promise((resolve) => setTimeout(resolve, 3000)),
-  ]);
-  if (child.exitCode === null) {
-    child.kill('SIGKILL');
-    await new Promise((resolve) => child.once('exit', resolve));
+  // Signal termination leaves exitCode null. Waiting for another exit event
+  // would strand the gate's finally block and let Node exit successfully.
+  const hasExited = () => child.exitCode !== null || child.signalCode !== null;
+  if (hasExited()) return;
+  let onExit;
+  let timer;
+  const exited = new Promise((resolve) => {
+    onExit = resolve;
+    child.once('exit', onExit);
+  });
+  try {
+    child.kill('SIGTERM');
+    await Promise.race([
+      exited,
+      new Promise((resolve) => { timer = setTimeout(resolve, 3000); }),
+    ]);
+    if (!hasExited()) {
+      child.kill('SIGKILL');
+      await exited;
+    }
+  } finally {
+    clearTimeout(timer);
+    child.removeListener('exit', onExit);
   }
 }
 
@@ -128,8 +142,11 @@ async function withSiteServer(callback) {
     await waitForServer(`${BASE_URL}/werkbank_v2.html`);
     await callback();
   } finally {
-    await stopChild(child);
-    fs.closeSync(log);
+    try {
+      await stopChild(child);
+    } finally {
+      fs.closeSync(log);
+    }
   }
 }
 

@@ -644,8 +644,9 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
     box-shadow: 0 -8px 28px rgba(0,0,0,.22);
     overscroll-behavior: contain;
   }
-  /* The bottom sheet would leave too little map space for an open record. */
+  /* Keep the compact record and its close action clear of overlapping controls. */
   #map:has(.ua-ris-popup) + #panel,
+  #map:has(.ua-ris-popup) .leaflet-top.leaflet-right,
   #map:has(.ua-ris-popup) .mapControl { display: none; }
   .panelHeader {
     z-index: 4;
