@@ -75,8 +75,14 @@ test('selection, visible map and export use explicit exact count scopes', async 
   await expect(scopeBox).toContainText(`Aktive Auswahl im markierten Bereich: ${counts.selected.toLocaleString('de-DE')}`);
   await expect(scopeBox).toContainText(`Vor dem Beteiligungsfilter liegen im selben Gebiet ${counts.context.toLocaleString('de-DE')}`);
 
-  const reportText = await page.locator('#exportHtml').textContent();
-  expect(parseGermanCount(reportText, 'lokal')).toBe(counts.selected);
+  // Optional-module hydration and export-option changes can regenerate the
+  // preview after its first completed render. Exercise a real regeneration
+  // and wait for the count instead of snapshotting the loading placeholder.
+  await page.locator('#cbIncludeCosts').uncheck();
+  await expect.poll(async () => {
+    const reportText = await page.locator('#exportHtml').textContent();
+    return parseGermanCount(reportText, 'Auswertung:\\s*lokal');
+  }, { timeout: 60000 }).toBe(counts.selected);
 
   await testInfo.attach('bonn-hbf-count-scope.json', {
     body: Buffer.from(`${JSON.stringify({
