@@ -38,7 +38,7 @@ describe('Werkbank deployment asset versions', () => {
     'js/ua.ai_proposal.js',
     'js/ua.report_v2.js',
   ])('%s uses the verified RIS rollout version', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-07-ris`);
+    expect(html).toContain(`${asset}?v=${asset === 'js/ua.report_v2.js' ? '2026-11-08-readable-direction' : '2026-11-07-ris'}`);
   });
 
   test.each(['js/ua.state.js', 'js/ua.app_v2.js'])('%s refreshes confirmed area scope', asset => {
@@ -94,13 +94,13 @@ describe('Werkbank deployment asset versions', () => {
 test.each(['ua.core', 'ua.context_layers', 'ua.context_road_layer', 'ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  const version = name === 'ua.core' ? '2026-11-08-source-note-links' : '2026-11-08-context';
+  const version = name === 'ua.core' ? '2026-11-08-readable-direction' : '2026-11-08-context';
   expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
   const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
   for (const name of ['ua.artifact_provenance', 'ua.export_provenance', 'ua.kml_export_provenance', 'ua.document_export_provenance']) {
-    const version = name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
+    const version = name === 'ua.export_provenance' ? '2026-11-08-readable-direction' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
     expect(core).toContain(`${name}.js?v=${version}`);
   }
 });

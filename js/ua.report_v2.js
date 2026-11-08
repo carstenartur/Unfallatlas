@@ -5,6 +5,23 @@
   UA._exportLibrariesLoaded = false;
   UA._exportLibrariesLoading = null;
 
+  function reportSubject(reportData) {
+    const subjectFrom = value => {
+      const lines = String(value || "").split(/\r?\n/);
+      const index = lines.findIndex(line => /^\s*Betreff\s*:/i.test(line));
+      if (index < 0) return null;
+      const inline = lines[index].replace(/^\s*Betreff\s*:\s*/i, "").trim();
+      if (inline) return inline;
+      const next = lines.slice(index + 1).find(line => line.trim());
+      const nextIsHeader = next && /^\s*(?:Stadt|Datum|Erstellt am|Bereich|An|Gremium|Gremientyp|Vermutlich zuständiges Gremium|Hinweis|Datengrundlage(?: und Einordnung)?|Sachverhalt|Beschlussvorschlag|Begründung|Statistik|Methodik(?:\s*\([^)]*\))?|Anlagen)\s*:/i.test(next);
+      return next && !/:\s*$/.test(next) && !nextIsHeader ? next.trim() : null;
+    };
+    // Older standalone render callers do not load generated template defaults.
+    // Their fallback matches templates/intro.txt; the normal runtime uses it directly.
+    return subjectFrom(reportData?.text) || subjectFrom(UA.exportTemplateDefaults?.intro) ||
+      "Prüfung und Verbesserung der Verkehrssicherheit im markierten Bereich auf Grundlage amtlich dokumentierter Unfälle";
+  }
+
   // ---------------------------------------------------------------------
   // Hinweis zur Zählweise (PR 2 / Spec-Item 4 — „Hinweis-zur-Zählweise"-Box)
   //
@@ -1592,7 +1609,7 @@
       ["Stadt:", metaCity],
       ["Bereich:", metaArea],
       ["Datum:", metaDate],
-      ["Betreff:", "Verbesserung der Verkehrssicherheit – auffälliger Unfallschwerpunkt im markierten Bereich"]
+      ["Betreff:", reportSubject(reportData)]
     ];
     for (const [label, value] of headerLines) {
       children.push(new Paragraph({
@@ -1735,6 +1752,7 @@
       children.push(new Paragraph({
         text: "ANTRAG / BESCHLUSSVORSCHLAG",
         heading: HeadingLevel.HEADING_2,
+        keepNext: true,
         spacing: { before: 300, after: 150 }
       }));
       if (beschlussTextDocx.length > 0) {
@@ -3616,6 +3634,10 @@
 
     const docDefinition = {
       pageSize: "A4",
+      pageBreakBefore(currentNode, nodeContainer) {
+        return currentNode.id === "hour-heatmap-heading" &&
+          !nodeContainer.getFollowingNodesOnPage().some(node => node.id === "hour-heatmap-first-data");
+      },
       // Reduced left/right margins (was 60/60) so wide tables — especially the
       // Einzelunfall-Detailtabelle with 7+ columns — fit within the printable
       // area instead of overflowing the page edge.
@@ -3731,7 +3753,7 @@
       ["Stadt:", metaCity],
       ["Bereich:", metaArea],
       ["Datum:", metaDate],
-      ["Betreff:", "Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt"]
+      ["Betreff:", reportSubject(reportData)]
     ];
     for (const [label, value] of headerLines) {
       docDefinition.content.push({
@@ -4494,7 +4516,7 @@
 
         // Add "In Werkbank öffnen" link
         docDefinition.content.push({
-          text: "→ In Werkbank öffnen",
+          text: "In Werkbank öffnen",
           link: werkbankUrl,
           color: "blue",
           decoration: "underline",
@@ -4592,7 +4614,7 @@
             });
             pushPdfMapSourceNote(docDefinition, ctx, 4);
             docDefinition.content.push({
-              text: "→ In Werkbank öffnen",
+              text: "In Werkbank öffnen",
               link: detailWerkbankUrl,
               color: "blue",
               decoration: "underline",
@@ -4677,7 +4699,7 @@
             });
             pushPdfMapSourceNote(docDefinition, ctx, 4);
             docDefinition.content.push({
-              text: "→ In Werkbank öffnen",
+              text: "In Werkbank öffnen",
               link: clusterUrl,
               color: "blue",
               decoration: "underline",
@@ -4826,12 +4848,12 @@
     // ---- STUNDEN-HEATMAP (#A2) ----
     if (sd && sd.heatmap && sd.heatmap.total > 0 && UA.heatmap) {
       const hm = sd.heatmap;
-      docDefinition.content.push({ text: "STUNDEN-HEATMAP (WERKTAG VS. WOCHENENDE)", style: "subheader" });
+      docDefinition.content.push({ id: "hour-heatmap-heading", text: "STUNDEN-HEATMAP (WERKTAG VS. WOCHENENDE)", style: "subheader" });
       const body = [];
       // Header row
       body.push(["Stunde", "Mo–Fr", "Sa/So"].map(t => ({ text: t, bold: true, fillColor: "#EEEEEE", fontSize: 9, alignment: "center" })));
       for (let h = 0; h < 24; h++) {
-        const row = [{ text: `${String(h).padStart(2, "0")}:00`, fontSize: 9, bold: true }];
+        const row = [{ ...(h === 0 ? { id: "hour-heatmap-first-data" } : {}), text: `${String(h).padStart(2, "0")}:00`, fontSize: 9, bold: true }];
         for (let c = 0; c < 2; c++) {
           const v = hm.matrix[h][c];
           const fill = UA.heatmap.cellColor(v, hm.max);
@@ -4851,6 +4873,7 @@
         // narrow 3-column layout reads better at typical magnifications.
         table: {
           headerRows: 1,
+          keepWithHeaderRows: 1,
           // Slim hour col, two equal data cols; total ≈ 200 pt < page width.
           widths: [40, 60, 60],
           body

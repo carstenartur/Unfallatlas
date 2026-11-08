@@ -149,7 +149,7 @@ describe('Document Export - Integration Tests', () => {
     }
   }
 
-  function readPdfText(buffer) {
+  function readPdfText(buffer, pages = false) {
     const script = `
       import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
       const chunks = [];
@@ -164,7 +164,7 @@ describe('Document Export - Integration Tests', () => {
       cwd: path.resolve(__dirname, '../..'), input: Buffer.from(buffer), encoding: 'utf8',
     });
     if (result.status !== 0) throw new Error(`PDF inspection failed: ${result.stderr}`);
-    return result.stdout.replace(/\s+/g, ' ');
+    return pages ? result.stdout.trim().split('\n') : result.stdout.replace(/\s+/g, ' ');
   }
 
   beforeEach(() => {
@@ -243,6 +243,91 @@ describe('Document Export - Integration Tests', () => {
     expect(window.leafletImage).toHaveBeenCalled();
     const definition = window.pdfMake.createPdf.mock.calls[0][0];
     expect(containsPng(definition.content)).toBe(true);
+  });
+
+  test('native PDF map links retain their URLs and use supported font glyphs', async () => {
+    const samples=require('../../scripts/generate-sample-docx');
+    const scenario=samples.resolveScenario();
+    const ctx=samples.createContext(scenario);
+    UA.captureExportMapImage=async()=>mockCanvas.toDataURL();
+    UA._captureDetailMap=async()=>mockCanvas.toDataURL();
+    UA._captureClusterMaps=async()=>[{image:mockCanvas.toDataURL(),bounds:{south:52.3,west:9.6,north:52.4,east:9.8},
+      total:1,points:[{}],label:'Cluster',zoom:15,lat:52.35,lon:9.7}];
+    await UA.exportToPDF(ctx,samples.createReportData(scenario),scenario.exportOptions);
+    const definition=window.pdfMake.createPdf.mock.calls[0][0];
+    const links=[];
+    const walk=node=>{if(!node||typeof node!=='object')return;
+      if(node.link&&typeof node.text==='string'&&node.text.includes('In Werkbank öffnen'))links.push(node);
+      for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);};
+    walk(definition.content);
+    expect(links).toHaveLength(3);
+    const font=require('fontkit').openSync(require('pdfmake/fonts/Roboto').Roboto.normal);
+    expect(links.flatMap(link=>[...link.text].filter(char=>!font.hasGlyphForCodePoint(char.codePointAt(0))))).toEqual([]);
+    const targets=links.map(link=>new URL(link.link));
+    expect(targets.every(url=>url.protocol==='http:'||url.protocol==='https:')).toBe(true);
+    expect(targets[0].searchParams.get('city')).toBe(ctx.CITY_RAW);
+    expect(Number(targets[2].searchParams.get('selSouth'))).toBe(52.3);
+    const pdf=window.pdfMake.createPdf.mock.results[0].value;
+    expect(readPdfText(await pdf.getBuffer())).toContain('In Werkbank öffnen');
+  });
+
+  test('DOCX proposal heading keeps the first proposal paragraph with it', async () => {
+    await UA.exportToWord(makeCtx(),basicReport(),{includeMap:false});
+    const archive=await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
+    const dom=new JSDOM(await archive.file('word/document.xml').async('string'),{contentType:'application/xml'});
+    const paragraphs=[...dom.window.document.getElementsByTagName('w:p')];
+    const index=paragraphs.findIndex(p=>p.textContent==='ANTRAG / BESCHLUSSVORSCHLAG');
+    expect(paragraphs[index].getElementsByTagName('w:keepNext')).toHaveLength(1);
+    expect(paragraphs[index+1].textContent).toContain('Test proposal');
+    expect(paragraphs[index+1].getElementsByTagName('w:keepNext')).toHaveLength(0);
+    dom.window.close();
+  });
+
+  test('native heatmap heading and column header share a page with the first data row at page boundaries', async () => {
+    new Function('window',fs.readFileSync(path.resolve(__dirname,'../../js/ua.heatmap.js'),'utf8'))(window);
+    const heatmap={total:1,max:1,colTotals:[1,0],matrix:Array.from({length:24},(_,hour)=>[hour===0?1:0,0])};
+    await UA.exportToPDF(makeCtx(),basicReport({structured:baseStructured({heatmap})}),{includeMap:false});
+    const definition=window.pdfMake.createPdf.mock.calls[0][0];
+    const index=definition.content.findIndex(n=>n.text==='STUNDEN-HEATMAP (WERKTAG VS. WOCHENENDE)');
+    expect(index).toBeGreaterThan(0);
+    for(const remainingSpace of [55,70,85]) {
+      const compact={...definition,pageSize:{width:595.28,height:240},pageMargins:[40,40,40,40],
+        content:[{text:'Vorangehender Abschnitt',fontSize:10,margin:[0,0,0,160-12-remainingSpace]},
+          ...JSON.parse(JSON.stringify(definition.content.slice(index,index+2)))]};
+      const pdf=window.pdfMake.createPdf(compact);
+      const pages=readPdfText(await pdf.getBuffer(),true);
+      const headingPage=pages.find(p=>p.includes('STUNDEN-HEATMAP'));
+      expect(headingPage).toContain('Stunde');
+      expect(headingPage).toContain('00:00');
+      expect(pages.join(' ')).toContain('23:00');
+      expect(pages.length).toBeGreaterThan(1);
+    }
+  });
+
+  test.each([['',false],['Betreff:\n\n',false],['Betreff:\n\nStadt: Bonn\n',false],['Betreff:\n\nBeschlussvorschlag: Bitte prüfen\n',false],['',true]])('document subject is neutral while intentional report text is preserved (%s, templates=%s)', async (prefix, loadTemplates) => {
+    const canonical=fs.readFileSync(path.resolve(__dirname,'../../templates/intro.txt'),'utf8').split('\n').find(line=>line.startsWith('Betreff:')).slice('Betreff:'.length).trim();
+    if(loadTemplates) new Function('window',fs.readFileSync(path.resolve(__dirname,'../../js/ua.export_template_defaults.js'),'utf8'))(window);
+    const intentional='Eigener Prüftext: auffälliger Unfallschwerpunkt laut beigefügter Nutzerangabe.';
+    const report=basicReport({text:prefix+'Sachverhalt:\n'+intentional+'\nBeschlussvorschlag:\nTest proposal'});
+    await UA.exportToWord(makeCtx(),report,{includeMap:false});
+    const word=await readWordDocument(window.saveAs.mock.calls[0][0]);
+    await UA.exportToPDF(makeCtx(),report,{includeMap:false});
+    const pdf=readPdfText(await window.pdfMake.createPdf.mock.results[0].value.getBuffer());
+    for(const text of [word,pdf]) {
+      const subject=text.slice(text.indexOf('Betreff:'),text.indexOf('Rahmendaten'));
+      expect(subject).toContain(canonical);
+      expect(subject).not.toMatch(/Unfallschwerpunkt/i);
+      expect(text).toContain(intentional);
+    }
+  });
+
+  test.each(['Betreff: Eigene ausdrücklich gewünschte Bezeichnung','Betreff:\nEigene ausdrücklich gewünschte Bezeichnung'])('explicit document subject is retained: %s', async subject => {
+    const report=basicReport({text:subject+'\nSachverhalt:\nTest content'});
+    await UA.exportToWord(makeCtx(),report,{includeMap:false});
+    await UA.exportToPDF(makeCtx(),report,{includeMap:false});
+    for(const text of [await readWordDocument(window.saveAs.mock.calls[0][0]),readPdfText(await window.pdfMake.createPdf.mock.results[0].value.getBuffer())]) {
+      expect(text.slice(text.indexOf('Betreff:'),text.indexOf('Rahmendaten'))).toContain('Eigene ausdrücklich gewünschte Bezeichnung');
+    }
   });
 
   test('should generate Word document with accident data', async () => {
@@ -535,6 +620,7 @@ describe('Document Export - Integration Tests', () => {
     expect(relationships).toContain(note.sources[0].url.replace(/&/g,'&amp;'));
     const trafficSource=wordResult.manifest.sources.find(source=>source.role==='traffic_count');
     if(trafficSource) {
+      if(kind!=='hourly') expect(wordResult.manifest.transformations.find(item=>item.transformationId==='context-evidence').parameters.observations[0].direction).toBe('A → B');
       expect(relationships).toContain(trafficSource.licenseUrl.replace(/&/g,'&amp;'));
       expect(relationships).toContain(trafficSource.datasetUrl.replace(/&/g,'&amp;'));
     }
@@ -575,6 +661,7 @@ describe('Document Export - Integration Tests', () => {
     }
     for(const text of [wordText,pdfText]) {
       if(['count','count18504','model','old'].includes(kind)) { expect(text).toContain('Kfz/24 h'); expect(text).toContain('DTVw'); expect(text).toContain('Matching'); expect(text).toContain('Qualität high'); }
+      if(['count','count18504','model','old'].includes(kind)) expect(text).toContain('Richtung A nach B');
       if(kind==='count') expect(text).toContain('Originalwert: 0 Kfz/24 h');
       if(kind==='count18504') expect(text).toContain('Originalwert: 18.504 Kfz/24 h');
       if(kind==='hourly') {expect(text).toContain('Originalwert: 1 Fahrräder/Stunde');expect(text).toContain('Entfernung unbekannt');expect(text).toContain('01-01-2024 00:00:00');}

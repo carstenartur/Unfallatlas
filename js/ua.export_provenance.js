@@ -336,7 +336,7 @@
           for (const link of links) add(projected.text, link.url);
         } else visibleNotes.push(projected.text);
       }
-      add(`${group.type}: ${source.publisher} – ${source.datasetTitle} [${source.sourceId}]; ${valueLabel}; Verkehrsart ${group.mode}; Einheit ${group.unit}; Zeitraum ${join(group.periods)}; Jahr ${join(group.years)}; Richtung ${join(group.directions)}; Matching ${join(group.methods)}, Qualität ${join(group.qualities)}, Entfernung ${distance}${group.unknownDistance && group.distances.length ? ' (teilweise unbekannt)' : ''}; Abruf ${source.retrievedAt}; Lizenz ${source.licenseId}.` +
+      add(`${group.type}: ${source.publisher} – ${source.datasetTitle} [${source.sourceId}]; ${valueLabel}; Verkehrsart ${group.mode}; Einheit ${group.unit}; Zeitraum ${join(group.periods)}; Jahr ${join(group.years)}; Richtung ${join(group.directions).replace(/\s*→\s*/g, ' nach ')}; Matching ${join(group.methods)}, Qualität ${join(group.qualities)}, Entfernung ${distance}${group.unknownDistance && group.distances.length ? ' (teilweise unbekannt)' : ''}; Abruf ${source.retrievedAt}; Lizenz ${source.licenseId}.` +
         `${group.type === 'Älterer gemessener Verkehrswert' ? ' Veralteter Messstand.' : ''}` +
         `${visibleNotes.length ? ` Grenzen: ${visibleNotes.sort().join('; ')}` : ''}` +
         `${hasDetailedNotes ? ' Detaillierte Quellenhinweise: siehe Abschnitt Datenquellen, Methodik und Nachvollziehbarkeit.' : ''}`,

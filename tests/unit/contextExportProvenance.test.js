@@ -208,7 +208,7 @@ describe('visible typed context sources use the exported evidence population', (
     expect(text).toContain('Kfz/24 h');
     expect(text).toContain('DTVw');
     expect(text).toContain(String(year));
-    expect(text).toContain('A → B');
+    expect(text).toContain('A nach B');
     expect(text).toContain('high');
     expect(text).toContain('0 m');
     expect(text).not.toContain('keine gemessene Verkehrsdichte');
