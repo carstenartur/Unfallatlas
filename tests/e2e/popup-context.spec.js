@@ -113,7 +113,13 @@ test.describe('Popup context data', () => {
 
     test.skip(!html, 'Hannover has no elevation enrichment according to manifest.');
     expect(html).toContain('Höhe');
-    expect(html).toContain('Hangneigung');
+    // This published SRTM sample supplies coarse terrain context, not a
+    // reliable road gradient. Keep the source and qualification observable.
+    expect(html).toContain('Geländekontext');
+    expect(html).toContain('Geländeneigung im Umfeld: grobe Klasse 2–4 %');
+    expect(html).toContain('SRTM Local Tiles (30 m)');
+    expect(html).toContain('für die Fahrbahn nicht belastbar.');
+    expect(html).not.toContain('Straßenlängsneigung');
     expect(html).toContain('Kontextdaten beschreiben die Umgebung, nicht die Unfallursache.');
   });
 });
