@@ -16,7 +16,7 @@
     {
       "lockRef": "export.pdfmake.min",
       "package": "pdfmake",
-      "expectedVersion": "0.3.13",
+      "expectedVersion": "0.3.14",
       "sourcePath": "build/pdfmake.min.js",
       "outputPath": "vendor/export/pdfmake.js",
       "method": "byte-for-byte-copy",
@@ -27,7 +27,7 @@
     {
       "lockRef": "export.pdfmake.font-container",
       "package": "pdfmake",
-      "expectedVersion": "0.3.13",
+      "expectedVersion": "0.3.14",
       "sourcePath": "build/vfs_fonts.js",
       "outputPath": "vendor/export/pdfmake-fonts.js",
       "method": "byte-for-byte-copy",
