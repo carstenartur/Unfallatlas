@@ -444,6 +444,7 @@ function boundedOption(value, fallback, maximum) {
  * `includeLocationEvidence` retains the public measure text for build-time geocoding.
  * `discovery: 'search'` enumerates all public document-year lists in the requested window.
  * `sourceCache.getOrLoad(key, revision, loader)` resumes validated detail reads.
+ * Its optional getOrLoadWithMetadata variant also preserves their original clock.
  * `requestText(url, { timeoutMs, maxBytes, method?, body?, cookie? })` may supply
  * { url, status, contentType, text, cookies? }. POST is limited to the public search form.
  */
@@ -655,16 +656,30 @@ async function collectHannoverYear(options = {}) {
         if (options.sourceCache) {
           // Include parser/evidence revision so an old title-only cache cannot
           // falsely claim that the public document text was examined.
-          result = await options.sourceCache.getOrLoad(doc.url, revision, async () => {
+          const loadVerified = async () => {
             const value = await read();
             if (!value) throw new Error('Keine verifizierte öffentliche Drucksache');
-            return value;
-          });
+            return { ...value, detailVerifiedAt: now.toISOString() };
+          };
+          if (typeof options.sourceCache.getOrLoadWithMetadata === 'function') {
+            const entry = await options.sourceCache.getOrLoadWithMetadata(doc.url, revision, loadVerified);
+            const payloadTime = Date.parse(entry.payload.detailVerifiedAt);
+            // Existing cache envelopes already carry the source clock, even when
+            // their older parsed payload does not. Never turn a cache hit into now.
+            const verifiedAt = Math.min(entry.cachedAt, Number.isFinite(payloadTime) ? payloadTime : entry.cachedAt);
+            result = { ...entry.payload, detailVerifiedAt: new Date(verifiedAt).toISOString() };
+          } else {
+            result = await options.sourceCache.getOrLoad(doc.url, revision, loadVerified);
+            // A payload-only cache without a known clock cannot verify freshness.
+            // Retain this API's support, but verify its legacy payload at the source.
+            const verifiedAt = Date.parse(result?.detailVerifiedAt);
+            if (!Number.isFinite(verifiedAt) || verifiedAt > now.getTime()) result = await loadVerified();
+          }
         } else {
           result = await read();
           if (!result && searchMode && doc.searchTitle) throw new Error('Keine verifizierte öffentliche Drucksache');
         }
-        if (yearWork && result) yearWork.details[doc.key] = { revision, checkedAt: now.toISOString(), result, doc };
+        if (yearWork && result) yearWork.details[doc.key] = { revision, checkedAt: result.detailVerifiedAt || now.toISOString(), result, doc };
         return result;
       } catch (error) {
         if (!searchMode && options.strict) throw error;

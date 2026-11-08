@@ -131,6 +131,18 @@ test('resumes verified details through the shared source cache', async () => {
   expect(calls.filter(call => call.url === ROOT + 'DS/0001-2021')).toHaveLength(1);
 });
 
+test('revalidates a legacy payload-only cache hit whose source time is unknown', async () => {
+  const title = 'Amtlich erneut geprüfter Vorgang';
+  const { requestText, calls } = fixture({ years: { 2021: results([row('0001-2021')]) },
+    documents: { 'DS/0001-2021': document('0001-2021', title) } });
+  const sourceCache = { getOrLoad: async () => ({
+    title: 'Älterer Cachetitel ohne Quellenzeit', rawType: 'Drucksache', related: [], locationEvidence: [],
+  }) };
+  const { records } = await collectHannoverCatalogue({ ...options, to: '2021-12-31', requestText, sourceCache });
+  expect(records[0]).toMatchObject({ title, detailVerifiedAt: '2026-11-08T11:00:00.000Z' });
+  expect(calls.filter(call => call.url.includes('/DS/'))).toHaveLength(1);
+});
+
 test.each([
   ['Anfrage', 'Drucksache', 'Radweg an der Limmerstraße', 'Anfrage'],
   ['Änderungsantrag', 'Drucksache', 'Radweg an der Limmerstraße', 'Änderungsantrag'],
@@ -174,7 +186,7 @@ test.each(['source cache', 'checkpoint details', 'checkpoint catalogue'])('norma
         const filename = path.join(folder, name);
         const entry = JSON.parse(await fs.readFile(filename, 'utf8'));
         delete entry.payload.locationEvidenceUnavailable;
-        entry.payload.detailVerifiedAt = firstCheckedAt.toISOString();
+        delete entry.payload.detailVerifiedAt;
         await fs.writeFile(filename, JSON.stringify(entry));
       }
       cachedBytes = await Promise.all((await fs.readdir(folder)).sort().map(name => fs.readFile(path.join(folder, name), 'utf8')));
@@ -234,6 +246,46 @@ test('an old checkpoint catalogue cannot become a freshly verified snapshot when
       now: later, workBudget: 0, checkpoint, requestText });
     expect(catalogue.records[0]).toMatchObject({ locationEvidenceUnavailable: true, detailVerifiedAt: verifiedAt.toISOString() });
     expect(calls).toHaveLength(3);
+    const directory = path.join(folder, 'published');
+    await expect(refreshRisCatalogues({ directory, cities: ['hannover'], now: later,
+      fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => catalogue }))
+      .resolves.toMatchObject([{ status: 'unavailable' }]);
+    await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('a source-cache hit cannot rejuvenate a new checkpoint or republish expired evidence', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCache } = require('../../server/political-context/services/risSourceCache');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const { refreshRisCatalogues } = require('../../scripts/refresh-ris-catalogues');
+  const { readRisSnapshot } = require('../../server/political-context/services/risSnapshot');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-cache-checkpoint-clock-'));
+  const verifiedAt = new Date('2026-11-01T11:00:00Z');
+  const checkpointAt = new Date('2026-11-07T11:00:00Z');
+  const later = new Date('2026-11-20T11:00:00Z');
+  let cacheTime = verifiedAt.getTime();
+  try {
+    const key = '0001-2021';
+    const { requestText, calls } = fixture({
+      years: { 2021: results([row(key, 'Radweg an der Limmerstraße', '01.02.2021')]).replace('06.11.2026', '01.11.2026') },
+      documents: { ['DS/' + key]: document(key).replace('<h4>Antrag</h4>', '<h4>Sachverhalt</h4>') },
+    });
+    const sourceCache = createRisSourceCache({ directory: path.join(folder, 'cache'), now: () => cacheTime });
+    const collectOptions = { ...options, to: '2021-12-31', requestText, sourceCache };
+    await collectHannoverCatalogue({ ...collectOptions, now: verifiedAt });
+    cacheTime = checkpointAt.getTime();
+    const checkpoint = createRisSourceCheckpoint({ directory: path.join(folder, 'checkpoint') });
+    await collectHannoverCatalogue({ ...collectOptions, now: checkpointAt, checkpoint });
+    const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
+    expect(work.details[key].checkedAt).toBe('2026-11-01T11:00:00.000Z');
+    expect(calls.filter(call => call.url.includes('/DS/'))).toHaveLength(1);
+    expect(sourceCache.stats).toEqual({ hits: 1, misses: 1, writes: 1 });
+    const catalogue = await collectHannoverCatalogue({ ...options, from: '2022-01-01', to: '2022-12-31',
+      now: later, workBudget: 0, checkpoint, requestText });
+    expect(catalogue.records[0].detailVerifiedAt).toBe('2026-11-01T11:00:00.000Z');
     const directory = path.join(folder, 'published');
     await expect(refreshRisCatalogues({ directory, cities: ['hannover'], now: later,
       fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => catalogue }))

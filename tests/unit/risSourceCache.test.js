@@ -52,6 +52,20 @@ test('resumes from a completed source response in a fresh cache instance', async
   await cacheFile();
 });
 
+test('exposes original verification metadata from existing envelopes without changing payload-only callers', async () => {
+  const verifiedAt = time;
+  await cache().getOrLoad(KEY, REVISION, () => PAYLOAD);
+  const filename = await cacheFile();
+  const before = await fs.readFile(filename, 'utf8');
+  time += 6 * 86400000;
+  const resumed = cache();
+  await expect(resumed.getOrLoadWithMetadata(KEY, REVISION, unexpectedLoad))
+    .resolves.toEqual({ payload: PAYLOAD, cachedAt: verifiedAt });
+  await expect(resumed.getOrLoad(KEY, REVISION, unexpectedLoad)).resolves.toEqual(PAYLOAD);
+  expect(await fs.readFile(filename, 'utf8')).toBe(before);
+  expect(resumed.stats).toEqual({ hits: 2, misses: 0, writes: 0 });
+});
+
 test('reloads a changed source revision and resumes its new response', async () => {
   const source = cache();
   await source.getOrLoad(KEY, REVISION, () => PAYLOAD);

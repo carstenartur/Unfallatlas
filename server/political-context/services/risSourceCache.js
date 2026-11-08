@@ -31,6 +31,8 @@ async function readEntry(filename, maxBytes) {
 /**
  * Resume verified public source responses without coupling adapters to their storage.
  * The loader validates its source payload; this cache validates its envelope and age.
+ * getOrLoadWithMetadata also returns the original cachedAt for source provenance;
+ * getOrLoad retains its payload-only contract for existing consumers.
  * Stats count actual cache operations, with concurrent identical requests counted once.
  */
 function createRisSourceCache({ directory, now = () => Date.now(),
@@ -58,14 +60,15 @@ function createRisSourceCache({ directory, now = () => Date.now(),
         Number.isFinite(entry.cachedAt) && entry.cachedAt >= 0 && entry.cachedAt <= checkedAt &&
         checkedAt - entry.cachedAt < maxAgeMs && Object.hasOwn(entry, 'payload')) {
       stats.hits += 1;
-      return entry.payload;
+      return { payload: entry.payload, cachedAt: entry.cachedAt };
     }
 
     stats.misses += 1;
     const payload = await loader();
     const json = JSON.stringify(payload);
     if (json === undefined) throw new TypeError('RIS source cache payload is not JSON serializable');
-    const header = JSON.stringify({ schemaVersion: SCHEMA_VERSION, key, revision, cachedAt: timestamp() });
+    const cachedAt = timestamp();
+    const header = JSON.stringify({ schemaVersion: SCHEMA_VERSION, key, revision, cachedAt });
     // Public text may contain invisible format controls. Escapes preserve every
     // character without introducing hidden controls into the checked-out tree.
     const encoded = `${header.slice(0, -1)},"payload":${json}}`.replace(/[\u007f-\uffff]/g,
@@ -82,10 +85,10 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     } finally {
       await fs.rm(temporary, { force: true });
     }
-    return payload;
+    return { payload, cachedAt };
   }
 
-  async function getOrLoad(key, revision, loader) {
+  async function getOrLoadWithMetadata(key, revision, loader) {
     if (typeof key !== 'string' || !key || typeof loader !== 'function' ||
         !(revision === null || typeof revision === 'string' || (typeof revision === 'number' && Number.isFinite(revision)))) {
       throw new TypeError('Invalid RIS source cache key, revision or loader');
@@ -99,7 +102,11 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     return pending.get(digest);
   }
 
-  return { getOrLoad, stats };
+  async function getOrLoad(key, revision, loader) {
+    return (await getOrLoadWithMetadata(key, revision, loader)).payload;
+  }
+
+  return { getOrLoad, getOrLoadWithMetadata, stats };
 }
 
 module.exports = { createRisSourceCache };
