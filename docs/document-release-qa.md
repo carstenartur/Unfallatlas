@@ -71,21 +71,82 @@ Microsoft Word remains an external review gate. The receipt explicitly keeps
 `microsoftWordEvidenceVerified: false`; no LibreOffice result or synthetic map
 fixture substitutes for a current, fingerprint-matching real Word review.
 
+## Final local candidate and explicit visual scope
+
+The final local rerun on 8 November 2026 used `5520125e59c1d1d2df40df55eea3e6b27a1f42a3`, tree
+`6d31c3c75511813be9d760f24c75896d3477b941`. Published code commit `f88cbb45bacc378fa1e53315757e1d115a122351` has exactly the
+same tree. These are separate commit roles; the subsequent inventory and
+release-documentation commit does not become the source of already rendered
+binary bytes. The current united 18-file Word renderer/decorator fingerprint is
+`957e0bedb207fa17ee3da26adf636d13252f3e15c793bf968392a4cd4be602d6`. The candidate inventory records every input path, size and SHA-256,
+the pinned docx package, all six exact candidate hashes and acquisition clocks.
+
+The complete runner passed 18 suites / 110 tests, the native ordinary PDF,
+ordinary DOCX, five layout scenarios and the full 111-row / nine-map appendix.
+Both appendix audits have zero errors and warnings. All actual delivered PDF
+views were visually inspected, including the ordinary native PDF:
+
+| Scope | Actual pages visually inspected |
+|---|---:|
+| Ordinary DOCX converted with LibreOffice | 5 |
+| Ordinary native PDF | 5 |
+| Numbered DOCX converted with LibreOffice | 13 |
+| Numbered native PDF | 14 |
+| **Six candidate files / four PDF views** | **37** |
+| Five additional layout scenarios | 28 |
+| Seven additional ordinary source cases, both formats | 29 |
+| Actual production 37/312 method diagnostic, both formats | 38 |
+| **All distinct page views in this local review** | **132** |
+
+The historical 32-page record covered only ordinary DOCX plus the two appendix
+views. It did not include the ordinary native PDF and is not presented as an
+all-candidate review. The current review binds every page image to its actual
+hash in `out/qa/final-document-20261108/final-visual-review.json`.
+
+The unchanged short source-bound cases cover zero count, original value 18,504,
+genuine pinned Düsseldorf hourly bicycle data, model, old measurement, proxy
+and DGM fixture. All 14 DOCX/native audits pass. These are technical rendering
+probes; fixture-only counts/model/DGM values do not create new scientific
+observations, source activation or a road/OSM match. The hourly case keeps the
+original one bicycle/hour, direction, period, separate station distribution,
+licenses and unknown matching/accuracy facts. Raw full URLs, fingerprints and
+attribution remain in the manifests; the visible projection uses labeled links
+and short proof codes. Native direction labels read “A nach B” while the raw
+original “A→B” remains unchanged. The previously observed source-heading orphan,
+raw station URL/hash spill and unsupported decorative arrow are corrected;
+no page/link/audit gate was relaxed. Default document subjects are neutral,
+and explicitly supplied subjects are retained.
+
+The current local numbered-source acquisition is `2026-11-08T21:31:53.892Z`, a real local file
+read. Original upstream retrieval remains unknown. Its canonical SourceManifest
+hash is `5d0cc2cfef9e404ad35418c556f1ccfc72e5ebd741a9c902b2b657dace3e5a56`. A fresh render clock does not establish fresh source data.
+
 ## Method qualification is a separate production report check
 
 The numbered appendix has no pattern comparison. Its complete rows and map
 receipts therefore cannot establish that exploratory statistical qualifications
-survive the ordinary report pipeline. For the final integrated candidate
-`63421d9912de93760f1e676dfad8e851be78eaff`, a separate real browser check used
-`UA.computeExportReport` with the installed AnalysisScope and political-reference
-wrappers on the 37/312 Bonn Hbf selection. It retained the exact exploratory /
-unadjusted / no-multiplicity-correction note in `methodikScope.lines` and
-`limitations`, text, HTML, visible preview and both server prompt modes.
+survive the ordinary report pipeline. On the same final source/fingerprint,
+a separate actual browser check used `UA.computeExportReport` with installed
+AnalysisScope and political-reference wrappers on the real 37/312 Bonn Hbf
+selection. It retained the exact exploratory / unadjusted / no-multiplicity-
+correction note in `methodikScope.lines` and `limitations`, text, HTML, visible
+preview and both actual server prompt modes. The browser waited for the real
+visible note; no method text was manually inserted and no model was called.
 
-Actual browser DOCX/PDF downloads preserve that note in DOCX XML and in native
-and LibreOffice-converted PDF text. The note pages were visually inspected
-(native page 2; converted DOCX page 1). These focused exports used the real local
-development URL, so the existing public-HTTPS link audit correctly rejects them;
-no audit was weakened. They are method-warning evidence only, not a filing, live
-map, model or Microsoft Word approval. Current hashes, candidate page counts and
-Word input fingerprint are in the release candidate inventory.
+Actual browser DOCX/PDF downloads retain the note in DOCX XML, native PDF text
+and LibreOffice-converted PDF text. All 20 native and 18 converted pages were
+visually inspected; the exact note is readable on native page 2 and converted
+DOCX page 1. The DOCX application heading now stays with its body on page 2;
+the native heatmap heading, header and first data row stay together on page 19.
+These exports use the actual local development URL, so the unchanged public-
+HTTPS link adapter rejects both with `unsafe_link`. They are additional method
+preservation evidence, not generic-audit-passing filing documents, live-map,
+model, scientific or Microsoft Word approval.
+
+The 3 Word evidence/security/release-contract suites pass 26 tests. Their
+synthetic passing receipts are not actual Microsoft Word evidence. Both actual
+manual receipt templates remain unreviewed: all eight checks are false,
+observed page count is zero, and Word version, OS, reviewer and actual review
+date remain placeholders. Node 24.22.1 / npm 11.9.0 / LibreOfficeDev 26.8 /
+Poppler 26.05 local rendering does not claim canonical Maven / Node 26 acceptance;
+that must bind the subsequently published exact head independently.

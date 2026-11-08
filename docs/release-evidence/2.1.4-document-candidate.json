@@ -1,14 +1,237 @@
 {
   "schemaVersion": "unfallwerkbank.release-document-candidate/v1",
   "status": "awaiting-external-acceptance",
-  "renderSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-  "integratedReviewedSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-  "wordInputFingerprint": "a6b6865ec58ff59265f400b8f49575d363f877090d0ae11a2435488bae4291bc",
-  "sourceManifestHash": "39e381935a077e703825f259eb95c30dc5b89bf6974a993bed9b57743e022e8f",
+  "renderSourceCommit": "5520125e59c1d1d2df40df55eea3e6b27a1f42a3",
+  "integratedReviewedSourceCommit": "5520125e59c1d1d2df40df55eea3e6b27a1f42a3",
+  "renderSourceTree": "6d31c3c75511813be9d760f24c75896d3477b941",
+  "publishedEquivalentCodeCommit": "f88cbb45bacc378fa1e53315757e1d115a122351",
+  "publishedEquivalentCodeTree": "6d31c3c75511813be9d760f24c75896d3477b941",
+  "commitRoles": "Actual local rendering used renderSourceCommit. The published equivalent code commit has the exact same tree. Any subsequent inventory/documentation-only commit does not change these renderer inputs.",
+  "generatedAt": "2026-11-08T21:36:42.596228+00:00",
+  "wordInputFingerprint": "957e0bedb207fa17ee3da26adf636d13252f3e15c793bf968392a4cd4be602d6",
+  "wordInputEvidence": {
+    "schemaVersion": "unfallwerkbank.word-compatibility-inputs/v1",
+    "configPath": "config/word-compatibility-inputs.json",
+    "fingerprint": "957e0bedb207fa17ee3da26adf636d13252f3e15c793bf968392a4cd4be602d6",
+    "files": [
+      {
+        "path": "js/ua.accident_year_provenance.js",
+        "bytes": 6578,
+        "sha256": "d7f3606c31c08419331932b2b192c3ddd49840f79ef1403d3ff8a17ea71f139f"
+      },
+      {
+        "path": "js/ua.ai_political_reference_bridge.js",
+        "bytes": 19170,
+        "sha256": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc"
+      },
+      {
+        "path": "js/ua.analysis_scope.js",
+        "bytes": 18780,
+        "sha256": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4"
+      },
+      {
+        "path": "js/ua.artifact_provenance.js",
+        "bytes": 17984,
+        "sha256": "62618e437aab939f273981bea81ba3eaa9e26fc83be4980b5649ce0529036716"
+      },
+      {
+        "path": "js/ua.document_export_prewarm.js",
+        "bytes": 7149,
+        "sha256": "b599c94392a4badf7a73d400b44101009a5fd2baf98cde1bebd0cc6adcf6048e"
+      },
+      {
+        "path": "js/ua.document_export_provenance.js",
+        "bytes": 26799,
+        "sha256": "1b1ec6d36ce6e565ab1a0ab708bf9a0e1e686416de6f0342d28878c3c8f618b9"
+      },
+      {
+        "path": "js/ua.docx_pagination.js",
+        "bytes": 4846,
+        "sha256": "f3646f9ba9008d3632848db9aa3e84b5086a8c43347f97035ba0bfa0d00b4b58"
+      },
+      {
+        "path": "js/ua.docx_source_links.js",
+        "bytes": 6448,
+        "sha256": "c9a7e6bd8479f2924afcc51d89dab61da8e98d0108662d59fb07f373c1fb137c"
+      },
+      {
+        "path": "js/ua.evidence_cohort.js",
+        "bytes": 74639,
+        "sha256": "84ab14b5e4adc42435ea793c28a5674ccd63d56b4216d6e0258c197b44ed420b"
+      },
+      {
+        "path": "js/ua.export_provenance.js",
+        "bytes": 43060,
+        "sha256": "3855b415407231ae29416cbb9639a47472811b6b5965d4a264914c797010c2c7"
+      },
+      {
+        "path": "js/ua.export_template_defaults.js",
+        "bytes": 19160,
+        "sha256": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22"
+      },
+      {
+        "path": "js/ua.export_v2.js",
+        "bytes": 165110,
+        "sha256": "3898d90ef06b51f81aaec22513b9c7a1b1eafd97d127c71f6bbf0e41c88476d9"
+      },
+      {
+        "path": "js/ua.report_v2.js",
+        "bytes": 242785,
+        "sha256": "3fa8ca32dd78885f51baa9d6336da1e72221da4613ee742f7fc6a9a1872e710d"
+      },
+      {
+        "path": "js/ua.source_manifest.js",
+        "bytes": 25224,
+        "sha256": "9481f565f91685d94ac0152e61dfceec125f5d296b7034f5de646b3b606b713d"
+      },
+      {
+        "path": "scripts/generate-sample-docx.js",
+        "bytes": 22079,
+        "sha256": "270df130b2c1cec436b8002de7dc6daac0d1de0d704d93b726da632157af2cb3"
+      },
+      {
+        "path": "scripts/qa-numbered-appendix-rendered.js",
+        "bytes": 25786,
+        "sha256": "6be664662eacec802d432ee2b1adb4c7214fa72df0a72a258a1670c0b366b56e"
+      },
+      {
+        "path": "scripts/release-map-fixture.js",
+        "bytes": 10071,
+        "sha256": "719c820abeee5c36d87970a283ba051330ef2a14ef20bc9d0e4abfa318bb465a"
+      },
+      {
+        "path": "tests/fixtures/rendered-document/ci-docx-contract.json",
+        "bytes": 4398,
+        "sha256": "3450a8cdb102e0dc3d36285e8b138fba15438bd13eeca3539fccdb5711da6911"
+      }
+    ],
+    "packages": [
+      {
+        "name": "docx",
+        "version": "9.15.3",
+        "resolved": "https://registry.npmjs.org/docx/-/docx-9.15.3.tgz",
+        "integrity": "sha512-3FnU6K5cuvGXEAn24yhvP3mfrZ1G8k9+hH8pSVDYsMR+mGmfK/t0NR5AwoMQodnaaxiRt2e+SvckffcJe/NvTQ=="
+      }
+    ],
+    "sourceCommit": "5520125e59c1d1d2df40df55eea3e6b27a1f42a3",
+    "sourceTree": "6d31c3c75511813be9d760f24c75896d3477b941",
+    "absoluteFiles": [
+      {
+        "path": "js/ua.accident_year_provenance.js",
+        "bytes": 6578,
+        "sha256": "d7f3606c31c08419331932b2b192c3ddd49840f79ef1403d3ff8a17ea71f139f",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.accident_year_provenance.js"
+      },
+      {
+        "path": "js/ua.ai_political_reference_bridge.js",
+        "bytes": 19170,
+        "sha256": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.ai_political_reference_bridge.js"
+      },
+      {
+        "path": "js/ua.analysis_scope.js",
+        "bytes": 18780,
+        "sha256": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.analysis_scope.js"
+      },
+      {
+        "path": "js/ua.artifact_provenance.js",
+        "bytes": 17984,
+        "sha256": "62618e437aab939f273981bea81ba3eaa9e26fc83be4980b5649ce0529036716",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.artifact_provenance.js"
+      },
+      {
+        "path": "js/ua.document_export_prewarm.js",
+        "bytes": 7149,
+        "sha256": "b599c94392a4badf7a73d400b44101009a5fd2baf98cde1bebd0cc6adcf6048e",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.document_export_prewarm.js"
+      },
+      {
+        "path": "js/ua.document_export_provenance.js",
+        "bytes": 26799,
+        "sha256": "1b1ec6d36ce6e565ab1a0ab708bf9a0e1e686416de6f0342d28878c3c8f618b9",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.document_export_provenance.js"
+      },
+      {
+        "path": "js/ua.docx_pagination.js",
+        "bytes": 4846,
+        "sha256": "f3646f9ba9008d3632848db9aa3e84b5086a8c43347f97035ba0bfa0d00b4b58",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.docx_pagination.js"
+      },
+      {
+        "path": "js/ua.docx_source_links.js",
+        "bytes": 6448,
+        "sha256": "c9a7e6bd8479f2924afcc51d89dab61da8e98d0108662d59fb07f373c1fb137c",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.docx_source_links.js"
+      },
+      {
+        "path": "js/ua.evidence_cohort.js",
+        "bytes": 74639,
+        "sha256": "84ab14b5e4adc42435ea793c28a5674ccd63d56b4216d6e0258c197b44ed420b",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.evidence_cohort.js"
+      },
+      {
+        "path": "js/ua.export_provenance.js",
+        "bytes": 43060,
+        "sha256": "3855b415407231ae29416cbb9639a47472811b6b5965d4a264914c797010c2c7",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.export_provenance.js"
+      },
+      {
+        "path": "js/ua.export_template_defaults.js",
+        "bytes": 19160,
+        "sha256": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.export_template_defaults.js"
+      },
+      {
+        "path": "js/ua.export_v2.js",
+        "bytes": 165110,
+        "sha256": "3898d90ef06b51f81aaec22513b9c7a1b1eafd97d127c71f6bbf0e41c88476d9",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.export_v2.js"
+      },
+      {
+        "path": "js/ua.report_v2.js",
+        "bytes": 242785,
+        "sha256": "3fa8ca32dd78885f51baa9d6336da1e72221da4613ee742f7fc6a9a1872e710d",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.report_v2.js"
+      },
+      {
+        "path": "js/ua.source_manifest.js",
+        "bytes": 25224,
+        "sha256": "9481f565f91685d94ac0152e61dfceec125f5d296b7034f5de646b3b606b713d",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/js/ua.source_manifest.js"
+      },
+      {
+        "path": "scripts/generate-sample-docx.js",
+        "bytes": 22079,
+        "sha256": "270df130b2c1cec436b8002de7dc6daac0d1de0d704d93b726da632157af2cb3",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/scripts/generate-sample-docx.js"
+      },
+      {
+        "path": "scripts/qa-numbered-appendix-rendered.js",
+        "bytes": 25786,
+        "sha256": "6be664662eacec802d432ee2b1adb4c7214fa72df0a72a258a1670c0b366b56e",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/scripts/qa-numbered-appendix-rendered.js"
+      },
+      {
+        "path": "scripts/release-map-fixture.js",
+        "bytes": 10071,
+        "sha256": "719c820abeee5c36d87970a283ba051330ef2a14ef20bc9d0e4abfa318bb465a",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/scripts/release-map-fixture.js"
+      },
+      {
+        "path": "tests/fixtures/rendered-document/ci-docx-contract.json",
+        "bytes": 4398,
+        "sha256": "3450a8cdb102e0dc3d36285e8b138fba15438bd13eeca3539fccdb5711da6911",
+        "absolutePath": "/workspace/scratch/299a981d5ae8/final-document-pr/tests/fixtures/rendered-document/ci-docx-contract.json"
+      }
+    ],
+    "generatedAt": "2026-11-08T21:30:59.591Z"
+  },
+  "sourceManifestHash": "5d0cc2cfef9e404ad35418c556f1ccfc72e5ebd741a9c902b2b657dace3e5a56",
   "sourceGeoJsonSha256": "23afbd7bc25ad170e849734db9499ce60dbf15f792a79a41cc1f357413755cce",
   "sourceAcquisition": {
     "kind": "local-file-read",
-    "acquiredAt": "2026-11-08T18:40:04.441Z",
+    "acquiredAt": "2026-11-08T21:31:53.892Z",
     "upstreamRetrievedAt": null
   },
   "tools": {
@@ -16,40 +239,46 @@
     "npm": "11.9.0",
     "pdfmake": "0.3.14",
     "docx": "9.15.3",
-    "libreOffice": "LibreOfficeDev 26.8.0.0.alpha0",
+    "libreOffice": "LibreOfficeDev 26.8.0.0.alpha0 2c87e51eeaa2b413ff4ae097b2705eea1995d8e5",
     "poppler": "26.05.0",
     "mavenAvailable": false
   },
   "artifacts": [
     {
       "path": "out/ci-render-gate.docx",
-      "bytes": 83350,
-      "sha256": "66cfd053a96f7fb370bda203c5da4722febcc81f442dbe9cdb58299e0b01ca2a"
+      "bytes": 83370,
+      "sha256": "fc9cae4bd297305d965b2bc453cb20c02b29f34a7ad4b280e1485e8f081ab811",
+      "referencePages": 5
     },
     {
       "path": "out/ci-render-gate.pdf",
-      "bytes": 187090,
-      "sha256": "b55de2e4f2df9d2d48d648b67ae782b5077b66b3c8bf92667d7ca6ec1b1fedeb"
+      "bytes": 185404,
+      "sha256": "94a62aa7617ee4a39de06716528e5ee5c1af8beb5aa5309704c4c77b4e3ef75a",
+      "referencePages": 5
     },
     {
       "path": "out/qa/rendered-document/docx/converted.pdf",
-      "bytes": 249402,
-      "sha256": "ff5caf97dc2b8c52d860cd1c8898ec1b7b44cd81e7d160490b57a18e08aa6f26"
+      "bytes": 249464,
+      "sha256": "bfc72b3b1ab3455863d532dc0c05bb1300695ea096f68fbc8624b28295a92e19",
+      "referencePages": 5
     },
     {
       "path": "out/qa/release-document/appendix.docx",
-      "bytes": 188442,
-      "sha256": "7ae124bf1ab26a17dd7ccb66fd9a5a96c1e49668d51fc8cd247e500386c0c46c"
+      "bytes": 188478,
+      "sha256": "40b52061f5114ae7c6c13bbc4a3364c4662af6e848f6d88cd774bf4800f6621e",
+      "referencePages": 13
     },
     {
       "path": "out/qa/release-document/appendix.pdf",
-      "bytes": 420353,
-      "sha256": "b5085223b2684540ece10a005d37e3b2fe292ec9aa434af56aeedaee95080f4a"
+      "bytes": 420354,
+      "sha256": "e62277b0c9e4aca03a7630d6ff0b1f73721554393eafc1d003f6046024ef5b3a",
+      "referencePages": 14
     },
     {
       "path": "out/qa/release-document/docx/converted.pdf",
-      "bytes": 714803,
-      "sha256": "6419ffe4ba7cee3be18c95446cac664ea10d074d183853b4c6d4b0a49b759450"
+      "bytes": 714811,
+      "sha256": "d3ba6f64426b7a5f6293fe100a06e836f670e965ff2a63f6a304803bff4be70d",
+      "referencePages": 13
     }
   ],
   "automatedEvidence": {
@@ -57,22 +286,366 @@
     "unitSuites": 18,
     "unitTests": 110,
     "layoutScenarios": 5,
+    "layoutPages": 28,
     "numberedAccidents": 111,
     "numberedMaps": 9,
     "ordinaryDocxPages": 5,
+    "ordinaryNativePdfPages": 5,
     "numberedPdfPages": 14,
     "numberedDocxPages": 13,
-    "nativeRepeatedHeaders": 4,
-    "docxRepeatedHeaders": 3,
+    "numberedResults": [
+      {
+        "format": "native-pdf",
+        "pages": 14,
+        "rowCount": 111,
+        "headerCount": 4,
+        "mapBindings": 9,
+        "captionBindings": 9,
+        "audit": {
+          "schemaVersion": 1,
+          "documentId": "release-numbered-native-pdf",
+          "renderer": "native-pdf-poppler",
+          "pageCount": 14,
+          "passed": true,
+          "counts": {
+            "error": 0,
+            "warning": 0
+          },
+          "issues": [],
+          "summary": {
+            "wordCount": 1762,
+            "imageCount": 9,
+            "mapCount": 9,
+            "linkCount": 120,
+            "tableRowCount": 115,
+            "sourceManifestHash": "5d0cc2cfef9e404ad35418c556f1ccfc72e5ebd741a9c902b2b657dace3e5a56"
+          }
+        }
+      },
+      {
+        "format": "docx-pdf",
+        "pages": 13,
+        "rowCount": 111,
+        "headerCount": 3,
+        "mapBindings": 9,
+        "captionBindings": 9,
+        "audit": {
+          "schemaVersion": 1,
+          "documentId": "release-numbered-docx-pdf",
+          "renderer": "native-pdf-poppler",
+          "pageCount": 13,
+          "passed": true,
+          "counts": {
+            "error": 0,
+            "warning": 0
+          },
+          "issues": [],
+          "summary": {
+            "wordCount": 1798,
+            "imageCount": 9,
+            "mapCount": 9,
+            "linkCount": 11,
+            "tableRowCount": 114,
+            "sourceManifestHash": "5d0cc2cfef9e404ad35418c556f1ccfc72e5ebd741a9c902b2b657dace3e5a56"
+          }
+        }
+      }
+    ],
     "finalNumberedRenderPassed": true,
-    "detailHeadingsBoundToMapPagesPerFormat": 8,
     "finalWordContractSuites": 3,
     "finalWordContractTests": 26,
-    "visualPagesReviewed": {
-      "nativeNumberedPdf": 14,
-      "convertedNumberedDocx": 13,
-      "ordinaryDocx": 5
+    "visualPageScope": {
+      "deliveredCandidatePdfViews": 37,
+      "ordinaryDocx": 5,
+      "ordinaryNative": 5,
+      "numberedDocx": 13,
+      "numberedNative": 14,
+      "additionalLayoutPages": 28,
+      "additionalSourceBoundPages": 29,
+      "productionMethodDiagnosticPages": 38,
+      "totalVisuallyInspectedPages": 132
+    },
+    "visualEvidence": {
+      "path": "out/qa/final-document-20261108/final-visual-review.json",
+      "bytes": 58754,
+      "sha256": "547471d69c6445c2fa2ea601211b31a695143883685ee5a6545c045d2879c93f"
     }
+  },
+  "sourceBoundOrdinaryEvidence": {
+    "generation": "Unchanged short technical ordinary generator using production exports; hourly fixture contains genuine pinned Düsseldorf data. Other fixtures are explicitly technical, not new scientific observations or activations.",
+    "cases": [
+      {
+        "kind": "count",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "count18504",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "hourly",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 3
+        }
+      },
+      {
+        "kind": "model",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "old",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "proxy",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "dgm",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      }
+    ],
+    "artifacts": [
+      {
+        "path": "out/qa/final-document-20261108/source-bound/all-source-bound-audit.json",
+        "bytes": 1062,
+        "sha256": "19e3428ad8899b578a33d1009000b35923a467b5f75bec8cefc0acdc775723a2"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/count-source-manifest.json",
+        "bytes": 7477,
+        "sha256": "c385956ac8647b0625ad640fb089340ea78f01acf5f5c6c0d23bc10b6b5aa671"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/count.docx",
+        "bytes": 15414,
+        "sha256": "32132aa05f4653d02db3efedb24239db65c00a9af646681f0e273cef6917b732"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/count.pdf",
+        "bytes": 61275,
+        "sha256": "936b1c5de0689e853526a71880145bb672e938766c66b5e602c2b4cd7a690d31"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/count18504-source-manifest.json",
+        "bytes": 7481,
+        "sha256": "fbffc9a9666bd25c9dac314416503e178599c1f983bb848e5acb756f1f474f5e"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/count18504.docx",
+        "bytes": 15413,
+        "sha256": "36f04e450c05302843fd7ab25b18f3a677022c0fd63db7bde770432fa21f37b8"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/count18504.pdf",
+        "bytes": 61946,
+        "sha256": "11fe42f55cc42abe9ece81bbee69237a2f1ae66a80715a69e21202be4b2bc628"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/dgm-source-manifest.json",
+        "bytes": 5535,
+        "sha256": "af41c95bd0d38b3d6f773610bd3726d9d56288fd8df8c6bd09842944867286f8"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/dgm.docx",
+        "bytes": 14713,
+        "sha256": "08a62ba877079bcc4482679d7d664a5a56579522136b4e249358fb4ca03d74af"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/dgm.pdf",
+        "bytes": 55021,
+        "sha256": "503c44ea7308597c00eeb1dcd27bba26e43e5b7667da363cb40d727d0fca9e29"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/hourly-source-manifest.json",
+        "bytes": 9453,
+        "sha256": "92835f2e25b2af1941618412614019398e560335c4036fa0cb94fa78d6ee04c5"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/hourly.docx",
+        "bytes": 17240,
+        "sha256": "ef9c037358362e2fd2f6953525966daf40add132ae7706ee94cf5433bc2daf4d"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/hourly.pdf",
+        "bytes": 72368,
+        "sha256": "dc440c835e3d8b235d5e55480a7349b2b219cba50fc1c54733824769a2422185"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/model-source-manifest.json",
+        "bytes": 7474,
+        "sha256": "b14b348d1017a8cdcfb691790de4a2bbe951c52e4a320799ba1aec9f52e8d8f2"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/model.docx",
+        "bytes": 15396,
+        "sha256": "b0adcdc0d95a7880f03ee510a7c32f9372fc820bc4b073cb8dce4ef889660042"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/model.pdf",
+        "bytes": 61404,
+        "sha256": "23e5ee9476d168c4f16a2dd262a95daf4c5618174d1a5020e7cd77e38c34cee3"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/old-source-manifest.json",
+        "bytes": 7523,
+        "sha256": "ba941b6196f7782b6a35a4a4c3d869227fddedff62da460312c563733b0e8597"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/old.docx",
+        "bytes": 15466,
+        "sha256": "099ef35c0e11303abe688ecedae0aa3ad3e240a045c520dc69950a92c219fac1"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/old.pdf",
+        "bytes": 61797,
+        "sha256": "def28b8d952a26b24c73a583702fed60be7924bd427d10b6c846065fc6304350"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/proxy-source-manifest.json",
+        "bytes": 4628,
+        "sha256": "3d4bd3daa976a6f390b0d9e1336c91bf11e5ebc631a6c556925ff5c7e472a836"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/proxy.docx",
+        "bytes": 14589,
+        "sha256": "b2e77a8cfbea35d671c50ef7572d66c1d12eae632803fc2975e23a2e91892a7d"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/proxy.pdf",
+        "bytes": 53981,
+        "sha256": "8e6a4ffbcc970e08ffd31988f0624d6069d13413045600ffbdbfb0a93d424872"
+      },
+      {
+        "path": "out/qa/final-document-20261108/source-bound/source-bound-generation-receipt.json",
+        "bytes": 9003,
+        "sha256": "b34a0b1a5fcd25fd0e9370b0db756d90a7221a79d5a49a8bd0d8bcbddb79ea69"
+      }
+    ],
+    "rawSourceManifestPolicy": "Full original URLs, hashes, attribution, original units, timestamps and directions remain in embedded/raw metadata. Display projection is concise and clickable. No source activation or inferred road match."
+  },
+  "productionMethodWarningEvidence": {
+    "sourceCommit": "5520125e59c1d1d2df40df55eea3e6b27a1f42a3",
+    "wordInputFingerprint": "957e0bedb207fa17ee3da26adf636d13252f3e15c793bf968392a4cd4be602d6",
+    "generatedAt": "2026-11-08T21:33:19.824Z",
+    "productionWrapper": true,
+    "accidents": 37,
+    "completeAreaAccidents": 312,
+    "methodNote": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
+    "checks": {
+      "structured": true,
+      "text": true,
+      "html": true,
+      "visibleHtml": true,
+      "visibleMethodNoteConditionWaited": true,
+      "serverAssessmentPrompt": true,
+      "serverProposalPrompt": true
+    },
+    "externalRequests": "blocked; no live tiles or political/model execution",
+    "mapExport": false,
+    "microsoftWordEvidenceVerified": false,
+    "evidenceDirectory": "out/qa/production-method-warning",
+    "role": "Actual production-wrapper method preservation and additional rendering diagnostic; not Microsoft Word, model, scientific or proposal acceptance. The numbered 111-case appendix itself makes no pattern comparison.",
+    "contentVerification": {
+      "docxXmlContainsExactNote": true,
+      "pdfs": {
+        "native": {
+          "pages": 20,
+          "exactNotePages": [
+            2
+          ]
+        },
+        "docx": {
+          "pages": 18,
+          "exactNotePages": [
+            1
+          ]
+        }
+      }
+    },
+    "genericPublicLinkAudit": {
+      "passed": false,
+      "reason": "Actual local browser exports retain localhost HTTP development URL; unchanged adapter rejects unsafe_link. No link assertion is relaxed."
+    },
+    "artifacts": [
+      {
+        "path": "out/qa/production-method-warning/production-report.json",
+        "bytes": 3458946,
+        "sha256": "0bfe7340d2aaf618040fd577d02db06b28364f2ea2b24e0ecca5780d2d3c765e"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.html",
+        "bytes": 342807,
+        "sha256": "ffdaddb92053834ee4135747590b1346285fcf0a0b41cd9337d0eb3fbacf8e33"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-model-prompts.json",
+        "bytes": 23094,
+        "sha256": "c22dcc5b4d3527e99b854c49ba0bdbe915701ff113218531aa40472a45c61d56"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.docx",
+        "bytes": 29102,
+        "sha256": "ae1f97a69d35d0ae4cf9676f4e09fe2eba2220db318fe417021a7180003bba79"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.pdf",
+        "bytes": 172360,
+        "sha256": "c2ecd4067f67aeff6cd0092715eb4f635d64bd67ea09c3fdf078d83a6d7f0826"
+      },
+      {
+        "path": "out/qa/production-method-warning/docx-render/production-report.pdf",
+        "bytes": 353982,
+        "sha256": "4aab1fb34cf5d7b1ec32edabf687e0760022fa5d3687932298af6f9c2a6530c1"
+      }
+    ]
   },
   "externalAcceptance": {
     "microsoftWordVerified": false,
@@ -81,77 +654,5 @@
     "canonicalMavenNode26ExactHeadVerified": false,
     "releasePublished": false
   },
-  "ordinarySampleRenderSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-  "productionMethodWarningEvidence": {
-    "sourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-    "wordInputFingerprint": "a6b6865ec58ff59265f400b8f49575d363f877090d0ae11a2435488bae4291bc",
-    "generatedAt": "2026-11-08T18:43:29.450Z",
-    "productionWrapper": true,
-    "accidents": 37,
-    "methodNote": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
-    "checks": {
-      "structured": true,
-      "text": true,
-      "html": true,
-      "visibleHtml": true,
-      "serverAssessmentPrompt": true,
-      "serverProposalPrompt": true
-    },
-    "externalRequests": "blocked; no live tiles or political/model execution",
-    "mapExport": false,
-    "microsoftWordEvidenceVerified": false,
-    "evidenceDirectory": "out/qa/production-method-warning",
-    "role": "method-warning-only; not a Microsoft Word or proposal acceptance",
-    "docxXmlContainsExactNote": true,
-    "actualPdfTextContainsExactNote": true,
-    "convertedDocxTextContainsExactNote": true,
-    "visuallyReviewedNotePages": {
-      "nativePdf": [
-        2
-      ],
-      "convertedDocx": [
-        1
-      ]
-    },
-    "generatedPages": {
-      "nativePdf": 20,
-      "convertedDocx": 18
-    },
-    "localPublicLinkAudit": {
-      "passed": false,
-      "reason": "Actual browser export retains its localhost HTTP development URL; the separate public-HTTPS audit rejects it. No link gate was disabled."
-    },
-    "artifacts": [
-      {
-        "path": "out/qa/production-method-warning/production-report.json",
-        "bytes": 3457556,
-        "sha256": "8021ddfd66e56e29eedb1ff697d4b2414cf0c3c9bb1aa659a7bc501b9846d5a3"
-      },
-      {
-        "path": "out/qa/production-method-warning/production-report.html",
-        "bytes": 342508,
-        "sha256": "7f139a4436b60900c1fea2eec353c431b55dc7a7f27909ec74a29dc23ec2be0d"
-      },
-      {
-        "path": "out/qa/production-method-warning/production-model-prompts.json",
-        "bytes": 23094,
-        "sha256": "5f4ed14cb2991a211267795ea681441342c84726e127decb6d00755d3e5789ca"
-      },
-      {
-        "path": "out/qa/production-method-warning/production-report.docx",
-        "bytes": 29003,
-        "sha256": "199c539bdb9bc958540529862edcfbcadb2a1d26aab982e7fd042c469905edb0"
-      },
-      {
-        "path": "out/qa/production-method-warning/production-report.pdf",
-        "bytes": 170971,
-        "sha256": "d382fd355c3c4fe76c61b577ac9ee6e6250355bf5f3af0675c56e4e2e7e24af5"
-      },
-      {
-        "path": "out/qa/production-method-warning/docx-render/production-report.pdf",
-        "bytes": 352712,
-        "sha256": "74fd21324e95d61a2b641e86489377b6e708525beb482a41d4d6d83c2fc8538f"
-      }
-    ]
-  }
+  "historicalEvidence": "a6b686/63421d candidate remains unchanged and separate. Intermediate 11e/7e09105, b55/f23d, 825a/72cb and bd44 probes do not qualify these final bytes. Earlier 32-page review did not include ordinary native PDF; current visual scope explicitly includes every delivered PDF view."
 }
