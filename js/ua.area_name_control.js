@@ -130,5 +130,11 @@
       UA.computeExportReport = wrapped;
     }
   }
-  UA.AreaNameControl = Object.freeze({ bind, reconcile, geometryKey });
+  function researchContext(ctx) {
+    if (!ctx || !reconcile(ctx) || !ctx._confirmedAreaGeometry || !ctx.areaNameOverride) return null;
+    // The name identifies the confirmed area; it does not verify a midpoint
+    // street or district. Explicit place terms remain separate search inputs.
+    return { location: ctx.areaNameOverride, street: '', district: '' };
+  }
+  UA.AreaNameControl = Object.freeze({ bind, reconcile, geometryKey, researchContext });
 })();

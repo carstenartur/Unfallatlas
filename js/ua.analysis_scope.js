@@ -222,13 +222,16 @@
         meta.baselineScope.basis = 'Stadtweite Population mit identischen aktiven Filtern einschließlich Beteiligungsfilter';
         meta.baselineScope.filters = meta.filters || meta.baselineScope.filters || {};
       }
+      const limitations = report.structured.methodikScope?.limitations || UA.patternComparisonLimitations;
       report.structured.methodikScope = {
+        ...(limitations ? { limitations } : {}),
         title: 'Methodik – eindeutige Zählbereiche',
         lines: [
           `Aktive Auswertung: ${accidentPhrase(activeInArea)} im ${label}; berücksichtigt werden alle aktiven Filter einschließlich des Beteiligungsmodus.`,
           `Gebietsbestand vor Beteiligungsfilter: ${accidentPhrase(contextInArea)} im selben Gebiet unter den übrigen Filtern. Dieser Wert dient nur als Kontext und ist nicht die Fallzahl des gefilterten Antrags.`,
           'Sichtbar- und Markierungszahlen werden aus derselben ungekappte Filterpopulation und den exakten geometrischen Grenzen berechnet; Renderlimit und technischer Ladepuffer verändern diese Fallzahlen nicht.',
           'Der stadtweite Vergleich verwendet dieselben aktiven Filter einschließlich Beteiligungsfilter.',
+          ...(limitations?.note ? [limitations.note] : []),
         ],
       };
     }

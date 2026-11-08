@@ -8,6 +8,7 @@ const { gunzipSync } = require('node:zlib');
 const { readRisSnapshot, writeRisSnapshot: writeSnapshot } = require('../../server/political-context/services/risSnapshot');
 const { refreshRisCatalogues, validateRisDirectory, collectOfficial } = require('../../scripts/refresh-ris-catalogues');
 const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+const { composeHannoverCatalogue } = require('../../server/political-context/providers/hannoverCatalogueComposition');
 
 const NOW = new Date('2026-11-07T10:00:00.000Z');
 const OLD = new Date('2026-10-20T09:00:00.000Z');
@@ -85,6 +86,43 @@ function refresh(options) {
 
 const checkpointRetry = { city: 'hannover', sourceCacheKey: 'ris-sources-v1-Linux-42502618892-1', minimumRecords: 3 };
 
+function unknownSimComposition(withSupplement) {
+  const city = catalogue('hannover', { count: 3 });
+  const url = 'https://www.landtag-niedersachsen.de/dokumentensuche/';
+  const additional = { records: withSupplement ? [{ ...city.records[1], id: 'landtag:19-8980',
+    source: 'niedersachsen-landtag', url }] : [], sourceStatuses: withSupplement ? [{ source: 'landtag-catalogue',
+    status: 'partial', url, retrievedAt: FRESH.toISOString(), from: null, to: null, recordCount: 1, message: 'Partial source' }] : [] };
+  return composeHannoverCatalogue(city, additional, { now: NOW });
+}
+
+test.each([false, true])('unknown SIM clocks cannot publish using now or supplementary freshness (supplement=%s)', async withSupplement => {
+  const incoming = unknownSimComposition(withSupplement);
+  expect(incoming.sourceStatuses[0].retrievedAt).toBeNull();
+  await expect(refresh({ cities: ['hannover'], collect: async () => incoming }))
+    .resolves.toMatchObject([{ status: 'unavailable', reason: expect.stringMatching(/SIM.*verified.*timestamp/i) }]);
+  await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test.each([false, true])('unknown SIM clocks retain the valid previous snapshot and its age (supplement=%s)', async withSupplement => {
+  const prior = await writeRisSnapshot(directory, 'hannover', catalogue('hannover', { count: 3 }), { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  await expect(refresh({ cities: ['hannover'], collect: async () => unknownSimComposition(withSupplement) }))
+    .resolves.toMatchObject([{ status: 'retained', generatedAt: prior.generatedAt,
+      reason: expect.stringMatching(/SIM.*verified.*timestamp/i) }]);
+  const after = await readRisSnapshot(directory, 'hannover');
+  expect(after.manifest).toEqual({ ...prior, refreshFailure: {
+    attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString(), reason: expect.any(String),
+  } });
+  expect(after.records).toEqual(before.records);
+});
+
+test('checkpoint recovery with unknown SIM time fails instead of reporting a retained snapshot as recovered', async () => {
+  const prior = await writeRisSnapshot(directory, 'hannover', catalogue('hannover', { count: 3 }), { now: FALLBACK });
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect: async () => unknownSimComposition(true) }))
+    .rejects.toThrow(/recovery.*SIM.*verified.*timestamp/i);
+  expect((await readRisSnapshot(directory, 'hannover')).manifest).toEqual(prior);
+});
+
 test('explicit checkpoint recovery bypasses only source retry backoff and forces zero source work', async () => {
   const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
   prior.refreshFailure = { attemptedAt: NOW.toISOString(), reason: 'Amtlicher Abruf fehlgeschlagen.', expiresAt: EXPIRY.toISOString() };
@@ -146,6 +184,8 @@ test('checkpoint-only collection requires every historical year and never querie
     const next = await collectOfficial('hannover', NOW, options);
     expect(next.records).toHaveLength(3);
     expect(next.history.pending).toBe(true);
+    expect(next.sourceStatuses.find(status => status.source === 'hannover-sim').retrievedAt).toBe(FRESH.toISOString());
+    expect(next.generatedAt).toBe(FRESH.toISOString());
     expect(externalFetch).not.toHaveBeenCalled();
     expect(externalHttps).not.toHaveBeenCalled();
   } finally { externalFetch.mockRestore(); externalHttps.mockRestore(); }

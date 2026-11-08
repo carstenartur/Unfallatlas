@@ -124,6 +124,8 @@ describe('AI methodology contract – production deviation fields', () => {
     );
 
     expect(methodology.patternComparison.comparisonType).toBe('composition-share-ratio');
+    expect(methodology.patternComparison.limitations).toMatchObject({ inference: 'exploratory', multiplicityAdjustment: 'none', referenceIncludesLocal: true });
+    expect(methodology.patternComparison.limitations.note).toMatch(/explorativ.*unbereinigt.*Mehrfachtestkorrektur/is);
     expect(methodology.patternComparison.formulas.localShare).toContain('locCnt / local.total');
     expect(methodology.patternComparison.formulas.referenceShare).toContain('baseCnt / baseline.total');
     expect(methodology.patternComparison.formulas.factor).toContain('locR / baseR');
@@ -165,6 +167,12 @@ describe('AI methodology contract – production deviation fields', () => {
     expect(user).toMatch(/Rad allein: lokal .*explorative Abweichung/is);
     expect(user).toMatch(/relative Steigung .*R²=0,01/is);
     expect(user).not.toMatch(/Flächen.*Nenner erforderlich/is);
+    for (const mode of ['assessment', 'proposal-brief']) {
+      const prompt = buildPrompt({ features, meta: STRUCTURED_PRODUCTION_SHAPE.meta }, mode);
+      expect(prompt.user).toContain(features.analysisMethodology.patternComparison.limitations.note);
+      expect(prompt.system).toMatch(/isSignificant=true.*unbereinigter.*explorativer/is);
+      expect(prompt.system).not.toContain('statistisch abgesicherte Überrepräsentation (isSignificant=true)');
+    }
   });
 });
 
@@ -213,6 +221,7 @@ describe('frontend AI handoff methodology bridge', () => {
 
     expect(report.structured).toBe(structured);
     expect(structured.analysisMethodology.patternComparison.comparisonType).toBe('composition-share-ratio');
+    expect(structured.analysisMethodology.patternComparison.limitations).toEqual(buildAnalysisMethodology(STRUCTURED_PRODUCTION_SHAPE.deviations, STRUCTURED_PRODUCTION_SHAPE.yearlyTrend).patternComparison.limitations);
     expect(structured.analysisMethodology.mandatoryInterpretationBeforeQa.join(' ')).toMatch(/Anteile von Beteiligungskombinationen/);
     expect(structured.analysisMethodology.forbiddenMisinterpretation).toMatch(/nicht.*Unfallraten/is);
   });

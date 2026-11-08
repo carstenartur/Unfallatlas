@@ -2,6 +2,7 @@
 'use strict';
 
 const { collectHannoverCatalogue } = require('../../server/political-context/providers/hannoverSimCatalogue');
+const { composeHannoverCatalogue } = require('../../server/political-context/providers/hannoverCatalogueComposition');
 
 const ROOT = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/';
 const SEARCH = ROOT + 'Suche.xsp';
@@ -453,7 +454,10 @@ test('a source-cache hit cannot rejuvenate a new checkpoint or republish expired
     await collectHannoverCatalogue({ ...collectOptions, now: verifiedAt });
     cacheTime = checkpointAt.getTime();
     const checkpoint = createRisSourceCheckpoint({ directory: path.join(folder, 'checkpoint') });
-    await collectHannoverCatalogue({ ...collectOptions, now: checkpointAt, checkpoint });
+    const cached = await collectHannoverCatalogue({ ...collectOptions, now: checkpointAt, checkpoint });
+    const composed = composeHannoverCatalogue(cached, { records: [], sourceStatuses: [] }, { now: checkpointAt });
+    expect(composed.sourceStatuses[0].retrievedAt).toBe(verifiedAt.toISOString());
+    expect(composed.generatedAt).toBe(verifiedAt.toISOString());
     const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
     expect(work.details[key].checkedAt).toBe('2026-11-01T11:00:00.000Z');
     expect(calls.filter(call => call.url.includes('/DS/'))).toHaveLength(1);
@@ -461,9 +465,11 @@ test('a source-cache hit cannot rejuvenate a new checkpoint or republish expired
     const catalogue = await collectHannoverCatalogue({ ...options, from: '2022-01-01', to: '2022-12-31',
       now: later, workBudget: 0, checkpoint, requestText });
     expect(catalogue.records[0].detailVerifiedAt).toBe('2026-11-01T11:00:00.000Z');
+    const expired = composeHannoverCatalogue(catalogue, { records: [], sourceStatuses: [] }, { now: later });
+    expect(expired.sourceStatuses[0].retrievedAt).toBe(verifiedAt.toISOString());
     const directory = path.join(folder, 'published');
     await expect(refreshRisCatalogues({ directory, cities: ['hannover'], now: later,
-      fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => catalogue }))
+      fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => expired }))
       .resolves.toMatchObject([{ status: 'unavailable' }]);
     await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
   } finally { await fs.rm(folder, { recursive: true, force: true }); }

@@ -2,6 +2,21 @@
 
 const { sourceContext } = require('./hannoverAdditionalFormats');
 
+function simSourceClock(catalogue, now) {
+  const verifiedTime = value => {
+    const time = typeof value === 'string' ? Date.parse(value) : NaN;
+    return Number.isFinite(time) && time <= now.getTime() ? time : NaN;
+  };
+  const catalogueTime = verifiedTime(catalogue.generatedAt);
+  const detailTimes = catalogue.records.map(record => verifiedTime(record.detailVerifiedAt));
+  // Composition and checkpoint recovery do not read the source. Without an
+  // existing catalogue clock, every contributing detail needs a known clock.
+  if (!Number.isFinite(catalogueTime) && (!detailTimes.length || detailTimes.some(time => !Number.isFinite(time)))) return null;
+  const oldest = detailTimes.reduce((time, detail) => Number.isFinite(detail) ? Math.min(time, detail) : time,
+    Number.isFinite(catalogueTime) ? catalogueTime : Infinity);
+  return new Date(oldest).toISOString();
+}
+
 function composeHannoverCatalogue(cityCatalogue, additional, { now = new Date() } = {}) {
   if (!Array.isArray(cityCatalogue?.records) || !cityCatalogue.coverage || !Array.isArray(additional?.records) || !Array.isArray(additional.sourceStatuses)) {
     throw new TypeError('Invalid Hannover source catalogues');
@@ -11,7 +26,7 @@ function composeHannoverCatalogue(cityCatalogue, additional, { now = new Date() 
       record.type === 'Antrag' || record.type === 'Anfrage' || record.type === 'Änderungsantrag' ? 'proposal'
         : record.type === 'Verwaltungsantwort' ? 'answer' : record.type === 'Protokoll' ? 'minutes' : 'other'), publisher: 'Landeshauptstadt Hannover' } }));
   const records = [...new Map([...cityRecords, ...additional.records].map(record => [record.id, record])).values()];
-  const cityClock = cityCatalogue.generatedAt || now.toISOString();
+  const cityClock = simSourceClock(cityCatalogue, now);
   const cityStatus = { source: 'hannover-sim', status: cityCatalogue.coverage.complete ? 'available' : 'partial',
     url: cityCatalogue.sources[0], retrievedAt: cityClock, from: cityCatalogue.coverage.from, to: cityCatalogue.coverage.to,
     recordCount: cityRecords.length, message: 'Städtischer SIM-Katalog; Quellenabdeckung siehe eigenen Zeitraum und Sammlungsstatus.' };
