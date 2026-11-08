@@ -107,6 +107,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
   test('specialized workflows call documented Maven profiles', () => {
     const expected = {
       'test.yml': [
+        '-N process-resources -Prepository-storage',
         '-Ppages',
         '-Pe2e,system-it,location-brief-golden,context-data-e2e',
         '-Dcontext.city=Hannover',
@@ -134,6 +135,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
   test('the root POM owns every workflow-facing QA profile', () => {
     const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
     for (const profile of [
+      'repository-storage',
       'pages',
       'pages-regenerated',
       'e2e',

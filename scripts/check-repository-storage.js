@@ -10,8 +10,8 @@ const LIMITS = ['maxSingleFileBytes', 'maxTrackedBytes', 'maxChangedFiles', 'max
   'maxDeletedFiles', 'maxRewrittenBytes', 'maxPositiveGrowthBytes', 'maxNetGrowthBytes',
   'maxEvidenceBytes', 'maxEvidenceFileBytes', 'maxPublishedDataBytes'];
 
-function git(root, args, allowFailure = false) {
-  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+function git(root, args, allowFailure = false, input) {
+  const result = spawnSync('git', args, { cwd: root, input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (result.error) throw result.error;
   if (result.status !== 0 && !allowFailure) throw new Error(`git ${args[0]} failed: ${String(result.stderr).trim()}`);
   return result;
@@ -62,10 +62,53 @@ function tree(root, ref) {
   return result;
 }
 
+function requireCompleteRange(root, base, head) {
+  const commits = git(root, ['rev-list', `${base}..${head}`]).stdout.trim().split('\n').filter(Boolean);
+  const shallowPath = path.resolve(root, git(root, ['rev-parse', '--git-path', 'shallow']).stdout.trim());
+  const shallow = fs.existsSync(shallowPath) ? new Set(fs.readFileSync(shallowPath, 'utf8').trim().split('\n')) : new Set();
+  if (commits.some(commit => shallow.has(commit))) throw new Error('Incomplete storage history range; fetch all commits introduced since the baseline');
+  return commits;
+}
+
+function prepareHistory(root, baseValue, headValue = 'HEAD') {
+  if (typeof baseValue !== 'string' || !/^[a-f0-9]{40}$/.test(baseValue) || /^0+$/.test(baseValue)) {
+    throw new Error('A nonzero full baseline SHA is required before fetching storage history');
+  }
+  const head = revision(root, headValue, 'head');
+  if (git(root, ['cat-file', '-e', `${baseValue}^{commit}`], true).status !== 0) {
+    git(root, ['fetch', '--no-tags', '--depth=1', 'origin', baseValue]);
+  }
+  const base = revision(root, baseValue, 'baseline');
+  // Bound network work to the exact two reviewed commits. Never fetch all refs.
+  for (let attempt = 0; attempt <= 5; attempt++) {
+    try { requireCompleteRange(root, base, head); return { base, head }; }
+    catch (error) {
+      if (attempt === 5 || !/Incomplete storage history range/.test(error.message)) throw error;
+      git(root, ['fetch', '--no-tags', '--deepen=100', 'origin', head, base]);
+    }
+  }
+}
+
+function newHistoryBlobs(root, base, head) {
+  const commits = requireCompleteRange(root, base, head);
+  const objects = git(root, ['rev-list', '--objects', '--missing=print', `${base}..${head}`]).stdout;
+  if (objects.split('\n').some(row => row.startsWith('?'))) throw new Error('Missing storage history objects; fetch introduced blobs before checking');
+  if (!objects.trim()) return { commits: commits.length, newBlobCount: 0, newBlobBytes: 0, blobs: [] };
+  const metadata = git(root, ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize) %(rest)'], false, objects).stdout;
+  const blobs = [];
+  for (const row of metadata.split('\n').filter(Boolean)) {
+    const match = /^([a-f0-9]+) (\w+) (\d+)(?: ([\s\S]*))?$/.exec(row);
+    if (!match) throw new Error('Invalid storage history object metadata');
+    if (match[2] === 'blob') blobs.push({ blob: match[1], bytes: Number(match[3]), path: match[4] || '(no path)' });
+  }
+  return { commits: commits.length, newBlobCount: blobs.length, newBlobBytes: blobs.reduce((sum, item) => sum + item.bytes, 0), blobs };
+}
+
 function evaluateStorage(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const base = revision(root, options.base, 'baseline');
   const head = revision(root, options.head || 'HEAD', 'head');
+  requireCompleteRange(root, base, head);
   if (git(root, ['merge-base', '--is-ancestor', base, head], true).status !== 0) {
     throw new Error('Storage baseline must be an ancestor of the checked head; unrelated histories cannot establish a delta');
   }
@@ -73,6 +116,7 @@ function evaluateStorage(options = {}) {
   const policy = validatePolicy(options.policy || loadPolicy(root, hasBaselinePolicy ? base : head));
   const before = tree(root, base);
   const after = tree(root, head);
+  const history = newHistoryBlobs(root, base, head);
   const errors = [];
   const totals = { trackedBytes: 0, trackedFiles: after.size, evidenceBytes: 0, publishedDataBytes: 0 };
   const delta = { changedFiles: 0, addedFiles: 0, deletedFiles: 0, rewrittenBytes: 0, positiveGrowthBytes: 0, netGrowthBytes: 0 };
@@ -83,6 +127,18 @@ function evaluateStorage(options = {}) {
       errors.push(`Must retain immutable legacy release ${name}; validate replacement links and change the policy separately before removing it`);
     }
   }
+  for (const item of history.blobs) {
+    if (!Object.values(policy.legacyReleaseAssets).includes(item.blob)) {
+      exceeds(`new history blob ${item.path} (${item.blob})`, item.bytes, policy.limits.maxSingleFileBytes);
+    }
+    if (policy.evidencePrefixes.some(prefix => item.path.startsWith(prefix))) {
+      exceeds(`new history evidence ${item.path}`, item.bytes, policy.limits.maxEvidenceFileBytes);
+    }
+    if (policy.diagnosticPrefixes.some(prefix => item.path.startsWith(prefix)) || policy.rawDataPrefixes.some(prefix => item.path.startsWith(prefix))) {
+      errors.push(`Keep diagnostic/raw blobs outside Git history: ${item.path}`);
+    }
+  }
+  exceeds('new history blob bytes', history.newBlobBytes, policy.limits.maxRewrittenBytes);
   for (const [name, item] of after) {
     totals.trackedBytes += item.bytes;
     const evidence = policy.evidencePrefixes.some(prefix => name.startsWith(prefix));
@@ -120,16 +176,21 @@ function evaluateStorage(options = {}) {
   }
   return { schemaVersion: 1, contract: 'unfallwerkbank-repository-storage-report/v1', valid: errors.length === 0,
     base, head, policy: { path: POLICY_PATH, sha256: policy.sha256 || null, sourceRevision: policy.sourceRevision || null, limits: policy.limits },
-    totals, delta, changed, largest: [...after].map(([name, item]) => ({ path: name, bytes: item.bytes, blob: item.oid })).sort((a, b) => b.bytes - a.bytes).slice(0, 25), errors };
+    totals, delta, history, changed, largest: [...after].map(([name, item]) => ({ path: name, bytes: item.bytes, blob: item.oid })).sort((a, b) => b.bytes - a.bytes).slice(0, 25), errors };
 }
 
 if (require.main === module) {
   try {
-    const args = process.argv.slice(2); const options = {};
-    for (let i = 0; i < args.length; i += 2) {
-      if (!['--base', '--head', '--report'].includes(args[i]) || !args[i + 1]) throw new Error('Usage: check-repository-storage.js --base SHA [--head SHA] [--report PATH]');
-      options[args[i].slice(2)] = args[i + 1];
+    const args = process.argv.slice(2); const options = {}; let fetchHistory = false;
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--fetch-history') { fetchHistory = true; continue; }
+      if (!['--base', '--head', '--report'].includes(args[i]) || !args[i + 1]) throw new Error('Usage: check-repository-storage.js --base SHA [--head SHA] [--report PATH] [--fetch-history]');
+      options[args[i].slice(2)] = args[++i];
     }
+    const root = path.resolve(__dirname, '..');
+    options.base ||= process.env.STORAGE_EVENT === 'workflow_dispatch'
+      ? revision(root, 'HEAD^', 'manual baseline') : process.env.STORAGE_BASE;
+    if (fetchHistory) Object.assign(options, prepareHistory(root, options.base, options.head));
     const report = evaluateStorage(options);
     if (options.report) {
       const file = path.resolve(options.report);
@@ -142,4 +203,4 @@ if (require.main === module) {
   } catch (error) { console.error(`Repository storage check failed: ${error.message}`); process.exitCode = 1; }
 }
 
-module.exports = { evaluateStorage, loadPolicy, validatePolicy };
+module.exports = { evaluateStorage, loadPolicy, validatePolicy, requireCompleteRange, prepareHistory };

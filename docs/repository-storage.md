@@ -52,7 +52,7 @@ Testläufe vergleichen ihren tatsächlichen Elterncommit.
 | Veröffentlichte Daten in `out/` | 160 MiB | Bestand 110,20 MiB; Delta-Guard bleibt zusätzlich wirksam |
 | Dauerhafte maschinenlesbare Evidenz | 4 MiB insgesamt, 1 MiB pro Datei | Bestand 1,47 MiB; vollständige Läufe bleiben extern |
 | Geänderte / neue / gelöschte Dateien pro PR | 5.000 / 1.000 / 1.000 | begrenzt unbemerkte Massenänderungen |
-| Neu geschriebene Dateibytes pro PR | 128 MiB | auch gleich großer Binäraustausch zählt |
+| Neu geschriebene Dateibytes / neu erreichbare Blob-Inhalte pro PR | je 128 MiB | auch Zwischenversionen und gleich großer Binäraustausch zählen |
 | Positive Zuwächse / Nettozuwachs pro PR | 64 MiB / 32 MiB | Löschungen dürfen große neue Dateien nicht verdecken |
 | Kanonische Dokumentationsmedien | unverändert 30 MiB insgesamt | bestehende Medien-Policy bleibt maßgeblich |
 | Statische Kartenmedien | unverändert 1,5 MiB pro Datei | vorhandene Abmessungs-/Inhalts-/Quellenprüfung bleibt maßgeblich |
@@ -62,11 +62,19 @@ Die Ausnahme erlaubt weder ihren Austausch noch neue ZIP-Versionen. Symlinks,
 Submodule, eingecheckte Laufdiagnostik und neue Rohdatenverzeichnisse werden nicht
 als reguläre freigegebene Dateien akzeptiert.
 
+Zusätzlich zum endgültigen Baum werden alle seit der Baseline neu erreichbaren
+Blobs geprüft. Eine zwischenzeitlich hinzugefügte und wieder gelöschte Großdatei
+bleibt bei einem normalen Merge Teil der Historie und verbraucht daher ihr Budget.
+Gleiche Blob-IDs zählen nur einmal. CI lädt die betroffene Commit-Strecke begrenzt
+nach; verbleibende flache Grenzen oder fehlende Objekte führen zum Fehler.
+
 Der automatische Kontextdaten-Commit behält seine Maven-Einbindung, erlaubten
 Pfade, strengeren Dateizahl-/Löschgrenzen und den versionierten Delta-Bericht vor
 jedem Push. Der neue Job ersetzt diesen Schreibschutz nicht. Lokal nach einem Commit:
 
 ```sh
+STORAGE_BASE=<Ausgangs-SHA> mvn -B -ntp -N process-resources -Prepository-storage
+# Bereits vollständig geladene Historie lokal ohne Netzabruf prüfen:
 node scripts/check-repository-storage.js --base <Ausgangs-SHA> --head HEAD --report out/qa/repository-storage.json
 ```
 

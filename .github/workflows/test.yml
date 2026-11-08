@@ -32,31 +32,18 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Check repository storage against the explicit baseline
-        shell: bash
+      - name: Set up Java 25 with Maven cache
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Check repository storage through the canonical Maven profile
         env:
           STORAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           STORAGE_EVENT: ${{ github.event_name }}
-        run: |
-          set -euo pipefail
-          # Manual rehearsals compare with their real parent; write workflows and
-          # pull requests must supply their event baseline and never initialize it.
-          if [[ "$STORAGE_EVENT" == "workflow_dispatch" ]]; then
-            STORAGE_BASE="$(git rev-parse HEAD^)"
-          fi
-          [[ "$STORAGE_BASE" =~ ^[0-9a-f]{40}$ && "$STORAGE_BASE" != 0000000000000000000000000000000000000000 ]] || {
-            echo "Missing or invalid storage baseline" >&2
-            exit 1
-          }
-          if ! git cat-file -e "$STORAGE_BASE^{commit}"; then
-            git fetch --no-tags --depth=1 origin "$STORAGE_BASE"
-          fi
-          # Depth-two checkout contains both parents for the normal PR/merge path.
-          # For multi-commit pushes, fetch the bounded ancestry needed by the check.
-          if ! git merge-base --is-ancestor "$STORAGE_BASE" HEAD; then
-            git fetch --no-tags --deepen=100 origin
-          fi
-          node scripts/check-repository-storage.js --base "$STORAGE_BASE" --head HEAD --report out/qa/repository-storage.json
+        run: mvn -B -ntp -N process-resources -Prepository-storage
 
       - name: Upload storage evidence
         if: always()
@@ -79,7 +66,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: '25'
@@ -116,7 +103,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: '25'

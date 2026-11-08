@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { evaluateStorage, loadPolicy } = require('../../scripts/check-repository-storage');
+const { evaluateStorage, loadPolicy, prepareHistory } = require('../../scripts/check-repository-storage');
 
 const temporary = [];
 function git(root, ...args) {
@@ -55,6 +55,52 @@ test('deletions cannot conceal excessive positive growth', () => {
   expect(report.delta.netGrowthBytes).toBe(-10);
   expect(report.delta.positiveGrowthBytes).toBe(90);
   expect(report.valid).toBe(false);
+});
+
+test('rejects an oversized blob added and deleted in intermediate commits', () => {
+  const { root, base } = fixture();
+  write(root, 'temporary.bin', Buffer.alloc(65));
+  commit(root);
+  fs.unlinkSync(path.join(root, 'temporary.bin'));
+  const report = evaluateStorage({ root, base, head: commit(root), policy: policy({ limits: { maxSingleFileBytes: 64 } }) });
+  expect(report.delta.changedFiles).toBe(0);
+  expect(report.valid).toBe(false);
+  expect(report.errors.join('\n')).toMatch(/new history blob.*65.*64/);
+});
+
+test('counts each new intermediate blob once in the rewritten history budget', () => {
+  const { root, base } = fixture();
+  for (const value of [1, 2, 3]) { write(root, 'changing.bin', Buffer.alloc(20, value)); commit(root); }
+  const report = evaluateStorage({ root, base, head: 'HEAD', policy: policy({ limits: { maxRewrittenBytes: 50 } }) });
+  expect(report.delta.rewrittenBytes).toBe(20);
+  expect(report.history.newBlobBytes).toBe(60);
+  expect(report.valid).toBe(false);
+});
+
+test('requires the PR second-parent history before accepting a shallow merge checkout', () => {
+  const { root, base } = fixture();
+  const branch = git(root, 'branch', '--show-current');
+  git(root, 'checkout', '-qb', 'feature');
+  write(root, 'temporary.bin', Buffer.alloc(65)); commit(root);
+  fs.unlinkSync(path.join(root, 'temporary.bin')); commit(root);
+  git(root, 'checkout', branch);
+  git(root, 'merge', '--no-ff', '-m', 'merge fixture', 'feature');
+  const clone = fs.mkdtempSync(path.join(os.tmpdir(), 'uw-storage-shallow-'));
+  temporary.push(clone);
+  git(root, 'clone', '-q', '--depth=2', `file://${root}`, clone);
+  const options = { root: clone, base, head: 'HEAD', policy: policy({ limits: { maxSingleFileBytes: 64 } }) };
+  expect(() => evaluateStorage(options)).toThrow(/Incomplete storage history range/);
+  expect(prepareHistory(clone, base)).toEqual({ base, head: git(clone, 'rev-parse', 'HEAD') });
+  const report = evaluateStorage(options);
+  expect(report.valid).toBe(false);
+  expect(report.errors.join('\n')).toMatch(/new history blob/);
+});
+
+test('history preparation rejects a missing or untrusted baseline before any fetch', () => {
+  const { root } = fixture();
+  for (const base of [undefined, '', '0'.repeat(40), '--all', 'HEAD^']) {
+    expect(() => prepareHistory(root, base)).toThrow(/nonzero full baseline SHA/);
+  }
 });
 
 test('budgets all durable evidence, including unchanged files', () => {

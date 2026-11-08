@@ -40,6 +40,7 @@
     "validate:enrichment-inputs": "node scripts/check-enrichment-inputs.js",
     "validate:accident-runtime": "node --max-old-space-size=4096 scripts/validate-accident-runtime-contract.js --report out/qa/accident-runtime-contract.json",
     "validate:accident-publication": "node --max-old-space-size=4096 scripts/validate-accident-publication.js --report out/qa/accident-publication.json",
+    "qa:repository-storage": "node scripts/check-repository-storage.js --fetch-history --report out/qa/repository-storage.json",
     "validate:action-pins": "node scripts/validate-action-pins.js",
     "prepare:accident-publication": "node scripts/accident-publication-package.js prepare",
     "verify:accident-publication": "node scripts/accident-publication-package.js verify",
@@ -128,7 +129,7 @@
     "leaflet-image": "0.4.0",
     "leaflet.heat": "1.0.0",
     "leaflet.markercluster": "1.5.3",
-    "pdfmake": "0.3.13"
+    "pdfmake": "0.3.14"
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.7",
