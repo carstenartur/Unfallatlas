@@ -71,7 +71,92 @@ Microsoft Word remains an external review gate. The receipt explicitly keeps
 `microsoftWordEvidenceVerified: false`; no LibreOffice result or synthetic map
 fixture substitutes for a current, fingerprint-matching real Word review.
 
-## Current local revision and explicit visual coverage
+## Current fa545 local revision and visual coverage
+
+The current local render source is `81f265f172f71a75130683fd4ac525cd6b5065a3`
+(B2), tree `321f5a84400a6be48bed2fcec9ebb2d07e543f3c`. The equivalent remote
+code object `72686d7aa24ad016caded7472fcceaa91dbdc60f` (R2) has exactly that
+tree, with the previous S candidate and main `85d32225` as parents. The later
+three-file documentation/inventory commit has a separate role and cannot become
+the source of bytes that were already rendered. This record does not claim a
+branch update, hosted acceptance, main merge, deployment or release.
+
+The current united 18-input Word fingerprint is
+`fa545bc954845c2746eeb39b33c8131b3fb8b388c1e368062e85265b2ef97dab`.
+Only `js/ua.export_provenance.js` changed among those inputs since ed573:
+45,197 bytes, SHA-256
+`41a17363da7a717ca512a5e9868e790bcf270d2b605d7bd3ebcfc8d116c8985f`.
+The reviewed fix preserves the year adapter's inherited context during export
+projection. Main's additional source-acceptance limitations in
+`docs/traffic-open-data-snapshots.md` are preserved byte-for-byte. All 18 Word
+inputs were unchanged before/after rendering, and all 12 pinned Bonn Hbf runtime
+hashes still match; the Golden fixture was not regenerated.
+
+The complete fresh document runner passed **18 suites / 110 tests**, the ordinary
+native/DOCX cases, five layouts and the complete 111-row / nine-map appendix.
+Both final appendix audits have zero errors and warnings; exact rows, map pixels,
+caption bindings and full embedded manifests passed again. The Word contract,
+security and release-contract suites passed **3 suites / 26 tests**. All seven
+ordinary source pairs passed both audits (**14/14**), with genuine pinned hourly
+data and the same explicitly technical fixture boundaries.
+
+| Current fa545 scope | Generated pages | Exact historical ed573 PNG/RGB matches | Newly viewed changed pages |
+|---|---:|---:|---:|
+| Ordinary DOCX converted / ordinary native PDF |5 /5|10|0|
+| Numbered DOCX converted / numbered native PDF |13 /14|25|2|
+| **Six candidates / four delivered PDF views** |**37**|**35**|**2**|
+| Five additional layout scenarios |28|28|0|
+| Seven additional ordinary source pairs |29|15|14|
+| Actual production 37/312 method diagnostic, both formats |38|34|4|
+| **All current page views** |**132**|**112**|**20**|
+
+All 132 views were freshly generated. Reuse requires the individually mapped
+historical ed573 receipt, verification of its actual image hash, equal dimensions,
+and exact equality of decoded RGB pixels; these 112 images also match as PNG
+bytes. All 20 differing pages were actually viewed individually at readable
+resolution. No new clipping, overlap, illegible content or heading defect was
+observed. The new receipt records the inherited 957 review chain without claiming
+132 new manual inspections. Root independently also viewed the two changed final
+appendix source pages. Evidence is under
+`out/qa/final-document-fa545bc9-20261108/`, including
+`visual-page-comparison.json`, `final-visual-review.json` and each image hash.
+
+The first DOCX and native-PDF method pages display report date / `Exportdatum`
+**9.11.2026**, versus 8.11.2026 in ed573. Text extraction confirms those are the
+only first-page text changes. This is the actual displayed calendar date;
+it does not assert a UTC date change or alter any source acquisition clock.
+The other 18 changed pages contain regenerated provenance timestamps/proof codes.
+The actual local numbered-source file read was `2026-11-08T22:59:51.370Z`;
+upstream retrieval remains unknown. The current canonical SourceManifest is
+`fe93cf299844a88d87406013ba33e7fe4f808f1a356bda185ea00c13f31b3f17`.
+
+The actual B2 browser probe again preserves 37 selected / 312 complete-area cases
+and the full exploratory/unadjusted method note in structured report, text,
+HTML, visible preview, both server prompt modes, DOCX XML and both actual PDF
+text streams. The note is on native page 2 / converted page 1; the documents have
+20 /18 pages. Local HTTP development links remain unchanged, and both generic
+public-HTTPS audits still reject this separate diagnostic with `unsafe_link`.
+No model call or scientific/proposal approval follows from this probe.
+
+The reviewed functional patch also has local 379-suite / 4571-test / one-snapshot
+evidence, run before final cache strings, followed by 2-suite /38-test cache
+checks and an actual Chromium video-fixture/context/PDF probe after those cache
+changes. Those observations do not qualify a later exact hosted head. Current
+local document tools remain Node 24.22.1 / npm 11.9.0 / LibreOfficeDev 26.8 /
+Poppler 26.05; canonical Maven/Node 26 evidence must identify its own exact source.
+
+Both newly bound Word templates remain incomplete: eight false checks, observed
+page count 0, and placeholder actual-review date, Word/OS version and reviewer.
+The unchanged validator rejects each with `invalid_date`. Real Microsoft Word,
+model/scientific acceptance and publication remain absent. Historical a6, 957
+and ed573 packages, their original inventories and the actual hosted S document
+proof remain separately preserved; none is relabeled as this fa545 local run.
+
+## Historical ed573 local revision and explicit visual coverage
+
+The following observations retain their original ed573 scope and timestamps.
+References to the then-current render/inventory do not qualify the fa545 bytes.
+
 
 The current rerun on 8 November 2026 used actual local code
 `5068989371ff95b7372f7faeb80b1e5f0940c654`, tree `c9fcd2c577ebe01c0ded66051c010404c4b3620f`.
@@ -140,7 +225,7 @@ Original upstream retrieval remains unknown. Canonical SourceManifest:
 `971085a5d098c9f0e3767f73fa4916bf56dca63c0f379f64ce3568736a7d4f94`.
 A fresh local render clock does not establish fresh source data.
 
-## Method qualification remains a separate actual production check
+## Historical ed573 method qualification
 
 The numbered 111-case appendix makes no pattern comparison. A fresh local browser
 probe on this exact current code/fingerprint used `UA.computeExportReport` with
