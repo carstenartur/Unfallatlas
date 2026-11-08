@@ -6,7 +6,15 @@
     "mediaType": "text/csv",
     "bytes": 408091,
     "sha256": "06f2f90fb145b224077f69f777aff345007ca7612f916b58ba9a764f6e1576f7",
-    "md5": "f1f4a4606b8858af8ee4be8e08b340ed"
+    "md5": "f1f4a4606b8858af8ee4be8e08b340ed",
+    "factoryRegressionFixture": {
+      "file": "mannesmannufer2024-original.csv.gz",
+      "compression": "gzip; mtime=0",
+      "storedBytes": 63239,
+      "storedSha256": "7c86247c8d84318fe9ba8a50e4add7f6f1473732bf526b9083da6e8f6c6d4b8d",
+      "originalBytesUnchanged": true,
+      "purpose": "Exercise the real pinned production factory and registry query opt-in in CI; no hash or parser mocks."
+    }
   },
   "stationDistribution": {
     "url": "https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_2.csv",

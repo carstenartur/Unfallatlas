@@ -102,3 +102,31 @@ test('file loader rejects excerpt substitution, either pin drift, path escape an
     expect(() => api.createDuesseldorfBicycleHourlyProvider({...options, csvPath: 'stations.csv', stationsPath: 'link.csv'})).toThrow(/symlink/);
   } finally {fs.rmSync(temp, {recursive: true, force: true});}
 });
+
+test('the real pinned factory requires a reviewed Düsseldorf city name and bicycle mode', async () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'duesseldorf-original-'));
+  try {
+    const original = gunzipSync(fs.readFileSync(path.join(root, 'mannesmannufer2024-original.csv.gz')));
+    fs.writeFileSync(path.join(temp, 'counts.csv'), original);
+    fs.writeFileSync(path.join(temp, 'stations.csv'), stations);
+    const provider = api.createDuesseldorfBicycleHourlyProvider({...clocks, allowedRoot: temp,
+      csvPath: 'counts.csv', stationsPath: 'stations.csv',
+      expectedDistributionSha256: evidence.countDistribution.sha256, expectedBytes: evidence.countDistribution.bytes,
+      expectedStationsSha256: evidence.stationDistribution.sha256, expectedStationsBytes: evidence.stationDistribution.bytes});
+    const registry = traffic.createRegistry(); registry.register(provider);
+    for (const query of [{}, {city: 'Düsseldorf'}, {city: 'Bonn', mode: 'bicycle'},
+      {city: 'duesseldorf', mode: 'bicycle'}, {city: 'Düsseldorf', mode: 'motor_vehicle'}]) {
+      expect((await registry.collect({...query, failOnProviderError: true})).length).toBe(0);
+    }
+    for (const city of ['Düsseldorf', 'Duesseldorf']) {
+      const rows = await registry.collect({city, mode: 'bicycle', failOnProviderError: true});
+      expect(rows).toHaveLength(17566);
+      expect(rows.filter(row => row.value === 0)).toHaveLength(1223);
+      expect(rows.every(row => row.mode === 'bicycle' && row.unit === 'Fahrräder/Stunde' && row.wayId === null && !row.match)).toBe(true);
+      expect(rows[0].source).toMatchObject({contentHash: evidence.countDistribution.sha256,
+        retrievedAt: clocks.retrievedAt, licenseId: 'DL-DE-BY-2.0'});
+    }
+    expect(provider.coverage).toMatchObject({rowCount: 8783, observationCount: 17566, missingCountCells: 0, stationCount: 1});
+    expect(provider.coverage.gaps).toEqual([{previous: '31-03-2024 01:00:00', next: '31-03-2024 03:00:00', labelHours: 2}]);
+  } finally {fs.rmSync(temp, {recursive: true, force: true});}
+});

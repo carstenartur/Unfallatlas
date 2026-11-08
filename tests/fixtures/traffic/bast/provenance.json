@@ -7,7 +7,7 @@
   "bytes": 1878927,
   "sha256": "5108764655cc3d75878a887d4631f787d8216c54bb3fc3b63460c1a7b0fcb550",
   "excerpt": {
-    "file": "jawe2023-original-excerpt.csv",
+    "file": "jawe2023-original-excerpt.csv.gz",
     "originalPhysicalLines": [
       1,
       2,
@@ -16,7 +16,10 @@
     ],
     "bytes": 5576,
     "sha256": "86891ba55684167d25cd857e73ebff1427254dda73f953f35b2a28fed6683da3",
-    "operation": "Concatenate unmodified original header and selected complete original physical rows; retain ISO-8859-15 and line endings."
+    "operation": "Concatenate unmodified original header and selected complete original physical rows; retain ISO-8859-15 and line endings.",
+    "compression": "gzip; mtime=0; byte count and sha256 describe the uncompressed original excerpt",
+    "storedBytes": 2013,
+    "storedSha256": "d4af848107709af3096b98001ec725871ac5ccbcc71b2e72f8a521e8f472c7c6"
   },
   "fieldDescription": {
     "url": "https://www.bast.de/DE/Themen/Digitales/HF_1/Massnahmen/verkehrszaehlung/pdf-dateien/DZ-Abkuerzungen-Beschreibung.pdf?__blob=publicationFile",
@@ -59,5 +62,13 @@
       "maxMeters": 0.7051502267109575,
       "limitation": "Independent coordinate representation consistency check only, with metre-rounded original UTM coordinates and ETRS89/WGS84 treated alike. Not station accuracy, road alignment or a production transform."
     }
+  },
+  "factoryRegressionFixture": {
+    "file": "jawe2023-original.csv.gz",
+    "compression": "gzip; mtime=0",
+    "storedBytes": 696639,
+    "storedSha256": "cbef4c138846c0f660009d041905a450bc0189c45795a139ad23279946b267e6",
+    "originalBytesUnchanged": true,
+    "purpose": "Exercise the real pinned production factory and registry query opt-in in CI; no hash or parser mocks."
   }
 }

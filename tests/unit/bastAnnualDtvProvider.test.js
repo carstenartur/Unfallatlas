@@ -3,9 +3,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const {gunzipSync} = require('node:zlib');
 const api = require('../../scripts/providers/bast_annual_dtv_provider');
 const traffic = require('../../js/ua.traffic_provider');
-const fixture = fs.readFileSync(path.join(__dirname, '../fixtures/traffic/bast/jawe2023-original-excerpt.csv'));
+const fixture = gunzipSync(fs.readFileSync(path.join(__dirname, '../fixtures/traffic/bast/jawe2023-original-excerpt.csv.gz')));
 const receipt = require('../fixtures/traffic/bast/provenance.json');
 
 function changed(field, value) {
@@ -79,6 +80,25 @@ test('production file loading rejects excerpt substitution, pin drift, traversal
     expect(() => api.createBastAnnualDtvProvider({...options, expectedDistributionSha256: 'b'.repeat(64)})).toThrow(/unreviewed_distribution/);
     expect(() => api.createBastAnnualDtvProvider({...options, csvPath: '../escape.csv'})).toThrow(/unsafe_path/);
     expect(() => api.createBastAnnualDtvProvider({...options, csvPath: 'linked.csv'})).toThrow(/symlink/);
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});
+
+test('the real pinned factory only participates after the explicit Germany query opt-in', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bast-dtv-original-'));
+  try {
+    const original = gunzipSync(fs.readFileSync(path.join(__dirname, '../fixtures/traffic/bast/jawe2023-original.csv.gz')));
+    fs.writeFileSync(path.join(root, 'original.csv'), original);
+    const provider = api.createBastAnnualDtvProvider({allowedRoot: root, csvPath: 'original.csv',
+      expectedDistributionSha256: receipt.sha256, expectedBytes: receipt.bytes, retrievedAt: receipt.retrievedAt});
+    const registry = traffic.createRegistry(); registry.register(provider);
+    for (const query of [{}, {city: 'Hannover'}, {country: 'de'}, {country: 'NL'}]) {
+      expect((await registry.collect({...query, failOnProviderError: true})).length).toBe(0);
+    }
+    const rows = await registry.collect({country: 'DE', failOnProviderError: true});
+    expect(rows).toHaveLength(4671);
+    expect(provider.coverage).toEqual({stationCount: 2116, stationsWithoutCount: 559, observationCount: 4671});
+    expect(rows.every(row => row.mode === 'motor_vehicle' && row.unit === 'Kfz/24 h' && row.wayId === null && !row.match)).toBe(true);
+    expect(rows[0].source).toMatchObject({contentHash: receipt.sha256, retrievedAt: receipt.retrievedAt, licenseId: 'CC-BY-4.0'});
   } finally { fs.rmSync(root, {recursive: true, force: true}); }
 });
 

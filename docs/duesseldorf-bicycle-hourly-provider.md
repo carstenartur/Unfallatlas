@@ -131,6 +131,14 @@ Pfadflucht, Symlinks und fehlende echte Abrufuhren führen zum Fehler. Es erfolg
 keine Liveabfragen. Ein falscher Ort oder fehlender/falscher Modus aktiviert den
 Provider nicht. Standardkonfiguration, Renderer und Word-Eingaben bleiben unverändert.
 
+Für die CI liegt die vollständige unveränderte Zählungsdatei verlustfrei als
+`mannesmannufer2024-original.csv.gz` bei. Der echte Produktionslader prüft beide
+Originalpins, bevor die Registry getestet wird: ausschließlich `Düsseldorf`
+oder `Duesseldorf` zusammen mit `mode: 'bicycle'` liefern die 17.566
+Beobachtungen einschließlich 1.223 echten Nullwerten. Fehlender oder falscher
+Ort beziehungsweise Modus bleibt leer. Das testweise entfernte Auswahlgate
+wird von der Regression erkannt; Hash- und Parserprüfungen werden nicht gemockt.
+
 Der Quellenpilot ersetzt nicht die noch erforderliche fachliche Straßenanwendung,
 Auswahl eines passenden Zeitraums/Richtungswerts, Qualitäts-/Coverage-Abnahme und
 reale Export-/Golden-Prüfung. Die verschiedenen Messgrößen aus Köln, Düsseldorf

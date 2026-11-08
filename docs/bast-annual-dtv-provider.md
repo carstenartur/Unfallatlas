@@ -73,12 +73,21 @@ folgt keine Stationsgenauigkeit, Straßenpassung oder Fahrstreifenauflösung.
 Die kleine Originaldaten-Fixture unter `tests/fixtures/traffic/bast/` enthält
 den unveränderten Header und die vollständigen Originalzeilen 2, 10 und 1236
 (Stationen 2218, 1102 und 5253). Sie behält ISO-8859-15 und Originalzeilenenden.
+Sie wird verlustfrei als `jawe2023-original-excerpt.csv.gz` gespeichert; die
+Originalbytes werden vor dem Parser entpackt, nicht als UTF-8 umgedeutet.
 `provenance.json` bindet Original, Ausschnitt, Spaltenbeschreibung, Lizenzmetadaten
 und unabhängige Prüfzähler. Die Fixture ist ein ausdrücklich gekennzeichneter
 Ausschnitt und wird vom Produktionslader nicht als vollständige Distribution
 akzeptiert.
 Die unveränderten vollständigen Turtle-Metadaten liegen verlustfrei komprimiert
 als `govdata-metadata.ttl.gz` bei; ihr Originalhash gilt für die entpackten Bytes.
+
+Die vollständige amtliche CSV liegt zusätzlich als `jawe2023-original.csv.gz`
+für die CI-Regression des echten Produktionsladers vor. Der normale Hash- und
+Bytegrößencheck bleibt aktiv. Die Registry erhält nur bei ausdrücklich
+gesetztem `country: 'DE'` die 4.671 Beobachtungen; leere Kontexte, reine
+Stadtanfragen, `de` und `NL` bleiben ohne Ergebnis. Ein testweise entferntes
+Ländergate lässt diese Regression nachweislich scheitern.
 
 ## Optionale Verwendung
 
