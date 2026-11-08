@@ -1102,4 +1102,39 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(content.scrollTop).toBe(87);
   });
 
+  test('consultation and direct relationship details stay lazy, page explicitly and ignore closed generations', async () => {
+    const delayed = deferred();
+    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+    const sourceContext={level:'state',publisher:'Landtag',issuer:null,documentKind:'Drucksache',status:'answer',publicationDate:null,documentDate:'2026-06-01',meetingDate:null};
+    UA.RisCatalogue.loadFeatureRecords=jest.fn().mockResolvedValue({records:[{...records[0],eventCount:65,relationshipCount:1,sourceContext}],links:[{recordId:'A',accuracy:'official'}],nextPage:null,complete:true});
+    const event={date:'2026-06-25',body:'Rat',outcome:'Vertagt',url:validUrl,evidence:'25.06.2026 Rat Vertagt'};
+    UA.RisCatalogue.loadRecordEvents=jest.fn().mockResolvedValueOnce({known:true,events:[event],total:65,nextPage:1,complete:true}).mockReturnValueOnce(delayed.promise);
+    UA.RisCatalogue.loadRecordRelationships=jest.fn().mockResolvedValue({known:true,relationships:[{type:'related',label:'Antwort auf andere Drucksache',targetRole:'answer',targetUrl:validUrl,evidence:'Amtlicher Querverweis'}],nextPage:null,complete:true});
+    UA.refreshContextOverlays(ctx);checkbox('Ratsvorgänge').click();await flush();
+    const layer=risFeatures(ctx.map)[0];layer.openPopup();await flush();
+    expect(UA.RisCatalogue.loadRecordEvents).not.toHaveBeenCalled();expect(UA.RisCatalogue.loadRecordRelationships).not.toHaveBeenCalled();
+    const content=document.querySelector('.leaflet-popup-content');expect(content.textContent).toContain('Landtag');expect(content.textContent).toContain('Dokumentdatum: 2026-06-01');
+    const details=[...content.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent.startsWith('Beratungsverlauf'));
+    expect(details).toBeDefined();details.open=true;details.dispatchEvent(new Event('toggle'));await flush();
+    expect(UA.RisCatalogue.loadRecordEvents).toHaveBeenCalledWith('Bonn','A',0,{snapshot:expect.any(Object)});
+    expect(details.textContent).toContain('Vertagt');expect(details.querySelector('a').href).toBe(validUrl);
+    const more=[...details.querySelectorAll('button')].find(b=>b.textContent==='Weitere Beratungen laden');more.focus();more.click();more.click();
+    expect(UA.RisCatalogue.loadRecordEvents).toHaveBeenCalledTimes(2);expect(more.getAttribute('aria-disabled')).toBe('true');
+    const relations=[...content.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent.startsWith('Zusammenhänge'));
+    relations.open=true;relations.dispatchEvent(new Event('toggle'));await flush();expect(relations.textContent).toContain('Antwort auf andere Drucksache');
+    const old=details.textContent;layer.closePopup();delayed.resolve({known:true,events:[{...event,evidence:'STALE_ROW'}],nextPage:null,complete:true});await flush();
+    expect(details.textContent).toBe(old);expect(details.textContent).not.toContain('STALE_ROW');
+  });
+
+  test('legacy popups distinguish unavailable history and render their source rows through the shared details', async () => {
+    const event={date:null,body:null,outcome:null,url:validUrl,evidence:'Öffentlicher Beratungsvermerk ohne Datierung'};
+    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point],[{...records[0],events:[event]}]));
+    UA.refreshContextOverlays(ctx);checkbox('Ratsvorgänge').click();await flush();risFeatures(ctx.map)[0].openPopup();
+    const details=[...document.querySelectorAll('.leaflet-popup details')];
+    expect(details).toHaveLength(2);details[0].open=true;details[0].dispatchEvent(new Event('toggle'));await flush();
+    expect(details[0].textContent).toContain('Öffentlicher Beratungsvermerk ohne Datierung');
+    details[1].open=true;details[1].dispatchEvent(new Event('toggle'));await flush();
+    expect(details[1].textContent).toMatch(/nicht dokumentiert/);
+  });
+
 });

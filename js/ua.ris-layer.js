@@ -160,9 +160,129 @@
     return controls.get(ctx) === state && ctx.map === state.map && cityOf(ctx) === state.city;
   }
 
-  function popup(ctx, state, data, feature) {
+  function popupGuard(ctx, state, data, layer, root) {
+    const revision = ctx.politicalContextCityRevision;
+    const token = layer._uaRisPopupToken = Symbol('ris-popup');
+    const active = () => current(ctx, state) && state.toggle.checked && state.data === data
+      && ctx.politicalContextCityRevision === revision && layer._uaRisPopupToken === token;
+    layer.once('popupclose', () => { if (layer._uaRisPopupToken === token) layer._uaRisPopupToken = null; });
+    // Leaflet measures the initial loading placeholder. Reflow the same root
+    // after each asynchronous expansion so its maxHeight and auto-pan apply.
+    const captureLayout = () => ({
+      focus: root.contains(document.activeElement) ? document.activeElement : null,
+      content: root.parentElement,
+      top: root.parentElement?.scrollTop || 0,
+      left: root.parentElement?.scrollLeft || 0,
+    });
+    const reflow = (view = captureLayout()) => {
+      if (!active() || !layer.isPopupOpen()) return;
+      layer.getPopup().update();
+      if (!active() || !layer.isPopupOpen()) return;
+      // Leaflet detaches even the cached root while measuring it. Restore only
+      // focus that belonged to this popup; never take focus from another UI.
+      if (view.focus && (document.activeElement === document.body || root.contains(document.activeElement))) {
+        const usable = root.contains(view.focus) && !view.focus.disabled
+          && !view.focus.closest('[hidden], [inert], [aria-hidden="true"]');
+        const target = usable ? view.focus : root.querySelector('[role="status"]');
+        if (target) {
+          if (!usable) target.tabIndex = -1;
+          target.focus({ preventScroll: true });
+        }
+      }
+      if (view.content?.isConnected) {
+        view.content.scrollTop = view.top;
+        view.content.scrollLeft = view.left;
+      }
+    };
+    // Native disabling can blur the active button before an async response.
+    // Keep it focusable while blocking repeated activation accessibly.
+    const pending = button => button.getAttribute('aria-disabled') === 'true';
+    const setPending = (button, value) => button.setAttribute('aria-disabled', String(value));
+    return { active, captureLayout, reflow, pending, setPending };
+  }
+
+  function recordContext(parent, entry, state, data, guard) {
+    const { active, captureLayout, reflow, pending, setPending } = guard;
+    const context = entry.sourceContext;
+    if (context) {
+      const levels = { city: 'Stadt', region: 'Region', state: 'Land' };
+      const statuses = { proposal: 'Vorlage / Antrag', answer: 'Antwort', agenda: 'Tagesordnung', minutes: 'Protokoll', other: 'Sonstiges' };
+      text(parent, 'div', [levels[context.level], context.publisher, context.issuer, context.documentKind, statuses[context.status]].filter(Boolean).join(' · '));
+      const dates = [['publicationDate', 'Veröffentlichung'], ['documentDate', 'Dokumentdatum'], ['meetingDate', 'Sitzungsdatum']];
+      for (const [field, label] of dates) if (context[field]) text(parent, 'div', `${label}: ${context[field]}`);
+    }
+    const pdf = httpsUrl(entry.originalPdfUrl);
+    if (pdf) {
+      const link = text(parent, 'a', 'Original-PDF');
+      link.href = pdf; link.target = '_blank'; link.rel = 'noopener noreferrer';
+    }
+    for (const field of ['events', 'relationships']) {
+      const events = field === 'events';
+      const count = entry[events ? 'eventCount' : 'relationshipCount'] ?? entry[field]?.length;
+      const detail = text(parent, 'details', '');
+      detail.style.cssText = 'max-width:100%;min-width:0;overflow-wrap:anywhere;margin:6px 0';
+      const summary = text(detail, 'summary', `${events ? 'Beratungsverlauf' : 'Zusammenhänge'}${count === undefined ? '' : ` (${count})`}`);
+      summary.style.cursor = 'pointer';
+      const list = text(detail, 'ol', ''); list.style.cssText = 'padding-left:20px;margin:4px 0';
+      const status = text(detail, 'div', ''); status.setAttribute('aria-live', 'polite');
+      const more = document.createElement('button');
+      more.textContent = events ? 'Weitere Beratungen laden' : 'Weitere Zusammenhänge laden';
+      more.type = 'button'; more.className = 'smallBtn'; more.hidden = true;
+      let page = 0, loaded = false;
+      const seen = new Set();
+      async function loadPage() {
+        if (!active() || pending(more)) return;
+        if (!more.parentElement) detail.append(more);
+        setPending(more, true);
+        status.textContent = 'Quellenbelege werden geladen …';
+        let view;
+        try {
+          const local = entry[field];
+          const result = !data.partitioned || local !== undefined
+            ? { [field]: local || [], known: local !== undefined, total: local?.length ?? null, nextPage: null, complete: true }
+            : await UA.RisCatalogue[events ? 'loadRecordEvents' : 'loadRecordRelationships'](state.city, entry.id, page, { snapshot: data.manifest });
+          if (!active()) return;
+          view = captureLayout();
+          for (const [index, item] of result[field].entries()) {
+            const key = result.start === undefined ? `${page}:${index}` : result.start + index;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const row = text(list, 'li', ''); row.style.marginBottom = '6px';
+            if (events) text(row, 'div', [item.date || 'Datum nicht angegeben', item.body || 'Gremium nicht angegeben', item.outcome].filter(Boolean).join(' · '));
+            else {
+              const roles = { answer: 'Antwort', proposal: 'Vorlage / Antrag', amendment: 'Änderungsantrag' };
+              text(row, 'div', [item.type === 'mentions' ? 'Im Dokument erwähnt' : 'Amtlicher Querverweis', roles[item.targetRole]].filter(Boolean).join(' · '));
+            }
+            const url = httpsUrl(events ? item.url : item.targetUrl);
+            if (url) {
+              const link = text(row, 'a', events ? 'Amtlicher Sitzungsbeleg' : item.label);
+              link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+            }
+            text(row, 'div', item.evidence);
+          }
+          loaded = true;
+          status.textContent = !result.known
+            ? events ? 'Beratungsverlauf im geprüften Datenbestand nicht dokumentiert.' : 'Zusammenhänge im geprüften Datenbestand nicht dokumentiert.'
+            : result.complete === false ? 'Quellenbelege unvollständig; bitte erneut versuchen.'
+              : !seen.size ? events ? 'Keine öffentlichen Beratungen dokumentiert.' : 'Keine amtlichen Zusammenhänge dokumentiert.'
+                : `${seen.size}${result.total == null ? '' : ` von ${result.total}`} Quellenbelege geladen.`;
+          more.hidden = result.nextPage == null && result.complete !== false;
+          if (result.nextPage != null) page = result.nextPage;
+        } catch (error) {
+          if (active()) { status.textContent = error?.message || 'Quellenbelege konnten nicht geladen werden.'; more.hidden = false; }
+        } finally {
+          if (active()) { setPending(more, false); reflow(view); }
+        }
+      }
+      detail.addEventListener('toggle', () => { if (detail.open && !loaded) loadPage(); });
+      more.addEventListener('click', loadPage);
+    }
+  }
+
+  function popup(ctx, state, data, feature, layer) {
     const root = document.createElement('section');
     root.style.overflowWrap = 'anywhere';
+    const guard = popupGuard(ctx, state, data, layer, root);
     const status = document.createElement('div');
     status.setAttribute('role', 'status');
     const { locations } = feature.properties;
@@ -184,6 +304,7 @@
       text(parent, 'strong', entry.title);
       const meta = [entry.type, entry.number, entry.date, entry.gremium || entry.premium].filter(Boolean);
       if (meta.length) text(parent, 'div', meta.join(' · '));
+      recordContext(parent, entry, state, data, guard);
       if (details) {
         details.style.cssText = 'margin:4px 0;overflow-wrap:anywhere';
         parent.append(details);
@@ -253,43 +374,7 @@
   function partitionPopup(ctx, state, data, feature, layer) {
     const root = document.createElement('section');
     root.style.overflowWrap = 'anywhere';
-    const revision = ctx.politicalContextCityRevision;
-    const token = layer._uaRisPopupToken = Symbol('ris-popup');
-    const active = () => current(ctx, state) && state.toggle.checked && state.data === data
-      && ctx.politicalContextCityRevision === revision && layer._uaRisPopupToken === token;
-    layer.once('popupclose', () => { if (layer._uaRisPopupToken === token) layer._uaRisPopupToken = null; });
-    // Leaflet measures the initial loading placeholder. Reflow the same root
-    // after each asynchronous expansion so its maxHeight and auto-pan apply.
-    const captureLayout = () => ({
-      focus: root.contains(document.activeElement) ? document.activeElement : null,
-      content: root.parentElement,
-      top: root.parentElement?.scrollTop || 0,
-      left: root.parentElement?.scrollLeft || 0,
-    });
-    const reflow = (view = captureLayout()) => {
-      if (!active() || !layer.isPopupOpen()) return;
-      layer.getPopup().update();
-      if (!active() || !layer.isPopupOpen()) return;
-      // Leaflet detaches even the cached root while measuring it. Restore only
-      // focus that belonged to this popup; never take focus from another UI.
-      if (view.focus && (document.activeElement === document.body || root.contains(document.activeElement))) {
-        const usable = root.contains(view.focus) && !view.focus.disabled
-          && !view.focus.closest('[hidden], [inert], [aria-hidden="true"]');
-        const target = usable ? view.focus : root.querySelector('[role="status"]');
-        if (target) {
-          if (!usable) target.tabIndex = -1;
-          target.focus({ preventScroll: true });
-        }
-      }
-      if (view.content?.isConnected) {
-        view.content.scrollTop = view.top;
-        view.content.scrollLeft = view.left;
-      }
-    };
-    // Native disabling can blur the active button before an async response.
-    // Keep it focusable while blocking repeated activation accessibly.
-    const pending = button => button.getAttribute('aria-disabled') === 'true';
-    const setPending = (button, value) => button.setAttribute('aria-disabled', String(value));
+    const { active, captureLayout, reflow, pending, setPending } = popupGuard(ctx, state, data, layer, root);
     const props = feature.properties;
     if (props.overview) {
       text(root, 'strong', 'Übersicht: zusammengefasste Kartenlagen');
@@ -346,6 +431,7 @@
       text(parent, 'strong', entry.title);
       const meta = [entry.type, entry.number, entry.date, entry.gremium || entry.premium].filter(Boolean);
       if (meta.length) text(parent, 'div', meta.join(' · '));
+      recordContext(parent, entry, state, data, { active, captureLayout, reflow, pending, setPending });
       if (location) text(parent, 'div', [styles[location.accuracy || props.accuracy]?.label, location.label].filter(Boolean).join(' · '));
       const evidence = text(parent, 'div', '');
       const place = entry.locations?.find(item => item.id === location?.locationId);
@@ -533,9 +619,9 @@
     const { locations } = feature.properties;
     layer.bindPopup(() => {
       window.L.setOptions(layer.getPopup(), popupLayout(ctx, state));
-      if (!data.partitioned) return popup(ctx, state, data, feature);
       if (layer._uaRisPopupToken && layer._uaRisPopupRoot) return layer._uaRisPopupRoot;
-      return layer._uaRisPopupRoot = partitionPopup(ctx, state, data, feature, layer);
+      return layer._uaRisPopupRoot = data.partitioned
+        ? partitionPopup(ctx, state, data, feature, layer) : popup(ctx, state, data, feature, layer);
     }, { className: 'ua-ris-popup' });
     layer.on('add', () => {
       const el = layer.getElement();

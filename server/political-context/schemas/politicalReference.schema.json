@@ -6,6 +6,197 @@
   "required": ["id", "title", "type", "url", "source"],
   "additionalProperties": false,
   "properties": {
+    "sourceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "publisher",
+        "issuer",
+        "documentKind",
+        "status",
+        "publicationDate",
+        "documentDate",
+        "meetingDate"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "city",
+            "region",
+            "state"
+          ]
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "issuer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "documentKind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "enum": [
+            "proposal",
+            "answer",
+            "agenda",
+            "minutes",
+            "other"
+          ]
+        },
+        "publicationDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "documentDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "meetingDate": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        }
+      }
+    },
+    "originalPdfUrl": {
+      "type": "string",
+      "maxLength": 4096,
+      "pattern": "^https://(?:e-government\\.hannover-stadt\\.de|www\\.landtag-niedersachsen\\.de|www\\.nilas\\.niedersachsen\\.de|bekanntmachungen\\.region-hannover\\.de|ris\\.hannit\\.de|www\\.bonn\\.sitzung-online\\.de|bonn\\.sitzung-online\\.de|www2\\.bonn\\.de)(?:[/?#][^\\s\\\\]*)?$"
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date",
+          "body",
+          "outcome",
+          "url",
+          "evidence"
+        ],
+        "properties": {
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^https://(?:e-government\\.hannover-stadt\\.de|www\\.landtag-niedersachsen\\.de|www\\.nilas\\.niedersachsen\\.de|bekanntmachungen\\.region-hannover\\.de|ris\\.hannit\\.de|www\\.bonn\\.sitzung-online\\.de|bonn\\.sitzung-online\\.de|www2\\.bonn\\.de)(?:[/?#][^\\s\\\\]*)?$"
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          }
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "targetId",
+          "targetUrl",
+          "label",
+          "targetRole",
+          "evidence"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "related",
+              "mentions"
+            ]
+          },
+          "targetId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "targetUrl": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^https://(?:e-government\\.hannover-stadt\\.de|www\\.landtag-niedersachsen\\.de|www\\.nilas\\.niedersachsen\\.de|bekanntmachungen\\.region-hannover\\.de|ris\\.hannit\\.de|www\\.bonn\\.sitzung-online\\.de|bonn\\.sitzung-online\\.de|www2\\.bonn\\.de)(?:[/?#][^\\s\\\\]*)?$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "targetRole": {
+            "enum": [
+              null,
+              "proposal",
+              "answer",
+              "amendment"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          }
+        }
+      }
+    },
+    "eventCount": {
+      "type": "integer",
+      "maximum": 9007199254740991,
+      "minimum": 0
+    },
+    "relationshipCount": {
+      "type": "integer",
+      "maximum": 9007199254740991,
+      "minimum": 0
+    },
     "locationCount": { "type": "integer", "minimum": 0 },
     "locationsNextPage": { "type": ["integer", "null"], "minimum": 1 },
     "geometryIds": {

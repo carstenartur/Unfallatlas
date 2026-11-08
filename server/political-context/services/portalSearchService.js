@@ -21,6 +21,7 @@ const { enrichAllWithTrafficRelevance } = require('./trafficRelevanceService.js'
 const { enrichAllWithAiGating }         = require('./aiGatingService.js');
 const { sharedCache: searchCache, buildKey: buildCacheKey } =
   require('./portalSearchCache.js');
+const { normalizeSourceStatuses } = require('./politicalSourceContext');
 
 const VALID_SEARCH_STATUS = new Set([
   'results-found',
@@ -163,6 +164,7 @@ function normalizeProviderMeta(metaValue, fallbackStatus) {
     truncated: meta.truncated === true,
     warnings: normalizeWarnings(meta.warnings),
     attempts: normalizeAttempts(meta.attempts),
+    ...(Array.isArray(meta.sourceStatuses) ? { sourceStatuses: normalizeSourceStatuses(meta.sourceStatuses) } : {}),
     ...(catalogueCache ? { catalogueCache } : {}),
   };
 }

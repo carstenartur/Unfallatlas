@@ -31,7 +31,7 @@ const MAX_REFRESH_FAILURE_REASON_LENGTH = 240;
 // Pin the production adapters; new cities use the hosts declared by their collector.
 const OFFICIAL_HOSTS = new Map([
   ['bonn', new Set(['www.bonn.sitzung-online.de', 'bonn.sitzung-online.de', 'www2.bonn.de'])],
-  ['hannover', new Set(['e-government.hannover-stadt.de'])],
+  ['hannover', new Set(['e-government.hannover-stadt.de', 'www.landtag-niedersachsen.de', 'www.nilas.niedersachsen.de', 'bekanntmachungen.region-hannover.de', 'ris.hannit.de'])],
 ]);
 
 function isObject(value) {
@@ -170,6 +170,9 @@ function normalizeRecords(values, hosts, count, collectLocations = value => valu
       url: value.url,
       source: requiredText(value.source, 'record source'),
     };
+    const facts = require('../../../js/ua.ris-partitions');
+    if (!facts.validRecordFacts(value, hosts, { maximum: maximum === MAX_RECORDS ? 64 : Number.MAX_SAFE_INTEGER })) throw new Error('Invalid RIS record metadata or history count');
+    for (const field of ['sourceContext', 'originalPdfUrl', 'events', 'relationships']) if (value[field] !== undefined) record[field] = JSON.parse(JSON.stringify(value[field]));
     if (value.relatedTo != null) record.relatedTo = sourceId(value.relatedTo);
     const locations = collectLocations(value, id);
     if (!validLocations(locations, maxLocations)) throw new Error('Invalid RIS record locations');
@@ -347,6 +350,7 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, sc
   if (!validLocationRevision(locationRevision)) throw new Error('Invalid RIS location revision');
   const { sources, hosts } = normalizeSources(catalogue.sources, city);
   const coverage = normalizeCoverage(catalogue.coverage);
+  if (!require('../../../js/ua.ris-partitions').validSourceStatuses(catalogue.sourceStatuses, sources)) throw new Error('Invalid RIS source statuses');
   const features = [];
   const { records, byId } = normalizeRecords(catalogue.records, hosts, undefined,
     (record, id) => collectSourceLocations(record, id, features));
@@ -367,6 +371,7 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, sc
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
     ...(provenance === undefined ? {} : { provenance }),
+    ...(catalogue.sourceStatuses === undefined ? {} : { sourceStatuses: catalogue.sourceStatuses }),
     records: recordsAsset.reference, map: mapAsset.reference,
     ...(locationRevision === undefined ? {} : { locationRevision }),
     ...(locationAssessment === undefined ? {} : { locationAssessment }),
@@ -392,6 +397,7 @@ async function readRisSnapshot(directory, city) {
   const refreshFailure = Object.hasOwn(value, 'refreshFailure') ? normalizeRefreshFailure(value.refreshFailure, generatedAt) : null;
   const { sources, hosts } = normalizeSources(value.sources, city);
   const coverage = normalizeCoverage(value.coverage);
+  if (!require('../../../js/ua.ris-partitions').validSourceStatuses(value.sourceStatuses, sources)) throw new Error('Invalid RIS source statuses');
   const recordsAsset = normalizeDescriptor(value.records, city, 'records', 1, MAX_RECORDS);
   const mapAsset = normalizeDescriptor(value.map, city, 'map', 0, recordsAsset.count * MAX_LOCATIONS_PER_RECORD);
   assertProvenance(value.provenance, generatedAt, recordsAsset.count, coverage);
@@ -408,6 +414,7 @@ async function readRisSnapshot(directory, city) {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
     records: recordsAsset, map: mapAsset,
     ...(value.provenance === undefined ? {} : { provenance: value.provenance }),
+    ...(value.sourceStatuses === undefined ? {} : { sourceStatuses: value.sourceStatuses }),
     ...(locationRevision === undefined ? {} : { locationRevision }),
     ...(value.locationAssessment === undefined ? {} : { locationAssessment: { ...value.locationAssessment } }),
     ...(refreshFailure ? { refreshFailure } : {}),

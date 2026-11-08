@@ -597,3 +597,28 @@ test.each([false, true])('failed refreshed checkpoint details preserve their ver
     await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });
+
+test('timeline parser revision resumes old checkpoints without inventing history or renewing retained evidence clocks', async () => {
+  const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+  const {createRisSourceCheckpoint}=require('../../server/political-context/services/risSourceCheckpoint');
+  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'sim-timeline-revision-'));
+  try {
+    const checkpoint=createRisSourceCheckpoint({directory:folder}),key='0001-2021';
+    const source=document(key).replace('<h3>Inhalt der Drucksache:</h3>','<h4>Beratungsverlauf:</h4><ul><li><a href="TM/20210625_Rat">25.06.2021: Rat</a>: Vertagt</li></ul><h3>Inhalt der Drucksache:</h3>');
+    const {requestText,calls}=fixture({years:{2021:results([row(key)])},documents:{['DS/'+key]:source}});
+    const verifiedAt=new Date('2026-11-01T11:00:00Z');
+    await collectHannoverCatalogue({...options,to:'2021-12-31',now:verifiedAt,checkpoint,requestText});
+    const work=await checkpoint.read('hannover-sim','public-year-search:true',2021,'sim-history-v1');
+    work.pending=true;work.details[key].revision='sim-v3:true:linked';
+    delete work.details[key].result.events;delete work.catalogue.records[0].events;
+    await checkpoint.write('hannover-sim','public-year-search:true',2021,'sim-history-v1',work);
+    const before=calls.filter(c=>c.url.includes('/DS/')).length;
+    const retained=await collectHannoverCatalogue({...options,to:'2021-12-31',now:NOW,workBudget:0,checkpoint,requestText});
+    expect(retained.records[0]).not.toHaveProperty('events');
+    expect(retained.records[0].detailVerifiedAt).toBe(verifiedAt.toISOString());
+    expect(calls.filter(c=>c.url.includes('/DS/'))).toHaveLength(before);
+    const refreshed=await collectHannoverCatalogue({...options,to:'2021-12-31',now:NOW,workBudget:2,checkpoint,requestText});
+    expect(refreshed.records[0].events).toMatchObject([{date:'2021-06-25',body:'Rat',outcome:'Vertagt'}]);
+    expect(calls.filter(c=>c.url.includes('/DS/'))).toHaveLength(before+1);
+  } finally {await fs.rm(folder,{recursive:true,force:true});}
+});

@@ -693,3 +693,35 @@ test('local migration keeps historical provenance absent when it was never recor
   expect(m.generatedAt).toBe(FRESH.toISOString());
   expect(m).not.toHaveProperty('provenance');
 });
+
+
+test.each([false, true])('local v1 migration/reassessment preserves source statuses and direct timeline facts (reassess=%s)', async reassess => {
+  const c = reassess ? legacyCatalogue('bonn') : catalogue('bonn');
+  c.sourceStatuses=[{source:'bonn',status:'partial',url:OFFICIAL.bonn,retrievedAt:FRESH.toISOString(),from:null,to:null,recordCount:2,message:'Öffentliche Quelle'}];
+  const events=[{date:'2026-10-15',body:'Rat',outcome:'Vertagt',url:OFFICIAL.bonn,evidence:'15.10.2026 Rat Vertagt'}];
+  const relationships=[{type:'related',targetId:'bonn:2',targetUrl:c.records[1].url,label:'Amtlicher Bezug',targetRole:null,evidence:'Amtlicher Bezug'}];
+  const sourceContext={level:'city',publisher:'Bonn',issuer:null,documentKind:'Vorlage',status:'proposal',publicationDate:null,documentDate:'2026-10-15',meetingDate:null};
+  Object.assign(c.records[0],{events,relationships,sourceContext,originalPdfUrl:OFFICIAL.bonn+'/original.pdf'});
+  await writeSnapshot(published,'bonn',c,{now:FRESH,schemaVersion:1});
+  await refresh({cities:['bonn'],collect:()=>{throw new Error('source unavailable');}});
+  const result=await readRisSnapshot(directory,'bonn');
+  expect(result.manifest.sourceStatuses).toEqual(c.sourceStatuses);
+  expect(result.manifest.generatedAt).toBe(FRESH.toISOString());
+  expect(result.records[0]).toMatchObject({events,relationships,sourceContext,originalPdfUrl:OFFICIAL.bonn+'/original.pdf'});
+  expect(result.records[1]).not.toHaveProperty('events');
+});
+
+test('historical supplementary records omitted by a fresh rolling window retain their old verification clock', async () => {
+  const prior = catalogue('hannover');
+  prior.records[0].id = 'landtag:historic';
+  prior.records[0].source = 'niedersachsen-landtag';
+  await writeRisSnapshot(published, 'hannover', prior, { now: STALE });
+  const current = { ...catalogue('hannover'), records: [prior.records[1]], generatedAt: NOW.toISOString(),
+    history: { pending: false, interrupted: false } };
+  const outcome = await refresh({ cities: ['hannover'], collect: () => current });
+  expect(outcome).toMatchObject([{ status: 'published' }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.records.map(r => r.id)).toContain('landtag:historic');
+  expect(result.manifest.generatedAt).toBe(STALE.toISOString());
+  expect(result.manifest.coverage.warnings.join(' ')).toMatch(/ältere.*Zusatzquellen/i);
+});

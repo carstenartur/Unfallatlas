@@ -144,6 +144,7 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
     features
   }, byId, features.length, Number.MAX_SAFE_INTEGER)) throw new Error('Invalid RIS partition map');
   if (!I.validLocationRevision(catalogue.locationRevision)) throw new Error('Invalid RIS location revision');
+  if (!P.validSourceStatuses(catalogue.sourceStatuses, sources)) throw new Error('Invalid RIS source statuses');
   const generatedAt = I.timestamp(catalogue.generatedAt || new Date(typeof now === 'function' ? now() : now).toISOString());
   const refreshFailure = catalogue.refreshFailure ? I.normalizeRefreshFailure(catalogue.refreshFailure, generatedAt) : undefined;
   const indices = Object.fromEntries(P.ROOTS.map(k => [k, []]));
@@ -165,16 +166,20 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
     }));
     locationLists.set(r.id, locations);
     const {
-      locations: ignored,
+      locations: ignored, events, relationships,
       ...compact
     } = r;
     indices.records.push([r.id, {
       ...compact,
       locationCount: locations.length,
+      ...(events === undefined ? {} : { eventCount: events.length }),
+      ...(relationships === undefined ? {} : { relationshipCount: relationships.length }),
       ...(r.locations === undefined ? {} : {
         hasLocations: true
       })
     }]);
+    if (events !== undefined) pages(indices.links, `events:${r.id}`, events);
+    if (relationships !== undefined) pages(indices.links, `relationships:${r.id}`, relationships);
     if (r.relatedTo) {
       add(relationLists, r.id, r.relatedTo);
       add(relationLists, r.relatedTo, r.id);
@@ -303,6 +308,7 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
   const manifest = {
     schemaVersion: 2,
     ...(provenance === undefined ? {} : { provenance }),
+    ...(catalogue.sourceStatuses === undefined ? {} : { sourceStatuses: catalogue.sourceStatuses }),
     ...(packed ? {spatialFormat: P.SPATIAL_FORMAT} : {}),
     city,
     generatedAt,
@@ -459,13 +465,18 @@ async function readPartitionedSnapshot(directory, city, value) {
     if (kind === 'records') for (const [, record] of node.entries) {
       const locations = await all('locations', record.id);
       if(locations.length!==record.locationCount || (record.hasLocations!==undefined && record.hasLocations!==true) || (record.locationCount>0 && record.hasLocations!==true))throw new Error('RIS location count or presence metadata mismatch');
+      const histories = {};
+      for (const [field, count] of Object.entries(P.HISTORY_FIELDS)) if (record[count] !== undefined) {
+        histories[field] = await all('links', `${field}:${record.id}`);
+        if (histories[field].length !== record[count]) throw new Error('RIS history count mismatch');
+      }
       const {
-        locationCount,
+        eventCount, relationshipCount, locationCount,
         hasLocations,
         ...plain
       } = record;
       records.push({
-        ...plain,
+        ...plain, ...histories,
         ...(hasLocations ? {
           locations: locations.map(({
             id,
