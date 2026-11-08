@@ -71,3 +71,33 @@ Die Quellbeschreibung bindet den Originaldatensatz, seine Lizenz und das abgelei
 ## Wahrheitsgrenze
 
 Der Producer behauptet ausdrücklich keine Fahrspurzuordnung und kein Unfallpunkt→Way-Matching. Amtliche Zählwerte, Zeitbezüge und synthetische Quellkennungen werden nicht verändert. Mehrdeutige Zuordnungen bleiben sichtbar mehrdeutig. Der Provider macht nur eindeutige Matches für die vorhandene Messwert-/Modell-/Proxy-Auswahl nutzbar; er verwandelt Restlücken nicht in Messwerte.
+
+## Bindung an die tatsächlich veröffentlichten Way-Geometrien
+
+Der Anwendungsadapter benötigt neben dem extern gepinnten Match-Artefakt die
+ursprüngliche OSM-Matching-Eingabedatei. Standardmäßig liegt sie mit dem im
+Artefakt angegebenen Basename neben dem Artefakt; `--osm-input` erlaubt einen
+expliziten Pfad. Ihr SHA-256 muss exakt dem transitiv gebundenen
+`sources.osm.sha256` entsprechen.
+
+Vor jedem Schreiben prüft der Adapter sämtliche betroffenen Way-Geometrien und
+die Unfallzuordnungen. Die geordnete öffentliche Koordinatenfolge muss exakt der
+gepinnten Eingabe entsprechen. Falls die öffentliche Geometrie aus rohen OSM-
+Koordinaten vereinfacht wird, muss die Eingabe dies ausdrücklich deklarieren:
+
+```json
+"publicGeometry": {
+  "format": "ua-encodeGeometry-v1",
+  "method": "douglas-peucker",
+  "toleranceMeters": 3
+}
+```
+
+Dies verwendet die bestehenden `douglasPeucker`-/`encodeGeometry`-Funktionen des
+Enrichers. Die Matchbewertung selbst bleibt auf der originalen Rohgeometrie.
+Ohne Deklaration wird keine Vereinfachung angenommen. Geänderte Koordinaten,
+umgekehrte Reihenfolge, fehlende Geometrien oder ein abweichender Eingabepin
+brechen vor der ersten Ausgabeänderung ab. Die Metadaten bewahren den geprüften
+Eingabepin, die Darstellungsregel, den Hash der geordneten Geometrien und die Zahl
+der tatsächlich geprüften Ways. Nicht verwendete Quell-Ways außerhalb des
+aktuellen Ausgabebestands werden nicht als veröffentlichte Way-Abdeckung gezählt.

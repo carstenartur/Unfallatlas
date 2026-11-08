@@ -122,6 +122,23 @@ describe("Cologne directional Kfz link CSV provider", () => {
     expect(normalized).toHaveLength(2);
     expect(normalized.every((item) => item.sourceId === koeln.SOURCE_ID)).toBe(true);
     expect(normalized.every((item) => item.coordinate === null)).toBe(true);
+    // Exercise selection/application with the published directional CSV rows.
+    // Source segment IDs remain unchanged here: this proves no summation or
+    // numeric loss, not that synthetic geometry establishes real OSM coverage.
+    const { selectByWay, applyRow } = require('../../scripts/apply-matched-traffic');
+    const selected = selectByWay(normalized, 2026);
+    const rows = [...selected].map(([wayId, selection]) => {
+      const row = { matched_way_id: wayId };
+      expect(applyRow(row, selection)).toBe(true);
+      expect(require('../../scripts/apply-qualitative-traffic-proxy').normalizeProxyRow(row,
+        { proxyClass: 'high', highwayClass: 'primary' })).toBe(false);
+      expect(row.traffic_evidence.observation.source.contentHash).toBe("a".repeat(64));
+      expect(row.traffic_evidence.evidenceType).toBe('stale-measured');
+      return row;
+    });
+    expect(rows.map(row => row.traffic_volume_value)).toEqual([18504, 22153]);
+    expect(rows[0].traffic_evidence.observation.direction).not.toBe(rows[1].traffic_evidence.observation.direction);
+
   });
 
   test("preserves all available years and quoted delimiters without inventing missing values", () => {
@@ -250,4 +267,14 @@ describe("Cologne directional Kfz link CSV provider", () => {
       "477da6900ee791b7b3db433e27d6bde778c2f138869198b448fb26827de65488",
     );
   });
+});
+
+test('source descriptor points to the current official city dataset and distribution', () => {
+  expect(koeln.DATASET_URL).toBe('https://offenedaten-koeln.de/dataset/kfz-zaehlstellen-und-werte-koeln');
+  expect(koeln.DISTRIBUTION_URL).toBe('https://offenedaten-koeln.de/sites/default/files/distribution/KFZ_Zaehldaten_2016-2019_link.csv');
+});
+
+test('records the actual distribution publication date separately from historical count years', () => {
+  expect(koeln.DISTRIBUTION_PUBLICATION_DATE).toBe('2022-04-12');
+  expect(koeln.YEARS).toEqual([2016, 2017, 2018, 2019]);
 });

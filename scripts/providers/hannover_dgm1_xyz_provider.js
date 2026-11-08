@@ -316,6 +316,9 @@ async function loadGrid(file, manifest) {
       const line = rawLine.trim();
       if (!line || line.startsWith("#")) continue;
       const fields = line.split(/[\s;,]+/);
+      // The public Hannover sample XYZ starts with this literal column header.
+      // Only the first physical line may be a header; interior text still fails.
+      if (lineNumber === 1 && fields.join(" ") === "x y z") continue;
       if (fields.length !== 3) {
         fail("invalid_xyz", `line ${lineNumber} must contain exactly x y z`);
       }

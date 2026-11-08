@@ -562,3 +562,35 @@ describe('enrich_geojson — file-on-disk wrapper: ways_<city>.json schema', () 
     expect(written.geometries).toBeUndefined();
   });
 });
+
+test('a new city enrichment removes prior opt-in typed traffic and profile evidence before applying providers', () => {
+  const props = { id: '1', traffic_measurement_type: 'count', traffic_volume_value: 18504,
+    traffic_volume_unit: 'Kfz/24 h', traffic_volume_year: 2019,
+    traffic_evidence: { observation: { year: 2019 } }, traffic_observations: [],
+    road_slope_reliable_for_road: true, road_slope_source: 'Previous DGM', slope_resolution_m: 1 };
+  const geojson = fcWith([ptFeature(1, 7, 50, props)]);
+  enrich.enrichCity(geojson, 'koeln', { providers: { osm: null, dem: null, traffic: null } });
+  expect(geojson.features[0].properties).toEqual({ id: '1', ukategorie: '2' });
+});
+
+test('real DEM file path materializes coarse source semantics and preserves zero without inventing source retrieval', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-dem-provenance-'));
+  const previous = process.env.ENRICH_DEM_DATA_DIR;
+  try {
+    process.env.ENRICH_DEM_DATA_DIR = root;
+    fs.writeFileSync(path.join(root, 'dem_bonn.json'), JSON.stringify({ source: 'SRTM Local Tiles', resolution_m: 30,
+      extractDate: '2026-07-01', points: [{ lat: 50, lon: 7, elevation_m: 0, slope_percent: 0 }],
+      wayElevations: { 10: { road_slope_percent: 0, road_slope_method: 'median_segments' } } }));
+    const geojson = fcWith([ptFeature(1, 7, 50)]);
+    const result = enrich.enrichCity(geojson, 'bonn', { providers: { osm: { source: 'fixture',
+      matchFeature: () => ({ matched_way_id: '10' }), wayAttributes: () => ({ highway: 'primary' }) }, traffic: null } });
+    expect(result.ways['10']).toEqual(expect.objectContaining({ road_slope_percent: 0,
+      road_slope_source: 'SRTM Local Tiles', road_slope_resolution_m: 30, road_slope_reliable_for_road: false }));
+    expect(geojson.features[0].properties).toEqual(expect.objectContaining({ elevation_m: 0, slope_resolution_m: 30 }));
+    expect(result.meta.sources.dem).toEqual(expect.objectContaining({ retrievedAt: null, processedAt: '2026-07-01',
+      semanticType: 'terrain_context', sourceId: 'global.srtm30' }));
+  } finally {
+    if (previous === undefined) delete process.env.ENRICH_DEM_DATA_DIR; else process.env.ENRICH_DEM_DATA_DIR = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

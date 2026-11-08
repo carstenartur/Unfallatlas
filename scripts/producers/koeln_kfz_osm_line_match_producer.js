@@ -612,6 +612,8 @@ function buildMatchedArtifact(trafficInput, osmInput, options = {}) {
         fileName: path.basename(osmInput.file),
         sha256: osmInput.sha256,
         wayCount: osm.candidates.length,
+        ...(osm.osm.source ? { source: osm.osm.source } : {}),
+        ...(osm.osm.originalDistribution ? { originalDistribution: osm.osm.originalDistribution } : {}),
       }),
     }),
     coverage: Object.freeze({

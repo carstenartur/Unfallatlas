@@ -9,10 +9,8 @@ describe('Werkbank deployment asset versions', () => {
   const version = '2026-07-19';
 
   test.each([
-    'js/ua.core.js',
     'js/ua.utils.js',
     'js/ua.lifecycle.js',
-    'js/ua.popup_context.js',
     'js/ua.app_v2.js',
     'js/ua.priorities.js',
   ])('%s uses the current cache buster', (asset) => {
@@ -20,9 +18,13 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each([
-    'css/ua.css', 'js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.preview_map_renderer.js',
+    'css/ua.css', 'js/ua.preview_map_renderer.js',
   ])('%s invalidates the cache for unified map controls', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-scalable-catalogue"`);
+  });
+
+  test.each(['js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.filters.js'])('%s refreshes typed traffic controls', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-context-review"`);
   });
 
   test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
@@ -45,6 +47,10 @@ describe('Werkbank deployment asset versions', () => {
     'js/ua.political-context.js',
   ])('%s invalidates the cache for the common location assessment contract', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-scalable-catalogue"`);
+  });
+
+  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s refreshes paged consultation history', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
   });
 
   test('shared spatial budgets and partitions load before their consumers', () => {
@@ -71,4 +77,15 @@ describe('Werkbank deployment asset versions', () => {
     expect(buildMatch).not.toBeNull();
     expect(buildMatch[1]).toBe(timestamp);
   });
+});
+
+
+test.each(['ua.core', 'ua.context_layers', 'ua.context_road_layer', 'ua.popup_context',
+  'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
+  const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
+  expect(html.includes(`js/${name}.js?v=2026-11-08-context`)).toBe(true);
+});
+test('dynamic export provenance invalidates the old accident-only implementation', () => {
+  const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
+  expect(core.includes('ua.export_provenance.js?v=2026-11-08-context')).toBe(true);
 });

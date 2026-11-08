@@ -1,0 +1,2 @@
+# Hash-pinned official height-row excerpts retain their original LF/CRLF bytes.
+tests/fixtures/hannover-dgm1-real/*.xyz -text whitespace=cr-at-eol

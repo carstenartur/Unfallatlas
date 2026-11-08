@@ -1858,7 +1858,7 @@
     // first call; resetting `reg.active` at that point would clobber
     // a `?mapLayer=…` deep link before it had a chance to take effect.
     const showSlope   = !!(UA.contextRoadLayer && caps.hasSlope);
-    const showTraffic = !!(UA.contextRoadLayer && caps.hasTrafficProxy);
+    const showTraffic = !!(UA.contextRoadLayer && (caps.hasTrafficProxy || caps.hasTrafficEvidence));
     if (!showSlope && !showTraffic) {
       // City genuinely has no slope / no traffic data — drop any stale
       // active flags so a city switch can't leak a hidden restriction

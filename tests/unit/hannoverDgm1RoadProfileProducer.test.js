@@ -80,12 +80,14 @@ describe('Hannover DGM1 road-profile producer', () => {
     while (roots.length) fs.rmSync(roots.pop(), { recursive: true, force: true });
   });
 
-  test('prepares OSM safety first and writes typed 20 m / 50 m outcomes for every way', async () => {
+  test.each([0.00005, 0.000005])('prepares OSM safety first and records unavailable short ways (longitude span %s)', async shortSpan => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hannover-dgm1-profiles-'));
     roots.push(root);
     const osmFile = path.join(root, 'osm_hannover.json');
     const outputFile = path.join(root, 'hannover-dgm1-road-profiles.json');
-    fs.writeFileSync(osmFile, JSON.stringify(preparedOsm()));
+    const input = preparedOsm();
+    input.wayGeometries['3'][1].lon = input.wayGeometries['3'][0].lon + shortSpan;
+    fs.writeFileSync(osmFile, JSON.stringify(input));
     const events = [];
 
     const result = await producer.prepareHannoverDgm1RoadProfiles({

@@ -13,16 +13,17 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const strictZip = require('../lib/strict-zip');
+const koelnProjection = require('../lib/koeln-kfz-projection');
 
 const SOURCE_ID = 'traffic.geometry.koeln-kfz-2016-2019';
-const DATASET_URL = 'https://open.nrw/dataset/kfz-zaehlstellen-und-werte-koeln-k';
+const DATASET_URL = 'https://offenedaten-koeln.de/dataset/kfz-zaehlstellen-und-werte-koeln';
 const DISTRIBUTION_URL =
-  'https://offenedaten-koeln.de/sites/default/files/KFZ%20Zaehldaten%202016-2019_0.zip';
+  'https://offenedaten-koeln.de/sites/default/files/distribution/KFZ%2520Zaehldaten%25202016-2019_0.zip';
 const REVIEWED_DISTRIBUTION_SHA256 =
   '5672f1b61777ccbd5a1db6555dddf7c61a009eb161b13d4c7cbe530de9299238';
 const MANIFEST_SCHEMA = 'unfallwerkbank.koeln-kfz-geometry-archive/v1';
 const ALLOWED_EXTENSIONS = Object.freeze(new Set([
-  '.shp', '.shx', '.dbf', '.prj', '.cpg', '.sbn', '.sbx', '.xml', '.txt', '.qpj',
+  '.shp', '.shx', '.dbf', '.prj', '.cpg', '.sbn', '.sbx', '.xml', '.txt', '.qpj', '.ctf',
 ]));
 const REQUIRED_SET_EXTENSIONS = Object.freeze(['.shp', '.shx', '.dbf', '.prj']);
 const SHAPE_TYPES = Object.freeze({
@@ -223,12 +224,20 @@ function decodeUtf8(buffer, label) {
 }
 
 function classifyUtm32(prjText, label) {
+  if (koelnProjection.recognizes(prjText)) return Object.freeze({
+    id: koelnProjection.CRS_ID, family: 'Gauss-Kruger', zone: 2, hemisphere: 'N', datum: 'DHDN', epsg: null,
+    sourcePrjSha256: koelnProjection.WKT_SHA256, transform: koelnProjection.TRANSFORM_ID,
+    // The published literal scale is intentionally not replaced with the
+    // different parameters of a default EPSG:31466 operation.
+    towgs84: Object.freeze([598.1, 73.7, 418.2, 0.202, 0.045, -2.455, 0.0000067]),
+    declaredAccuracyMeters: null,
+  });
   const normalized = prjText.toUpperCase().replace(/[^A-Z0-9]+/g, ' ');
   const utm32 = /\bUTM\b/.test(normalized) && /\b32N?\b/.test(normalized);
   const epsg25832 = /\b25832\b/.test(normalized);
   const epsg32632 = /\b32632\b/.test(normalized);
   if (!utm32 && !epsg25832 && !epsg32632) {
-    fail('unsupported_crs', `${label} does not declare UTM zone 32`, { prjText });
+    fail('unsupported_crs', `${label} does not declare reviewed UTM zone32 or the byte-pinned official Köln GK2 definition`, { prjText });
   }
   const epsg = epsg25832 ? 'EPSG:25832' : epsg32632 ? 'EPSG:32632' : null;
   return Object.freeze({
@@ -250,6 +259,23 @@ function extensionOf(name) {
 
 function baseOf(name) {
   return name.slice(0, name.length - path.posix.extname(name).length);
+}
+
+function parseCtfAliases(buffer, fields, label) {
+  if (buffer.length > 65536) fail('invalid_ctf', `${label} exceeds the alias sidecar size bound`);
+  const lines = decodeUtf8(buffer, label).replace(/^\uFEFF/, '').trim().split(/\r?\n/);
+  if (lines.shift() !== 'Name;Alias') fail('invalid_ctf', `${label} lacks the reviewed Name;Alias header`);
+  const expected = new Set(fields.map(field => field.name));
+  const seen = new Set();
+  const rows = lines.map(line => {
+    const parts = line.split(';');
+    if (parts.length !== 2 || !parts.every(value => /^[A-Za-z0-9_~.-]+$/.test(value)) ||
+        !expected.has(parts[1]) || seen.has(parts[1])) fail('invalid_ctf', `${label} has an invalid or duplicate DBF alias`);
+    seen.add(parts[1]);
+    return Object.freeze({ name: parts[0], alias: parts[1] });
+  });
+  if (seen.size !== expected.size) fail('invalid_ctf', `${label} does not cover the DBF fields exactly`);
+  return Object.freeze(rows);
 }
 
 function inspectGeometryArchiveBuffer(buffer, options = {}) {
@@ -276,7 +302,7 @@ function inspectGeometryArchiveBuffer(buffer, options = {}) {
   const groups = new Map();
   for (const file of archive.files) {
     const extension = extensionOf(file.name);
-    if (!REQUIRED_SET_EXTENSIONS.includes(extension) && !['.cpg', '.qpj', '.sbn', '.sbx'].includes(extension)) continue;
+    if (!REQUIRED_SET_EXTENSIONS.includes(extension) && !['.cpg', '.qpj', '.sbn', '.sbx', '.ctf'].includes(extension)) continue;
     const base = baseOf(file.name);
     if (!groups.has(base)) groups.set(base, new Map());
     const group = groups.get(base);
@@ -286,7 +312,10 @@ function inspectGeometryArchiveBuffer(buffer, options = {}) {
   const shapeSets = [];
   for (const [base, components] of groups) {
     const presentCore = REQUIRED_SET_EXTENSIONS.filter((extension) => components.has(extension));
-    if (presentCore.length === 0) continue;
+    if (presentCore.length === 0) {
+      if (components.has('.ctf')) fail('invalid_ctf', `${base}.ctf has no paired Shapefile/DBF set`);
+      continue;
+    }
     if (presentCore.length !== REQUIRED_SET_EXTENSIONS.length) {
       fail('incomplete_shape_set', 'shape set lacks a required component', {
         base,
@@ -322,6 +351,7 @@ function inspectGeometryArchiveBuffer(buffer, options = {}) {
       crs,
       recordCount: dbf.recordCount,
       dbfFields: dbf.fields,
+      ...(components.has('.ctf') ? { fieldAliases: parseCtfAliases(components.get('.ctf').data, dbf.fields, `${base}.ctf`) } : {}),
       entries: Object.freeze(entries),
     }));
   }
@@ -538,6 +568,7 @@ module.exports = Object.freeze({
   parseDbfHeader,
   decodeUtf8,
   classifyUtm32,
+  parseCtfAliases,
   inspectGeometryArchiveBuffer,
   verifyArchiveBytes,
   loadVerifiedGeometryArchive,

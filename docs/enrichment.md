@@ -281,3 +281,62 @@ Die Tests prüfen unter anderem:
 - #414: gemeinsamer SourceManifest-Vertrag der Exportformate (abgeschlossen)
 - `docs/architecture.md`: Komponenten- und Datenfluss
 - `WERKBANK_V2.md`: Bedien- und Featurevertrag
+
+## Quellenbewusste Darstellung und optionales Köln-Match-Artefakt (#412 / #413)
+
+Die ausgelieferten SRTM-Daten bleiben grober **Geländekontext**. Popup und
+Steigungslegende nennen Klassen statt einer scheinbar präzisen Fahrbahnneigung.
+Eine Straßenlängsneigung wird nur bei ausdrücklich zuverlässigem Straßenprofil,
+dokumentierter Quellen-ID und einer Auflösung unter 20 m angezeigt. Vorhandene
+Profilunsicherheit und Ausschlussgründe bleiben in den Way-/Overlay-Eigenschaften
+erhalten. Numerische Null ist ein gültiger Wert; fehlende Werte bleiben fehlend.
+Die DEM-Metadaten trennen Verarbeitungsdatum und tatsächlichen Quellenabruf;
+ein unbekannter Abrufzeitpunkt bleibt `null`.
+
+Die kanonische Stadtpipeline kann für **Köln** ein bereits erzeugtes,
+richtungsbezogen auf OSM gematchtes Artefakt des bestehenden Producers verwenden:
+
+```sh
+KOELN_KFZ_MATCHED_ARTIFACT=/absolute/path/koeln-kfz-osm-matches.json \
+KOELN_KFZ_MATCHED_ARTIFACT_SHA256=<64-stelliger-kleingeschriebener-SHA256> \
+CONTEXT_CITY=Köln node scripts/run-context-enrichment.js
+```
+
+Pfad und externer Hash bilden einen atomaren Vertrag. Ohne diese Konfiguration
+bleibt der qualitative OSM-Fallback aktiv. Der vorhandene Provider prüft die
+Artefaktbytes, den internen Fingerabdruck, die Richtungs-/Matching-Wahrheitsgrenzen
+und die Coverage. Mehrdeutige oder nicht gematchte Beobachtungen werden nicht
+als Messwert übernommen. Die Anwendung führt weder Download noch neues Matching
+aus. Die Referenzwerte von 2016–2019 bleiben historische Messstände; der Renderer
+kennzeichnet Werte jenseits der vorhandenen Fünfjahres-Frischegrenze entsprechend.
+
+`traffic_evidence` enthält die über den bestehenden SPI ausgewählte Beobachtung
+mit Quelle, Zeitraum, Einheit, Richtung, Entfernung, Matchingqualität und Alter.
+`traffic_observations` erhält alternative Jahre/Richtungen ohne Summierung.
+`traffic_artifact` erhält den ausgewählten Artefaktpin, Matcher und die originalen
+Eingabepins. Diese Felder werden in Unfall-GeoJSON, Way-Datei und Tiles übernommen;
+`sources.trafficMatched` im Meta-Sidecar enthält zusätzlich die Provider-Coverage.
+`typedWayRows` zählt geschriebene Way-Zeilen einschließlich Tile-Platzierungen,
+`uniqueMatchedWays` unterschiedliche im Provider ausgewählte Way-IDs.
+Ein vorhandenes valides Modell wird nicht durch einen älteren Messwert verdrängt;
+Proxy-Fallback prüft Quellenvertrag, Zeitraum, Modus und Werte erneut, bevor er
+Count-/Modell-Daten schützt. Nicht belegte Typbezeichnungen allein reichen nicht.
+
+Verkehrslinien unterscheiden Messwerte (durchgezogen), Modelle (kurz gestrichelt)
+und qualitative Proxys (lang gestrichelt). Numerische Klassengrenzen gelten
+nur für Mess-/Modellwerte in Kfz/24 h. Proxyklassen bleiben Straßenklassen.
+Der GeoJSON-Export erhält Kontextfelder nach Prüfung derselben Unfallpopulation.
+Der gemeinsame Quellenmanifest-Adapter bindet die validierten Verkehrsquellen und
+vollständigen Kontextfelder in den Fingerabdruck ein. Das Quellenmanifest des
+CSV-/Dokumentexports enthält den SHA-256 des kanonischen Kontextausschnitts,
+Feld-/Zählungsübersichten sowie deduplizierte Quellen-, Beobachtungs-, Auswahl-
+und Artefaktfakten. Es wiederholt keine vollständigen Kontextdaten je Unfall;
+die vollständige Zuordnung bleibt in den GeoJSON-Eigenschaften erhalten. Unvollständige
+Geländequellenfakten werden dort erhalten, ohne einen vollständigen Quellenbeleg
+oder einen Abrufzeitpunkt zu erfinden. Reine Unfallanhänge können ungenutzte
+Kontextfelder mit `ctx.exportContextEvidence = false` ausdrücklich ausnehmen.
+
+Diese Integration installiert **keine** neuen Verkehrsdaten oder DGM1-Quelldaten.
+Für eine produktive Messwertfreigabe bleiben echte gepinnte Originalbytes und
+Matching-/Abdeckungsprüfung erforderlich. Für die Hannover-DGM1-Freigabe fehlen
+weiterhin der reale geprüfte Snapshot und die manuellen DGM/QGIS-Vergleiche.

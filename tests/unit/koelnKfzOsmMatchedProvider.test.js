@@ -63,7 +63,7 @@ function observation(id, segment, north, value) {
   };
 }
 
-function buildArtifact() {
+function osmDataset() {
   const ways = {
     10: { highway: 'primary', name: 'Eindeutige Straße' },
     20: { highway: 'primary', name: 'Parallel links' },
@@ -74,6 +74,12 @@ function buildArtifact() {
     20: geometry(98).coordinates.map(([lon, lat]) => ({ lon, lat })),
     30: geometry(102).coordinates.map(([lon, lat]) => ({ lon, lat })),
   };
+  return { ways, wayGeometries };
+}
+
+function osmSha256() { return providerModule.sha256(Buffer.from(JSON.stringify(osmDataset()))); }
+
+function buildArtifact() {
   return matcher.buildMatchedArtifact(
     {
       file: '/tmp/official-geometry.json',
@@ -92,15 +98,35 @@ function buildArtifact() {
         ],
       },
     },
-    { file: '/tmp/osm_koeln.json', sha256: 'b'.repeat(64), value: { ways, wayGeometries } },
+    { file: '/tmp/osm_koeln.json', sha256: osmSha256(), value: osmDataset() },
     { generatedAt: '2026-07-31T12:00:00Z' },
   );
 }
 
 function writeArtifact(root, artifact = buildArtifact()) {
+  fs.writeFileSync(path.join(root, 'osm_koeln.json'), JSON.stringify(osmDataset()));
   const file = path.join(root, 'koeln-kfz-osm-matches.json');
   fs.writeFileSync(file, `${JSON.stringify(artifact)}\n`);
   return { file, sha256: providerModule.sha256(fs.readFileSync(file)) };
+}
+
+function writeRepinnedArtifact(root, artifact) {
+  delete artifact.artifactFingerprint;
+  artifact.artifactFingerprint = providerModule.sha256(Buffer.from(matcher.canonicalJson(artifact)));
+  return writeArtifact(root, artifact);
+}
+
+function writeApplicationTarget(root, transform = flat => flat) {
+  const out = path.join(root, 'out');
+  fs.mkdirSync(path.join(out, 'ctxtiles/koeln/1'), { recursive: true });
+  const write = (file, value) => fs.writeFileSync(path.join(out, file), JSON.stringify(value));
+  write('ways_koeln.json', { ways: { 10: {}, 20: {} } });
+  write('ctxtiles/koeln/index.json', { tiles: [{ x: 1, y: 2 }] });
+  const flat = require('../../scripts/enrich_geojson').encodeGeometry(osmDataset().wayGeometries['10']);
+  write('ctxtiles/koeln/1/2.json', { ways: { 10: {}, 20: {} }, geometries: { 10: transform(flat) } });
+  write('output_all_years_koeln.geojson', { features: [10, 20].map(id => ({ properties: { matched_way_id: String(id) } })) });
+  write('output_all_years_koeln.enrichment.meta.json', {});
+  return out;
 }
 
 function road(wayId, north) {
@@ -119,6 +145,32 @@ describe('Cologne OSM-matched traffic provider', () => {
   };
   afterEach(() => {
     while (roots.length) fs.rmSync(roots.pop(), { recursive: true, force: true });
+  });
+
+  test.each([null, '', false, '0'])('rejects raw artifact value %p before normalization can coerce it to zero', value => {
+    const artifact = JSON.parse(JSON.stringify(buildArtifact()));
+    artifact.observations.find(row => row.osmMatch.status === 'matched').value = value;
+    const written = writeRepinnedArtifact(makeRoot(), artifact);
+    expect(() => providerModule.createKoelnKfzOsmMatchedProvider({ artifactFile: written.file,
+      expectedArtifactSha256: written.sha256 })).toThrow(/finite non-negative number/);
+  });
+
+  test.each(['meanDistanceMeters', 'p95DistanceMeters', 'maximumDistanceMeters',
+    'angleDifferenceDegrees', 'coverageRatio', 'score'])('rejects missing raw match metric %s', field => {
+    const artifact = JSON.parse(JSON.stringify(buildArtifact()));
+    artifact.observations.find(row => row.osmMatch.status === 'matched').osmMatch[field] = null;
+    const written = writeRepinnedArtifact(makeRoot(), artifact);
+    expect(() => providerModule.createKoelnKfzOsmMatchedProvider({ artifactFile: written.file,
+      expectedArtifactSha256: written.sha256 })).toThrow(/finite non-negative number/);
+  });
+
+  test('a genuine numeric zero survives the pinned artifact provider', async () => {
+    const artifact = JSON.parse(JSON.stringify(buildArtifact()));
+    artifact.observations.find(row => row.osmMatch.status === 'matched').value = 0;
+    const written = writeRepinnedArtifact(makeRoot(), artifact);
+    const provider = providerModule.createKoelnKfzOsmMatchedProvider({ artifactFile: written.file,
+      expectedArtifactSha256: written.sha256 });
+    expect((await provider.loadObservations({ city: 'Köln' }))[0].value).toBe(0);
   });
 
   test('publishes only unambiguous matches through the common traffic SPI', async () => {
@@ -150,6 +202,9 @@ describe('Cologne OSM-matched traffic provider', () => {
       wayId: '10',
       direction: 'A → B; OSM-Way-Richtung: same',
     }));
+    expect(value.match).toEqual(expect.objectContaining({ matchQuality: 'high', meanDistanceMeters: expect.any(Number),
+      directionRelation: 'same', sourceWayId: expect.stringContaining('koeln-segment:') }));
+    expect(provider.matchedArtifact.sources.traffic.sha256).toBe('a'.repeat(64));
     expect(value.qualityNotes.join(' ')).toMatch(/P95 0 m/);
     expect(value.source).toEqual(expect.objectContaining({
       sourceId: providerModule.PROVIDER_ID,
@@ -183,6 +238,59 @@ describe('Cologne OSM-matched traffic provider', () => {
     expect(selected.statement).toMatch(/Älterer gemessener Verkehrswert/);
     expect(selected.statement).toMatch(/18[.\s]504 Kfz\/24 h/);
     expect(selected.statement).toMatch(/2019/);
+  });
+
+  test('pinned artifact application retains selected typed evidence and all source pins through proxy fallback', async () => {
+    const root = makeRoot();
+    const written = writeArtifact(root);
+    const out = writeApplicationTarget(root);
+    const { applyMatchedTraffic } = require('../../scripts/apply-matched-traffic');
+    await applyMatchedTraffic({ root, city: 'Köln', artifactFile: written.file,
+      expectedArtifactSha256: written.sha256, referenceYear: 2026 });
+    const read = file => JSON.parse(fs.readFileSync(path.join(out, file), 'utf8'));
+    for (const row of [read('ways_koeln.json').ways['10'], read('ctxtiles/koeln/1/2.json').ways['10'],
+      read('output_all_years_koeln.geojson').features[0].properties]) {
+      expect(row).toEqual(expect.objectContaining({ traffic_measurement_type: 'count', traffic_volume_value: 18504,
+        traffic_volume_year: 2019, traffic_evidence: expect.objectContaining({ evidenceType: 'stale-measured', ageYears: 7,
+          matchQuality: 'high', observation: expect.objectContaining({ match: expect.objectContaining({ directionRelation: 'same' }) }) }) }));
+      expect(row.traffic_artifact).toEqual(expect.objectContaining({ sha256: written.sha256,
+        sources: expect.objectContaining({ osm: expect.objectContaining({ sha256: osmSha256() }) }) }));
+      const before = JSON.parse(JSON.stringify(row));
+      expect(require('../../scripts/apply-qualitative-traffic-proxy').normalizeProxyRow(row,
+        { proxyClass: 'high', highwayClass: 'primary' })).toBe(false);
+      expect(row).toEqual(before);
+    }
+    expect(read('ways_koeln.json').ways['20']).not.toHaveProperty('traffic_volume_value');
+    fs.mkdirSync(path.join(root, '.enrichment-cache/traffic'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.enrichment-cache/traffic/traffic_koeln.json'), JSON.stringify({
+      measurementType: 'proxy', source: 'OSM-highway-class-proxy', ways: {
+        10: { measurementType: 'proxy', proxyClass: 'high', highwayClass: 'primary' },
+        20: { measurementType: 'proxy', proxyClass: 'low', highwayClass: 'residential' },
+      } }));
+    require('../../scripts/apply-qualitative-traffic-proxy').applyQualitativeTrafficProxy({ root, city: 'Köln' });
+    expect(read('ways_koeln.json').ways['10'].traffic_volume_value).toBe(18504);
+    expect(read('ways_koeln.json').ways['20'].traffic_measurement_type).toBe('proxy');
+    expect(read('output_all_years_koeln.enrichment.meta.json').traffic).toEqual(expect.objectContaining({
+      measurementType: 'mixed', numericValuesPresent: true, typedFeatures: 1, classifiedFeatures: 1 }));
+    const meta = read('output_all_years_koeln.enrichment.meta.json');
+    expect(meta.sources.trafficMatched.matchedArtifact).toEqual(expect.objectContaining({ sha256: written.sha256,
+      sources: expect.objectContaining({ osm: expect.objectContaining({ sha256: osmSha256() }) }) }));
+  });
+
+  test.each(['coordinate', 'order', 'input-pin'])('fails before any writes when matching geometry changes: %s', async mutation => {
+    const root = makeRoot();
+    const written = writeArtifact(root);
+    const out = writeApplicationTarget(root, flat => {
+      if (mutation === 'coordinate') flat[0] += 0.000001;
+      if (mutation === 'order') flat = [flat[2], flat[3], flat[0], flat[1]];
+      return flat;
+    });
+    if (mutation === 'input-pin') fs.appendFileSync(path.join(root, 'osm_koeln.json'), ' ');
+    const files = ['ways_koeln.json', 'ctxtiles/koeln/1/2.json', 'output_all_years_koeln.geojson', 'output_all_years_koeln.enrichment.meta.json'];
+    const before = files.map(file => fs.readFileSync(path.join(out, file)));
+    await expect(require('../../scripts/apply-matched-traffic').applyMatchedTraffic({ root, city: 'Köln',
+      artifactFile: written.file, expectedArtifactSha256: written.sha256, referenceYear: 2026 })).rejects.toThrow(/geometry|input.*hash/i);
+    expect(files.map(file => fs.readFileSync(path.join(out, file)))).toEqual(before);
   });
 
   test('supports fail-closed full-coverage production runs', () => {

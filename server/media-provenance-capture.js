@@ -182,6 +182,10 @@ function attachPageToMediaProvenanceCapture(page, logger = console) {
         logger.error?.('[media-provenance] capture failed:', error);
         throw error;
       });
+      // Capture runs alongside the export. Observe rejection immediately even
+      // if the export has not reached its await yet or fails during cleanup.
+      // Keep the original rejected promise so successful tasks still fail closed.
+      void context.snapshotPromise.catch(() => {});
     }
     return response;
   };

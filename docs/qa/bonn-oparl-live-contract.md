@@ -1,6 +1,6 @@
 # Bonn: produktionsnaher OParl-/RIS-Evidenzvertrag
 
-Stand: 7. November 2026
+Stand: 8. November 2026
 
 ## Ziel
 
@@ -16,9 +16,10 @@ Providerfehler beziehungsweise eine unvollständige Recherche und blockiert die
 Einreichungsreife. In keinem Fall ist „keine Treffer“ ein Beleg dafür, dass es
 keine politische Vorbefassung gibt.
 
-## Quellenreihenfolge
+## Quellenreihenfolge des Produktionsproviders
 
-Der Bonner Provider verwendet diese Reihenfolge:
+Der Bonner Provider verwendet diese Reihenfolge. Die nachfolgende öffentliche
+OParl-Abnahme gibt HTML-Zugriffsschranken ausdrücklich nicht frei:
 
 1. **OParl 1.1** über das amtliche Systemobjekt
    `https://www.bonn.sitzung-online.de/oparl/system`; falls dieses Discovery-
@@ -57,28 +58,69 @@ und niemals als abgeschlossene Nulltreffersuche.
 
 ## Live-QA
 
-Der Workflow **Bonn political context live QA** prüft den amtlichen Bonner Dienst
-über den kanonischen Maven-Build. In Pull Requests erzeugt er aus bis zu zwei
-Paper-Seiten am Ende des Archivs einen Ratsdatenindex, prüft dessen Prüfsumme
-und sucht nach einer eingelesenen Drucksache. Die Treffer tragen den Status
-`partial-results`. Eine Suche ohne Treffer im Teilbestand liefert `incomplete`.
+Der Workflow **Bonn political context live QA** nutzt ausschließlich das
+Maven-Profil `bonn-oparl-live` und die exakt ausgewählte Datei
+`tests/unit/bonnPoliticalContextLive.test.js`. Die normale vollständige Unit-CI
+bleibt unverändert. Die Live-Flags gelten nur für diese ausgewählte
+npm-Ausführung, nicht mehr für alle Unit-Tests des Reaktors.
+
+Für eine gesondert autorisierte öffentliche Abnahme:
+
+```sh
+# Begrenzter öffentlicher OParl-Ausschnitt (Profilstandard):
+mvn -B -ntp -N test -Pbonn-oparl-live -Dbonn.oparl.scope=snapshot
+# Vollständige öffentliche OParl-Archivabnahme, nur explizit autorisiert:
+mvn -B -ntp -N test -Pbonn-oparl-live -Dbonn.oparl.scope=archive
+```
+
+Die Live-Flags dürfen nicht global für einen breiten Unit-Lauf gesetzt werden.
+Maven lehnt andere Scope-Werte bereits bei `validate` ab. `-N` begrenzt den
+Aufruf auf das Root-Projekt. Pull Requests wählen `snapshot`; geplante und
+manuelle Workflow-Läufe wählen ausdrücklich `archive`. Das Profil installiert
+weiterhin die gepinnte Node-/npm-Umgebung über den bestehenden Maven-Lebenszyklus.
+
+Der Snapshot-Lauf erzeugt aus höchstens zwei öffentlichen Paper-Seiten einen
+Ratsdatenindex, prüft die Prüfsumme und sucht eine eingelesene Drucksache.
+Treffer bleiben `partial-results`, ein fehlender Treffer bleibt `incomplete`.
 Ein Abruf ohne nutzbare Vorgänge wird einmal wiederholt.
 
-Geplante und manuell gestartete Läufe prüfen die vollständige Archivsuche.
+Der Archivlauf bewahrt die vollständigen bestehenden Adenauerallee-/Radverkehr-
+und Direktlink-Prüfungen. Im selben Prozess folgen eine unterschiedliche
+parallele Suche und eine unterschiedliche warme Suche. Der äußere Query-Cache
+bleibt dabei aus. Das Artefakt weist echte monotone Dauern, Quellenzeit,
+`miss/coalesced/hit`, Seiten-/Vorgangszähler und unabhängig gezählte Transport-
+aufrufe aus. Ein warmer oder koaleszierter Aufruf darf kein neues HTTP auslösen.
+Ein kalter, vollständiger Archivaufbau wird dadurch nicht als schnelle
+interaktive Suche bezeichnet.
 
-- Der OParl-Lauf wird erfolgreich abgeschlossen oder ein amtlicher Fallback
-  ergänzt den dokumentierten partiellen OParl-Lauf vollständig.
-- Das Suchprotokoll dokumentiert die Abfragen reproduzierbar und enthält für
-  `Adenauerallee` und `Radverkehr` jeweils mindestens einen Treffer.
-- Die Treffer führen direkt zu amtlichen Bonner Seiten. Das JSON-Protokoll
-  wird als Workflow-Artefakt gespeichert.
+**HTML-Gate-, ALTCHA-/Solve- und sonstige HTML-Discovery-Probes sind kein Teil
+dieser öffentlichen OParl-Abnahme.** Sie werden weder ausgeführt noch als deren
+Artefakte hochgeladen. Eine sichtbare Zugriffsschranke wird nicht automatisiert
+umgangen. Der Snapshot-QA-Transport einschließlich Wiederholung und der kalte
+Archiv-QA-Transport verwenden denselben Guard und erlauben ausschließlich den offiziellen
+HTTPS-Origin `https://www.bonn.sitzung-online.de` und Pfade unter `/oparl/`.
+Auch Weiterleitungen und Node-URL-/Options-Überladungen werden vor dem Aufruf
+geprüft. HTML-/Gate-/Fremdhost-Versuche werden vor der Übertragung blockiert,
+als fehlgeschlagene Evidenz gespeichert und niemals als abgeschlossene
+Nulltreffersuche gewertet. Der Produktionsprovider selbst wird nicht umgebaut.
+Auch wenn der Snapshot-Collector nach einem blockierten Redirect noch öffentliche
+OParl-Vorgänge findet, bleibt die Abnahme fehlgeschlagen. Das Snapshot-Artefakt
+hält den Fehler und die erlaubten beziehungsweise blockierten Transportzähler fest;
+alle vier HTTP-/HTTPS-Transportfunktionen werden auch im Fehlerfall wiederhergestellt.
 
-Der Archivlauf erlaubt bis zu 300 Seiten zu jeweils höchstens 100 Vorgängen.
-Für den Abruf gelten 20 Minuten Prozessbudget wie beim Datenimport und 25 Minuten
-für den gesamten CI-Job. Das Prozessbudget schließt höchstens einen
-Wiederholungsversuch mit Wartezeit ein. Deterministische Unit-Tests prüfen
-Paginierung, Deduplizierung, Hostbeschränkung, Fallbackreihenfolge und die
-Unterscheidung zwischen Nulltreffer und Providerfehler.
+Das Workflow-Artefakt enthält ausschließlich die jeweils erzeugte
+`bonn-political-context-live.json` beziehungsweise `bonn-ris-snapshot-live.json`.
+Der frühere Lauf #131 / `42504123331` verwendete noch die breitere alte
+Unit-Ausführung und enthält auch Gate-/Solve-Probes. Sein tatsächlicher
+Archivnachweis und seine kalte Dauer von 618,925 Sekunden bleiben historische
+Evidenz; er ist kein Nachweis und keine Aufrufvorlage für die neue isolierte
+Abnahme.
+
+Der Archivlauf behält maximal 300 Seiten mit höchstens 100 Vorgängen, 20 Minuten
+Prozessbudget und 25 Minuten Jobbudget. Eine erfolgreiche kalte Suche mit
+fehlgeschlagenem Cache-Nachweis wird nicht für einen Reparaturversuch erneut
+vollständig abgerufen. Deterministische Tests prüfen weiterhin Paginierung,
+Host-/Transportgrenzen, Cache-/Quellenzeit und unvollständige Nulltreffer.
 
 ## KI-/Antragsübergabe
 

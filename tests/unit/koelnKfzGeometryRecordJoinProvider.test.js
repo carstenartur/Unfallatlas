@@ -199,3 +199,30 @@ describe('Cologne geometry record and observation join', () => {
     expect(transformed.lon).toBeCloseTo(9.70496, 4);
   });
 });
+
+test('transforms real segment2071 endpoints against independent pyproj/PROJ reference and preserves both directions', () => {
+  const ref = require('../fixtures/koeln-kfz-gk2-reference.json');
+  for (const point of ref.points) {
+    const actual = provider.utm32ToWgs84(point, 'KOELN:DHDN_GK2_TOWGS84_2019');
+    expect(actual.lon).toBeCloseTo(point.lon, 8);
+    expect(actual.lat).toBeCloseTo(point.lat, 8);
+  }
+  const s = { ...schema(), crs: 'KOELN:DHDN_GK2_TOWGS84_2019' };
+  const records = ref.points.map(point => pointRecord(point.id.split(':')[1], point.x, point.y));
+  const geometry = provider.buildOfficialGeometryIndex(records, [lineRecord('2071', '16545002', '16545007', records.map(r => r.point))], s);
+  const observations = [
+    { observationId: 'forward', wayId: 'koeln-segment:2071:forward:16545002->16545007', value: 18504, year: 2016 },
+    { observationId: 'reverse', wayId: 'koeln-segment:2071:reverse:16545007->16545002', value: 22153, year: 2016 },
+  ];
+  const joined = provider.joinObservations(observations, geometry, s);
+  expect(joined.map(row => row.value)).toEqual([18504, 22153]);
+  expect(joined[0].geometry.coordinates).toEqual([...joined[1].geometry.coordinates].reverse());
+  expect(joined[0].officialGeometry.transform).toMatch(/proj4-2.22.0/);
+});
+
+test('verified custom source CRS must match the schema pin and cannot be relabeled UTM', () => {
+  const set = { id: 'nodes', shapeType: 1, crs: { id: 'KOELN:DHDN_GK2_TOWGS84_2019', epsg: null } };
+  const inspected = { shapeSets: [set] };
+  expect(provider.shapeSetById(inspected, { ...schema(), crs: set.crs.id }, 'pointSet')).toBe(set);
+  expect(() => provider.shapeSetById(inspected, schema(), 'pointSet')).toThrow(/shape_set_contract_mismatch/);
+});

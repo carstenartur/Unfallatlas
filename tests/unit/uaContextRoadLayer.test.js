@@ -295,7 +295,7 @@ describe('UA.contextRoadLayer — buildLegend', () => {
     // not gain a stray row.
     expect(el.querySelector('.context-road-legend__lowconfidence')).toBeNull();
     expect(el.querySelector('.context-road-legend__encoding').textContent)
-      .toMatch(/gestrichelte Innenlinie/);
+      .toMatch(/Messwert: durchgezogen.*Modell: kurz gestrichelt.*Proxy: lang gestrichelt/);
     for (const swatch of el.querySelectorAll('.context-road-legend__swatch')) {
       expect(swatch.dataset.lineEncoding).toBe('narrow-dashed');
       expect(swatch.style.borderTop).toMatch(/3px dashed/);
@@ -428,4 +428,37 @@ describe('UA.contextRoadLayer — slope renderer / legend colour parity (PR-berl
     const line = polylineCalls.find(p => p.feature.properties.way_id === 'W_t');
     expect(line._opts.color).toBe(UA.contextRoadLayer.TRAFFIC_COLORS.very_high);
   });
+});
+
+test('overlay exports retain terrain source and uncertainty and legend qualifies coarse interpretation', () => {
+  const { UA } = loadModule();
+  UA.elevationProvider = require('../../js/ua.elevation_provider');
+  const attrs = { road_slope_percent: 0, road_slope_class: 'flat', road_slope_source: 'SRTM Local Tiles',
+    road_slope_resolution_m: 30, road_slope_reliable_for_road: false, road_slope_uncertainty_reasons: ['coarse'] };
+  const group = UA.contextRoadLayer.buildSlopeLayer({ ways: { 1: attrs }, geometries: { 1: [50, 7, 50.1, 7.1] } });
+  expect(group.getLayers()[0].feature.properties).toEqual(expect.objectContaining({ ...attrs,
+    slope_semantic_type: 'terrain_context', slope_statement: expect.stringContaining('0–2 %') }));
+  expect(UA.contextRoadLayer.buildLegend('slope').textContent).toMatch(/Gelände.*Fahrbahn/);
+});
+
+test('traffic overlay retains typed artifact evidence and distinguishes line encoding', () => {
+  const { UA } = loadModule();
+  UA.trafficProvider = require('../../js/ua.traffic_provider');
+  const typedTraffic = require('../fixtures/typed-traffic-evidence');
+  const count = typedTraffic('count', 18504), model = typedTraffic('model', 2000);
+  const group = UA.contextRoadLayer.buildTrafficLayer({ ways: { 1: count, 2: model,
+    3: { traffic_measurement_type: 'proxy', traffic_proxy_class: 'low' } },
+    geometries: { 1: [50, 7, 50.1, 7.1], 2: [50, 7, 50.1, 7.1], 3: [50, 7, 50.1, 7.1] } });
+  const layers = group.getLayers();
+  expect(layers.map(line => line._opts.dashArray)).toEqual([null, '3 4', '10 6']);
+  expect(layers[0].feature.properties.traffic_evidence).toEqual(count.traffic_evidence);
+  expect(UA.contextRoadLayer.buildLegend('traffic').textContent).toMatch(/Messwert.*Modell.*Proxy/);
+});
+
+test('legacy source-less way tiles inherit documented SRTM resolution from city metadata', () => {
+  const { UA } = loadModule();
+  UA.elevationProvider = require('../../js/ua.elevation_provider');
+  const layer = UA.contextRoadLayer.buildSlopeLayer({ ways: { 10: { road_slope_percent: 0 } },
+    geometries: { 10: [50, 7, 50.1, 7.1] }, meta: { sources: { dem: { source: 'SRTM Local Tiles', resolutionM: 30 } } } });
+  expect(layer.getLayers()[0].feature.properties.slope_statement).toContain('SRTM Local Tiles (30 m)');
 });

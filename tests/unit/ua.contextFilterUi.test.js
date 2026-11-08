@@ -104,6 +104,18 @@ describe('UA.readContextFilterChips — DOM → state', () => {
 });
 
 describe('UA.refreshContextFilterVisibility — capabilities → visibility', () => {
+  test('typed-only traffic populations expose and retain active traffic filters', () => {
+    const UA = loadUI('http://localhost/');
+    UA.syncAllToUrl = jest.fn();
+    const ui = makeUi();
+    ui.ctxTrafficChipEls.find(c => c.dataset.ctxTraffic === 'very_high').checked = true;
+    const ctx = { ui, contextCapabilities: { hasTrafficProxy: false, hasTrafficEvidence: true },
+      contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(['very_high']), onlyMatchedWays: false } };
+    UA.refreshContextFilterVisibility(ctx);
+    expect(ui.ctxTrafficRow.hidden).toBe(false);
+    expect(ui.ctxFilterEmpty.hidden).toBe(true);
+    expect(ctx.contextFilters.trafficClasses.has('very_high')).toBe(true);
+  });
   test('shows empty-state copy (section visible, all rows hidden) when no slope/traffic capabilities', () => {
     const UA = loadUI('http://localhost/');
     const ui = makeUi();

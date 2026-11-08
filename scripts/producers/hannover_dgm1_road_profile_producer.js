@@ -173,6 +173,12 @@ function unavailableWindow(windowMeters, error) {
 }
 
 async function computeWindow(compute, provider, geometry, anchor, riskTags, windowMeters) {
+  // Real OSM extracts contain sub-2 m connectors. The estimator rejects those
+  // before sampling; classify their windows without aborting unrelated ways.
+  const length = geometry.slice(1).reduce((sum, point, index) => sum + segmentLengthMeters(geometry[index], point), 0);
+  if (length < 2) return unavailableWindow(windowMeters, {
+    code: 'insufficient_geometry', message: 'Road geometry is shorter than the estimator minimum of 2 m',
+  });
   try {
     const result = await compute(provider, geometry, anchor, {
       windowMeters,

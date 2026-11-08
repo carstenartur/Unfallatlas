@@ -759,7 +759,7 @@
     if (!sec) return;
 
     const showSlope   = !!caps.hasSlope;
-    const showTraffic = !!caps.hasTrafficProxy;
+    const showTraffic = !!(caps.hasTrafficProxy || caps.hasTrafficEvidence);
     const showMatched = !!caps.hasOsmContext;
     const showAny     = showSlope || showTraffic || showMatched;
     // Empty-state: when *no* relevant context capability is present

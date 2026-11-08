@@ -18,8 +18,8 @@
       "modelType": "DTM",
       "horizontalCrs": "EPSG:25832",
       "verticalDatum": null,
-      "acquisitionPeriod": null,
-      "publicationDate": null,
+      "acquisitionPeriod": "Laserscannerbefliegung 2010",
+      "publicationDate": "2024-01-15",
       "retrievedAtPolicy": "generation-time",
       "modifiedDataNotice": "Aus dem DGM abgeleitete Straßenprofile und Neigungswerte sind bearbeitete Daten und keine amtlichen Fahrbahnvermessungen.",
       "coverage": {
