@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ID, TITLE, BASE_VIEW, fixture, ready } from './helpers/ris-shared-view-fixture.js';
+import { ID, TITLE, BASE_VIEW, fixture, ready, captureEvidence } from './helpers/ris-shared-view-fixture.js';
 
 test.use({ hasTouch: true });
 
@@ -22,7 +22,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
     expect(layout.left).toBeGreaterThanOrEqual(0); expect(layout.top).toBeGreaterThanOrEqual(0);
     expect(layout.right).toBeLessThanOrEqual(layout.width); expect(layout.bottom).toBeLessThanOrEqual(layout.height);
     expect(layout.overflow).toBe(false); expect(layout.minimumControlHeight).toBeGreaterThanOrEqual(44);
-    await testInfo.attach(`ris-process-${viewport.width}px`, { body: await page.screenshot(), contentType: 'image/png' });
+    await captureEvidence(page, testInfo, `ris-process-${viewport.width}px`);
     await panel.getByRole('button', { name: 'Vorgangsansicht einklappen', exact: true }).tap();
     await expect(panel.locator('.ris-details__body')).toBeHidden();
     expect(new URL(page.url()).searchParams.get('risCollapsed')).toBe('1');

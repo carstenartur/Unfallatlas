@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { writeRisSnapshot, enumerateSnapshotAssets } from '../../../server/political-context/services/risSnapshot.js';
 
@@ -57,6 +57,20 @@ async function ready(page, url) {
     const ua = window.UA, ctx = ua?.getRuntimeContext?.();
     return ctx?.map && ctx.ui && !ua._hydrating && ua.PoliticalContext?._runSearch;
   }, null, { timeout: 60_000 });
+  if (!await page.evaluate(() => Boolean(window.UA.PUBLIC_DISTRIBUTION_PROFILE))) {
+    await page.addScriptTag({ url: 'js/ua.public-preview.js' });
+  }
 }
 
-export { ID, TITLE, BASE_VIEW, fixture, ready };
+async function captureEvidence(page, testInfo, name) {
+  const body = await page.screenshot();
+  // The canonical runner uses separate Playwright invocations for browsers
+  // and context-data QA. Their output directories are cleared between runs.
+  const directory = path.resolve('out/qa/ris-view');
+  const file = `${testInfo.project.name}-${name}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, `${file}.png`), body);
+  await testInfo.attach(name, { body, contentType: 'image/png' });
+}
+
+export { ID, TITLE, BASE_VIEW, fixture, ready, captureEvidence };

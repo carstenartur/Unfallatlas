@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ID, TITLE, BASE_VIEW, fixture, ready } from './helpers/ris-shared-view-fixture.js';
+import { ID, TITLE, BASE_VIEW, fixture, ready, captureEvidence } from './helpers/ris-shared-view-fixture.js';
 
 test('a copied RIS view restores layer, area filter, unlocated record, tab and page in a fresh context', async ({ page, browser }, testInfo) => {
   test.setTimeout(100_000);
@@ -60,7 +60,7 @@ test('a copied RIS view restores layer, area filter, unlocated record, tab and p
     await expect(detail).toContainText('Öffentlicher Beratungsbeleg 70');
     await expect(detail).not.toContainText('Öffentlicher Beratungsbeleg 1');
     expect(errors).toEqual([]);
-    await testInfo.attach('shared-ris-process-desktop', { body: await received.screenshot(), contentType: 'image/png' });
+    await captureEvidence(received, testInfo, 'shared-ris-process-desktop');
   } finally { await recipient.close(); }
 });
 
