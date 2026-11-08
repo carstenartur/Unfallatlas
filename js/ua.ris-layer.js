@@ -7,6 +7,11 @@
     derived: { label: 'Abgeleitete Lage', color: '#7a4709', dashed: true, fill: '#fff' },
     mixed: { label: 'Amtliche und abgeleitete Lage', color: '#532b78', dashed: true, fill: '#eee0fb' },
   };
+  const sourceLabels = new Map([
+    ['hannover-sim', 'Landeshauptstadt Hannover · SIM'],
+    ['region-hannover-ris', 'Region Hannover · ALLRIS'],
+  ]);
+  const sourceLabel = source => sourceLabels.get(source) || source;
 
   const cityOf = ctx => String(ctx.CITY_RAW || '').trim();
 
@@ -309,10 +314,10 @@
         details.style.cssText = 'margin:4px 0;overflow-wrap:anywhere';
         parent.append(details);
       }
-      const source = entry.source ? ` · Quelle: ${entry.source}` : '';
+      const source = entry.source ? ` · Quelle: ${sourceLabel(entry.source)}` : '';
       const url = httpsUrl(entry.url);
       if (!url) {
-        if (entry.source) text(parent, 'div', `Quelle: ${entry.source}`);
+        if (entry.source) text(parent, 'div', `Quelle: ${sourceLabel(entry.source)}`);
         return;
       }
       const links = text(parent, 'div', '');
@@ -490,7 +495,7 @@
           });
         }
       }
-      if (entry.source) text(parent, 'div', `Quelle: ${entry.source}`);
+      if (entry.source) text(parent, 'div', `Quelle: ${sourceLabel(entry.source)}`);
       if (!withRelated) return;
       const relatedList = text(parent, 'ul', '');
       const relatedButton = text(parent, 'button', 'Verknüpfte Vorgänge anzeigen');

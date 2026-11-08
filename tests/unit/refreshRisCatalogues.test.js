@@ -60,6 +60,19 @@ function legacyCatalogue(city, options) {
   return value;
 }
 
+function regionalCatalogue() {
+  const value = catalogue('hannover');
+  value.sources.push('https://ris.hannit.de/public/vo040');
+  value.coverage.bodies.push('Regionsversammlung');
+  value.records.push({ id: 'region-hannover-ris:vo:2003037', title: 'Radwege in Garbsen',
+    number: value.records[0].number, type: 'Sonstige', date: '2023-08-24', gremium: 'Regionsversammlung',
+    source: 'region-hannover-ris', url: 'https://ris.hannit.de/public/vo020?VOLFDNR=2003037&refresh=false' });
+  value.history = { pending: false, interrupted: false, pendingYears: [] };
+  value.sourceStatuses = [{ source: 'region-hannover-ris', status: 'partial', url: 'https://ris.hannit.de/public/vo040',
+    retrievedAt: NOW.toISOString(), from: '2014-01-01', to: '2026-10-15', recordCount: 1, message: 'Öffentliche Vorlagen.' }];
+  return value;
+}
+
 function fetchPages({ decoded = false, tamper } = {}) {
   return async (url, { redirect, credentials }) => {
     expect(url).toMatch(/^https:\/\/carstenartur\.github\.io\/Unfallatlas\/data\/ris\/[a-z0-9.]+$/);
@@ -304,7 +317,7 @@ test('rebuilds a fresh legacy Hannover snapshot once to publish measure location
   legacy.locationRevision = 1;
   legacy.records.forEach(record => delete record.locationAssessment);
   await writeRisSnapshot(published, 'hannover', legacy, { now: FRESH });
-  const collect = jest.fn(() => catalogue('hannover'));
+  const collect = jest.fn(() => regionalCatalogue());
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
     { city: 'hannover', status: 'published' },
   ]);
@@ -315,6 +328,152 @@ test('rebuilds a fresh legacy Hannover snapshot once to publish measure location
     { city: 'hannover', status: 'current' },
   ]);
   expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test('adds Region records to a fresh city-only snapshot once, retaining city identities and map geometry', async () => {
+  const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FRESH });
+  const collect = jest.fn(() => regionalCatalogue());
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'published', records: 3 }]);
+  const snapshot = await readRisSnapshot(directory, 'hannover');
+  expect(snapshot.records.map(record => record.id)).toEqual(expect.arrayContaining(['hannover:1', 'hannover:2', 'region-hannover-ris:vo:2003037']));
+  expect(snapshot.manifest.sources).toContain('https://ris.hannit.de/public/vo040');
+  expect(snapshot.manifest.provenance.provider).toBe('hannover-official-sources');
+  expect(snapshot.manifest.locationAssessment.attempted).toBe(3);
+  expect(snapshot.features.features).toHaveLength(prior.geometryCount);
+  expect(snapshot.features.features[0].properties.recordId).toBe('hannover:1');
+  expect(snapshot.records.find(record => record.source === 'region-hannover-ris').url).toContain('VOLFDNR=2003037');
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'current', records: 3 }]);
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test.each(['failure', 'missing-source'])('retains the mixed catalogue and its clock after a regional %s', async problem => {
+  const prior = await writeRisSnapshot(published, 'hannover', regionalCatalogue(), { now: FALLBACK });
+  const collect = problem === 'failure' ? () => { throw new Error('Region HTTP 503'); } : () => catalogue('hannover', { count: 3 });
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'retained', generatedAt: FALLBACK.toISOString() }]);
+  const snapshot = await readRisSnapshot(directory, 'hannover');
+  expect(snapshot.records.some(record => record.source === 'region-hannover-ris')).toBe(true);
+  expect(snapshot.manifest.generatedAt).toBe(prior.generatedAt);
+  expect(snapshot.manifest.refreshFailure.expiresAt).toBe(EXPIRY.toISOString());
+});
+
+test('a regional link with a blocked zero-record status still triggers the first actual import', async () => {
+  const prior = catalogue('hannover');
+  prior.sources.push('https://ris.hannit.de/public/');
+  prior.sourceStatuses = [{ source: 'region-hannover-ris', status: 'blocked', url: 'https://ris.hannit.de/public/',
+    retrievedAt: null, from: null, to: null, recordCount: 0, message: 'Früher nur als manueller Link erfasst.' }];
+  await writeRisSnapshot(published, 'hannover', prior, { now: FRESH });
+  const collect = jest.fn(() => regionalCatalogue());
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'published', records: 3 }]);
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test.each([false, true])('an old city-only failure permits the first Region import but preserves its subsequent retry backoff (fail=%s)', async fail => {
+  const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FRESH });
+  prior.refreshFailure = { attemptedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+    expiresAt: new Date(FRESH.getTime() + 14 * 86400000).toISOString(), reason: 'Früherer SIM-Abruf fehlgeschlagen.' };
+  await fs.writeFile(path.join(published, 'hannover.json'), JSON.stringify(prior));
+  const collect = jest.fn(() => { if (fail) throw new Error('Region HTTP 429'); return regionalCatalogue(); });
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: fail ? 'retained' : 'published' }]);
+  expect(collect).toHaveBeenCalledTimes(1);
+  if (fail) {
+    const snapshot = await readRisSnapshot(directory, 'hannover');
+    expect(snapshot.manifest.sourceStatuses).toContainEqual(expect.objectContaining({ source: 'region-hannover-ris', status: 'failed', recordCount: 0 }));
+    await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'current' }]);
+    expect(collect).toHaveBeenCalledTimes(1);
+  }
+});
+
+test('a successful cached Region upgrade wins over an old deployed failure with the same source clock', async () => {
+  const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FRESH });
+  prior.refreshFailure = { attemptedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+    expiresAt: new Date(FRESH.getTime() + 14 * 86400000).toISOString(), reason: 'Früherer SIM-Abruf fehlgeschlagen.' };
+  await fs.writeFile(path.join(published, 'hannover.json'), JSON.stringify(prior));
+  const current = regionalCatalogue();
+  current.generatedAt = FRESH.toISOString();
+  const collect = jest.fn(() => current);
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'published', records: 3 }]);
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'current', records: 3 }]);
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test('retained regional IDs absent from a completed fresh crawl keep their original verification clock', async () => {
+  const prior = regionalCatalogue();
+  prior.records.push({ ...prior.records[2], id: 'region-hannover-ris:vo:historic', title: 'Ältere regionale Vorlage' });
+  prior.sourceStatuses[0].retrievedAt = FALLBACK.toISOString();
+  prior.sourceStatuses[0].recordCount = 2;
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const current = regionalCatalogue();
+  current.generatedAt = NOW.toISOString();
+  await expect(refresh({ cities: ['hannover'], collect: () => current })).resolves.toMatchObject([{ status: 'published', records: 4 }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.records.map(record => record.id)).toContain('region-hannover-ris:vo:historic');
+  expect(result.manifest.generatedAt).toBe(FALLBACK.toISOString());
+  expect(result.manifest.provenance.sourceVerifiedAt).toBe(FALLBACK.toISOString());
+  expect(result.manifest.sourceStatuses[0]).toMatchObject({ retrievedAt: FALLBACK.toISOString(), recordCount: 2 });
+});
+
+test('pending new regional detail work does not freeze freshly verified metadata at the previous snapshot clock', async () => {
+  await writeRisSnapshot(published, 'hannover', regionalCatalogue(), { now: FALLBACK });
+  const current = regionalCatalogue();
+  current.generatedAt = NOW.toISOString();
+  current.history = { pending: true, interrupted: true, retainPreviousClock: false, pendingYears: [2026] };
+  current.records[2].locationEvidenceUnavailable = true;
+  await expect(refresh({ cities: ['hannover'], collect: () => current })).resolves.toMatchObject([{ status: 'published', generatedAt: NOW.toISOString() }]);
+});
+
+test('an explicitly non-public Region record is removed, including its geometry, despite the normal loss guard', async () => {
+  const prior = regionalCatalogue();
+  Object.assign(prior.records[2], { geometry: { type: 'Point', coordinates: [9.75, 52.38] }, locationSource: 'official',
+    locationAssessment: { status: 'mapped', sources: ['official'], reasons: [], truncated: false } });
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const current = regionalCatalogue();
+  current.exclusions = [{ id: prior.records[2].id, url: prior.records[2].url, verifiedAt: NOW.toISOString(), reason: 'not-public' }];
+  current.records = current.records.slice(0, 2);
+  current.sourceStatuses[0].recordCount = 0;
+  await expect(refresh({ cities: ['hannover'], collect: () => current })).resolves.toMatchObject([{ status: 'published', records: 2 }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.records.some(record => record.source === 'region-hannover-ris')).toBe(false);
+  expect(result.features.features).toHaveLength(1);
+  expect(result.manifest.generatedAt).toBe(NOW.toISOString());
+});
+
+test('unverified exclusions cannot remove records from another source', async () => {
+  const prior = await writeRisSnapshot(published, 'hannover', regionalCatalogue(), { now: FALLBACK });
+  const current = regionalCatalogue();
+  current.exclusions = [{ id: 'hannover:1', url: current.records[0].url, verifiedAt: NOW.toISOString(), reason: 'not-public' }];
+  await expect(refresh({ cities: ['hannover'], collect: () => current })).resolves.toMatchObject([{ status: 'retained', records: 3 }]);
+  expect((await readRisSnapshot(directory, 'hannover')).manifest.generatedAt).toBe(prior.generatedAt);
+});
+
+test('an unrelated candidate failure cannot resurrect an explicitly non-public Region record through fallback', async () => {
+  const prior = regionalCatalogue();
+  prior.provenance = require('../../server/political-context/services/risProvenance').collectionProvenance({
+    catalogue: prior, city: 'hannover', records: prior.records, sourceRecords: prior.records,
+    sourceVerifiedAt: FALLBACK.toISOString(), now: FALLBACK,
+  });
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const current = regionalCatalogue();
+  current.generatedAt = OLD.toISOString();
+  current.exclusions = [{ id: prior.records[2].id, url: prior.records[2].url, verifiedAt: NOW.toISOString(), reason: 'not-public' }];
+  current.records = current.records.slice(0, 2);
+  current.sourceStatuses[0].recordCount = 0;
+  await expect(refresh({ cities: ['hannover'], collect: () => current }))
+    .resolves.toMatchObject([{ status: 'retained', records: 2, generatedAt: FALLBACK.toISOString() }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.records.some(record => record.source === 'region-hannover-ris')).toBe(false);
+  expect(result.manifest.sourceStatuses[0].recordCount).toBe(0);
+  expect(result.manifest.provenance.sourceFingerprint).toEqual(prior.provenance.sourceFingerprint);
+  expect(result.manifest.provenance.collection.normalizedItems).toBe(2);
+});
+
+test('source failures carrying confirmed regional exclusions sanitize the fallback as well', async () => {
+  const prior = regionalCatalogue();
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const failure = Object.assign(new Error('SIM source failed'), { exclusions: [{ id: prior.records[2].id,
+    url: prior.records[2].url, verifiedAt: NOW.toISOString(), reason: 'not-public' }] });
+  await expect(refresh({ cities: ['hannover'], collect: () => { throw failure; } }))
+    .resolves.toMatchObject([{ status: 'retained', records: 2 }]);
+  expect((await readRisSnapshot(directory, 'hannover')).records.some(record => record.source === 'region-hannover-ris')).toBe(false);
 });
 
 test('assesses every Bonner record immediately when its fresh snapshot predates the common assessment contract', async () => {
@@ -347,7 +506,8 @@ test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s recor
   expect(snapshot.records.every(record => record.locationAssessment.reasons.includes('document_text_unavailable'))).toBe(true);
   expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
   expect(snapshot.manifest).toMatchObject({
-    generatedAt: prior.generatedAt, sources: prior.sources, coverage: prior.coverage, locationRevision: 3,
+    generatedAt: prior.generatedAt, sources: city === 'hannover' ? [...prior.sources, 'https://ris.hannit.de/public/vo040'] : prior.sources,
+    coverage: prior.coverage, locationRevision: 3,
     locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
     refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
   });
@@ -363,7 +523,9 @@ test('reuses bounded document evidence and its precise geometry without widening
   const prior = await writeRisSnapshot(published, 'hannover', legacy, { now: FALLBACK });
   await refresh({ cities: ['hannover'], collect: () => { throw new Error('SIM unavailable'); } });
   const snapshot = await readRisSnapshot(directory, 'hannover');
-  expect(snapshot.manifest).toMatchObject({ generatedAt: prior.generatedAt, coverage: prior.coverage, sources: prior.sources });
+  expect(snapshot.manifest).toMatchObject({ generatedAt: prior.generatedAt, coverage: prior.coverage,
+    sources: [...prior.sources, 'https://ris.hannit.de/public/vo040'],
+    sourceStatuses: [expect.objectContaining({ source: 'region-hannover-ris', status: 'failed', recordCount: 0, retrievedAt: null })] });
   expect(snapshot.records[1].locations).toEqual([{
     kind: 'junction', label: 'Davenstedter Straße / Südfeldstraße', evidence, mapped: true,
   }]);
@@ -723,5 +885,5 @@ test('historical supplementary records omitted by a fresh rolling window retain 
   const result = await readRisSnapshot(directory, 'hannover');
   expect(result.records.map(r => r.id)).toContain('landtag:historic');
   expect(result.manifest.generatedAt).toBe(STALE.toISOString());
-  expect(result.manifest.coverage.warnings.join(' ')).toMatch(/ältere.*Zusatzquellen/i);
+  expect(result.manifest.coverage.warnings.join(' ')).toMatch(/ältere Datensätze.*verifizierten Stand/i);
 });

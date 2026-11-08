@@ -199,6 +199,37 @@ test('publishes Bonn and Hannover independently with the source links for each c
   await expect(readRisSnapshot(directory, 'hannover')).resolves.toMatchObject({ manifest: hannover, records: [motion] });
 });
 
+test.each([1, 2])('keeps Hannover city and Region documents with the same source number distinct in snapshot v%s', async schemaVersion => {
+  const citySource = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular';
+  const regionSource = 'https://ris.hannit.de/public/';
+  const city = { ...original, id: 'hannover-sim:2003037', title: 'Städtischer Radverkehr', number: '2003037',
+    gremium: 'Rat der Landeshauptstadt Hannover', source: 'hannover-sim', url: `${citySource}/2003037` };
+  const region = { ...original, id: 'region-hannover-ris:2003037', title: 'Regionaler Radverkehr', number: '2003037',
+    gremium: 'Regionsversammlung', source: 'region-hannover-ris', url: `${regionSource}vo020?VOLFDNR=2003037` };
+  await writeRisSnapshot(directory, 'hannover', {
+    records: [{ ...city, geometry: { type: 'Point', coordinates: [9.73, 52.37] }, locationSource: 'official' }, region],
+    sources: [citySource, regionSource], coverage: { ...coverage, bodies: [city.gremium, region.gremium] },
+  }, { schemaVersion });
+
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.manifest.sources).toEqual([citySource, regionSource]);
+  expect(result.records).toEqual([city, region]);
+  expect(result.features.features.map(feature => feature.properties.recordId)).toEqual(['hannover-sim:2003037']);
+});
+
+test.each([
+  ['a foreign declared source', true, /Invalid official HTTPS URL/],
+  ['a foreign citation', false, /citation must use a declared official HTTPS source host/],
+])('rejects %s when publishing Hannover city and Region documents', async (_name, declareForeign, error) => {
+  const sources = ['https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular', 'https://ris.hannit.de/public/'];
+  const foreign = 'https://ris.hannit.de.example.org/public/';
+  await expect(writeRisSnapshot(directory, 'hannover', {
+    records: [{ ...original, id: 'region-hannover-ris:2003037', source: 'region-hannover-ris', url: `${foreign}vo020?VOLFDNR=2003037` }],
+    sources: declareForeign ? [...sources, foreign] : sources, coverage,
+  }, { schemaVersion: 2 })).rejects.toThrow(error);
+  expect(await fs.readdir(directory)).toEqual([]);
+});
+
 test.each(['citywide', 'selected-bodies'])('preserves the common coverage scope %s when writing and reading', async scope => {
   const manifest = await writeRisSnapshot(directory, 'bonn', {
     ...catalogue([original]), coverage: { ...coverage, scope },

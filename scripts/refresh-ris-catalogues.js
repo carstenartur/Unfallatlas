@@ -15,6 +15,7 @@ const { enrichRisLocations } = require('../server/political-context/services/ris
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
 const { createRisSourceCheckpoint } = require('../server/political-context/services/risSourceCheckpoint');
 const { collectionProvenance } = require('../server/political-context/services/risProvenance');
+const { collectCombinedHannoverCatalogue, includesRegionSource, historicalCityStart } = require('../server/political-context/providers/hannoverCatalogue');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIRECTORY = path.join(ROOT, 'data', 'ris');
@@ -34,8 +35,8 @@ const ASSET_BYTES = 16 * 1024 * 1024;
 // Public manifests must not carry raw errors from source responses or local filesystem paths.
 const PUBLIC_REFRESH_FAILURE = 'Die letzte Aktualisierung der amtlichen Ratsdaten ist fehlgeschlagen.';
 
-async function collectOfficial(city, now, { previousCoverage, historyStartYear = HISTORY_START_YEAR, workBudget,
-  maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {} } = {}) {
+async function collectOfficial(city, now, { previousCoverage, previousSourceStatuses, historyStartYear = HISTORY_START_YEAR, workBudget,
+  maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {}, onExclusions = () => {} } = {}) {
   const sourceCache = createRisSourceCache({ directory: sourceDirectory, now: () => now.getTime() });
   const checkpoint = createRisSourceCheckpoint({ directory: sourceDirectory });
   const progress = event => report({ ...event, cache: sourceCache.stats });
@@ -49,22 +50,13 @@ async function collectOfficial(city, now, { previousCoverage, historyStartYear =
     return withCollectionSettings(catalogue, { maxPages: 300, pageSize: 100, workBudget, maxDurationMs: maxDurationMs ?? 18 * 60_000 },
       { requestedFrom: `${historyStartYear}-01-01`, requestedTo: null });
   }
-  const { collectHannoverCatalogue } = require('../server/political-context/providers/hannoverSimCatalogue');
   const requestedFrom = `${historyStartYear}-01-01`;
-  const from = previousCoverage?.from && previousCoverage.from < requestedFrom ? previousCoverage.from : requestedFrom;
-  const catalogue = await collectHannoverCatalogue({
-    now, from, discovery: 'search', strict: true, maxDocuments: 50_000,
-    concurrency: 8, maxDurationMs: maxDurationMs ?? 58 * 60_000, timeoutMs: 20_000,
-    includeLocationEvidence: true, sourceCache, checkpoint, workBudget, report: progress,
+  const from = historicalCityStart(requestedFrom, previousCoverage, previousSourceStatuses);
+  const catalogue = await collectCombinedHannoverCatalogue({
+    now, from, maxDurationMs: maxDurationMs ?? 58 * 60_000,
+    sourceCache, checkpoint, workBudget, report: progress, onExclusions,
   });
-  const { collectHannoverAdditionalSources } = require('../server/political-context/providers/hannoverAdditionalSources');
-  const { composeHannoverCatalogue } = require('../server/political-context/providers/hannoverCatalogueComposition');
-  // Additional public documents have their own cache/checkpoints and bounded
-  // discovery. They do not inherit SIM's historical year range or crawl budget.
-  const additional = await collectHannoverAdditionalSources({ now, sourceCache, checkpoint, workBudget,
-    maxPages: workBudget === 0 ? 0 : 2, maxNotices: workBudget === 0 ? 0 : 4 });
-  return withCollectionSettings(composeHannoverCatalogue(catalogue, additional, { now }),
-    { maxDocuments: 50_000, workBudget, maxDurationMs: maxDurationMs ?? 58 * 60_000 });
+  return withCollectionSettings(catalogue, { workBudget, maxDurationMs: maxDurationMs ?? 58 * 60_000 });
 }
 
 function withCollectionSettings(catalogue, limits, scope = {}) {
@@ -75,15 +67,18 @@ async function collectFromSource(city, now, { report = () => {}, ...options } = 
   // A worker bounds the wall clock even if a source keeps a connection alive.
   const worker = new Worker(__filename, { workerData: { city, now: now.toISOString(), options } });
   let timer;
+  let confirmedExclusions = [];
+  const sourceError = error => Object.assign(error, { exclusions: confirmedExclusions });
   try {
     return await new Promise((resolve, reject) => {
-      timer = setTimeout(() => reject(new Error(`Source crawl exceeded ${SOURCE_LIMIT_MS[city] / 60_000} minutes`)), SOURCE_LIMIT_MS[city]);
-      worker.once('error', reject);
-      worker.once('exit', code => reject(new Error(`Source worker exited without a catalogue (${code})`)));
-      worker.on('message', ({ catalogue, error, progress }) => {
+      timer = setTimeout(() => reject(sourceError(new Error(`Source crawl exceeded ${SOURCE_LIMIT_MS[city] / 60_000} minutes`))), SOURCE_LIMIT_MS[city]);
+      worker.once('error', error => reject(sourceError(error)));
+      worker.once('exit', code => reject(sourceError(new Error(`Source worker exited without a catalogue (${code})`))));
+      worker.on('message', ({ catalogue, error, progress, exclusions }) => {
+        if (exclusions) confirmedExclusions = exclusions;
         if (progress) report(progress);
-        else if (error) reject(new Error(error));
-        else resolve(catalogue);
+        else if (error) reject(sourceError(new Error(error)));
+        else if (catalogue) resolve(catalogue);
       });
     });
   } finally {
@@ -216,6 +211,11 @@ async function pruneCity(directory, city, manifest) {
 
 function latestSnapshot(local, published) {
   if (!local.manifest || published.generated > local.generated) return published;
+  const regionalCount = manifest => manifest?.sourceStatuses?.find(source => source.source === 'region-hannover-ris')?.recordCount || 0;
+  // A successful source expansion may retain the same cached source clock.
+  // Do not replace that larger verified catalogue with the earlier city-only
+  // failure merely because its original verification timestamp is identical.
+  if (published.generated === local.generated && regionalCount(local.manifest) > 0 && regionalCount(published.manifest) === 0) return local;
   // A failed refresh updates the manifest without changing its original generation time.
   if (published.generated === local.generated && published.manifest.refreshFailure &&
       (!local.manifest.refreshFailure || published.manifest.refreshFailure.attemptedAt > local.manifest.refreshFailure.attemptedAt)) {
@@ -227,9 +227,12 @@ function latestSnapshot(local, published) {
 const recordCount = manifest => manifest?.records?.count ?? manifest?.recordCount;
 const mapCount = manifest => manifest?.map?.count ?? manifest?.geometryCount;
 
-function rejectCoverageDowngrade(next, previous) {
+function rejectCoverageDowngrade(next, previous, excludedCount = 0) {
   const coverage = next.coverage;
   const old = previous.coverage;
+  if (next.city === 'hannover' && includesRegionSource(previous.sources) && !includesRegionSource(next.sources)) {
+    throw new Error('The previously indexed Region Hannover source is missing from the new snapshot');
+  }
   if ((old.complete && !coverage.complete) || (old.from && coverage.from > old.from) ||
       (old.to && coverage.to < old.to)) throw new Error('Official coverage is narrower than the previous snapshot');
   if (old.scope === 'citywide' && coverage.scope !== 'citywide') {
@@ -248,9 +251,29 @@ function rejectCoverageDowngrade(next, previous) {
   if (next.city === 'hannover' && coverage.scope !== 'citywide' && previous.sources.some(source => !next.sources.includes(source))) {
     throw new Error('An official archive or feed is missing from the new snapshot');
   }
-  if (recordCount(next) < recordCount(previous) * 0.9) {
+  if (recordCount(next) < (recordCount(previous) - excludedCount) * 0.9) {
     throw new Error(`Official record count fell from ${recordCount(previous)} to ${recordCount(next)}`);
   }
+}
+
+function verifiedRegionExclusions(catalogue, city, now) {
+  const values = catalogue.exclusions ?? [];
+  if (!Array.isArray(values) || values.length > 50_000) throw new Error('Invalid regional exclusion evidence');
+  const ids = new Set();
+  for (const value of values) {
+    const match = /^region-hannover-ris:vo:(\d+)$/.exec(value?.id || '');
+    let url;
+    try { url = new URL(value.url); } catch (_) { /* rejected below */ }
+    const verified = Date.parse(value?.verifiedAt);
+    if (city !== 'hannover' || !match || value.reason !== 'not-public' ||
+        !/^https:\/\/ris\.hannit\.de\/public\/vo020\?/.test(value.url || '') || url?.hash ||
+        url?.searchParams.getAll('VOLFDNR').length !== 1 || url?.searchParams.get('VOLFDNR') !== match[1] ||
+        !Number.isFinite(verified) || verified > now.getTime() || new Date(verified).toISOString() !== value.verifiedAt) {
+      throw new Error('Invalid regional exclusion evidence');
+    }
+    ids.add(value.id);
+  }
+  return ids;
 }
 
 async function loadGazetteer(city) {
@@ -297,14 +320,24 @@ function snapshotInputs({ records, features }) {
   });
 }
 
-async function prepareCandidate(directory, city, now, collect, previous, report, sourceOptions = {}) {
-  const catalogue = await collect(city, now, { ...sourceOptions, previousCoverage: previous?.manifest.coverage, report });
+async function prepareCandidate(directory, city, now, collect, previous, report, sourceOptions = {}, onExclusions = () => {}) {
+  let catalogue;
+  try {
+    catalogue = await collect(city, now, { ...sourceOptions, previousCoverage: previous?.manifest.coverage,
+      previousSourceStatuses: previous?.manifest.sourceStatuses, report });
+  } catch (error) {
+    onExclusions(verifiedRegionExclusions({ exclusions: error.exclusions }, city, now));
+    throw error;
+  }
+  const exclusions = verifiedRegionExclusions(catalogue || {}, city, now);
+  onExclusions(exclusions);
   let coverage = catalogue?.coverage;
   if (!catalogue?.records?.length || !coverage?.from || !coverage.to || !coverage.bodies?.length ||
       (city === 'bonn' && !coverage.complete)) {
     throw new Error(coverage?.warnings?.join(' ') || 'The official source did not return a usable catalogue');
   }
-  let inputs = catalogue.records;
+  let inputs = catalogue.records.filter(record => !exclusions.has(record.id));
+  let excludedCount = 0;
   let sourceStatuses = catalogue.sourceStatuses;
   const historicalSourceClocks = [];
   const retainedDetails = new Map();
@@ -315,21 +348,22 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   if (previous?.manifest && catalogue.history) {
     const old = await readRisSnapshot(previous.directory, city);
     const priorRecords = new Map(snapshotInputs(old).map(record => [record.id, record]));
+    for (const id of exclusions) if (priorRecords.delete(id)) excludedCount++;
     const incoming = new Set(inputs.map(record => record.id));
-    const historicalAdditional = [...priorRecords.values()].filter(record => !incoming.has(record.id) &&
-      ['niedersachsen-landtag', 'region-hannover-bekanntmachungen'].includes(record.source));
-    if (historicalAdditional.length) {
+    const historicalRecords = [...priorRecords.values()].filter(record => !incoming.has(record.id));
+    if (historicalRecords.length) {
       historicalSourceClocks.push(old.manifest.generatedAt);
       coverage = { ...coverage, warnings: [...coverage.warnings,
-        `${historicalAdditional.length} ältere Datensätze aus Zusatzquellen bleiben mit dem verifizierten Stand vom ${old.manifest.generatedAt} erhalten.`] };
-      if (sourceStatuses && old.manifest.sourceStatuses) {
-        const retained = new Set(historicalAdditional.map(record => record.source));
+        `${historicalRecords.length} ältere Datensätze bleiben mit dem verifizierten Stand vom ${old.manifest.generatedAt} erhalten.`] };
+      if (sourceStatuses) {
+        const retained = new Map();
+        for (const record of historicalRecords) retained.set(record.source, (retained.get(record.source) || 0) + 1);
         sourceStatuses = sourceStatuses.map(current => {
-          const relevant = retained.has('niedersachsen-landtag') && current.source.startsWith('landtag-') ||
-            retained.has('region-hannover-bekanntmachungen') && current.source === 'region-hannover-bekanntmachungen';
-          const prior = old.manifest.sourceStatuses.find(status => status.source === current.source);
-          if (!relevant || !prior?.retrievedAt) return current;
-          return { ...current, retrievedAt: [current.retrievedAt, prior.retrievedAt].filter(Boolean).sort()[0],
+          const relevant = retained.has(current.source) || retained.has('niedersachsen-landtag') && current.source.startsWith('landtag-');
+          const prior = old.manifest.sourceStatuses?.find(status => status.source === current.source);
+          if (!relevant) return current;
+          return { ...current, retrievedAt: [current.retrievedAt, prior?.retrievedAt || old.manifest.generatedAt].filter(Boolean).sort()[0],
+            recordCount: current.recordCount + (retained.get(current.source) || 0),
             message: `${current.message} Frühere verifizierte Datensätze bleiben historisch erhalten.`.slice(0, 512) };
         });
       }
@@ -363,7 +397,9 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   const gazetteer = await loadGazetteer(city);
   const records = enrichRisLocations(inputs.filter(record => !retainedDetails.has(record.id)), { city, gazetteer, maxLocationsPerRecord: Infinity });
   for (const record of retainedDetails.values()) records.push(record);
-  if (previous?.manifest && (catalogue.history?.interrupted || retainedDetails.size)) retainedClocks.push(previous.manifest.generatedAt);
+  if (previous?.manifest && ((catalogue.history?.retainPreviousClock ?? catalogue.history?.interrupted) || retainedDetails.size)) {
+    retainedClocks.push(previous.manifest.generatedAt);
+  }
   const retainedAt = retainedClocks.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   if (retainedAt) coverage = { ...coverage, warnings: [...new Set([...coverage.warnings,
     `Nicht aktuell verfügbare Details behalten ihren zuletzt verifizierten Stand vom ${retainedAt}.`])] };
@@ -376,7 +412,29 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   const { manifest } = await readRisSnapshot(directory, city);
   if (manifest.locationAssessment?.attempted !== recordCount(manifest)) throw new Error('Not every indexed record received a location assessment');
   assertUnexpiredSnapshot(manifest, now);
-  if (previous?.manifest) rejectCoverageDowngrade(manifest, previous.manifest);
+  if (previous?.manifest) rejectCoverageDowngrade(manifest, previous.manifest, excludedCount);
+  return { directory, manifest };
+}
+
+async function prepareExclusionFallback(directory, previous, exclusions, now) {
+  const original = await readRisSnapshot(previous.directory, previous.manifest.city);
+  const records = original.records.filter(record => !exclusions.has(record.id));
+  if (records.length === original.records.length) return previous;
+  if (!records.length) return null;
+  const source = original.manifest;
+  const sourceStatuses = source.sourceStatuses?.map(status => status.source === 'region-hannover-ris'
+    ? { ...status, recordCount: records.filter(record => record.source === status.source).length } : status);
+  // The acquisition fingerprint still describes the original source projection;
+  // the normalized count describes the smaller public output after withdrawal.
+  const provenance = source.provenance && { ...source.provenance,
+    collection: { ...source.provenance.collection, normalizedItems: records.length } };
+  const manifest = await writeRisSnapshot(directory, source.city, { ...source, records,
+    features: { ...original.features, features: original.features.features.filter(feature => !exclusions.has(feature.properties.recordId)) },
+    ...(sourceStatuses ? { sourceStatuses } : {}), ...(provenance ? { provenance } : {}),
+    coverage: { ...source.coverage, complete: false, warnings: [...new Set([...source.coverage.warnings,
+      'Ausdrücklich nichtöffentliche Vorlagen wurden aus dem beibehaltenen Bestand entfernt.'])] },
+  }, { now, schemaVersion: 2 });
+  await readRisSnapshot(directory, source.city);
   return { directory, manifest };
 }
 
@@ -449,23 +507,45 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     const upgradeHistory = city === 'hannover' && (previous.manifest?.coverage.scope !== 'citywide' ||
       previous.manifest?.coverage.from > `${sourceOptions.historyStartYear}-01-01` ||
       previous.manifest?.coverage.warnings.some(warning => /Quellenarbeit ist fortsetzbar/.test(warning)));
+    // Earlier catalogues declared the portal as a manual link with zero rows.
+    // A declared URL alone does not establish that the regional import exists.
+    const upgradeRegion = city === 'hannover' && (!includesRegionSource(previous.manifest?.sources) ||
+      !previous.manifest?.sourceStatuses?.some(source => source.source === 'region-hannover-ris' && source.recordCount > 0));
+    const previousRegion = previous.manifest?.sourceStatuses?.find(source => source.source === 'region-hannover-ris');
+    const firstRegionImport = upgradeRegion && (!previousRegion || previousRegion.status !== 'failed' && previousRegion.retrievedAt === null);
     const fallbackExpired = previous.manifest && startedAt.getTime() >= previous.generated + RIS_FALLBACK_MAX_AGE_MS;
-    const canRetrySource = !lastFailure || fallbackExpired || startedAt.getTime() - Date.parse(lastFailure) >= SOURCE_RETRY_MS;
-    const refreshDue = !previous.manifest || upgradeLocations || upgradeHistory || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS;
+    const canRetrySource = firstRegionImport || !lastFailure || fallbackExpired || startedAt.getTime() - Date.parse(lastFailure) >= SOURCE_RETRY_MS;
+    const refreshDue = !previous.manifest || upgradeLocations || upgradeHistory || upgradeRegion || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS;
     if (!restoreOnly && refreshDue && canRetrySource) {
+      let exclusions = new Set();
       try {
         selected = await prepareCandidate(path.join(scratch, 'candidate'), city, startedAt, collect, previous.manifest ? previous : null,
-          progress => report({ city, status: 'collecting', ...progress }), sourceOptions);
+          progress => report({ city, status: 'collecting', ...progress }), sourceOptions, values => { exclusions = values; });
         status = 'published';
       } catch (error) {
         reason = error?.message || 'Official RIS refresh failed';
         const expiry = previous.generated + RIS_FALLBACK_MAX_AGE_MS;
         if (previous.manifest && clock().getTime() < expiry) {
+          let fallback = exclusions.size
+            ? await prepareExclusionFallback(path.join(scratch, 'public-fallback'), previous, exclusions, startedAt) : previous;
+          if (fallback && firstRegionImport) {
+            // An earlier SIM failure must not suppress a newly added source.
+            // Record the first failed regional import so later calls obey the
+            // usual backoff instead of repeatedly treating it as a new source.
+            const url = 'https://ris.hannit.de/public/vo040';
+            fallback = { ...fallback, manifest: { ...fallback.manifest,
+              sources: [...new Set([...fallback.manifest.sources, url])],
+              sourceStatuses: [...(fallback.manifest.sourceStatuses || []).filter(source => source.source !== 'region-hannover-ris'), {
+                source: 'region-hannover-ris', status: 'failed', url, retrievedAt: null, from: null, to: null, recordCount: 0,
+                message: 'Regionsdokumente konnten noch nicht in den Index übernommen werden.',
+              }],
+            } };
+          }
           const refreshFailure = {
             attemptedAt: startedAt.toISOString(), reason: PUBLIC_REFRESH_FAILURE, expiresAt: new Date(expiry).toISOString(),
           };
-          selected = { ...previous, manifest: { ...previous.manifest, refreshFailure }, rewriteManifest: true };
-          status = 'retained';
+          selected = fallback ? { ...fallback, manifest: { ...fallback.manifest, refreshFailure }, rewriteManifest: true } : {};
+          status = fallback ? 'retained' : 'unavailable';
         } else {
           selected = {};
           status = 'unavailable';
@@ -563,9 +643,10 @@ async function main(args) {
 if (!isMainThread && workerData?.city) {
   collectOfficial(workerData.city, new Date(workerData.now), {
     ...workerData.options, report: progress => parentPort.postMessage({ progress }),
+    onExclusions: exclusions => parentPort.postMessage({ exclusions }),
   }).then(
     catalogue => parentPort.postMessage({ catalogue }),
-    error => parentPort.postMessage({ error: error.message }),
+    error => parentPort.postMessage({ error: error.message, exclusions: error.exclusions }),
   );
 } else if (require.main === module) {
   main(process.argv.slice(2)).catch(error => {

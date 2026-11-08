@@ -650,6 +650,46 @@ describe('Ratsvorgänge in the V2 map', () => {
   function partitionFeature(id = 'shape') {
     return { ...point, bounds: [7.1, 50.7, 7.1, 50.7], properties: { geometryId: id, accuracy: 'official', label: 'Ort', recordCount: 72 } };
   }
+
+  test.each([['legacy', false], ['partitioned', true]])('labels mapped and unlocated Hannover sources in %s popups', async (_name, partitioned) => {
+    const city = { ...records[0], id: 'hannover-sim:2003037', source: 'hannover-sim',
+      url: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular/2003037' };
+    const region = { ...records[3], id: 'region-hannover-ris:2003037', relatedTo: city.id, source: 'region-hannover-ris',
+      url: 'https://ris.hannit.de/public/vo020?VOLFDNR=2003037' };
+    const noLink = { ...region, id: 'region-hannover-ris:2003038', url: 'javascript:alert(1)' };
+    const unknown = { ...records[3], id: 'other:1', relatedTo: city.id, source: '<img src=x onerror=alert(1)>' };
+    const relatives = [region, noLink, unknown];
+    const mapped = feature(city.id, 'official', 'Point', [9.73, 52.37]);
+    const bundle = partitioned ? partitionSnapshot([{ ...mapped, bounds: [9.73, 52.37, 9.73, 52.37],
+      properties: { geometryId: 'shape', accuracy: 'official', label: 'Ort', recordCount: 1 } }]) : snapshot([mapped], [city, ...relatives]);
+    bundle.manifest.city = 'hannover';
+    if (partitioned) {
+      bundle.manifest.mappedRecordCount = bundle.recordCount = 1;
+      UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [city],
+        links: [{ recordId: city.id, accuracy: 'official', label: 'Ort' }], total: 1, nextPage: null, complete: true });
+      UA.RisCatalogue.loadRelatedRecords = jest.fn().mockResolvedValue({ records: relatives, total: 3, nextPage: null, complete: true });
+    }
+    ctx.CITY_RAW = 'Hannover';
+    ctx.map.setView([52.37, 9.73], 13);
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    risFeatures(ctx.map)[0].openPopup();
+    await flush();
+    const popup = document.querySelector('.leaflet-popup');
+    if (partitioned) {
+      [...popup.querySelectorAll('button')].find(button => button.textContent === 'Verknüpfte Vorgänge anzeigen').click();
+      await flush();
+    }
+
+    expect(popup.textContent).toContain('Quelle: Landeshauptstadt Hannover · SIM');
+    expect(popup.textContent.match(/Quelle: Region Hannover · ALLRIS/g)).toHaveLength(2);
+    expect(popup.textContent).toContain('Quelle: <img src=x onerror=alert(1)>');
+    expect(popup.querySelector('img')).toBeNull();
+    expect([...popup.querySelectorAll('a[target="_blank"]')].map(link => link.href)).toEqual([city.url, region.url, unknown.url]);
+  });
+
   test('partitioned maps request bounded viewports and load records and relations only on demand', async () => {
     const bundle = partitionSnapshot([partitionFeature()]);
     UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
