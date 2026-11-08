@@ -920,8 +920,16 @@
           feature = data.features.find(item => item.properties.geometryId === geometryId) || { ...exact, bbox: exact.bounds || coordinateBounds(exact.geometry.coordinates) };
         }
       }
-    } else feature = data.features.find(feature => feature.properties.locations.some(location =>
-      location.recordId === ref.id && location.locationIndex === index));
+    } else {
+      const geometryId = index && typeof index === 'object' ? index.geometryId : null;
+      feature = data.features.find(feature => feature.properties.locations.some(location => {
+        if (location.recordId !== ref.id) return false;
+        if (!geometryId) return location.locationIndex === index;
+        const identity = Number.isInteger(location.locationIndex)
+          ? `legacy:location:${location.locationIndex}` : 'legacy:record';
+        return geometryId === identity;
+      }));
+    }
     if (!feature) throw new Error('Für diesen Ort ist keine Kartenlage verfügbar.');
     const selection = state.filter.checked && rectOf(ctx.selectionBounds);
     if (selection && !featureHits(feature, selection)) {

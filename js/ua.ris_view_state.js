@@ -21,7 +21,7 @@
       section: recordId && sections.has(source.section) ? source.section : 'history',
       collapsed: !!recordId && enabled(source.collapsed),
       // These are individual catalogue pages, never a count of pages to fetch.
-      // The catalogue/renderer resolves an out-of-range page against its total.
+      // The catalogue/renderer resolves an out-of-range page using page metadata.
       eventsPage: recordId ? pageNumber(source.eventsPage) : 0,
       relationsPage: recordId ? pageNumber(source.relationsPage) : 0,
       relatedPage: recordId ? pageNumber(source.relatedPage) : 0,

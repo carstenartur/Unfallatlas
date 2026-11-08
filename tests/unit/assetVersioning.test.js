@@ -26,7 +26,7 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=2026-11-08-context-review"`);
   });
 
-  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
+  test.each(['js/ua.ris-partitions.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
   });
 
@@ -60,11 +60,11 @@ describe('Werkbank deployment asset versions', () => {
     expect(paths).toContain('js/ua.ai_political_reference_bridge.js?v=2026-11-08-method-limits');
   });
 
-  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js'])('%s refreshes paged consultation history', asset => {
+  test.each(['js/ua.ris-partitions.js'])('%s refreshes paged consultation history', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
   });
 
-  test.each(['js/ua.ris_view_state.js', 'js/ua.ris-record-view.js', 'js/ua.ris-details.js',
+  test.each(['js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-record-view.js', 'js/ua.ris-details.js',
     'js/ua.ris-layer.js', 'js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.map_scene.js',
     'js/ua.map_scene_url_codec.js', 'js/ua.traffic_situation.js', 'js/ua.political-context.js', 'css/ris-record-view.css'])
   ('%s refreshes the shareable RIS view', asset => {

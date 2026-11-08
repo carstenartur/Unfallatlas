@@ -162,6 +162,20 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(UA.syncAllToUrl).toHaveBeenCalledWith(ctx);
   });
 
+  // Break caught: the shared renderer supplies geometry identity, while v1 navigation accepts only a numeric location index.
+  test.each([['legacy:record', undefined], ['legacy:location:0', 0]])('opens legacy geometry identity %s from independent details', async (geometryId, locationIndex) => {
+    const { entry, bundle } = searchableLocations();
+    if (locationIndex === undefined) bundle.features.features.unshift({ ...point, geometry: { type: 'Point', coordinates: [7.3, 50.8] },
+      properties: { recordId: entry.id, accuracy: 'official' } });
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    const target = await UA.RisLayer.showLocation(ctx, entry, { geometryId }, () => true);
+    expect(target).toBeInstanceOf(Element);
+    expect(ctx.contextOverlays.active.ris).toBe(true);
+    expect(risFeatures(ctx.map).some(layer => layer.isPopupOpen() && layer.feature.properties.locations.some(location =>
+      location.recordId === entry.id && location.locationIndex === locationIndex))).toBe(true);
+  });
+
   test('desktop popups retain a usable central strip beside the unified tall Karte card', async () => {
     ctx.map.getContainer().getBoundingClientRect = () => ({ left: 0, top: 0, right: 1280, bottom: 800, width: 1280, height: 800 });
     ctx.ui.panelEl = document.createElement('div');

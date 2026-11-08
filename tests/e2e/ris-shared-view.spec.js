@@ -65,7 +65,7 @@ test('a copied RIS view restores layer, area filter, unlocated record, tab and p
 });
 
 for (const schemaVersion of [1, 2]) {
-  test(`a direct unlocated record link works with catalogue v${schemaVersion} and leaves the map layer off`, async ({ page }, testInfo) => {
+  test(`a direct unlocated record link works with catalogue v${schemaVersion} and enables the map only on request`, async ({ page }, testInfo) => {
     test.setTimeout(70_000);
     const data = await fixture(testInfo, schemaVersion); await data.install(page);
     await ready(page, `/werkbank_v2.html?${BASE_VIEW}&risRecord=${encodeURIComponent(ID)}`);
@@ -79,6 +79,12 @@ for (const schemaVersion of [1, 2]) {
     await internal.click();
     await expect(panel).toContainText('TEST-Ä/2026');
     expect(new URL(page.url()).searchParams.get('risRecord')).toBe('region-hannover-ris:vo:2003261');
+    await panel.getByRole('tab', { name: 'Orte', exact: true }).click();
+    await panel.getByRole('button', { name: 'Auf Karte zeigen: Kartenlage 1', exact: true }).click();
+    await expect(panel).toHaveClass(/ris-details--collapsed/);
+    await expect(page.getByRole('checkbox', { name: 'Ratsvorgänge', exact: true })).toBeChecked();
+    await expect(page.locator('.ua-ris-point')).toHaveCount(1);
+    expect(new URL(page.url()).searchParams.get('mapLayer')).toBe('ris');
     await panel.getByRole('button', { name: 'Vorgangsansicht schließen', exact: true }).click();
     await expect(panel).toBeHidden();
     expect(new URL(page.url()).searchParams.has('risRecord')).toBe(false);

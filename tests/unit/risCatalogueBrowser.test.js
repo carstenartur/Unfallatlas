@@ -433,3 +433,95 @@ test('reloads the whole city bundle if a deployment removes a cached asset', asy
   expect(data.records).toHaveLength(3);
   expect(data.features).toEqual(geo);
 });
+
+// Break caught: detail records omit provenance, bypassing adoption validation and failing map navigation.
+test('legacy detail records carry the actual loaded snapshot and retain reference validation', async () => {
+  const data = fixture();
+  const record = await data.catalogue.loadRecord('Hannover', records[0].id);
+  expect(record.snapshot).toMatchObject({ city: 'hannover', sha256: data.index.entry.sha256, mapSha256: data.map.entry.sha256 });
+  expect(data.requests.some(url => url.endsWith(data.map.entry.path))).toBe(false);
+  expect(await data.catalogue.resolveReferences('Hannover', [record])).toMatchObject([{ id: records[0].id, snapshot: record.snapshot }]);
+  replaceAsset(data, 'records', [{ ...records[0], title: 'Aktualisierter Vorgang' }, records[1]], 2);
+  await expect(data.catalogue.resolveReferences('Hannover', [record])).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH' });
+});
+
+// Break caught: provenance is copied from the pre-revalidation manifest instead of the returned bundle.
+test('legacy record provenance follows the replacement bundle after a missing asset', async () => {
+  const data = fixture();
+  await data.catalogue.loadManifest('Hannover');
+  data.assets.delete(data.index.entry.path);
+  replaceAsset(data, 'records', [{ ...records[0], title: 'Neuer Datenstand' }, records[1]], 2);
+  const record = await data.catalogue.loadRecord('Hannover', records[0].id);
+  expect(record.title).toBe('Neuer Datenstand');
+  expect(record.snapshot).toMatchObject({ sha256: data.manifest.records.sha256, mapSha256: data.manifest.map.sha256 });
+  expect(record.snapshot.sha256).not.toBe(data.index.entry.sha256);
+});
+
+// Break caught: an absent legacy history page is indistinguishable from corrupt snapshot data.
+test.each(['loadRecordEvents', 'loadRecordRelationships'])('legacy %s distinguishes missing pages from invalid data', async method => {
+  const data = fixture();
+  await expect(data.catalogue[method]('Hannover', records[0].id, 999)).rejects.toMatchObject({
+    code: 'RIS_SNAPSHOT_INVALID', message: 'RIS page does not exist',
+  });
+  expect(await data.catalogue[method]('Hannover', records[0].id, 0)).toMatchObject({ known: false, total: null, page: 0 });
+  await expect(data.catalogue[method]('Hannover', 'missing-record', 999)).rejects.not.toHaveProperty('message', 'RIS page does not exist');
+});
+
+// Break caught: official legacy map features disappear from the independent record's Orte view.
+test('legacy geometry pages expose validated record and indexed-location identities', async () => {
+  const data = fixture();
+  replaceAsset(data, 'records', [{ ...records[0], locations: [{ kind: 'street', label: 'Schneiderberg', mapped: true,
+    evidence: { source: 'document', text: 'auf dem Schneiderberg' } }],
+  locationAssessment: { status: 'mapped', sources: ['document', 'official'], reasons: [], truncated: false } }], 1);
+  replaceAsset(data, 'map', { type: 'FeatureCollection', features: [
+    { ...geo.features[0], properties: { recordId: records[0].id, accuracy: 'official' } },
+    { ...geo.features[0], properties: { recordId: records[0].id, accuracy: 'derived', locationIndex: 0, label: 'Schneiderberg' } },
+  ] }, 2);
+  const record = await data.catalogue.loadRecord('Hannover', records[0].id);
+  expect(record.locations[0]).toMatchObject({ geometryId: 'legacy:location:0' });
+  const page = await data.catalogue.loadRecordGeometries('Hannover', record.id, 0, { snapshot: record.snapshot });
+  expect(page).toMatchObject({ geometryIds: ['legacy:record', 'legacy:location:0'], total: 2, page: 0, nextPage: null, complete: true });
+  await expect(data.catalogue.loadRecordGeometries('Hannover', record.id, 99, { snapshot: record.snapshot }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID', message: 'RIS page does not exist' });
+});
+
+test('legacy geometry includes an official location without record location metadata', async () => {
+  const data = fixture();
+  replaceAsset(data, 'map', { ...geo, features: [{ ...geo.features[0], properties: { recordId: records[0].id, accuracy: 'official' } }] }, 1);
+  const record = await data.catalogue.loadRecord('Hannover', records[0].id);
+  expect(await data.catalogue.loadRecordGeometries('Hannover', record.id, 0, { snapshot: record.snapshot }))
+    .toMatchObject({ geometryIds: ['legacy:record'], total: 1 });
+});
+
+// Break caught: a map-only deployment change silently combines old detail metadata and new geometry.
+test('legacy geometry rejects a map snapshot change during asset revalidation', async () => {
+  const data = fixture();
+  const record = await data.catalogue.loadRecord('Hannover', records[0].id);
+  data.assets.delete(data.map.entry.path);
+  replaceAsset(data, 'map', { ...geo, features: [{ ...geo.features[0], geometry: { type: 'Point', coordinates: [9.71, 52.38] } }] }, 1);
+  await expect(data.catalogue.loadRecordGeometries('Hannover', record.id, 0, { snapshot: record.snapshot }))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH' });
+});
+
+// Break caught: a legacy loader validates only the cached manifest before a deployment forces a new bundle.
+test.each(['loadRecord', 'loadRecordLocations', 'loadRecordEvents', 'loadRecordRelationships', 'loadRelatedRecords'])
+('legacy %s rejects a requested snapshot changed by asset revalidation', async method => {
+  const data = fixture();
+  const requested = await data.catalogue.loadManifest('Hannover');
+  data.assets.delete(data.index.entry.path);
+  replaceAsset(data, 'records', [{ ...records[0], title: 'Ersetzter Datenstand' }, records[1]], 2);
+  const args = method === 'loadRecord' ? [{ snapshot: requested }] : [0, { snapshot: requested }];
+  await expect(data.catalogue[method]('Hannover', records[0].id, ...args))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH' });
+});
+
+// Break caught: the merged Orte page silently repeats legacy page zero for a nonexistent shared page.
+test('legacy locations reject nonexistent and malformed pages without replaying page zero', async () => {
+  const data = fixture();
+  await expect(data.catalogue.loadRecordLocations('Hannover', records[0].id, 999))
+    .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID', message: 'RIS page does not exist' });
+  for (const page of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    await expect(data.catalogue.loadRecordLocations('Hannover', records[0].id, page))
+      .rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+  }
+});

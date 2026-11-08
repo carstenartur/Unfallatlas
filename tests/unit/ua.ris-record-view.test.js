@@ -220,15 +220,13 @@ describe('shared council record presentation', () => {
     expect(view.element.textContent).not.toContain('Andere Stadt');
   });
 
-  // Break caught: replaying invalid pages or silently leaving the shareable state on a nonexistent page.
-  test('normalizes a history page beyond the documented count with one bounded request', async () => {
-    UA.RisCatalogue.loadRecordEvents.mockResolvedValue(page('events', [event('2026-03-01', 'Letzte gültige Seite')],
-      { page: 2, start: 128, total: 129 }));
-    const view = mount({ ...BASE_RECORD, eventCount: 129 }, { eventsPage: 1000000 });
+  // Break caught: a wholly local history still needs to correct an impossible slice without catalogue reads.
+  test('normalizes a locally sliced history page without remote requests', async () => {
+    const view = mount({ ...BASE_RECORD, events: [event('2026-03-01', 'Lokaler Beleg')] }, { eventsPage: 1000000 });
     await flush();
-    expect(view.changes).toContainEqual({ eventsPage: 2 });
-    expect(UA.RisCatalogue.loadRecordEvents.mock.calls.map(call => call[2])).toEqual([2]);
-    expect(view.element.textContent).toContain('Letzte gültige Seite');
+    expect(view.changes).toContainEqual({ eventsPage: 0 });
+    expect(UA.RisCatalogue.loadRecordEvents).not.toHaveBeenCalled();
+    expect(view.element.textContent).toContain('Lokaler Beleg');
   });
 
   // Break caught: treating a page lookup error as an empty relation set or recursively replaying pages.
@@ -348,5 +346,99 @@ describe('shared council record presentation', () => {
     expect(group.textContent).not.toContain('Keine direkten amtlichen Querverweise');
     expect(group.querySelector('nav').hidden).toBe(true);
     expect(group.textContent).not.toContain('Seite 1000');
+  });
+
+  describe('byte-sized catalogue pages', () => {
+    let directory, manifest, reader, reference;
+
+    beforeAll(async () => {
+      const { writeRisSnapshot } = require('../../server/political-context/services/risSnapshot');
+      const P = require('../../js/ua.ris-partitions');
+      const { gunzipSync } = require('node:zlib');
+      directory = await fs.promises.mkdtemp(path.join(require('node:os').tmpdir(), 'ris-view-byte-pages-'));
+      const { snapshot: _snapshot, ...base } = BASE_RECORD;
+      const events = Array.from({ length: 20 }, (_, index) => ({
+        ...event('2026-06-01', `Beratung ${index + 1}`), evidence: 'E'.repeat(15000),
+      }));
+      const relationships = Array.from({ length: 20 }, (_, index) => ({
+        type: 'related', targetId: `${base.id}:ref:${index}`, targetUrl: SOURCE + `vo020?VOLFDNR=${index}`,
+        targetRole: null, label: `Querverweis ${index + 1}`, evidence: 'Q'.repeat(15000),
+      }));
+      const locations = Array.from({ length: 20 }, (_, index) => ({
+        label: `Ort ${index + 1}: ` + 'L'.repeat(4000), kind: 'place', mapped: false,
+        evidence: { source: 'document', text: 'O'.repeat(4000) },
+      }));
+      manifest = await writeRisSnapshot(directory, 'hannover', {
+        sources: [SOURCE], coverage: { from: null, to: null, bodies: [], warnings: [], complete: false },
+        records: [{ ...base, date: null, gremium: null, events, relationships, locations }],
+      }, { now: new Date('2026-11-08T12:00:00.000Z'), schemaVersion: 2 });
+      reader = P.createReader({ manifest,
+        load: async asset => JSON.parse(gunzipSync(await fs.promises.readFile(path.join(directory, asset.path))).toString('utf8')) });
+      const record = await reader.get('records', base.id);
+      const places = await reader.page('locations', base.id, 0);
+      reference = { ...record, locations: places.items, locationsNextPage: places.nextPage, geometryIds: [], geometryNextPage: null };
+    });
+
+    afterAll(async () => { if (directory) await fs.promises.rm(directory, { recursive: true, force: true }); });
+
+    // Break caught: total/64 incorrectly rejects a real later history page whose rows hit the byte budget first.
+    test.each([
+      ['history', 'events', 'eventsPage', 'loadRecordEvents', 'Beratungsverlauf'],
+      ['relations', 'relationships', 'relationsPage', 'loadRecordRelationships', 'Direkte Querverweise'],
+    ])('opens a byte-split %s page directly and navigates by catalogue metadata', async (section, field, pageKey, method, label) => {
+      UA.RisCatalogue[method].mockImplementation(async (_city, id, index) => {
+        const { items, ...metadata } = await reader.page('links', `${field}:${id}`, index);
+        return { ...metadata, [field]: items, known: true };
+      });
+      const actual = await reader.page('links', `${field}:${reference.id}`, 2);
+      expect(actual).toMatchObject({ start: 14, total: 20, page: 2, nextPage: null });
+      expect(actual.items).toHaveLength(6);
+      const view = mount(reference, { section, [pageKey]: 2 }, { snapshot: manifest });
+      await flush(); await flush();
+      expect(UA.RisCatalogue[method].mock.calls.map(call => call[2])).toEqual([2]);
+      expect(view.changes).toEqual([]);
+      const group = view.element.querySelector(`[data-ris-collection="${field}"]`);
+      expect(group.textContent).toContain('15–20 von 20');
+      expect(group.querySelectorAll(field === 'events' ? '.ris-process-step' : '.ris-record-view__card')).toHaveLength(6);
+      button(group, `Vorherige Seite ${label}`).click(); await flush(); await flush();
+      expect(group.textContent).toContain('8–14 von 20');
+      button(group, `Nächste Seite ${label}`).click(); await flush(); await flush();
+      expect(UA.RisCatalogue[method].mock.calls.map(call => call[2])).toEqual([2, 1, 2]);
+      expect(group.textContent).toContain('15–20 von 20');
+    });
+
+    // Break caught: the location total is treated as a fixed number of 64-item pages.
+    test('opens a later byte-split location page despite fewer than 64 total locations', async () => {
+      UA.RisCatalogue.loadRecordLocations.mockImplementation(async (_city, id, index) => {
+        const { items, ...metadata } = await reader.page('locations', id, index);
+        return { ...metadata, locations: items };
+      });
+      expect(reference.locations).toHaveLength(14);
+      const view = mount(reference, { section: 'locations', locationsPage: 1 }, { snapshot: manifest });
+      await flush(); await flush();
+      expect(UA.RisCatalogue.loadRecordLocations.mock.calls.map(call => call[2])).toEqual([1]);
+      expect(view.changes).toEqual([]);
+      const group = view.element.querySelector('[data-ris-collection="locations"]');
+      expect(group.textContent).toContain('15–20 von 20');
+      expect(group.querySelectorAll('.ris-record-view__card')).toHaveLength(6);
+      expect(group.textContent).toContain('Ort 15:');
+      expect(group.textContent).not.toContain('Ort 1:');
+      button(group, 'Vorherige Seite Orte').click(); await flush(); await flush();
+      expect(group.textContent).toContain('1–14 von 20');
+      expect(UA.RisCatalogue.loadRecordLocations.mock.calls.map(call => call[2])).toEqual([1]);
+    });
+
+    // Break caught: a remote page that is actually missing must still recover directly, without guessing a last page.
+    test('normalizes an absent remote history page from the reader error without replaying previous pages', async () => {
+      UA.RisCatalogue.loadRecordEvents.mockImplementation(async (_city, id, index) => {
+        const { items, ...metadata } = await reader.page('links', `events:${id}`, index);
+        return { ...metadata, events: items, known: true };
+      });
+      const view = mount(reference, { eventsPage: 999 }, { snapshot: manifest });
+      await flush(); await flush(); await flush();
+      expect(UA.RisCatalogue.loadRecordEvents.mock.calls.map(call => call[2])).toEqual([999, 0]);
+      expect(view.changes).toEqual([{ eventsPage: 0 }]);
+      expect(view.element.querySelector('[data-ris-collection="events"]').textContent).toContain('1–7 von 20');
+    });
   });
 });

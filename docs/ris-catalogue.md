@@ -330,6 +330,8 @@ ebenfalls teilbar; **Schließen** entfernt die Dokumentauswahl aus dem Link.
 
 Standardwerte werden weggelassen. Jede Datenseite wird gezielt geladen; eine große
 Seitenzahl in einem Link löst keinen Nachladezyklus über sämtliche Vorgänger aus.
+Die Seitengrenzen stammen aus dem Katalog: Große Quellenbelege können bereits vor
+der maximalen Eintragszahl eine neue Datenseite erfordern.
 Ungültige Seiten werden berichtigt. Beim Stadtwechsel werden Dokumentauswahl,
 Detailseiten und Flächenfilter zurückgesetzt, die gewünschte RIS-Ebene bleibt erhalten.
 

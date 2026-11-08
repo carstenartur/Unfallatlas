@@ -270,10 +270,17 @@
     }
 
     let geometryTotal = Array.isArray(record.geometryIds) && record.geometryNextPage == null ? record.geometryIds.length : null;
+    // Entry totals do not reveal remote page counts: the writer also splits
+    // at a byte budget. Only an explicitly terminal page bounds a part.
+    const lastPages = {
+      locations: record.locationCount === 0 || Array.isArray(record.locations) && record.locationsNextPage == null
+        && (!knownCount(record.locationCount) || record.locationCount === record.locations.length) ? 0 : null,
+      geometryIds: Array.isArray(record.geometryIds) && record.geometryNextPage == null ? 0 : null,
+    };
     async function locationPart(field, method, index) {
       const places = field === 'locations';
       const count = places ? record.locationCount : geometryTotal;
-      if (index > 0 && knownCount(count) && index * PAGE_SIZE >= count) return { ...emptyPage(field, index), absent: true };
+      if (knownCount(lastPages[field]) && index > lastPages[field]) return { ...emptyPage(field, index), absent: true };
       if (index === 0 && (Array.isArray(record[field]) || places && record.locationCount === 0)) {
         const values = record[field] || [];
         const nextPage = record[places ? 'locationsNextPage' : 'geometryNextPage'] ?? (places && knownCount(count) && count > values.length ? 1 : null);
@@ -282,6 +289,7 @@
       try {
         const result = await cataloguePage(method, index);
         if (!places && knownCount(result.total)) geometryTotal = result.total;
+        if (result.complete === true && result.nextPage === null && knownCount(result.page)) lastPages[field] = result.page;
         return result;
       } catch (error) {
         if (index > 0 && missingPage(error)) return { ...emptyPage(field, index), absent: true };
@@ -385,7 +393,8 @@
         if (!visible(config.section)) return;
         const requested = view[config.pageKey];
         if (!force && stream.page === requested && (stream.pending || stream.data)) return;
-        const total = config.count?.();
+        // Fixed-size arithmetic applies only to arrays sliced in this renderer.
+        const total = config.localCount?.();
         if (knownCount(total) && requested > Math.max(0, Math.ceil(total / PAGE_SIZE) - 1)) {
           const token = ++stream.token;
           correct(Math.max(0, Math.ceil(total / PAGE_SIZE) - 1), requested, token);
@@ -466,13 +475,13 @@
 
     collection({ key: 'events', section: 'history', title: 'Beratungsverlauf', pageKey: 'eventsPage', field: 'events', noun: 'Quellenbelege',
       intro: 'Dokumentierte Beratungen dieses Vorgangs. Die Belege der angezeigten Seite sind nach Datum geordnet.',
-      count: () => record.eventCount ?? record.events?.length,
+      localCount: () => Array.isArray(record.events) ? record.events.length : undefined,
       load: index => historyPage('events', 'loadRecordEvents', index), render: renderHistory,
       unknown: 'Beratungsverlauf im geprüften Datenbestand nicht dokumentiert.',
       empty: 'Keine öffentlichen Beratungen im geprüften Datenbestand dokumentiert.' });
     collection({ key: 'relationships', section: 'relations', title: 'Direkte Querverweise', pageKey: 'relationsPage', field: 'relationships', noun: 'Querverweise',
       intro: 'Verweise und Erwähnungen, die in der amtlichen Quelle belegt sind.',
-      count: () => record.relationshipCount ?? record.relationships?.length,
+      localCount: () => Array.isArray(record.relationships) ? record.relationships.length : undefined,
       load: index => historyPage('relationships', 'loadRecordRelationships', index), render: renderRelationships,
       unknown: 'Direkte Querverweise im geprüften Datenbestand nicht dokumentiert.', empty: 'Keine direkten amtlichen Querverweise dokumentiert.' });
     collection({ key: 'related', section: 'relations', title: 'Verknüpfte Vorgänge', pageKey: 'relatedPage', field: 'records', noun: 'Vorgänge',
