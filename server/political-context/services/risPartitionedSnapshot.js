@@ -146,6 +146,7 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
   if (!I.validLocationRevision(catalogue.locationRevision)) throw new Error('Invalid RIS location revision');
   if (!P.validSourceStatuses(catalogue.sourceStatuses, sources)) throw new Error('Invalid RIS source statuses');
   const generatedAt = I.timestamp(catalogue.generatedAt || new Date(typeof now === 'function' ? now() : now).toISOString());
+  const withdrawalsRecordedAt = catalogue.withdrawalsRecordedAt === undefined ? undefined : I.timestamp(catalogue.withdrawalsRecordedAt, 'withdrawal timestamp', true);
   const refreshFailure = catalogue.refreshFailure ? I.normalizeRefreshFailure(catalogue.refreshFailure, generatedAt) : undefined;
   const indices = Object.fromEntries(P.ROOTS.map(k => [k, []]));
   const locationLists = new Map(),
@@ -309,6 +310,7 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
     schemaVersion: 2,
     ...(provenance === undefined ? {} : { provenance }),
     ...(catalogue.sourceStatuses === undefined ? {} : { sourceStatuses: catalogue.sourceStatuses }),
+    ...(withdrawalsRecordedAt === undefined ? {} : { withdrawalsRecordedAt }),
     ...(packed ? {spatialFormat: P.SPATIAL_FORMAT} : {}),
     city,
     generatedAt,

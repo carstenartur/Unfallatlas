@@ -22,8 +22,14 @@ Die Freigabedaten reichen vom **25. Februar 2004 bis 6. November 2026**.
 `collection.listComplete: true` bezeichnet den abgeschlossenen öffentlichen
 Listendurchlauf. `coverage.complete: false` und der Quellenstatus `partial` bleiben
 bestehen, da damit weder sämtliche Detailseiten noch ein vollständiges PDF-Archiv
-erschlossen sind. Die erste Pagination enthielt Überschneidungen; ein zweiter
-regulärer Durchlauf vervollständigte den Bestand ohne doppelte Dokumentidentitäten.
+erschlossen sind. Die anfängliche Datumsordnung lieferte überlappende Seiten.
+Die abschließende Kontrolle vom **18:55:56 bis 18:57:11 UTC** verwendete deshalb
+die vom Portal selbst angebotene aufsteigende Nummernsortierung. In **144 regulären
+Listenabrufen** wurden genau **14.055 aktuell unterschiedliche IDs** beobachtet,
+unabhängig von historisch gespeicherten Einträgen. Der Collector und ein separater
+Laufzähler bestätigten dieselbe vollständige Menge. Die 2.000 vorhandenen
+Detailprüfzeiten und sämtliche Detailtext-/Ereignis-/Statuswerte blieben unverändert;
+es gab bei dieser Kontrolle keine Detailnetzabrufe.
 Drei alte Vorlagen ohne eingetragene Art bleiben als `Sonstige` erhalten.
 
 ## Gemeinsamer Snapshot
@@ -52,7 +58,14 @@ Die übrigen Regionsvorlagen bleiben über den Dokumentenindex zugänglich.
 Es werden keine Straßen in anderen Regionskommunen mit gleichnamigen städtischen
 Straßen gleichgesetzt.
 
-Die Quellenzeit der regionalen Teilsammlung ist `2026-11-08T17:47:15.966Z`.
+Der anschließende Vergleich der nummernsortierten aktuellen Übersicht mit dem
+gemeinsamen Snapshot fand **keine fehlenden IDs und keine Abweichungen bei Titel,
+Nummer, Datum, Typ, URL oder Quellenkennung** für die 14.055 Regionsvorlagen.
+
+Die Quellenzeit der regionalen Teilsammlung im initialen gemeinsamen Snapshot ist
+`2026-11-08T17:47:15.966Z`. Die spätere vollständige Inventarkontrolle liefert als
+konservativen Katalogstand `2026-11-08T17:56:21.253Z`, weiterhin begrenzt durch die
+unveränderten echten Detailprüfzeiten.
 Der gemeinsame Snapshot behält wegen älterer städtischer Belege konservativ
 `2026-11-07T19:59:34.477Z`. Der lokale Aufbau erfolgte ab
 `2026-11-08T18:10:31.648Z`; dieser Aufbauzeitpunkt ersetzt keine Quellenprüfung.
@@ -79,10 +92,20 @@ inhaltsadressierte Indexformat.
 
 ## Lokale Repository-Prüfung
 
-Der vollständige Jest-Lauf bestand mit **363 erfolgreichen Testsuites und 4.211
+Der erste vollständige lokale Jest-Lauf bestand mit **363 erfolgreichen Testsuites und 4.211
 erfolgreichen Tests**; fünf Suites und elf Tests wurden wie vorgesehen übersprungen.
 Die anschließend angepassten Cache-Versionen der drei RIS-Browsermodule wurden
 zusätzlich durch die 21 Asset-Versionierungstests geprüft. Die lokale Laufzeit war
 Node.js 24.22.1; die verbindliche CI verwendet die im Repository gepinnte Laufzeit.
-Die unabhängige Prüfung von Import, Herkunft, Rücknahmen, Quellenzeiten und
-Ortszuordnung hatte danach keine offenen Befunde.
+Die spätere PR-Prüfung ergänzte funktionale Regressionen für tatsächliche
+Inventarvollständigkeit, faire Erneuerung alter Details und die Reihenfolge
+bestätigter Rücknahmen gegenüber älteren lokalen oder veröffentlichten Snapshots.
+Eine 28-Tage-Simulation mit 15 Dokumenten und zwei täglichen Abrufen prüft die
+Fortsetzung unter einer höheren Lastquote als 14.055 Dokumente bei 2.000 Abrufen.
+Der reguläre Veröffentlichungsweg bietet dazu täglich einen begrenzten Lauf:
+montags bis samstags den bestehenden aktuellen Datenaufbau, sonntags die bestehende
+vollständige Datenerneuerung. Quellenzeiten werden dadurch nicht künstlich erneuert.
+Die gezielte Abschlussprüfung der acht betroffenen Testsuites bestand mit
+**283 Tests**, darunter alle **60 Collector-Tests**. Die engen Review-Fälle zu
+parallelen Cacheprüfungen, alten Checkpoints und zusätzlichen Navigationsschritten
+wurden ebenfalls zuerst reproduziert und anschließend abgesichert.

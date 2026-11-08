@@ -169,7 +169,18 @@ function parseProposalListHtml(value, pageUrl = LIST_URL) {
   const hundred = sizes && elements(sizes.content, 'a').find(([, attrs, label]) => text(label) === '100'
     && callbacks.some(callback => callback.c === attributes(attrs).id));
   const pageSizeRequest = hundred ? callbackRequest(callbacks.find(callback => callback.c === attributes(hundred[1]).id), pageUrl) : null;
-  return { documents: [...records.values()], start, end, total, next, pageSizeRequest,
+  const numberHeader = elements(table[2], 'th')[0];
+  const numberLink = elements(numberHeader[2], 'a').find(([, attrs]) => {
+    const link = attributes(attrs);
+    return link.id === 'orderByLinkaliasName' && text(link['data-simpletooltip-text']) === 'aufsteigend sortieren';
+  });
+  let sortRequest = null;
+  if (numberLink) {
+    const target = officialUrl(attributes(numberLink[1]).href, pageUrl);
+    if (target.pathname !== '/public/vo040') throw new Error('Invalid Region Hannover number sort route');
+    sortRequest = { url: target.href, ajax: false };
+  }
+  return { documents: [...records.values()], start, end, total, next, pageSizeRequest, sortRequest,
     ...(end < total && !next ? { paginationUnavailable: true } : {}) };
 }
 
@@ -391,7 +402,7 @@ async function collectRegionHannoverCatalogue(options = {}) {
   const report = options.report || (() => {});
   const deadline = performance.now() + maxDurationMs;
   const entries = new Map(), dirty = new Set();
-  let requests = 0, pages = 0, newPages = 0, failedDetails = 0, interrupted = false, accessDenied = false, discoveryDirty = false;
+  let requests = 0, pages = 0, newPages = 0, navigationRequests = 0, failedDetails = 0, interrupted = false, accessDenied = false, discoveryDirty = false;
   const failures = [];
   const fresh = value => validTimestamp(value, now) && now.getTime() - Date.parse(value) < 7 * DAY;
   const canFetch = () => !accessDenied && requests < workBudget && performance.now() < deadline;
@@ -404,6 +415,8 @@ async function collectRegionHannoverCatalogue(options = {}) {
   async function fetchPage(request) {
     if (!canFetch()) throw budgetError();
     requests++; pages++;
+    navigationRequests = Math.max(navigationRequests, requests);
+    discoveryDirty = true;
     const response = await requestHtml(request.url, { timeoutMs,
       ...(request.ajax ? { headers: { 'Wicket-Ajax': 'true', 'Wicket-Ajax-BaseURL': 'vo040', 'X-Requested-With': 'XMLHttpRequest' } } : {}) });
     const html = typeof response === 'string' ? response : response?.html;
@@ -441,34 +454,60 @@ async function collectRegionHannoverCatalogue(options = {}) {
     }
   }
   const prior = await checkpoint.read(SOURCE, DISCOVERY_SCOPE, META_YEAR, REVISION);
+  let nextDetailKind = prior?.nextDetailKind === 'missing' ? 'missing' : 'renewal';
+  if (Number.isSafeInteger(prior?.navigationRequests) && prior.navigationRequests >= 0 && prior.navigationRequests <= 1000000) {
+    navigationRequests = prior.navigationRequests;
+  }
   let discovery = prior && typeof prior.complete === 'boolean' && Number.isSafeInteger(prior.lastPosition)
     && prior.lastPosition >= 0 && Number.isSafeInteger(prior.total) && prior.total >= prior.lastPosition
-    && validTimestamp(prior.verifiedAt, now) ? prior : { complete: false, lastPosition: 0, total: 0, verifiedAt: null };
-  if (discovery.complete && !fresh(discovery.verifiedAt)) discovery = { ...discovery, complete: false, lastPosition: 0 };
+    && Array.isArray(prior.seenIds) && prior.seenIds.length <= 1000000
+    && new Set(prior.seenIds).size === prior.seenIds.length && prior.seenIds.every(id => entries.has(id))
+    && (!prior.complete || prior.lastPosition === prior.total && prior.seenIds.length === prior.total)
+    && validTimestamp(prior.verifiedAt, now) ? prior : { complete: false, lastPosition: 0, total: 0, verifiedAt: null, seenIds: [] };
+  if (discovery.restart || discovery.complete && !fresh(discovery.verifiedAt)) {
+    discovery = { complete: false, lastPosition: 0, total: 0, verifiedAt: discovery.verifiedAt, seenIds: [] };
+    navigationRequests = 0;
+  }
+  const seenIds = new Set(discovery.seenIds);
   async function save() {
     for (const year of dirty) {
       await checkpoint.write(SOURCE, CHECKPOINT_SCOPE, year, REVISION, {
         records: [...entries.values()].filter(entry => yearOf(entry) === year) });
     }
     dirty.clear();
-    if (discoveryDirty && discovery.verifiedAt) await checkpoint.write(SOURCE, DISCOVERY_SCOPE, META_YEAR, REVISION, discovery);
+    // Scheduling survives even when discovery still has no verification time.
+    if (discoveryDirty) await checkpoint.write(SOURCE, DISCOVERY_SCOPE, META_YEAR, REVISION, { ...discovery, nextDetailKind, navigationRequests });
     discoveryDirty = false;
   }
   // An opaque Wicket cursor cannot survive a new session. Do not spend a small
   // finite budget endlessly replaying the same prefix when it can instead
   // verify missing details from the already observed public list.
-  const navigationBudgetNeeded = entries.size && !discovery.complete ? 3 + Math.floor(discovery.lastPosition / 100) : 0;
+  const navigationBudgetNeeded = entries.size && !discovery.complete
+    ? Math.max(4 + Math.floor(discovery.lastPosition / 100), navigationRequests + 1) : 0;
   const insufficientNavigationBudget = navigationBudgetNeeded > workBudget;
   if (insufficientNavigationBudget && maxPages > 0) {
     interrupted = true;
     failures.push(`Das Netzbudget reicht nicht für die erneute Seitennavigation (mindestens ${navigationBudgetNeeded} Abrufe); vorhandene Vorlagen werden weiter geprüft.`);
   }
   if (!discovery.complete && !insufficientNavigationBudget && maxPages > 0 && maxDocuments > 0 && canFetch()) {
-    const resumedThrough = discovery.lastPosition;
-    let request = { url: LIST_URL }, previousEnd = 0, resized = false;
+    let resumedThrough = discovery.lastPosition;
+    let request = { url: LIST_URL }, previousEnd = 0, resized = false, sortChecked = false;
     try {
       while (request && canFetch()) {
         const page = await listPage(request);
+        if (!sortChecked) {
+          sortChecked = true;
+          // Equal release dates can shift rows between offset pages. Select
+          // the portal's offered number ordering before recording this crawl.
+          if (page.sortRequest) { request = page.sortRequest; continue; }
+        }
+        // A changed result total starts a new inventory. A change after its
+        // first page needs another traversal; retained IDs cannot fill its gaps.
+        const changedTotal = seenIds.size > 0 && page.total !== discovery.total;
+        if (changedTotal) { seenIds.clear(); resumedThrough = 0; discovery.lastPosition = 0; navigationRequests = requests; }
+        // Every fresh session replays the prefix. Replace its earlier observed
+        // IDs so moved rows cannot conceal a duplicate in the current traversal.
+        if (page.start <= 1) seenIds.clear();
         let capped = false;
         for (const metadata of page.documents) {
           const old = entries.get(metadata.id);
@@ -476,13 +515,22 @@ async function collectRegionHannoverCatalogue(options = {}) {
           const entry = { ...old, metadata, metadataVerifiedAt: page.retrievedAt };
           if (old) dirty.add(yearOf(old));
           entries.set(metadata.id, entry); dirty.add(yearOf(entry));
+          seenIds.add(metadata.id);
         }
         if (page.end > resumedThrough) newPages++;
-        discovery = { complete: !capped && page.end >= page.total, lastPosition: Math.max(discovery.lastPosition, page.end),
-          total: page.total, verifiedAt: page.retrievedAt };
+        const atEnd = page.end >= page.total;
+        const restart = changedTotal && page.start > 1 || atEnd && (capped || seenIds.size !== page.total);
+        discovery = { complete: !capped && !restart && atEnd && seenIds.size === page.total,
+          lastPosition: Math.max(discovery.lastPosition, page.end), total: page.total, verifiedAt: page.retrievedAt,
+          seenIds: [...seenIds], ...(restart ? { restart: true } : {}) };
         discoveryDirty = true;
         report({ source: SOURCE, phase: 'list', pages, discovered: entries.size, total: page.total, position: page.end });
         await save();
+        if (restart) {
+          interrupted = true;
+          failures.push('Die Vorlagenübersicht lieferte keine vollständige Menge eindeutiger Vorlagen; der nächste Lauf wiederholt die Übersicht.');
+          break;
+        }
         if (discovery.complete || capped) break;
         if (newPages >= maxPages) { interrupted = true; break; }
         if (!resized && page.pageSizeRequest) {
@@ -501,15 +549,24 @@ async function collectRegionHannoverCatalogue(options = {}) {
     }
   }
   let detailRequests = 0, lastReported = 0;
-  const queue = [...entries.values()].filter(entry => !(entry.excludedAt && fresh(entry.excludedAt))
+  const candidates = [...entries.values()].filter(entry => !(entry.excludedAt && fresh(entry.excludedAt))
     && (!entry.detail || !fresh(entry.detailVerifiedAt) || entry.detailUnavailable))
-    .map(entry => ({ entry, traffic: classifyTrafficRelevance(entry.metadata).trafficRelevanceScore }))
-    .sort((a, b) => Number(!!a.entry.detail) - Number(!!b.entry.detail)
-      || (a.entry.detail && b.entry.detail
-        ? Date.parse(a.entry.lastAttemptedAt || a.entry.detailVerifiedAt) - Date.parse(b.entry.lastAttemptedAt || b.entry.detailVerifiedAt)
-        : (a.entry.detailAttempts || 0) - (b.entry.detailAttempts || 0))
-      || b.traffic - a.traffic || (b.entry.metadata.date || '').localeCompare(a.entry.metadata.date || '')
-      || a.entry.metadata.id.localeCompare(b.entry.metadata.id));
+    .map(entry => ({ entry, traffic: classifyTrafficRelevance(entry.metadata).trafficRelevanceScore }));
+  const priority = (a, b) => b.traffic - a.traffic
+    || (b.entry.metadata.date || '').localeCompare(a.entry.metadata.date || '')
+    || a.entry.metadata.id.localeCompare(b.entry.metadata.id);
+  const lastRenewalWork = entry => Math.max(Date.parse(entry.detailVerifiedAt), Date.parse(entry.lastAttemptedAt) || 0);
+  const renewals = candidates.filter(item => item.entry.detail).sort((a, b) => lastRenewalWork(a.entry) - lastRenewalWork(b.entry)
+    || Date.parse(a.entry.detailVerifiedAt) - Date.parse(b.entry.detailVerifiedAt) || priority(a, b));
+  const missing = candidates.filter(item => !item.entry.detail).sort((a, b) => (a.entry.detailAttempts || 0) - (b.entry.detailAttempts || 0)
+    || priority(a, b));
+  // Give ageing evidence and new documents work in the same bounded run. The
+  // next turn survives a one-request run, including an unsuccessful renewal.
+  const queue = [];
+  for (let index = 0; index < Math.max(renewals.length, missing.length); index++) {
+    const pair = nextDetailKind === 'missing' ? [missing[index], renewals[index]] : [renewals[index], missing[index]];
+    queue.push(...pair.filter(Boolean));
+  }
   async function detail(entry) {
     const { metadata } = entry;
     try {
@@ -518,6 +575,8 @@ async function collectRegionHannoverCatalogue(options = {}) {
         requests++; detailRequests++;
         entry.lastAttemptedAt = now.toISOString();
         entry.detailAttempts = Math.min(1000000, (entry.detailAttempts || 0) + 1);
+        nextDetailKind = entry.detail ? 'missing' : 'renewal';
+        discoveryDirty = true;
         dirty.add(yearOf(entry));
         const response = await requestHtml(metadata.url, { timeoutMs });
         const html = typeof response === 'string' ? response : response?.html;
@@ -550,12 +609,18 @@ async function collectRegionHannoverCatalogue(options = {}) {
       dirty.add(yearOf(entry));
     }
   }
-  // Missing details precede stale ones. Only cache loaders consume network and
-  // detail work, so restored cache hits can still complete after either budget.
-  for (let index = 0; index < queue.length && performance.now() < deadline; index += concurrency) {
-    await Promise.all(queue.slice(index, index + concurrency).map(({ entry }) => detail(entry)));
+  // Only cache loaders consume network and detail work, so restored cache hits
+  // can still complete after either budget without displacing renewal work.
+  for (let index = 0; index < queue.length && performance.now() < deadline;) {
+    // Reserve ordering within the remaining slots before asynchronous cache
+    // checks race. Once exhausted, batches may still recover fresh cache hits.
+    const remaining = Math.min(maxDetails - detailRequests, workBudget - requests);
+    const batchSize = remaining > 0 ? Math.min(concurrency, remaining) : concurrency;
+    const batch = queue.slice(index, index + batchSize);
+    index += batch.length;
+    await Promise.all(batch.map(({ entry }) => detail(entry)));
     await save();
-    if (detailRequests - lastReported >= 25 || index + concurrency >= queue.length) {
+    if (detailRequests - lastReported >= 25 || index >= queue.length) {
       lastReported = detailRequests;
       report({ source: SOURCE, phase: 'details', requested: detailRequests,
         verifiedDetails: [...entries.values()].filter(entry => entry.detail && !entry.excludedAt).length,

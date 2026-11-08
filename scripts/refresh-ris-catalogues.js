@@ -173,6 +173,7 @@ async function inspect(directory, load, now) {
     if (!snapshot) return { directory };
     const generated = Date.parse(snapshot.manifest.generatedAt);
     if (generated - now.getTime() > 5 * 60_000) throw new Error('RIS snapshot timestamp is in the future');
+    if (Date.parse(snapshot.manifest.withdrawalsRecordedAt) - now.getTime() > 5 * 60_000) throw new Error('RIS withdrawal timestamp is in the future');
     return { directory, manifest: snapshot.manifest, generated };
   } catch (error) {
     return { directory, error };
@@ -210,12 +211,23 @@ async function pruneCity(directory, city, manifest) {
 }
 
 function latestSnapshot(local, published) {
-  if (!local.manifest || published.generated > local.generated) return published;
+  if (!local.manifest) return published;
+  if (!published.manifest) return local;
+  const withdrawnAt = value => value.manifest.withdrawalsRecordedAt ? Date.parse(value.manifest.withdrawalsRecordedAt) : -Infinity;
+  // Withdrawal ordering is independent of the oldest retained source clock.
+  // A later actual source verification can establish public availability again.
+  if (withdrawnAt(published) > withdrawnAt(local) && withdrawnAt(published) >= local.generated) return published;
+  if (withdrawnAt(local) > withdrawnAt(published) && withdrawnAt(local) >= published.generated) return local;
+  if (published.generated > local.generated) return published;
   const regionalCount = manifest => manifest?.sourceStatuses?.find(source => source.source === 'region-hannover-ris')?.recordCount || 0;
-  // A successful source expansion may retain the same cached source clock.
-  // Do not replace that larger verified catalogue with the earlier city-only
-  // failure merely because its original verification timestamp is identical.
-  if (published.generated === local.generated && regionalCount(local.manifest) > 0 && regionalCount(published.manifest) === 0) return local;
+  // A source expansion can retain the same clock, but a zero count can also
+  // reflect confirmed withdrawals. Only an unqueried placeholder may lose to
+  // the local expansion; a previously verified regional result is authoritative.
+  if (published.generated === local.generated && regionalCount(local.manifest) > 0 && regionalCount(published.manifest) === 0) {
+    const regionalStatus = published.manifest.sourceStatuses?.find(source => source.source === 'region-hannover-ris');
+    const unqueried = !includesRegionSource(published.manifest.sources) || !regionalStatus || regionalStatus.retrievedAt === null;
+    return unqueried ? local : published;
+  }
   // A failed refresh updates the manifest without changing its original generation time.
   if (published.generated === local.generated && published.manifest.refreshFailure &&
       (!local.manifest.refreshFailure || published.manifest.refreshFailure.attemptedAt > local.manifest.refreshFailure.attemptedAt)) {
@@ -405,6 +417,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
     `Nicht aktuell verfügbare Details behalten ihren zuletzt verifizierten Stand vom ${retainedAt}.`])] };
   const sourceClock = [catalogue.generatedAt, retainedAt, ...historicalSourceClocks, ...inputs.map(record => record.detailVerifiedAt)].filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] || now.toISOString();
   const retainedSource = { generatedAt: sourceClock,
+    withdrawalsRecordedAt: excludedCount ? now.toISOString() : previous?.manifest.withdrawalsRecordedAt,
     ...(retainedAt && previous?.manifest.refreshFailure ? { refreshFailure: { ...previous.manifest.refreshFailure,
       expiresAt: new Date(Date.parse(sourceClock) + RIS_FALLBACK_MAX_AGE_MS).toISOString() } } : {}) };
   const provenance = collectionProvenance({ catalogue, city, records, sourceRecords: inputs, sourceVerifiedAt: sourceClock, now, sourceOptions });
@@ -428,7 +441,7 @@ async function prepareExclusionFallback(directory, previous, exclusions, now) {
   // the normalized count describes the smaller public output after withdrawal.
   const provenance = source.provenance && { ...source.provenance,
     collection: { ...source.provenance.collection, normalizedItems: records.length } };
-  const manifest = await writeRisSnapshot(directory, source.city, { ...source, records,
+  const manifest = await writeRisSnapshot(directory, source.city, { ...source, records, withdrawalsRecordedAt: now.toISOString(),
     features: { ...original.features, features: original.features.features.filter(feature => !exclusions.has(feature.properties.recordId)) },
     ...(sourceStatuses ? { sourceStatuses } : {}), ...(provenance ? { provenance } : {}),
     coverage: { ...source.coverage, complete: false, warnings: [...new Set([...source.coverage.warnings,
@@ -471,6 +484,7 @@ async function prepareLocalAssessment(directory, selected, builtAt) {
   const next = await writeRisSnapshot(directory, source.city, {
     sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISION,
     ...(source.sourceStatuses === undefined ? {} : { sourceStatuses: source.sourceStatuses }),
+    ...(source.withdrawalsRecordedAt === undefined ? {} : { withdrawalsRecordedAt: source.withdrawalsRecordedAt }),
     records: enrichRisLocations(inputs, { city: source.city, gazetteer, maxLocationsPerRecord: Infinity }),
     generatedAt: source.generatedAt, ...(source.provenance === undefined ? {} : { provenance: source.provenance }), ...(source.refreshFailure ? { refreshFailure: source.refreshFailure } : {}),
   }, { now: builtAt, schemaVersion: 2 });

@@ -193,6 +193,14 @@ Archivs, deshalb bleibt `coverage.complete: false`.
 Die Höchstdauer eines Hannover-Quelldurchlaufs beträgt regulär 58 Minuten mit einer
 harten Worker-Grenze von 60 Minuten. SIM und ALLRIS laufen unabhängig parallel; ALLRIS
 hat innerhalb dieses Rahmens höchstens 15 Minuten und 2.000 neue Detailabrufe pro Lauf.
+Der bestehende Pages-Workflow setzt die Quellenarbeit montags bis samstags um
+04:17 UTC fort; sonntags übernimmt der vorhandene vollständige Datenlauf.
+Damit stehen täglich begrenzte Abrufe für noch fehlende Details und die Erneuerung
+älterer Belege bereit. Die tatsächlichen Prüfzeiten bleiben erhalten; fehlgeschlagene
+oder lediglich aus dem Cache gelesene Belege bekommen keine neue Quellenzeit.
+Ein Listenlauf gilt erst mit der amtlichen Anzahl eindeutiger IDs dieses Durchlaufs
+als abgeschlossen. Überlappungen werden erneut geprüft; historische Einträge
+gleichen keine fehlenden aktuellen IDs aus.
 Bonn verwendet 18 beziehungsweise 20 Minuten.
 Ortsabgleich, Aufbau und Validierung der Veröffentlichung folgen anschließend.
 Die Grenzen der amtlichen Quellen bleiben bestehen: Drosselung, fehlende Dokumenttexte,
@@ -200,6 +208,14 @@ geänderte Suchformulare und nichtöffentliche Inhalte werden nicht durch die Au
 des lokalen Index beseitigt. Ein vollständiges PDF-Archiv wird nicht gespiegelt.
 
 ## Migration und Gültigkeit
+
+Bestätigte Rücknahmen erhalten im Manifest einen optionalen Importzeitpunkt
+`withdrawalsRecordedAt`. Er enthält keine Dokumentidentitäten oder Inhalte und
+erneuert weder `generatedAt` noch den Ablaufzeitpunkt. Dieser getrennte Wert
+verhindert, dass ein älterer lokaler oder veröffentlichter Bestand entfernte
+Dokumente wieder einführt; auch eine teilweise Rücknahme bleibt so wirksam.
+Eine tatsächlich spätere Quellenprüfung kann die öffentliche Verfügbarkeit erneut
+feststellen. Formatmigrationen und reine Ortsprüfungen bewahren den Wert unverändert.
 
 Der Browser und der gemeinsame Offline-Leser unterstützen Version 1 und frühere
 Version-2-Bestände mit festem Kachelindex weiterhin. Das Manifest kennzeichnet den

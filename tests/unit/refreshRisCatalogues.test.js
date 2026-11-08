@@ -383,8 +383,10 @@ test.each([false, true])('an old city-only failure permits the first Region impo
   }
 });
 
-test('a successful cached Region upgrade wins over an old deployed failure with the same source clock', async () => {
-  const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FRESH });
+test.each([false, true])('a successful cached Region upgrade wins over an old deployed failure with the same source clock (legacyPortalLink=%s)', async legacyPortalLink => {
+  const cityOnly = catalogue('hannover');
+  if (legacyPortalLink) cityOnly.sources.push('https://ris.hannit.de/public/');
+  const prior = await writeRisSnapshot(published, 'hannover', cityOnly, { now: FRESH });
   prior.refreshFailure = { attemptedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
     expiresAt: new Date(FRESH.getTime() + 14 * 86400000).toISOString(), reason: 'Früherer SIM-Abruf fehlgeschlagen.' };
   await fs.writeFile(path.join(published, 'hannover.json'), JSON.stringify(prior));
@@ -392,8 +394,80 @@ test('a successful cached Region upgrade wins over an old deployed failure with 
   current.generatedAt = FRESH.toISOString();
   const collect = jest.fn(() => current);
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'published', records: 3 }]);
+  collect.mockImplementation(() => { throw new Error('Source temporarily unavailable'); });
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'current', records: 3 }]);
   expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test.each([false, true].flatMap(fallback => [0, 1].flatMap(remaining => [FALLBACK, FRESH].map(localClock => [fallback, remaining, localClock]))))
+('a deployed withdrawal outranks a local snapshot verified before the removal (fallback=%s, remaining=%s, local=%s)', async (fallback, remaining, localClock) => {
+  const prior = regionalCatalogue();
+  Object.assign(prior.records[2], { geometry: { type: 'Point', coordinates: [9.75, 52.38] }, locationSource: 'official',
+    locationAssessment: { status: 'mapped', sources: ['official'], reasons: [], truncated: false } });
+  if (remaining) prior.records.push({ ...prior.records[2], id: 'region-hannover-ris:vo:2003038',
+    url: 'https://ris.hannit.de/public/vo020?VOLFDNR=2003038' });
+  prior.sourceStatuses[0].recordCount = 1 + remaining;
+  await writeRisSnapshot(directory, 'hannover', prior, { now: localClock });
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const exclusions = [{ id: prior.records[2].id, url: prior.records[2].url,
+    verifiedAt: NOW.toISOString(), reason: 'not-public' }];
+  const withdrawn = regionalCatalogue();
+  withdrawn.records = prior.records.filter(record => record.id !== prior.records[2].id);
+  withdrawn.sourceStatuses[0].recordCount = remaining;
+  withdrawn.generatedAt = FALLBACK.toISOString();
+  withdrawn.exclusions = exclusions;
+  await refresh({ directory: published, cities: ['hannover'], fetchPublished: async () => new Response(null, { status: 404 }),
+    collect: () => { if (fallback) throw Object.assign(new Error('SIM unavailable'), { exclusions }); return withdrawn; } });
+  const deployed = await readRisSnapshot(published, 'hannover');
+  expect(deployed.records).toHaveLength(2 + remaining);
+  expect(deployed.manifest.generatedAt).toBe(FALLBACK.toISOString());
+  expect(deployed.manifest.withdrawalsRecordedAt).toBe(NOW.toISOString());
+  const collect = jest.fn(() => { throw new Error('Source temporarily unavailable'); });
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ records: 2 + remaining }]);
+  if (fallback) expect(collect).not.toHaveBeenCalled();
+  const restored = await readRisSnapshot(directory, 'hannover');
+  expect(restored.records.some(record => record.id === prior.records[2].id)).toBe(false);
+  expect(restored.features.features.some(feature => feature.properties.recordId === prior.records[2].id)).toBe(false);
+  expect(restored.manifest.withdrawalsRecordedAt).toBe(NOW.toISOString());
+});
+
+test.each([1, 2])('withdrawal ordering metadata roundtrips in snapshot v%s and rejects invalid timestamps', async schemaVersion => {
+  const value = { ...regionalCatalogue(), withdrawalsRecordedAt: NOW.toISOString() };
+  await writeSnapshot(directory, 'hannover', value, { now: FALLBACK, schemaVersion });
+  expect((await readRisSnapshot(directory, 'hannover')).manifest.withdrawalsRecordedAt).toBe(NOW.toISOString());
+  for (const invalid of ['not-a-date', NOW.toISOString().replace('.000Z', 'Z')]) {
+    await expect(writeSnapshot(directory, 'hannover', { ...value, withdrawalsRecordedAt: invalid }, { now: NOW, schemaVersion }))
+      .rejects.toThrow(/timestamp|withdrawal/i);
+  }
+  const manifestPath = path.join(directory, 'hannover.json');
+  const malformed = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+  malformed.withdrawalsRecordedAt = NOW.toISOString().replace('.000Z', 'Z');
+  await fs.writeFile(manifestPath, JSON.stringify(malformed));
+  await expect(readRisSnapshot(directory, 'hannover')).rejects.toThrow(/timestamp|withdrawal/i);
+});
+
+test.each([false, true])('a withdrawal yields only to a source verified after the removal (verifiedAfter=%s)', async verifiedAfter => {
+  const withdrawn = regionalCatalogue();
+  withdrawn.records = withdrawn.records.slice(0, 2);
+  withdrawn.sourceStatuses[0].recordCount = 0;
+  withdrawn.withdrawalsRecordedAt = NOW.toISOString();
+  await writeRisSnapshot(directory, 'hannover', withdrawn, { now: FALLBACK });
+  const nextDay = new Date(NOW.getTime() + 86400000);
+  await writeRisSnapshot(published, 'hannover', regionalCatalogue(), { now: verifiedAfter ? nextDay : FRESH });
+  await expect(refresh({ cities: ['hannover'], now: nextDay, collect: () => { throw new Error('Source unavailable'); } }))
+    .resolves.toMatchObject([{ records: verifiedAfter ? 3 : 2 }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.records.some(record => record.source === 'region-hannover-ris')).toBe(verifiedAfter);
+});
+
+test('a later source collection preserves the withdrawal ordering timestamp without renewing it', async () => {
+  const prior = regionalCatalogue();
+  prior.withdrawalsRecordedAt = FRESH.toISOString();
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  await refresh({ cities: ['hannover'], collect: () => regionalCatalogue() });
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.manifest.generatedAt).toBe(NOW.toISOString());
+  expect(result.manifest.withdrawalsRecordedAt).toBe(FRESH.toISOString());
 });
 
 test('retained regional IDs absent from a completed fresh crawl keep their original verification clock', async () => {
@@ -419,6 +493,22 @@ test('pending new regional detail work does not freeze freshly verified metadata
   current.history = { pending: true, interrupted: true, retainPreviousClock: false, pendingYears: [2026] };
   current.records[2].locationEvidenceUnavailable = true;
   await expect(refresh({ cities: ['hannover'], collect: () => current })).resolves.toMatchObject([{ status: 'published', generatedAt: NOW.toISOString() }]);
+});
+
+test('pending regional details continue the next day even when the shared snapshot is still fresh', async () => {
+  await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FRESH });
+  const collect = jest.fn((_city, now) => {
+    const current = regionalCatalogue();
+    current.generatedAt = now.toISOString();
+    current.history = { pending: true, interrupted: true, retainPreviousClock: false, pendingYears: [2026] };
+    current.records[2].locationEvidenceUnavailable = true;
+    return current;
+  });
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ status: 'published' }]);
+  const nextDay = new Date(NOW.getTime() + 86400000);
+  await expect(refresh({ cities: ['hannover'], now: nextDay, collect }))
+    .resolves.toMatchObject([{ status: 'published', generatedAt: nextDay.toISOString() }]);
+  expect(collect).toHaveBeenCalledTimes(2);
 });
 
 test('an explicitly non-public Region record is removed, including its geometry, despite the normal loss guard', async () => {
@@ -827,10 +917,11 @@ test.each([false, true])('local v1 migration/reassessment preserves optional acq
   const p = collectionProvenance({ catalogue: c, city: 'bonn', records: c.records, sourceRecords: c.records,
     sourceVerifiedAt: FRESH.toISOString(), now: FRESH });
   // Write explicit v1 so the ordinary migration and reassessment paths both run.
-  await writeSnapshot(published, 'bonn', { ...c, provenance: p }, { now: FRESH, schemaVersion: 1 });
+  await writeSnapshot(published, 'bonn', { ...c, provenance: p, withdrawalsRecordedAt: FRESH.toISOString() }, { now: FRESH, schemaVersion: 1 });
   await refresh({ cities: ['bonn'], collect: () => { throw new Error('source unavailable'); } });
   const m = (await readRisSnapshot(directory, 'bonn')).manifest;
   expect(m.schemaVersion).toBe(2);
+  expect(m.withdrawalsRecordedAt).toBe(FRESH.toISOString());
   expect(m.provenance).toMatchObject({ sourceVerifiedAt: FRESH.toISOString(), builtAt: NOW.toISOString(),
     sourceFingerprint: p.sourceFingerprint, collection: p.collection, rights: p.rights });
 });

@@ -32,6 +32,13 @@ function api(name) {
 }
 const NEXT_CALLBACK = './vo040?0-1.0-form-tablePanel-content-dataTable-bottomToolbars-toolbars-3-span-navigator-next';
 const SIZE_CALLBACK = './vo040?0-1.0-form-tablePanel-content-dataTable-bottomToolbars-toolbars-3-span-navigator-itemsPerPage-3-itemPerPageLink';
+const NUMBER_SORT_LINK = './vo040?0-1.-form-tablePanel-content-dataTable-topToolbars-toolbars-1-headers-11-header-orderByLink';
+function numberSort(html, sorted = false) {
+  // Observed ordinary Wicket column link: selecting Nummer makes it the sole
+  // ascending sort and removes the previous release-date ordering.
+  return html.replace('<th>Nummer</th>', `<th class="wicket_order${sorted ? 'Up' : 'None'} vonr" scope="col"><a href="${NUMBER_SORT_LINK}" id="orderByLinkaliasName" data-simpletooltip-text=" ${sorted ? 'absteigend' : 'aufsteigend'} sortieren" class="js-simple-tooltip"><span>Nummer</span></a></th>`)
+    .replace('<th>Vorlage freigegeben</th>', `<th class="wicket_order${sorted ? 'None' : 'Down'}" scope="col"><span>Vorlage freigegeben</span></th>`);
+}
 function ajaxList(html = listHtml(), { next = true, size = true } = {}) {
   const controls = `${next ? '<button class="next nav-item js-simple-tooltip" id="id23" title="Gehe zur nächsten Seite"><img alt="Gehe zur nächsten Seite"/></button>' : ''}
     ${size ? '<div id="objPerPage"><a class="parent"><span>25</span></a><a id="id19" href="javascript:;"><span>100</span></a></div>' : ''}`;
@@ -106,6 +113,19 @@ describe('Region Hannover public proposal list', () => {
       next: { url: `${BASE}/public/${NEXT_CALLBACK.slice(2)}`, ajax: true },
       pageSizeRequest: { url: `${BASE}/public/${SIZE_CALLBACK.slice(2)}`, ajax: true },
     });
+  });
+
+  test('reads the offered number sort link without toggling an already sorted header', () => {
+    const parse = api('parseProposalListHtml');
+    expect(parse(numberSort(listHtml()), LIST).sortRequest)
+      .toEqual({ url: new URL(NUMBER_SORT_LINK, LIST).href, ajax: false });
+    expect(parse(numberSort(listHtml(), true), LIST).sortRequest).toBeNull();
+    expect(parse(listHtml(), LIST).sortRequest).toBeNull();
+  });
+
+  test.each(['https://example.org/steal', './vo020?VOLFDNR=2007454'])('rejects a number sort link outside the public list route: %s', target => {
+    const html = numberSort(listHtml()).replace(NUMBER_SORT_LINK, target);
+    expect(() => api('parseProposalListHtml')(html, LIST)).toThrow(/URL|origin|source|sort/i);
   });
 
   test('reports an unavailable continuation instead of claiming a truncated list is complete', () => {
@@ -220,6 +240,27 @@ describe('Region Hannover resumable public collection', () => {
     expect(result.generatedAt).toBe(NOW.toISOString());
   });
 
+  test('selects the observed number sort before resizing and following pages', async () => {
+    const range = html => html.replace('Zeige 1 bis 1 von 1', 'Zeige 1 bis 1 von 2');
+    const initial = ajaxList(numberSort(range(listHtml(ROW.replaceAll('2007454', '2007456')))));
+    const sortedFirst = ajaxList(numberSort(range(listHtml()), true));
+    const resized = ajaxList(numberSort(range(listHtml()), true), { size: false });
+    const final = ajaxList(numberSort(listHtml(ROW.replaceAll('2007454', '2007455').replace('5438 (V) AaA', '5439 (V) AaA'))
+      .replace('Zeige 1 bis 1 von 1', 'Zeige 2 bis 2 von 2'), true), { next: false, size: false });
+    const expected = [LIST, new URL(NUMBER_SORT_LINK, LIST).href, new URL(SIZE_CALLBACK, LIST).href, new URL(NEXT_CALLBACK, LIST).href];
+    const replies = new Map(expected.map((url, index) => [url, [initial, sortedFirst, resized, final][index]]));
+    const transport = jest.fn(async url => {
+      if (!replies.has(url)) throw new Error('Unexpected source request');
+      return replies.get(url);
+    });
+    const result = await collect({ fetchHtmlImpl: transport });
+    expect(transport.mock.calls.map(([url]) => url)).toEqual(expected);
+    expect(transport.mock.calls[1][1].headers).toBeUndefined();
+    expect(transport.mock.calls[2][1].headers).toMatchObject({ 'Wicket-Ajax': 'true' });
+    expect(result.records.map(record => record.id).sort()).toEqual(['region-hannover-ris:vo:2007454', 'region-hannover-ris:vo:2007455']);
+    expect(result.collection).toMatchObject({ listComplete: true, total: 2, verifiedDetails: 0 });
+  });
+
   test('resumes a bounded list scan from a new session without persisting Wicket callback URLs', async () => {
     const first = ajaxList(listHtml().replace('Zeige 1 bis 1 von 1', 'Zeige 1 bis 1 von 2'), { size: false });
     const second = ajaxList(listHtml(ROW.replaceAll('2007454', '2007455')).replace('Zeige 1 bis 1 von 1', 'Zeige 2 bis 2 von 2'), { next: false, size: false });
@@ -240,6 +281,51 @@ describe('Region Hannover resumable public collection', () => {
         expect(await fsp.readFile(path.join(checkpointRoot, scope, file), 'utf8')).not.toContain('navigator-next');
       }
     }
+  });
+
+  test('retries overlapping final pages instead of treating their advertised range as a complete inventory', async () => {
+    const firstPage = ajaxList(listHtml().replace('Zeige 1 bis 1 von 1', 'Zeige 1 bis 1 von 2'), { size: false });
+    const finalPage = row => ajaxList(listHtml(row).replace('Zeige 1 bis 1 von 1', 'Zeige 2 bis 2 von 2'), { next: false, size: false });
+    const overlapping = async url => url === LIST ? firstPage : finalPage(ROW);
+    await collect({ maxPages: 1, fetchHtmlImpl: overlapping });
+    const incomplete = await collect({ maxPages: 1, fetchHtmlImpl: overlapping });
+    expect(incomplete.records).toHaveLength(1);
+    expect(incomplete.collection.listComplete).toBe(false);
+    expect(incomplete.history.pending).toBe(true);
+
+    const calls = [];
+    const retried = await collect({ now: new Date(NOW.getTime() + 1000), fetchHtmlImpl: async url => {
+      calls.push(url);
+      return url === LIST ? firstPage : finalPage(ROW.replaceAll('2007454', '2007455'));
+    } });
+    expect(calls).toHaveLength(2);
+    expect(retried.records).toHaveLength(2);
+    expect(retried.collection.listComplete).toBe(true);
+  });
+
+  test('excludes retained historical IDs from the current crawl inventory and resets IDs for its next traversal', async () => {
+    await collect({ fetchHtmlImpl: async () => listHtml(ROW + ROW.replaceAll('2007454', '2007455'), 2) });
+    const later = new Date('2026-11-16T12:00:00.000Z');
+    const firstPage = ajaxList(listHtml().replace('Zeige 1 bis 1 von 1', 'Zeige 1 bis 1 von 2'), { size: false });
+    const finalPage = row => ajaxList(listHtml(row).replace('Zeige 1 bis 1 von 1', 'Zeige 2 bis 2 von 2'), { next: false, size: false });
+    const incomplete = await collect({ now: later, fetchHtmlImpl: async url => url === LIST ? firstPage : finalPage(ROW) });
+    expect(incomplete.records).toHaveLength(2);
+    expect(incomplete.collection.listComplete).toBe(false);
+
+    const retried = await collect({ now: new Date(later.getTime() + 1000), fetchHtmlImpl: async url =>
+      url === LIST ? firstPage : finalPage(ROW.replaceAll('2007454', '2007456')) });
+    expect(retried.records).toHaveLength(3);
+    expect(retried.collection.listComplete).toBe(true);
+  });
+
+  test('does not use an earlier session prefix to hide an overlap in the replayed continuation', async () => {
+    const firstPage = row => ajaxList(listHtml(row).replace('Zeige 1 bis 1 von 1', 'Zeige 1 bis 1 von 2'), { size: false });
+    const secondRow = ROW.replaceAll('2007454', '2007455');
+    await collect({ maxPages: 1, fetchHtmlImpl: async () => firstPage(ROW) });
+    const repeatedFinal = ajaxList(listHtml(secondRow).replace('Zeige 1 bis 1 von 1', 'Zeige 2 bis 2 von 2'), { next: false, size: false });
+    const result = await collect({ maxPages: 1, fetchHtmlImpl: async url => url === LIST ? firstPage(secondRow) : repeatedFinal });
+    expect(result.records).toHaveLength(2);
+    expect(result.collection.listComplete).toBe(false);
   });
 
   test('restores a checkpoint with zero network budget without renewing source clocks', async () => {
@@ -304,6 +390,119 @@ describe('Region Hannover resumable public collection', () => {
     expect(second.records.find(record => record.id.endsWith(':2007454')).locationEvidence).toHaveLength(3);
   });
 
+  test('renews the oldest detail evidence while missing details still fill the work budget', async () => {
+    const rows = Array.from({ length: 5 }, (_, index) => ROW.replaceAll('2007454', String(2007454 + index))).join('');
+    const calls = [];
+    const transport = async url => {
+      if (url === LIST) return listHtml(rows, 5);
+      calls.push(url);
+      return ANSWER_HTML;
+    };
+    await collect({ maxDetails: 2, concurrency: 1, fetchHtmlImpl: transport });
+    calls.length = 0;
+    const weekOne = await collect({ now: new Date(NOW.getTime() + 7 * 86400000), maxDetails: 2, concurrency: 1, fetchHtmlImpl: transport });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBe(PROPOSAL);
+    expect(weekOne.collection.verifiedDetails).toBe(3);
+    const weekTwo = await collect({ now: new Date(NOW.getTime() + 14 * 86400000), maxDetails: 2, concurrency: 1, fetchHtmlImpl: transport });
+    expect(Date.parse(weekTwo.generatedAt)).toBeGreaterThan(NOW.getTime());
+    expect(weekTwo.collection.verifiedDetails).toBe(4);
+  });
+
+  test('does not let a failed renewal starve an unattempted document in a later bounded run', async () => {
+    const rows = ROW + ROW.replaceAll('2007454', '2007455');
+    await collect({ maxDetails: 1, concurrency: 1, fetchHtmlImpl: async url => url === LIST ? listHtml(rows, 2) : ANSWER_HTML });
+    const calls = [];
+    const transport = async url => {
+      if (url === LIST) return listHtml(rows, 2);
+      calls.push(url);
+      if (url === PROPOSAL) throw new Error('Temporarily unavailable older detail');
+      return ANSWER_HTML;
+    };
+    const failed = await collect({ now: new Date(NOW.getTime() + 7 * 86400000), maxDetails: 1, concurrency: 1, fetchHtmlImpl: transport });
+    expect(calls).toEqual([PROPOSAL]);
+    expect(failed.collection.failedDetails).toBe(1);
+    calls.length = 0;
+    const progressed = await collect({ now: new Date(NOW.getTime() + 8 * 86400000), maxDetails: 1, concurrency: 1, fetchHtmlImpl: transport });
+    expect(calls).toEqual([`${BASE}/public/vo020?VOLFDNR=2007455`]);
+    expect(progressed.collection).toMatchObject({ verifiedDetails: 2, pendingDetails: 0 });
+    expect(progressed.records.find(record => record.url === PROPOSAL)).toMatchObject({
+      locationEvidenceUnavailable: true, detailVerifiedAt: NOW.toISOString(),
+    });
+    expect(progressed.generatedAt).toBe(NOW.toISOString());
+  });
+
+  test('preserves renewal order when concurrent cache checks race for a single remaining detail slot', async () => {
+    const rows = ROW + ROW.replaceAll('2007454', '2007455');
+    await collect({ maxDetails: 1, concurrency: 1, fetchHtmlImpl: async url => url === LIST ? listHtml(rows, 2) : ANSWER_HTML });
+    const calls = [];
+    const at = new Date(NOW.getTime() + 7 * 86400000);
+    const delayedCache = { getOrLoadWithMetadata: async (url, _revision, loader) => {
+      if (url === PROPOSAL) await new Promise(resolve => setImmediate(resolve));
+      return { payload: await loader(), cachedAt: at.getTime() };
+    } };
+    const result = await collect({ now: at, maxPages: 0, maxDetails: 1, concurrency: 2, sourceCache: delayedCache,
+      fetchHtmlImpl: async url => {
+        calls.push(url);
+        if (url !== PROPOSAL) throw new Error('Missing detail repeatedly fails immediately');
+        return ANSWER_HTML;
+      } });
+    expect(calls).toEqual([PROPOSAL]);
+    expect(result.records.find(record => record.url === PROPOSAL).detailVerifiedAt).toBe(at.toISOString());
+  });
+
+  test('persists detail turn-taking without inventing discovery verification for a legacy checkpoint', async () => {
+    const rows = ROW + ROW.replaceAll('2007454', '2007455');
+    await collect({ maxDetails: 1, concurrency: 1, fetchHtmlImpl: async url => url === LIST ? listHtml(rows, 2) : ANSWER_HTML });
+    const checkpoint = createRisSourceCheckpoint({ directory });
+    await checkpoint.write('region-hannover-ris', 'public-proposals-discovery', 1900, region.REVISION,
+      { complete: true, lastPosition: 2, total: 2, verifiedAt: NOW.toISOString() });
+    const calls = [];
+    const transport = async url => {
+      calls.push(url);
+      if (url === PROPOSAL) throw new Error('Renewal unavailable');
+      return ANSWER_HTML;
+    };
+    const first = await collect({ now: new Date(NOW.getTime() + 7 * 86400000), maxPages: 0, workBudget: 1,
+      maxDetails: 1, concurrency: 1, fetchHtmlImpl: transport });
+    expect(calls).toEqual([PROPOSAL]);
+    expect(first.collection.listComplete).toBe(false);
+    expect(first.generatedAt).toBe(NOW.toISOString());
+    expect(await checkpoint.read('region-hannover-ris', 'public-proposals-discovery', 1900, region.REVISION))
+      .toMatchObject({ complete: false, verifiedAt: null, nextDetailKind: 'missing' });
+    calls.length = 0;
+    const second = await collect({ now: new Date(NOW.getTime() + 8 * 86400000), maxPages: 0, workBudget: 1,
+      maxDetails: 1, concurrency: 1, fetchHtmlImpl: transport });
+    expect(calls).toEqual([`${BASE}/public/vo020?VOLFDNR=2007455`]);
+    expect(second.collection).toMatchObject({ listComplete: false, verifiedDetails: 2 });
+    expect(second.generatedAt).toBe(NOW.toISOString());
+  });
+
+  test('daily bounded continuation keeps every detail current for four weeks without renewing untouched clocks', async () => {
+    // 15 documents / 2 requests is a higher load ratio than the observed
+    // 14,055 documents / 2,000 requests. Both require eight daily work slots.
+    const rows = Array.from({ length: 15 }, (_, index) => ROW.replaceAll('2007454', String(2007454 + index))).join('');
+    let previous = new Map();
+    for (let day = 0; day < 28; day++) {
+      const at = new Date(NOW.getTime() + day * 86400000), calls = new Set();
+      const result = await collect({ now: at, maxDetails: 2, concurrency: 1, fetchHtmlImpl: async url => {
+        if (url === LIST) return listHtml(rows, 15);
+        calls.add(url);
+        return ANSWER_HTML;
+      } });
+      expect(calls.size).toBeLessThanOrEqual(2);
+      expect(result.records).toHaveLength(15);
+      expect(at.getTime() - Date.parse(result.generatedAt)).toBeLessThan(14 * 86400000);
+      if (day >= 7) expect(result.collection.pendingDetails).toBe(0);
+      for (const record of result.records) {
+        if (calls.has(record.url)) expect(record.detailVerifiedAt).toBe(at.toISOString());
+        else expect(record.detailVerifiedAt).toBe(previous.get(record.id));
+        if (record.detailVerifiedAt) expect(at.getTime() - Date.parse(record.detailVerifiedAt)).toBeLessThanOrEqual(8 * 86400000);
+      }
+      previous = new Map(result.records.map(record => [record.id, record.detailVerifiedAt]));
+    }
+  });
+
   test('uses a small budget for existing missing details when fresh-session list navigation cannot advance', async () => {
     const firstPage = ajaxList(listHtml().replace('Zeige 1 bis 1 von 1', 'Zeige 1 bis 1 von 2'), { size: false });
     await collect({ maxPages: 1, fetchHtmlImpl: async () => firstPage });
@@ -315,6 +514,35 @@ describe('Region Hannover resumable public collection', () => {
     expect(calls).toEqual([PROPOSAL]);
     expect(result.collection).toMatchObject({ listComplete: false, verifiedDetails: 1, pendingDetails: 0 });
     expect(result.coverage.warnings.join(' ')).toMatch(/Budget|Navigation/i);
+  });
+
+  test.each([false, true])('budgets the observed number-sort prefix before replaying it again (additional sort loader=%s)', async extraLoader => {
+    const rows = count => Array.from({ length: count }, (_, index) => ROW.replaceAll('2007454', String(2007454 + index))
+      .replace('5438 (V) AaA', `${5438 + index} (V) AaA`)).join('');
+    const page = count => listHtml(rows(count), count).replace(`Zeige 1 bis ${count} von ${count}`, `Zeige 1 bis ${count} von 200`);
+    const loader = callback => `<script>Wicket.Timer.set("id6.0", function(){Wicket.Ajax.ajax({"u":"${callback}"});}, 1000);</script>`;
+    const initialLoader = './vo040?0-1.0-', sortLoader = './vo040?0-2.0-';
+    const sorted = ajaxList(numberSort(page(25), true));
+    const replies = new Map([
+      [LIST, loader(initialLoader)],
+      [new URL(initialLoader, LIST).href, ajaxList(numberSort(page(25)))],
+      [new URL(NUMBER_SORT_LINK, LIST).href, extraLoader ? loader(sortLoader) : sorted],
+      [new URL(sortLoader, LIST).href, sorted],
+      [new URL(SIZE_CALLBACK, LIST).href, ajaxList(numberSort(page(100), true), { size: false })],
+      [PROPOSAL, ANSWER_HTML],
+    ]);
+    const calls = [];
+    const transport = async url => {
+      calls.push(url);
+      if (!replies.has(url)) throw new Error('Unexpected prefix replay request');
+      return replies.get(url);
+    };
+    await collect({ maxPages: 2, fetchHtmlImpl: transport });
+    expect(calls).toHaveLength(extraLoader ? 5 : 4);
+    calls.length = 0;
+    const result = await collect({ workBudget: extraLoader ? 5 : 4, maxDetails: 1, concurrency: 1, fetchHtmlImpl: transport });
+    expect(calls).toEqual([PROPOSAL]);
+    expect(result.collection).toMatchObject({ listComplete: false, discovered: 100, verifiedDetails: 1 });
   });
 
   test('counts neither a fresh detail cache hit nor a restored detail against the new network work limit', async () => {
