@@ -287,9 +287,15 @@ verifizierten Listeneintrag nicht. `coverage.scope: "citywide"` beschreibt den s
 Suchumfang; `complete: false` bleibt bestehen, da damit keine Vollständigkeit des gesamten
 amtlichen Archivs nachgewiesen ist. Ältere Kataloge ohne diese optionalen Felder bleiben lesbar.
 
-`node scripts/refresh-ris-catalogues.js` ruft die städtischen Quellen ab und schreibt die Kataloge.
+`node scripts/refresh-ris-catalogues.js` ruft die amtlichen Quellen ab und schreibt die Kataloge.
 Mit `--city bonn` beziehungsweise `--city hannover` lässt sich derselbe Ablauf auf eine Stadt
-begrenzen. Erfolgreich geprüfte Quelldaten liegen im gemeinsamen Cache `.cache/ris-sources/`.
+begrenzen. Hannover umfasst dabei auch das öffentliche ALLRIS-Vorlagenverzeichnis der Region.
+Die Vorgänge bleiben über `source: 'region-hannover-ris'` und IDs mit `VOLFDNR` von
+städtischen SIM-Dokumenten getrennt. Bestehende Landtags- und Bekanntmachungsquellen werden
+weiterhin ergänzt. Regionales Listen-Freigabedatum, Dokumentdatum und Beratungsereignisse
+bleiben getrennte Belege. Eine Straßenableitung aus dem Stadtgazetteer benötigt für
+Regionsvorlagen eine ausdrückliche lokale Qualifizierung des einzelnen Ortsbelegs.
+Erfolgreich geprüfte Quelldaten liegen im gemeinsamen Cache `.cache/ris-sources/`.
 Quellrevision, Parserrevision und eine maximale Lebensdauer von sieben Tagen verhindern die
 unbegrenzte Wiederverwendung alter Antworten. Fehlgeschlagene Abrufe werden nicht gespeichert.
 Die bestehenden Pages-Workflows sichern diesen Cache auch nach einem fehlgeschlagenen Build.

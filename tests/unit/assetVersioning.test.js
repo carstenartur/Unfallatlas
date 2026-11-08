@@ -27,6 +27,10 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=2026-11-08-context-review"`);
   });
 
+  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
+  });
+
   test('the tour invalidates the cache for the political research UI', () => {
     expect(html).toContain('js/ua.tour.js?v=2026-11-07');
   });
@@ -46,7 +50,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s refreshes paged consultation history', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-timelines"`);
+    expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
   });
 
   test('shared spatial budgets and partitions load before their consumers', () => {

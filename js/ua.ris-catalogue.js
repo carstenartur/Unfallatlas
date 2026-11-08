@@ -243,6 +243,7 @@
     const coverage = manifest?.coverage;
     if (manifest?.schemaVersion !== SCHEMA_VERSION || manifest.city !== key
         || !validTimestamp(manifest.generatedAt)
+        || (manifest.withdrawalsRecordedAt !== undefined && !validTimestamp(manifest.withdrawalsRecordedAt, true))
         || !Array.isArray(manifest.sources) || !manifest.sources.length
         || !manifest.sources.every(source => isSourceUrl(source))
         || typeof coverage?.complete !== 'boolean'

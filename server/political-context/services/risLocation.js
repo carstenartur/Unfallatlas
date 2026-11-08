@@ -20,6 +20,10 @@ const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispi
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
 const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
 const ADDRESS_LIST = new RegExp(`^\\s+(?:(?:nr\\.?|hausnummern?)\\s+)?(${ADDRESS_NUMBER}(?:(?:\\s*,\\s*|\\s+und\\s+)${ADDRESS_NUMBER}){0,7})(?![\\p{L}\\p{N}/-])`, 'u');
+const HANNOVER_SCOPE = /\bin\s+(?:(?:der\s+)?(?:landeshauptstadt|stadt)\s+)?hannover(?![\p{L}\p{M}\p{N}'-])/gu;
+const CITY_SCOPE_GAP = new RegExp(`^\\s*(?:(?:(?:nr\\.?|hausnummer)\\s+)?${ADDRESS_NUMBER})?\\s*,?\\s*$`, 'u');
+const REGION_NON_MEASURE = /\b(?:kontakt|anschrift|postanschrift|besucheranschrift|adresse|postfach|rathaus|regionshaus|dienstgebäude|verwaltungsgebäude|geschäftsstelle|ansprechpartner|beschlossen|beschlussfassung|beraten|beratung|vorgestellt|erörtert|abgestimmt|verabschiedet)\b/u;
+const REGION_SCOPE_EXCLUSION = /\b(?:ausserhalb|ausser|nicht|kein(?:e|en|em|er|es)?|ohne|statt|anstatt|wie|als|vergleich|vorbild|hingegen|dagegen)\b/u;
 
 function normalize(text) {
   return typeof text === 'string' ? text.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss')
@@ -250,11 +254,31 @@ function measurePlaceList(subject, hits) {
   return [...bounded, ...[...list].map(entry => location(entry.kind, entry.name, entry.geometry, [entry]))];
 }
 
-function parseMeasureLocations(text, byFirstWord, gazetteer) {
-  const subject = normalize(text)
+function measureSubject(text) {
+  return normalize(text)
     .replace(/(\p{L})str(?:\.(?=\s|[/,;)]|$)|(?=\s+\d))/gu, '$1strasse')
     .replace(/([\p{L}\p{M}-]+)-\s+(und|sowie|oder)\s+((?:(?:die|der|den)\s+)?[\p{L}\p{M}-]+strasse)\b/gu,
       '$1strasse $2 $3');
+}
+
+function hannoverLocationScope(text, byFirstWord) {
+  const subject = measureSubject(text);
+  const scopes = [...subject.matchAll(HANNOVER_SCOPE)];
+  if (!scopes.length || MULTIPLE_LOCATIONS.test(subject) || MEETING_CUE.test(subject)
+      || COMPARISON_CUE.test(subject) || REGION_NON_MEASURE.test(subject) || REGION_SCOPE_EXCLUSION.test(subject)) return false;
+  // A second locality makes the sentence ambiguous. Do not try to distribute
+  // its streets between municipalities using the city-only gazetteer.
+  for (const match of subject.matchAll(/\b(?:in|aus|bei|nach)\s+(?:(?:der|dem)\s+(?:landeshauptstadt|stadt|gemeinde|ortsteil|ortschaft)\s+)?(?!(?:der|dem|den|die|das|des|einem|einer)\b)([\p{L}][\p{L}\p{M}'-]*)/gu)) {
+    if (match[1] !== 'hannover') return false;
+  }
+  // Require the city qualifier immediately after every matched location (or
+  // its house number). "In Hannover beschlossen" is a venue, not street scope.
+  return mentions(subject, byFirstWord, true).every(hit => scopes.some(scope =>
+    scope.index >= hit.end && CITY_SCOPE_GAP.test(subject.slice(hit.end, scope.index))));
+}
+
+function parseMeasureLocations(text, byFirstWord, gazetteer) {
+  const subject = measureSubject(text);
   const hits = mentions(subject, byFirstWord);
   const used = new Set();
   const remainingStreets = () => hits.filter(hit => hit.entry.kind === 'street' && !used.has(hit));
@@ -266,11 +290,16 @@ function parseMeasureLocations(text, byFirstWord, gazetteer) {
   ];
 }
 
-function measureLocations(record, byFirstWord, gazetteer, limit) {
+function measureLocations(record, byFirstWord, gazetteer, limit, requireHannoverScope = false) {
   const document = (Array.isArray(record.locationEvidence) ? record.locationEvidence : [])
     .filter(paragraph => typeof paragraph === 'string' && paragraph.trim()).flatMap(paragraph =>
     paragraph.split(/(?<=[.!?])\s+(?=[\p{Lu}„])/u));
-  const evidence = [...document.map(text => ({ source: 'document', text })), { source: 'title', text: record.title }];
+  const allEvidence = [...document.map(text => ({ source: 'document', text })), { source: 'title', text: record.title }];
+  // Scope stays with its original sentence/line, including multi-sentence
+  // titles. A publisher, heading or another paragraph cannot license a street.
+  const evidence = requireHannoverScope ? allEvidence.flatMap(proof => typeof proof.text === 'string'
+    ? proof.text.split(/(?<=[.!?])\s+(?=[\p{Lu}„])|[\r\n]+/u).map(text => ({ source: proof.source, text })) : [])
+    .filter(proof => hannoverLocationScope(proof.text, byFirstWord)) : allEvidence;
   const locations = new Map();
   const reasons = new Set();
   const general = [];
@@ -307,7 +336,7 @@ function measureLocations(record, byFirstWord, gazetteer, limit) {
     selected = selected.map(found => found.kind === 'address'
       ? { kind: found.kind, label: found.label, evidence: found.evidence } : found);
   }
-  return { locations: selected, truncated, reasons: [...reasons] };
+  return { locations: selected, truncated, reasons: [...reasons], gazetteerApplicable: !requireHannoverScope || evidence.length > 0 };
 }
 
 /**
@@ -332,18 +361,19 @@ function enrichRisLocations(records, { city, gazetteer, maxLocationsPerRecord = 
       sources.push('document');
     }
     if (official) sources.push('official');
-    const reasons = [];
-    if (!byFirstWord) reasons.push('gazetteer_unavailable');
-    if (record.locationEvidenceUnavailable === true) reasons.push('document_text_unavailable');
-    if (record.locationEvidenceTruncated === true) reasons.push('evidence_truncated');
     // The legacy format reserves one slot for official geometry. Partitioned
     // publication pages locations and can retain every identified mention.
-    const result = byFirstWord ? measureLocations(record, byFirstWord, gazetteer, maxLocationsPerRecord - Number(official))
-      : { locations: [], truncated: false, reasons: [] };
+    const result = byFirstWord ? measureLocations(record, byFirstWord, gazetteer, maxLocationsPerRecord - Number(official),
+      city === 'hannover' && record.source === 'region-hannover-ris')
+      : { locations: [], truncated: false, reasons: [], gazetteerApplicable: false };
+    const reasons = [];
+    if (!result.gazetteerApplicable) reasons.push('gazetteer_unavailable');
+    if (record.locationEvidenceUnavailable === true) reasons.push('document_text_unavailable');
+    if (record.locationEvidenceTruncated === true) reasons.push('evidence_truncated');
     reasons.push(...result.reasons);
-    if (byFirstWord && !official && !result.locations.length && !reasons.includes('unverified_name')) reasons.push('no_specific_location');
+    if (result.gazetteerApplicable && !official && !result.locations.length && !reasons.includes('unverified_name')) reasons.push('no_specific_location');
     const mapped = official || result.locations.some(found => validLocationGeometry(found.geometry, found.kind));
-    const status = mapped ? (reasons.length ? 'partial' : 'mapped') : (byFirstWord ? 'unresolved' : 'unavailable');
+    const status = mapped ? (reasons.length ? 'partial' : 'mapped') : (result.gazetteerApplicable ? 'unresolved' : 'unavailable');
     const assessed = { ...record, locations: result.locations, locationAssessment: {
       status, sources, reasons: [...new Set(reasons)], truncated: record.locationEvidenceTruncated === true || result.truncated,
     } };
