@@ -20,7 +20,8 @@ const cp = require('node:child_process');
 const { EventEmitter, once } = require('node:events');
 const [gatePath, logPath, mode] = process.argv.slice(1);
 const originalRequire = createRequire(gatePath);
-let server, log;
+let server, log, logIdentity;
+let logCloseVerified = false, logDescriptorReused = false;
 const localRequire = name => {
   if (name === 'node:child_process') return { ...cp, spawn() {
     server = cp.spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
@@ -35,7 +36,21 @@ const localRequire = name => {
   } };
   if (name === 'node:fs') return { ...fs, mkdirSync() {}, openSync() {
     log = fs.openSync(logPath, 'w');
+    logIdentity = fs.fstatSync(log);
     return log;
+  }, closeSync(fd) {
+    const identity = fs.fstatSync(fd);
+    const isLog = fd === log && identity.dev === logIdentity.dev && identity.ino === logIdentity.ino;
+    fs.closeSync(fd);
+    if (isLog) logCloseVerified = true;
+    if (isLog && mode.endsWith('-reuse')) {
+      // Deterministically model an unrelated native operation reusing the freed
+      // descriptor before a lazy stdout/stderr continuation observes it.
+      const replacement = fs.openSync(logPath + '.replacement', 'w');
+      const other = fs.fstatSync(replacement);
+      logDescriptorReused = replacement === fd
+        && (identity.dev !== other.dev || identity.ino !== other.ino);
+    }
   } };
   return originalRequire(name);
 };
@@ -49,7 +64,10 @@ process.on('exit', () => {
   if (server && server.exitCode === null && server.signalCode === null) server.kill('SIGKILL');
 });
 function logClosed() {
-  try { fs.fstatSync(log); return false; } catch (error) { return error.code === 'EBADF'; }
+  // Descriptor numbers are reusable; stdout/stderr initialization may already
+  // have assigned this number to another resource by the time we report.
+  // This proof is set only after native close succeeds on the original inode.
+  return logCloseVerified;
 }
 async function main() {
   if (mode === 'already-exited' || mode === 'stubborn') {
@@ -67,12 +85,12 @@ async function main() {
     return;
   }
   await withSiteServer(async () => {
-    if (mode === 'failure') throw new Error('browser gate failure must propagate');
+    if (mode.startsWith('failure')) throw new Error('browser gate failure must propagate');
   });
-  process.stdout.write(JSON.stringify({ completed: true, logClosed: logClosed(), signal: server.signalCode }) + '\n');
+  process.stdout.write(JSON.stringify({ completed: true, logClosed: logClosed(), ...(mode.endsWith('-reuse') ? { logDescriptorReused } : {}), signal: server.signalCode }) + '\n');
 }
 main().catch(error => {
-  process.stderr.write(JSON.stringify({ error: error.message, logClosed: logClosed(), signal: server?.signalCode }) + '\n');
+  process.stderr.write(JSON.stringify({ error: error.message, logClosed: logClosed(), ...(mode.endsWith('-reuse') ? { logDescriptorReused } : {}), signal: server?.signalCode }) + '\n');
   process.exitCode = 1;
 });
 `;
@@ -121,4 +139,14 @@ test('cleanup still escalates when the server ignores SIGTERM', () => {
   expect(result.status).toBe(0);
   expect(result.stdout.trim()).not.toBe('');
   expect(JSON.parse(result.stdout)).toEqual({ completed: true, signal: 'SIGKILL' });
+}, 15000);
+
+// Break caught: a late fstat on a recycled numeric descriptor mistakes a new
+// file for the log that the gate already closed successfully.
+test.each(['failure', 'success'])('log closure proof survives descriptor reuse after %s', outcome => {
+  const result = runLifecycle(`${outcome}-reuse`);
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(outcome === 'failure' ? 1 : 0);
+  const report = JSON.parse(outcome === 'failure' ? result.stderr : result.stdout);
+  expect(report).toMatchObject({ logClosed: true, logDescriptorReused: true, signal: 'SIGTERM' });
 }, 15000);
