@@ -170,9 +170,28 @@ Kölner Probelauf und seine Grenzen sind in
 [koeln-kfz-link-csv-provider.md](koeln-kfz-link-csv-provider.md) dokumentiert.
 Der veröffentlichte Standardbestand wurde damit nicht auf Zählwerte umgestellt.
 
-Für die vollständige Abnahme von #413 fehlen weiterhin zusätzliche unabhängig
-gegen Originaldaten geprüfte Zählquellen, darunter ein überregionaler Bestand,
-und die fachliche Abnahme der schwachen oder gemeinsam zugeordneten
-Straßensegmente. Die generischen Berliner Source-Descriptoren oben ersetzen
-keine geprüften WFS/GML-/XLSX-Importe und zählen nicht als real aktivierte Quellen.
+Ein weiterer optionaler, tatsächlich gegen Originalbytes geprüfter Provider
+importiert die überregionalen BASt-Jahres-DTV 2023 einschließlich amtlicher
+WGS84-Stationspunkte. Er erhält 4.671 getrennte Querschnitts-/Richtungsbeobachtungen
+aus 1.557 Stationen; weitere 559 Stationen besitzen keine Kfz-Jahreswerte.
+Er führt kein Straßenmatching und keine Produktionsaktivierung aus. Siehe
+[BASt-Jahres-DTV-Provider](bast-annual-dtv-provider.md).
+
+Der ebenfalls optionale [Düsseldorfer Stundenwert-Pilot](duesseldorf-bicycle-hourly-provider.md)
+erhält 17.566 richtungsgetrennte Fahrrad-Stundenwerte der Station Mannesmannufer
+für 2024 mit separat belegtem amtlichem Stationspunkt. Er ergänzt Köln als
+zweite gegen Originaldaten geprüfte kommunale Quelle. Jahres-DTV und
+Fahrrad-Stundenwerte bleiben unterschiedliche Messgrößen; dieser Quellenbaustein
+behauptet keine Straßenpassung oder vollständige Abnahme von #413.
+
+Für die vollständige Abnahme von #413 fehlen weiterhin:
+
+- die fachliche Abnahme schwacher oder gemeinsam zugeordneter Straßensegmente;
+- Coverage-Bericht, Frischeprüfung und sichtbare Warnung bei alten Messständen;
+- die Übernahme ausgewählter Evidenz in Unfall-GeoJSON, Way-Tiles, Sidecar,
+  Popups und Exporte;
+- manuell gegen die Originalquellen geprüfte Goldfälle.
+
+Die generischen Berliner Source-Descriptoren oben ersetzen keine geprüften
+WFS/GML-/XLSX-Importe und zählen nicht als real aktivierte Quellen.
 Die Provider bleiben opt-in; der ausgelieferte Standardbestand bleibt qualitativ.
