@@ -495,8 +495,8 @@ async function assertVideoAnalysisState(page, expected) {
     }
   };
   if (expected.layers.slope) {
-    if (!visibleLegendText.some(text => text.includes('Straßensteigung'))) {
-      mismatches.push('layers.slope: visible Straßensteigung legend is missing');
+    if (!visibleLegendText.some(text => text.includes('Gelände / geprüfte Straßenprofile'))) {
+      mismatches.push('layers.slope: visible Gelände / geprüfte Straßenprofile legend is missing');
     }
     assertContextOwnership('slope');
   }

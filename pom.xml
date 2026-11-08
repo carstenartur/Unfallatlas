@@ -156,6 +156,65 @@
     </build>
 
     <profiles>
+        <!-- Public OParl acceptance only; never enable every live probe. -->
+        <profile>
+            <id>bonn-oparl-live</id>
+            <properties>
+                <bonn.oparl.scope>snapshot</bonn.oparl.scope>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <version>${maven-enforcer-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>validate-bonn-oparl-scope</id>
+                                <phase>validate</phase>
+                                <goals><goal>enforce</goal></goals>
+                                <configuration>
+                                    <rules>
+                                        <requireProperty>
+                                            <property>bonn.oparl.scope</property>
+                                            <regex>^(snapshot|archive)$</regex>
+                                            <message>bonn.oparl.scope must be snapshot or archive.</message>
+                                        </requireProperty>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>frontend-unit-tests</id>
+                                <configuration>
+                                    <arguments>test -- --runTestsByPath tests/unit/bonnPoliticalContextLive.test.js --runInBand</arguments>
+                                    <environmentVariables>
+                                        <BONN_OPARL_LIVE>1</BONN_OPARL_LIVE>
+                                        <BONN_OPARL_LIVE_SCOPE>${bonn.oparl.scope}</BONN_OPARL_LIVE_SCOPE>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>frontend-integration-tests</id>
+                                <configuration><skip>true</skip></configuration>
+                            </execution>
+                            <execution>
+                                <id>frontend-performance-tests</id>
+                                <configuration><skip>true</skip></configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>repository-storage</id>
             <build>

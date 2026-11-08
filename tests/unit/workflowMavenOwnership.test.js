@@ -113,6 +113,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
         '-Dcontext.city=Hannover',
       ],
       'docker-publish.yml': ['-Pvideo-export-it', '-Prelease-site'],
+      'bonn-oparl-live.yml': ['-N test -Pbonn-oparl-live'],
       'rendered-document-poppler.yml': ['-Pdocument-render'],
       'enrich.yml': ['-Pcontext-data-e2e'],
       'generate-screenshots.yml': ['-Pdocumentation-live'],
@@ -136,6 +137,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
     const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
     for (const profile of [
       'repository-storage',
+      'bonn-oparl-live',
       'pages',
       'pages-regenerated',
       'e2e',

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const {
   SOURCE_BADGE_ID,
   SOURCE_BADGE_RECORDING_HOLD_MS,
@@ -73,6 +74,38 @@ function fakePage(capture = validCapture()) {
 }
 
 describe('media SourceManifest browser capture', () => {
+  test.each(['capture-first', 'task-first'])('keeps %s rejection inside the export boundary instead of terminating Node', order => {
+    const script = `
+      const { runWithMediaProvenanceCapture, attachPageToMediaProvenanceCapture } =
+        require(${JSON.stringify(require.resolve('../../server/media-provenance-capture'))});
+      const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+      const page = {
+        goto: async () => ({}),
+        waitForSelector: async () => { await pause(${order === 'capture-first' ? 0 : 30}); throw new Error('capture closed'); },
+      };
+      (async () => {
+        let observed;
+        try {
+          await runWithMediaProvenanceCapture({}, async () => {
+            attachPageToMediaProvenanceCapture(page, { error() {} });
+            await page.goto('http://localhost/');
+            ${order === 'capture-first' ? "await pause(30); return {};" : "throw new Error('primary export failure');"}
+          });
+        } catch (error) { observed = error.message; }
+        await pause(60);
+        if (observed !== ${JSON.stringify(order === 'capture-first' ? 'capture closed' : 'primary export failure')}) {
+          throw new Error('wrong export failure: ' + observed);
+        }
+        process.stdout.write('export failure retained; process survived');
+      })().catch(error => { console.error(error); process.exitCode = 2; });
+    `;
+    const result = spawnSync(process.execPath, ['--unhandled-rejections=strict', '-e', script], {
+      encoding: 'utf8', timeout: 5000,
+    });
+    expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: '' });
+    expect(result.stdout).toContain('export failure retained; process survived');
+  });
+
   test('builds the visible source label only from the captured manifest', () => {
     const manifest = validManifest();
     const hash = 'd'.repeat(64);

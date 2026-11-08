@@ -272,14 +272,14 @@ class ProductionContainerIT {
                     });
                     if (result.canvases > 0 && result.opaquePixels > 100
                         && result.legendCount === 2
-                        && result.legendText.includes('Straßensteigung')
+                        && result.legendText.includes('Gelände / geprüfte Straßenprofile')
                         && result.legendText.includes('Verkehrsbelastung')) break;
                     await page.waitForTimeout(250);
                   }
                   await browser.close();
                   if (!result || result.canvases < 1 || result.opaquePixels <= 100
                       || result.legendCount !== 2
-                      || !result.legendText.includes('Straßensteigung')
+                      || !result.legendText.includes('Gelände / geprüfte Straßenprofile')
                       || !result.legendText.includes('Verkehrsbelastung')
                       || errors.length) {
                     throw new Error('Visible context contract failed: ' + JSON.stringify({ result, errors }));

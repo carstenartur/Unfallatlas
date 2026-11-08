@@ -169,7 +169,7 @@ test.describe('Generated context data – browser end to end', () => {
     const visibleLegends = page.locator('.context-road-legend:visible');
     await expect.poll(() => visibleLegends.count(), { timeout: 30_000 }).toBe(2);
     const legendText = (await visibleLegends.allTextContents()).join(' ');
-    expect(legendText).toMatch(/Straßensteigung/);
+    expect(legendText).toContain('Gelände / geprüfte Straßenprofile');
     expect(legendText).toMatch(/Verkehrsbelastung/);
 
     await attachDiagnostics(rendered);
