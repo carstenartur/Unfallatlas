@@ -1,0 +1,28 @@
+{
+  "source": "Stadt Köln original PRJ + SHP record8 / segment2071",
+  "sourceZipSha256": "5672f1b61777ccbd5a1db6555dddf7c61a009eb161b13d4c7cbe530de9299238",
+  "sourcePrjSha256": "dbc190580b141d88014eb57cbcb574fc4e38b339e3a97d4fdd28ecfcaad71a84",
+  "referenceLibrary": "pyproj 3.7.2",
+  "projVersion": "9.5.1",
+  "referenceCreatedAt": "2026-11-08T16:38:05.554748+00:00",
+  "sourceWkt": "PROJCS[\"DHDN_3_Degree_Gauss_Zone_2_TOWGS\",GEOGCS[\"GCS_Deutsche_Hauptdreiecksnetz\",DATUM[\"D_Deutsche_Hauptdreiecksnetz\",SPHEROID[\"Bessel_1841\",6377397.155,299.1528128],TOWGS84[598.1,73.7,418.2,0.202,0.045,-2.455,0.0000067]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Gauss_Kruger\"],PARAMETER[\"False_Easting\",2500000.0],PARAMETER[\"False_Northing\",0.0],PARAMETER[\"Central_Meridian\",6.0],PARAMETER[\"Scale_Factor\",1.0],PARAMETER[\"Latitude_Of_Origin\",0.0],UNIT[\"Meter\",1.0]]",
+  "axisOrder": "always_xy easting,northing -> longitude,latitude",
+  "operation": "proj=pipeline step inv proj=tmerc lat_0=0 lon_0=6 k=1 x_0=2500000 y_0=0 ellps=bessel step proj=push v_3 step proj=cart ellps=bessel step proj=helmert x=598.1 y=73.7 z=418.2 rx=0.202 ry=0.045 rz=-2.455 s=6.7e-06 convention=position_vector step inv proj=cart ellps=WGS84 step proj=pop v_3 step proj=unitconvert xy_in=rad xy_out=deg",
+  "declaredAccuracyMeters": null,
+  "points": [
+    {
+      "id": "2071:16545002",
+      "x": 2565116.0072578946,
+      "y": 5645006.496499569,
+      "lon": 6.925757259654093,
+      "lat": 50.93664088581797
+    },
+    {
+      "id": "2071:16545007",
+      "x": 2565288.9107204815,
+      "y": 5645004.956156918,
+      "lon": 6.92821640404125,
+      "lat": 50.936607504165906
+    }
+  ]
+}

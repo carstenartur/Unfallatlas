@@ -102,8 +102,10 @@
       const v = pr && pr.slope_class;
       if (!v || !slopeSel.has(String(v))) return false;
     }
-    if (trafficSel && trafficSel.size > 0 && capOk('hasTrafficProxy')) {
-      const v = pr && pr.traffic_proxy_class;
+    if (trafficSel && trafficSel.size > 0 && (capOk('hasTrafficProxy') || capOk('hasTrafficEvidence'))) {
+      const typed = UA.trafficProvider && UA.trafficProvider.hasUsableTypedEvidence(pr);
+      const v = typed ? UA.trafficProvider.classifyTrafficValue(pr.traffic_volume_value)
+        : pr && pr.traffic_proxy_class;
       if (!v || !trafficSel.has(String(v))) return false;
     }
     if (onlyMatched && capOk('hasOsmContext')) {

@@ -1,0 +1,387 @@
+{
+  "schemaVersion": 1,
+  "description": "Bounded, unmodified original XYZ height rows selected spatially from official sample; automated numerical references, not manual QGIS/field validation.",
+  "dgmSourceUrl": "https://www.hannover.de/content/download/641403/file/Testdaten_DGM1.zip",
+  "dgmArchiveSha256": "e04bcbee1800eac23b580b94f9c245a0f6829fa2cca3ccd07512052fcf9726a5",
+  "dgmLicense": "CC-BY-4.0",
+  "requiredAttribution": "Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026)",
+  "acquisitionYear": 2010,
+  "publicationDate": "2024-01-15",
+  "verticalDatum": null,
+  "osmSourceUrl": "https://api.openstreetmap.org/api/0.6/map?bbox=9.73153,52.36529,9.74404,52.37097",
+  "osmLicense": "ODbL-1.0",
+  "osmAttribution": "© OpenStreetMap contributors",
+  "osmRetrievedAt": "2026-11-08T16:34:16.000Z",
+  "dgmRetrievedAt": "2026-11-08T16:30:41.000Z",
+  "cases": [
+    {
+      "kind": "flat",
+      "wayId": "4697937",
+      "name": "Friedrichswall",
+      "osmUrl": "https://www.openstreetmap.org/way/4697937",
+      "originalTags": {
+        "bicycle": "use_sidepath",
+        "cycleway:left": "no",
+        "cycleway:right": "separate",
+        "dual_carriageway": "yes",
+        "highway": "secondary",
+        "lanes": "3",
+        "lit": "yes",
+        "maxspeed": "50",
+        "maxspeed:type": "DE:urban",
+        "name": "Friedrichswall",
+        "name:etymology:wikidata": "Q213573",
+        "oneway": "yes",
+        "parking:both": "no",
+        "ref": "L 384",
+        "sidewalk:left": "no",
+        "sidewalk:right": "separate",
+        "surface": "asphalt",
+        "wikidata": "Q1464397"
+      },
+      "originalVersion": "53",
+      "originalTimestamp": "2025-12-13T15:48:08Z",
+      "geometry": [
+        {
+          "lat": 52.3683121,
+          "lon": 9.7413382
+        },
+        {
+          "lat": 52.3683156,
+          "lon": 9.7411943
+        },
+        {
+          "lat": 52.3683139,
+          "lon": 9.7409068
+        },
+        {
+          "lat": 52.3682989,
+          "lon": 9.7405651
+        },
+        {
+          "lat": 52.3682932,
+          "lon": 9.7404735
+        },
+        {
+          "lat": 52.3682733,
+          "lon": 9.7402673
+        },
+        {
+          "lat": 52.3682591,
+          "lon": 9.740149
+        }
+      ],
+      "anchor": {
+        "lat": 52.368306623320436,
+        "lon": 9.740741037239593
+      },
+      "expected": {
+        "20": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": 0.1,
+            "profileLengthMeters": 40,
+            "sampleCount": 41,
+            "residualMadMeters": 0.014,
+            "uncertaintyPercent": 0.2,
+            "quality": "high",
+            "usable": true,
+            "uncertaintyReasons": []
+          }
+        },
+        "50": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": 0,
+            "profileLengthMeters": 81.3,
+            "sampleCount": 83,
+            "residualMadMeters": 0.017,
+            "uncertaintyPercent": 0.2,
+            "quality": "high",
+            "usable": true,
+            "uncertaintyReasons": []
+          }
+        }
+      },
+      "grid": {
+        "crs": "EPSG:25832",
+        "resolutionMeters": 1,
+        "minEasting": 550391.5,
+        "maxEasting": 550477.5,
+        "minNorthing": 5802254.5,
+        "maxNorthing": 5802266.5,
+        "maxCells": 1131
+      },
+      "file": "flat.xyz",
+      "sha256": "ecfc5295e71826dbd6804c015c71add15dae848f1c15eaee8dac607838636327",
+      "bytes": 28094,
+      "pointCount": 1131
+    },
+    {
+      "kind": "slope",
+      "wayId": "6138345",
+      "name": "Hardenbergstraße",
+      "osmUrl": "https://www.openstreetmap.org/way/6138345",
+      "originalTags": {
+        "cycleway:both": "no",
+        "highway": "residential",
+        "lane_markings": "no",
+        "lit": "yes",
+        "maxspeed:type": "DE:urban",
+        "name": "Hardenbergstraße",
+        "name:etymology:wikidata": "Q213645",
+        "oneway": "no",
+        "parking:left": "no",
+        "parking:right": "street_side",
+        "parking:right:orientation": "perpendicular",
+        "sidewalk": "right",
+        "sidewalk:right:surface": "paving_stones",
+        "smoothness": "bad",
+        "surface": "paved",
+        "surface:left": "sett",
+        "surface:right": "asphalt",
+        "wikidata": "Q100272794"
+      },
+      "originalVersion": "17",
+      "originalTimestamp": "2026-09-11T13:08:55Z",
+      "geometry": [
+        {
+          "lat": 52.3671201,
+          "lon": 9.7335317
+        },
+        {
+          "lat": 52.3671459,
+          "lon": 9.7339754
+        },
+        {
+          "lat": 52.3671486,
+          "lon": 9.7340215
+        }
+      ],
+      "anchor": {
+        "lat": 52.367134340383366,
+        "lon": 9.733776601476798
+      },
+      "expected": {
+        "20": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": 2.9,
+            "profileLengthMeters": 33.4,
+            "sampleCount": 35,
+            "residualMadMeters": 0.008,
+            "uncertaintyPercent": 0.2,
+            "quality": "high",
+            "usable": true,
+            "uncertaintyReasons": []
+          }
+        },
+        "50": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": 2.9,
+            "profileLengthMeters": 33.4,
+            "sampleCount": 35,
+            "residualMadMeters": 0.008,
+            "uncertaintyPercent": 0.2,
+            "quality": "high",
+            "usable": true,
+            "uncertaintyReasons": []
+          }
+        }
+      },
+      "grid": {
+        "crs": "EPSG:25832",
+        "resolutionMeters": 1,
+        "minEasting": 549942.5,
+        "maxEasting": 549980.5,
+        "minNorthing": 5802122.5,
+        "maxNorthing": 5802131.5,
+        "maxCells": 390
+      },
+      "file": "slope.xyz",
+      "sha256": "107ced8a9ffa0c4f437b879eb2e836005e01055659d9ef15743415d9fea14b13",
+      "bytes": 9702,
+      "pointCount": 390
+    },
+    {
+      "kind": "structure",
+      "wayId": "24011492",
+      "name": "Friederikenbrücke",
+      "osmUrl": "https://www.openstreetmap.org/way/24011492",
+      "originalTags": {
+        "bridge": "yes",
+        "covered": "no",
+        "highway": "path",
+        "layer": "1",
+        "name": "Friederikenbrücke",
+        "surface": "sett",
+        "width": "5",
+        "wikidata": "Q1457131",
+        "wikimedia_commons": "Category:Friederikenbrücke über den Klickmühlenarm (Hannover)",
+        "wikipedia": "de:Friederikenbrücke (Leine)"
+      },
+      "originalVersion": "15",
+      "originalTimestamp": "2024-01-18T11:44:19Z",
+      "geometry": [
+        {
+          "lat": 52.3694761,
+          "lon": 9.7334023
+        },
+        {
+          "lat": 52.369719,
+          "lon": 9.7337496
+        }
+      ],
+      "anchor": {
+        "lat": 52.36959755,
+        "lon": 9.733575949999999
+      },
+      "expected": {
+        "20": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": null,
+            "profileLengthMeters": 35.8,
+            "sampleCount": 37,
+            "residualMadMeters": 0.148,
+            "uncertaintyPercent": 1.2,
+            "quality": "unusable",
+            "usable": false,
+            "uncertaintyReasons": [
+              "bridge_surface_not_represented_by_dtm",
+              "non_ground_osm_layer"
+            ]
+          }
+        },
+        "50": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": null,
+            "profileLengthMeters": 35.8,
+            "sampleCount": 37,
+            "residualMadMeters": 0.148,
+            "uncertaintyPercent": 1.2,
+            "quality": "unusable",
+            "usable": false,
+            "uncertaintyReasons": [
+              "bridge_surface_not_represented_by_dtm",
+              "non_ground_osm_layer"
+            ]
+          }
+        }
+      },
+      "grid": {
+        "crs": "EPSG:25832",
+        "resolutionMeters": 1,
+        "minEasting": 549930.5,
+        "maxEasting": 549958.5,
+        "minNorthing": 5802384.5,
+        "maxNorthing": 5802417.5,
+        "maxCells": 986
+      },
+      "file": "structure.xyz",
+      "sha256": "ab12561f732c4a2b87ef2e4dbb050eb4dd4eead222988e468a1154a40285ee36",
+      "bytes": 24544,
+      "pointCount": 986
+    },
+    {
+      "kind": "slope-fullarchive",
+      "wayId": "23101052",
+      "name": "Am Lindener Berge",
+      "osmUrl": "https://www.openstreetmap.org/way/23101052",
+      "originalTags": {
+        "highway": "residential",
+        "maxspeed": "30",
+        "name": "Am Lindener Berge",
+        "name:etymology:wikidata": "Q1644422",
+        "sidewalk": "left",
+        "surface": "sett",
+        "traffic_sign": "DE:274.1[30]",
+        "wikidata": "Q98280558",
+        "zone:maxspeed": "DE:30"
+      },
+      "originalVersion": "17",
+      "originalTimestamp": "2026-07-06T21:17:01Z",
+      "geometry": [
+        {
+          "lat": 52.3627224,
+          "lon": 9.7051522
+        },
+        {
+          "lat": 52.3628571,
+          "lon": 9.7055653
+        },
+        {
+          "lat": 52.3629148,
+          "lon": 9.7057351
+        },
+        {
+          "lat": 52.3630575,
+          "lon": 9.7059562
+        },
+        {
+          "lat": 52.3631762,
+          "lon": 9.7061037
+        },
+        {
+          "lat": 52.3635333,
+          "lon": 9.7065289
+        }
+      ],
+      "anchor": {
+        "lat": 52.36305316855961,
+        "lon": 9.705949488847441
+      },
+      "expected": {
+        "20": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": -4.8,
+            "profileLengthMeters": 40,
+            "sampleCount": 41,
+            "residualMadMeters": 0.019,
+            "uncertaintyPercent": 0.2,
+            "quality": "high",
+            "usable": true,
+            "uncertaintyReasons": []
+          }
+        },
+        "50": {
+          "status": "computed",
+          "result": {
+            "gradientPercent": -4.4,
+            "profileLengthMeters": 100,
+            "sampleCount": 101,
+            "residualMadMeters": 0.073,
+            "uncertaintyPercent": 0.2,
+            "quality": "high",
+            "usable": true,
+            "uncertaintyReasons": []
+          }
+        }
+      },
+      "sourceUrl": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_Mitte.zip",
+      "dgmRetrievedAt": "2026-11-08T16:41:39.000Z",
+      "archiveEtag": "\"b0cc8a1-6125653e0e900\"",
+      "originalEntryNames": [
+        "4801A.xyz"
+      ],
+      "extraction": "Sparse selection of unmodified original rows for exact interpolation neighbours of 1m reference samples; missing unrelated cells remain NoData.",
+      "file": "slope-fullarchive.xyz",
+      "sha256": "358ffe7027a8f6e1b0b83ab673fb21f5d9f5878a4bbeae64aade3d40931f351d",
+      "bytes": 8695,
+      "pointCount": 235,
+      "grid": {
+        "crs": "EPSG:25832",
+        "resolutionMeters": 1,
+        "minEasting": 548030.5,
+        "maxEasting": 548100.5,
+        "minNorthing": 5801623.5,
+        "maxNorthing": 5801694.5,
+        "maxCells": 5112
+      },
+      "originalEntrySha256": "3e18321cdc82fd890e4c0060e0d82d5561d9ce58c4e7cdb7eebba1bf950e1ddf"
+    }
+  ]
+}

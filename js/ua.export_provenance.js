@@ -17,7 +17,9 @@
       : root?.UA?.zip;
   const traffic = typeof module !== "undefined" && module.exports
     ? require("./ua.traffic_provider") : root?.UA?.trafficProvider;
-  const api = factory(sourceManifest, artifactProvenance, zip, traffic);
+  const elevation = typeof module !== "undefined" && module.exports
+    ? require("./ua.elevation_provider") : root?.UA?.elevationProvider;
+  const api = factory(sourceManifest, artifactProvenance, zip, traffic, elevation);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) {
     const UA = (root.UA = root.UA || {});
@@ -29,6 +31,7 @@
   artifactProvenance,
   zip,
   traffic,
+  elevation,
 ) {
   "use strict";
 
@@ -135,11 +138,37 @@
     }
     const bounds = ctx?.selectionBounds || ctx?.map?.getBounds?.() || null;
     const points = [];
+    const projectionCache = new WeakMap();
     for (const point of ctx?.allPts || []) {
       if (!point || !point.props) continue;
       if (hasFilterFunction && !UA.matchesNonInvolvementFilters(ctx, point.props)) continue;
       if (!pointInside(point, bounds)) continue;
-      points.push(point);
+      let props = projectionCache.get(point.props);
+      if (!props) {
+        let selectedWay = null;
+        const state = ctx?.contextLayerState;
+        const wayId = point.props.matched_way_id;
+        if (state && wayId) {
+          try {
+            if (typeof UA?.contextLayers?.resolveWayAcrossTiles === 'function') {
+              selectedWay = UA.contextLayers.resolveWayAcrossTiles(state, wayId);
+            } else if (typeof UA?.contextLayers?.resolveWay === 'function') {
+              selectedWay = UA.contextLayers.resolveWay(state, wayId);
+            } else if (state.ways?.[wayId]) {
+              selectedWay = Object.fromEntries(Object.entries(state.ways[wayId]).map(([key, value]) => {
+                const dictionary = state.dicts?.[key];
+                return [key, Array.isArray(dictionary) && Number.isInteger(value) && value >= 0 && value < dictionary.length
+                  ? dictionary[value] : value];
+              }));
+            }
+          } catch (_) { /* same missing-cache boundary as the popup */ }
+        }
+        const api = UA?.elevationProvider || elevation;
+        if (!api?.projectSelectedWayEvidence) fail('missing_dependency', 'Selected Way evidence projection is unavailable');
+        props = api.projectSelectedWayEvidence(point.props, selectedWay);
+        projectionCache.set(point.props, props);
+      }
+      points.push({ ...point, props });
     }
     return points;
   }
@@ -176,7 +205,7 @@
     const proxy = (p.traffic_measurement_type === 'proxy' || !p.traffic_measurement_type) &&
       ['low', 'medium', 'high', 'very_high'].includes(p.traffic_proxy_class);
     return Object.fromEntries(Object.keys(p).sort().filter(key =>
-      /^(elevation_m$|slope_|road_slope_)/.test(key) ||
+      /^(matched_way_id$|elevation_m$|slope_|road_slope_)/.test(key) ||
       (typedTraffic && /^traffic_/.test(key)) ||
       (proxy && ['traffic_measurement_type', 'traffic_proxy_class', 'traffic_proxy_basis',
         'traffic_volume_source', 'traffic_volume_confidence'].includes(key))
@@ -187,10 +216,18 @@
     const rows = normalizedPoints.filter(point => point.context);
     const available = ctx?.contextLayerState?.meta?.sources || {};
     const result = {};
-    if (rows.some(point => Object.keys(point.context).some(key => /^(elevation_m$|slope_|road_slope_)/.test(key)))) {
+    if (rows.some(point => Object.keys(point.context).some(key => /^(elevation_m$|slope_)/.test(key)))) {
       if (available.dem) result.dem = available.dem;
-      if (available.roadSlope) result.roadSlope = available.roadSlope;
     }
+    if (available.roadSlope && rows.some(point => {
+      const p = point.context;
+      if (!Object.keys(p).some(key => key.startsWith('road_slope_') && p[key] !== undefined && p[key] !== null && p[key] !== '')) return false;
+      const id = available.roadSlope.sourceId || available.roadSlope.source?.id;
+      if (id && id !== p.road_slope_source_id) return false;
+      if (p.road_slope_manifest_sha256 && available.roadSlope.manifestSha256 !== p.road_slope_manifest_sha256) return false;
+      if (p.road_slope_distribution_sha256 && available.roadSlope.distributionSha256 !== p.road_slope_distribution_sha256) return false;
+      return true;
+    })) result.roadSlope = available.roadSlope;
     if (rows.some(point => point.context.traffic_evidence) && available.trafficMatched) result.trafficMatched = available.trafficMatched;
     if (rows.some(point => point.context.traffic_proxy_class) && available.traffic) result.traffic = available.traffic;
     return result;
@@ -322,7 +359,11 @@
       if (sourceManifest.stableStringify(exported) !== sourceManifest.stableStringify(expected)) {
         fail('context_export_population_mismatch', `GeoJSON context population differs at feature ${index}`);
       }
-      feature.properties = { ...(feature.properties || {}), ...context };
+      const ordinary = { ...(feature.properties || {}) };
+      for (const key of Object.keys(ordinary)) {
+        if (/^(matched_way_id$|elevation_m$|slope_|road_slope_|traffic_)/.test(key)) delete ordinary[key];
+      }
+      feature.properties = { ...ordinary, ...context };
     });
     return collection;
   }
@@ -403,7 +444,7 @@
       return sourceManifest.normalizeManifest(ctx.exportSourceManifest);
     }
 
-    const points = exportPoints(UA, ctx);
+    const points = environment.projectedPoints || exportPoints(UA, ctx);
     const city = String(ctx?.CITY_RAW || "").trim();
     if (!city) fail("missing_city", "A city is required for export provenance");
     const filters = scenarioFilters(ctx);
@@ -424,7 +465,9 @@
       ),
     ].sort((left, right) => left - right);
     const contextSources = typedContextSources(normalizedPoints);
-    const contextFacts = contextSourceFacts(ctx, normalizedPoints);
+    // Source metadata and selected Way evidence must describe the same frozen
+    // data snapshot even if a lazy context load completes during hashing.
+    const contextFacts = JSON.parse(sourceManifest.stableStringify(contextSourceFacts(ctx, normalizedPoints)));
     const contextPoints = normalizedPoints.filter(point => point.context);
     const dataSnapshot = { city, bounds, filters, years, points: normalizedPoints,
       ...(contextPoints.length ? { contextSources: contextFacts } : {}) };
@@ -437,6 +480,9 @@
       cached.dataFingerprint === dataFingerprint &&
       cached.buildFingerprint === appFingerprint
     ) {
+      // Population order may change without changing the canonical data hash.
+      // Retain the currently selected order for an outer wrapper's bound export.
+      cached.projectedPoints = points;
       return cached.manifest;
     }
 
@@ -515,6 +561,7 @@
       dataFingerprint,
       buildFingerprint: appFingerprint,
       manifest: normalized,
+      projectedPoints: points,
     });
     return normalized;
   }
@@ -629,10 +676,15 @@
 
     UA.exportToGeoJSON = function exportToGeoJsonWithProvenance(ctx) {
       return guarded(async () => {
-        const manifest = await createManifest(ctx, { UA, root });
+        // Bind one projected snapshot before any async export step; loaded Way
+        // rows may change later, but the emitted payload must match its hash.
+        const bound = ctx?.exportSourceManifest && manifestCache.get(ctx);
+        const points = bound && bound.dataFingerprint === ctx?.exportSourceManifest?.dataFingerprint
+          ? bound.projectedPoints : exportPoints(UA, ctx);
+        const manifest = await createManifest(ctx, { UA, root, projectedPoints: points });
         const captured = await captureOriginalExport(root, originals.geojson, ctx);
         const parsed = JSON.parse(await readBlobText(captured.blob, root));
-        if (ctx?.exportContextEvidence !== false) attachContextProperties(parsed, exportPoints(UA, ctx));
+        if (ctx?.exportContextEvidence !== false) attachContextProperties(parsed, points);
         const enriched = await artifactProvenance.attachGeoJsonProvenance(parsed, manifest);
         download(
           root,

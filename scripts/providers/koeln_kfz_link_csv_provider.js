@@ -18,10 +18,11 @@ const traffic = require("../../js/ua.traffic_provider");
 
 const SOURCE_ID = "traffic.count.koeln-kfz-links-2016-2019";
 const DISTRIBUTION_URL =
-  "https://offenedaten-koeln.de/sites/default/files/KFZ_Zaehldaten_2016-2019_link.csv";
-const DATASET_URL = "https://open.nrw/dataset/kfz-zaehlstellen-und-werte-koeln-k";
+  "https://offenedaten-koeln.de/sites/default/files/distribution/KFZ_Zaehldaten_2016-2019_link.csv";
+const DATASET_URL = "https://offenedaten-koeln.de/dataset/kfz-zaehlstellen-und-werte-koeln";
 const REVIEWED_DISTRIBUTION_SHA256 =
   "477da6900ee791b7b3db433e27d6bde778c2f138869198b448fb26827de65488";
+const DISTRIBUTION_PUBLICATION_DATE = "2022-04-12";
 const UNIT = "Kfz/24 h";
 const YEARS = Object.freeze([2016, 2017, 2018, 2019]);
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
@@ -473,7 +474,7 @@ function createKoelnKfzLinkCsvProvider(options) {
     requiredAttribution: "Stadt Köln",
     temporalCoverage: "2016–2019",
     spatialCoverage: "Köln",
-    versionOrPublicationDate: "2019-12-31",
+    versionOrPublicationDate: DISTRIBUTION_PUBLICATION_DATE,
     retrievedAt,
     contentHash: loaded.sha256,
     changedOrDerived: true,
@@ -527,6 +528,7 @@ module.exports = Object.freeze({
   DISTRIBUTION_URL,
   DATASET_URL,
   REVIEWED_DISTRIBUTION_SHA256,
+  DISTRIBUTION_PUBLICATION_DATE,
   UNIT,
   YEARS,
   FIELD_ALIASES,

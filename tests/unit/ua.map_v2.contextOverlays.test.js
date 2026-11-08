@@ -115,6 +115,18 @@ function makeCtx(UA) {
 }
 
 describe('ua.map_v2 context overlays', () => {
+  test('typed-only traffic preserves its active overlay and control', () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextCapabilities = { hasSlope: false, hasTrafficProxy: false, hasTrafficEvidence: true };
+    ctx.contextOverlays.active = { slope: false, traffic: true };
+    ctx.contextLayerState = { ways: { W1: require('../fixtures/typed-traffic-evidence')('count', 18504) },
+      geometries: { W1: [50, 7, 50.001, 7.001] } };
+    UA.refreshContextOverlays(ctx);
+    expect(ctx.contextOverlays.active.traffic).toBe(true);
+    expect(ctx.contextOverlays.layerControl).toBeTruthy();
+    expect(ctx.contextOverlays.layers.traffic).toBeTruthy();
+  });
   test('refreshContextOverlays keeps slope pending until state is available, then builds and adds layer', () => {
     const UA = loadMapModule();
     const ctx = makeCtx(UA);

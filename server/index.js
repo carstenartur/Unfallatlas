@@ -662,7 +662,7 @@ app.get('/api/political-context/supported', (_req, res) => {
  *   500 – Interner Fehler
  */
 app.post('/api/political-context/search', politicalContextRateLimit, async (req, res) => {
-  const { city, searchTerms, context, maxResults } = req.body || {};
+  const { city, searchTerms, context, maxResults, page, snapshot } = req.body || {};
 
   if (!city || typeof city !== 'string' || !city.trim()) {
     return sendError(res, {
@@ -687,6 +687,17 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
       category: CATEGORIES.INVALID_REQUEST,
       code: 'SEARCH_TERMS_EMPTY',
       message: 'searchTerms enthält keine gültigen Suchbegriffe.'
+    });
+  }
+
+  if (page != null && (typeof page !== 'string' || page.length > 2048
+      || !/^ris2\.[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(page)
+      || !snapshot || typeof snapshot !== 'object' || typeof snapshot.city !== 'string'
+      || !/^[a-f0-9]{64}$/.test(snapshot.sha256))) {
+    return sendError(res, {
+      category: CATEGORIES.INVALID_REQUEST,
+      code: 'RIS_SNAPSHOT_CURSOR_INVALID',
+      message: 'Ungültige Suchfortsetzung oder fehlender Ratsdatenstand.'
     });
   }
 
@@ -725,13 +736,15 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
       city: city.trim().substring(0, 100),
       searchTerms: sanitizedTerms,
       context: (context && typeof context === 'object') ? context : {},
-      maxResults: resolvedMax
+      maxResults: resolvedMax,
+      ...(page == null ? {} : { page, snapshot })
     };
     // Hannover's historical Domino search route now returns 404. Use the
     // validated SIM catalogue when prepared, with its actual coverage status.
-    if (search.city.toLowerCase() === 'hannover') {
-      const snapshot = await searchPublishedRis(search);
-      return res.json(snapshot || {
+    if (search.city.toLowerCase() === 'hannover' || page != null) {
+      const result = await searchPublishedRis(search);
+      if(page != null && !result)throw Object.assign(new Error('Der Ratsdatenstand für die Suchfortsetzung ist nicht mehr verfügbar.'),{code:'RIS_SNAPSHOT_REFERENCE_MISMATCH'});
+      return res.json(result || {
         references: [],
         meta: {
           city: search.city, searchTerms: sanitizedTerms, searchedAt: new Date().toISOString(),
@@ -744,6 +757,7 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
     const result = await politicalContextSearch(search);
     return res.json(result);
   } catch (err) {
+    if (err.code === 'RIS_SNAPSHOT_CURSOR_INVALID' || err.code === 'RIS_SNAPSHOT_REFERENCE_MISMATCH') return sendError(res, {category:CATEGORIES.INVALID_REQUEST,code:err.code,message:err.message});
     console.error('[political-context/search] Fehler:', err.message);
     return sendError(res, {
       category: CATEGORIES.INTERNAL_ERROR,

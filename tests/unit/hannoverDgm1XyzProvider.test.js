@@ -316,3 +316,19 @@ describe("Hannover DGM1 ASCII XYZ provider", () => {
     expect(() => dgm1.normalizeManifest(manifest)).toThrow(/grid_too_large/);
   });
 });
+
+test('accepts the observed official first-line x y z header and half-meter cell centers', async () => {
+  const bounds = { minEasting: 550000.5, maxEasting: 550001.5, minNorthing: 5802000.5, maxNorthing: 5802001.5 };
+  const fixture = createFixture({ bounds, contents: 'x y z\n550000.5 5802000.5 55.30\n550001.5 5802000.5 55.31\n550000.5 5802001.5 55.32\n550001.5 5802001.5 55.33\n' });
+  try {
+    const provider = dgm1.createHannoverDgm1XyzProvider(fixture.providerOptions);
+    await expect(provider.preload()).resolves.toMatchObject({ pointCount: 4 });
+  } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+test('does not ignore a repeated or interior column header in original-height input', async () => {
+  const bounds={minEasting:550000.5,maxEasting:550001.5,minNorthing:5802000.5,maxNorthing:5802001.5};
+  const fixture=createFixture({bounds,contents:'x y z\nx y z\n550000.5 5802000.5 55.30\n'});
+  try {await expect(dgm1.createHannoverDgm1XyzProvider(fixture.providerOptions).preload()).rejects.toMatchObject({code:'invalid_xyz'});}
+  finally {fs.rmSync(fixture.root,{recursive:true,force:true});}
+});

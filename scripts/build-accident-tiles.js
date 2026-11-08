@@ -64,18 +64,7 @@ function usage() {
   ].join('\n');
 }
 
-function lonToTileX(lon, zoom) {
-  return Math.floor(((lon + 180) / 360) * Math.pow(2, zoom));
-}
-
-function latToTileY(lat, zoom) {
-  const bounded = Math.max(-85.05112878, Math.min(85.05112878, lat));
-  const radians = bounded * Math.PI / 180;
-  return Math.floor(
-    ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2)
-      * Math.pow(2, zoom)
-  );
-}
+const { lonToTileX, latToTileY } = require('../js/ua.spatial-grid');
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');

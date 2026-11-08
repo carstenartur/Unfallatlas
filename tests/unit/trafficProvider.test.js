@@ -607,6 +607,27 @@ test('negative vehicle counts cannot become validated typed evidence', async () 
     .rejects.toThrow(/non-negative/);
 });
 
+test.each([null, '', false, undefined, [], '0'])('non-numeric observation %p cannot become a legitimate zero', async value => {
+  await expect(createProvider('count', [rawObservation({ value })]).loadObservations({ city: 'Bonn' }))
+    .rejects.toThrow(/finite non-negative number/);
+  const row = require('../fixtures/typed-traffic-evidence')('count', 0, 2025);
+  row.traffic_evidence = { ...row.traffic_evidence,
+    observation: { ...row.traffic_evidence.observation, value } };
+  expect(traffic.hasUsableTypedEvidence(row)).toBe(false);
+});
+
+test('point counts retain their selected matched way even without an intrinsic observation way ID', async () => {
+  const [observation] = await createProvider('count', [rawObservation({ wayId: undefined })]).loadObservations();
+  expect(observation.wayId).toBeNull();
+  const match = traffic.matchObservationToRoads(observation, [road('10')]);
+  const evidence = traffic.selectTrafficEvidence([match], { referenceYear: 2026, mode: 'motor_vehicle' });
+  const row = { matched_way_id: '10' };
+  require('../../scripts/apply-matched-traffic').applyRow(row, { evidence, observations: [observation] });
+  expect(traffic.hasUsableTypedEvidence(row)).toBe(true);
+  expect(require('../../scripts/apply-qualitative-traffic-proxy').normalizeProxyRow(row, { proxyClass: 'high', highwayClass: 'primary' })).toBe(false);
+  expect(traffic.hasUsableTypedEvidence({ ...row, matched_way_id: '11' })).toBe(false);
+});
+
 test('applying an older matched count retains a suitable model selected by the existing SPI', () => {
   const make = require('../fixtures/typed-traffic-evidence');
   const row = make('model', 0, 2024);

@@ -108,6 +108,17 @@ describe('production political-context HTTP route', () => {
     });
   });
 
+  test('rejects malformed or unbound RIS search continuations', async () => {
+    for (const continuation of [{ page: 'tampered' }, { page: `ris2.abc.${'a'.repeat(64)}` }]) {
+      const response = await fetch(`${baseUrl}/api/political-context/search`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ city: 'Hannover', searchTerms: ['Radverkehr'], ...continuation })
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ code: 'RIS_SNAPSHOT_CURSOR_INVALID' });
+    }
+  });
+
   test('validates POST payloads through the production handler', async () => {
     const response = await fetch(`${baseUrl}/api/political-context/search`, {
       method: 'POST',

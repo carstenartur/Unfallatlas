@@ -21,6 +21,8 @@ function loadModules() {
     (function (window) { eval(fs.readFileSync(p, 'utf8')); })(win);
   };
   load('ua.core.js');
+  load('ua.spatial-grid.js');
+  load('ua.data-budget.js');
   load('ua.context_layers.js');
   load('ua.popup_context.js');
   return win.UA;
@@ -339,6 +341,33 @@ describe('UA.composeAccidentPopupHtml — PR-C ways_<city>.json hydration', () =
       ways: { 'W42': { highway: 1, maxspeed: 50, lanes: 2, surface: 0, road_slope_percent: 3.4 } },
       dicts: { highway: ['residential', 'secondary'], surface: ['asphalt'] },
     },
+  });
+
+  test('selected-Way hydration keeps complete evidence namespaces consistent with export projection', () => {
+    const UA = loadModules();
+    UA.elevationProvider = require('../../js/ua.elevation_provider');
+    const ctx = baseCtx();
+    ctx.contextLayerState.ways.W42 = { road_slope_percent: -4.4, road_slope_quality: 'high',
+      road_slope_source: 'way-profile', traffic_measurement_type: 'count', traffic_volume_value: 18504 };
+    const props = { matched_way_id: 'W42', road_slope_percent: 1.5, road_slope_source: 'feature-profile', traffic_proxy_class: 'low' };
+    const result = UA.popupContext.hydrateWayAttrs(ctx, props);
+    expect(result.road_slope_percent).toBe(1.5);
+    expect(result.road_slope_source).toBe('feature-profile');
+    expect(result).not.toHaveProperty('road_slope_quality');
+    expect(result).not.toHaveProperty('traffic_measurement_type');
+    expect(result).not.toHaveProperty('traffic_volume_value');
+    expect(props).toEqual({ matched_way_id: 'W42', road_slope_percent: 1.5, road_slope_source: 'feature-profile', traffic_proxy_class: 'low' });
+  });
+
+  test('selected-Way exclusions retain their explicit null and leave local terrain evidence unchanged', () => {
+    const UA = loadModules();
+    UA.elevationProvider = require('../../js/ua.elevation_provider');
+    const ctx = baseCtx();
+    ctx.contextLayerState.ways.W42 = { road_slope_percent: null, road_slope_reliable: false,
+      road_slope_missing_reason: 'bridge', road_slope_source: 'hannover-dgm1' };
+    const result = UA.popupContext.hydrateWayAttrs(ctx, { matched_way_id: 'W42', slope_percent: 2.1, slope_source: 'srtm-30m' });
+    expect(result).toMatchObject({ road_slope_percent: null, road_slope_reliable: false,
+      road_slope_missing_reason: 'bridge', road_slope_source: 'hannover-dgm1', slope_percent: 2.1, slope_source: 'srtm-30m' });
   });
 
   test('hydrates per-way attrs (highway/maxspeed/lanes/surface/road_slope_percent) onto a copy of props at render time', () => {

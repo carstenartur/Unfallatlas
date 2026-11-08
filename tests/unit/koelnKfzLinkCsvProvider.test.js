@@ -268,3 +268,13 @@ describe("Cologne directional Kfz link CSV provider", () => {
     );
   });
 });
+
+test('source descriptor points to the current official city dataset and distribution', () => {
+  expect(koeln.DATASET_URL).toBe('https://offenedaten-koeln.de/dataset/kfz-zaehlstellen-und-werte-koeln');
+  expect(koeln.DISTRIBUTION_URL).toBe('https://offenedaten-koeln.de/sites/default/files/distribution/KFZ_Zaehldaten_2016-2019_link.csv');
+});
+
+test('records the actual distribution publication date separately from historical count years', () => {
+  expect(koeln.DISTRIBUTION_PUBLICATION_DATE).toBe('2022-04-12');
+  expect(koeln.YEARS).toEqual([2016, 2017, 2018, 2019]);
+});

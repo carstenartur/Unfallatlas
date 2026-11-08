@@ -58,6 +58,9 @@
    * This helper is never used to invent a value for the OSM fallback.
    */
   function classifyTrafficProxy(value) {
+    if (UA.trafficProvider && typeof UA.trafficProvider.classifyTrafficValue === 'function') {
+      return UA.trafficProvider.classifyTrafficValue(value);
+    }
     if (typeof value !== 'number' || !Number.isFinite(value)) return null;
     if (value <= 1000) return 'low';
     if (value <= 5000) return 'medium';

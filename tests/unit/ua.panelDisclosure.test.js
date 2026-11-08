@@ -229,6 +229,27 @@ describe('UA panel disclosure before data loading', () => {
     expect(document.activeElement).toBe(ctx.ui.legendBtn);
   });
 
+  test('an open map control temporarily collapses the phone panel and restores its explicit choice', () => {
+    UA.bindDom(ctx);
+    ctx.ui.collapseBtn.click();
+    expect(localStorage.getItem(phonePreference)).toBe('0');
+    UA.setPanelMapOccluded(ctx, true);
+    expect(ctx.ui.panelEl.classList.contains('collapsed')).toBe(true);
+    expect(localStorage.getItem(phonePreference)).toBe('0');
+    UA.setPanelMapOccluded(ctx, false);
+    expect(ctx.ui.panelEl.classList.contains('collapsed')).toBe(false);
+    expect(ctx.ui.collapseBtn.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  test('opening the panel closes compact map controls before expanding', () => {
+    UA.bindDom(ctx);
+    UA.closeMapControls = jest.fn(() => UA.setPanelMapOccluded(ctx, false));
+    UA.setPanelMapOccluded(ctx, true);
+    ctx.ui.collapseBtn.click();
+    expect(UA.closeMapControls).toHaveBeenCalledWith(ctx);
+    expect(ctx.ui.panelEl.classList.contains('collapsed')).toBe(false);
+  });
+
   test('blocked local storage does not prevent expanding or collapsing the phone panel', () => {
     jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Storage blocked'); });
     jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Storage blocked'); });

@@ -92,17 +92,7 @@
     return result;
   }
 
-  function lonToTileX(lon, z) {
-    return Math.floor(((lon + 180) / 360) * Math.pow(2, z));
-  }
-
-  function latToTileY(lat, z) {
-    const radians = (lat * Math.PI) / 180;
-    return Math.floor(
-      ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2)
-      * Math.pow(2, z)
-    );
-  }
+  const tileScheduler = UA.DataBudget.createScheduler(TILE_FETCH_CONCURRENCY);
 
   function tileIndexUrl(slug) {
     return requireResources().url('contextTileIndex', { city: slug });
@@ -283,35 +273,6 @@
     cache.clear();
   }
 
-  function tilesForBounds(bounds, z) {
-    if (!bounds) return [];
-    let south;
-    let north;
-    let west;
-    let east;
-    if (typeof bounds.getSouth === 'function') {
-      south = bounds.getSouth();
-      north = bounds.getNorth();
-      west = bounds.getWest();
-      east = bounds.getEast();
-    } else if (Array.isArray(bounds) && bounds.length === 4) {
-      [south, west, north, east] = bounds;
-    } else if (typeof bounds === 'object') {
-      ({ south, north, west, east } = bounds);
-    }
-    if (![south, north, west, east].every(Number.isFinite)) return [];
-
-    const xMin = lonToTileX(Math.min(west, east), z);
-    const xMax = lonToTileX(Math.max(west, east), z);
-    const yMin = latToTileY(Math.max(south, north), z);
-    const yMax = latToTileY(Math.min(south, north), z);
-    const result = [];
-    for (let x = xMin; x <= xMax; x++) {
-      for (let y = yMin; y <= yMax; y++) result.push([x, y]);
-    }
-    return result;
-  }
-
   function ingestTile(state, tile) {
     if (!tile || typeof tile !== 'object') return;
     if (!state.ways || typeof state.ways !== 'object') state.ways = {};
@@ -329,8 +290,8 @@
     const key = `${x}/${y}`;
     if (state._tileCache.has(key)) return state._tileCache.get(key);
 
-    const promise = requireResources()
-      .fetchJson('contextTile', { city: state.slug, x, y })
+    const promise = tileScheduler.run(() => requireResources()
+      .fetchJson('contextTile', { city: state.slug, x, y }))
       .then(tile => {
         ingestTile(state, tile);
         return tile;
@@ -347,18 +308,6 @@
     return promise;
   }
 
-  async function runLimited(tasks, limit) {
-    const count = Math.max(1, Math.min(Number(limit) || TILE_FETCH_CONCURRENCY, tasks.length || 1));
-    let next = 0;
-    const workers = Array.from({ length: count }, async () => {
-      while (next < tasks.length) {
-        const current = next++;
-        await tasks[current]();
-      }
-    });
-    await Promise.all(workers);
-  }
-
   function loadTilesForBbox(state, bounds) {
     if (!state) return Promise.resolve({ ways: {}, geometries: {} });
     if (!state.tileIndex || !state._tileCache) {
@@ -371,15 +320,15 @@
     const z = typeof state.tileIndex.z === 'number'
       ? state.tileIndex.z
       : CTX_TILE_DEFAULT_ZOOM;
-    const wanted = tilesForBounds(bounds, z);
+    const range = UA.SpatialGrid.tileRange(bounds, z);
     const known = state.tileIndex.tileKeySet instanceof Set
       ? state.tileIndex.tileKeySet
       : new Set((state.tileIndex.tiles || []).map(tile => `${tile.x}/${tile.y}`));
-    const tasks = wanted
-      .filter(([x, y]) => known.has(`${x}/${y}`))
-      .map(([x, y]) => () => fetchTile(state, x, y));
+    const wanted = range ? [...known].map(key => key.split('/').map(Number))
+      .filter(([x, y]) => x >= range.xMin && x <= range.xMax && y >= range.yMin && y <= range.yMax)
+      .sort(([ax, ay], [bx, by]) => ax - bx || ay - by) : [];
 
-    return runLimited(tasks, TILE_FETCH_CONCURRENCY).then(() => ({
+    return Promise.all(wanted.map(([x, y]) => fetchTile(state, x, y))).then(() => ({
       ways: state.ways,
       geometries: state.geometries,
     }));

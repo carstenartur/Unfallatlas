@@ -43,10 +43,27 @@ jobs:
             pages-context-${{ runner.os }}-
           save-always: true
 
+      - name: Restore RIS source cache
+        id: ris-source-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ris-sources
+          key: ris-sources-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ris-sources-v1-${{ runner.os }}-
+
       - name: Generate data and verify Pages through Maven
         env:
           PAGES_REFRESH_RIS: '1'
         run: mvn -B -ntp clean verify -Ppages-regenerated
+
+      # Preserve completed source downloads when an import or later QA fails.
+      - name: Save RIS source cache
+        if: always() && steps.ris-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ris-sources
+          key: ris-sources-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload Maven Pages QA evidence
         if: ${{ always() && hashFiles('_site/build-manifest.json') != '' }}

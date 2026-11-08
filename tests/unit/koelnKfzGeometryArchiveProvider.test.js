@@ -232,7 +232,7 @@ describe('Cologne Kfz geometry archive provider', () => {
     expect(provider.REVIEWED_DISTRIBUTION_SHA256).toBe(
       '5672f1b61777ccbd5a1db6555dddf7c61a009eb161b13d4c7cbe530de9299238',
     );
-    expect(provider.DISTRIBUTION_URL).toMatch(/KFZ%20Zaehldaten%202016-2019_0\.zip$/);
+    expect(provider.DISTRIBUTION_URL).toMatch(/distribution\/KFZ%2520Zaehldaten%25202016-2019_0\.zip$/);
   });
 
   test.each([
@@ -308,4 +308,27 @@ describe('Cologne Kfz geometry archive provider', () => {
     expect(JSON.parse(fs.readFileSync(manifestPath, 'utf8'))).toEqual(manifest);
     expect(fs.readdirSync(root).filter((name) => name.includes('.tmp-'))).toEqual([]);
   });
+});
+
+test('accepts a paired CTF alias sidecar only when every alias names a real DBF field', () => {
+  const inspected = provider.inspectGeometryArchiveBuffer(geometryArchive({ extra: {
+    name: 'geometry/links.CTF', data: 'Name;Alias\r\nNO;NO\r\nFROMNODENO;FROMNODENO\r\nTONODENO;TONODENO\r\n',
+  } }));
+  expect(inspected.shapeSets.find(set => set.id === 'geometry/links').fieldAliases).toHaveLength(3);
+  expect(() => provider.inspectGeometryArchiveBuffer(geometryArchive({ extra: {
+    name: 'geometry/links.ctf', data: 'Name;Alias\nNO;INVENTED\n',
+  } }))).toThrow(/invalid_ctf/);
+});
+
+test('recognizes only the byte-pinned official DHDN/GK2 PRJ including its literal TOWGS84 parameters', () => {
+  const wkt = fs.readFileSync(path.join(__dirname, '../../config/koeln-kfz-2019-source.prj'), 'utf8');
+  const inspected = provider.inspectGeometryArchiveBuffer(geometryArchive({ pointPrj: wkt, linePrj: wkt }));
+  expect(inspected.shapeSets.every(set => set.crs.id === 'KOELN:DHDN_GK2_TOWGS84_2019')).toBe(true);
+  expect(() => provider.classifyUtm32(wkt.replace('0.0000067', '6.7'), 'changed PRJ')).toThrow(/unsupported_crs/);
+});
+
+test('rejects orphan CTF sidecars without a matching DBF shape set', () => {
+  expect(() => provider.inspectGeometryArchiveBuffer(geometryArchive({ extra: {
+    name: 'geometry/orphan.ctf', data: 'Name;Alias\nNO;NO\n',
+  } }))).toThrow(/invalid_ctf/);
 });

@@ -104,3 +104,96 @@ test('compact terrain summary keeps null distinct from zero and binds that chang
   expect(params(first).contextDataSha256).not.toBe(params(second).contextDataSha256);
   expect(first.dataFingerprint).not.toBe(second.dataFingerprint);
 });
+
+function selectedDgmContext() {
+  const ctx={CITY_RAW:'Hannover',allPts:[{lat:52.3630532,lon:9.7059495,props:{year:2024,matched_way_id:'23101052',slope_percent:3.2,slope_source:'SRTM Local Tiles'}}],
+    contextLayerState:{ways:{'23101052':{road_slope_percent:-4.4,road_slope_source_id:'hannover.dgm1',road_slope_source:'DGM1',road_slope_resolution_m:1,road_slope_direction:'downhill_along_geometry',road_slope_reliable_for_road:true,road_slope_uncertainty_reasons:[]}},
+      meta:{sources:{roadSlope:{sourceId:'hannover.dgm1',manifestSha256:'a'.repeat(64),retrievedAt:'2026-11-08T16:41:39.000Z'}}}}};
+  const UA={BUILD:'selected-way-review',contextLayers:{resolveWayAcrossTiles:(state,id)=>state.ways[id]}};
+  return {ctx,env:{UA,root:{}}};
+}
+
+test('selected loaded DGM way evidence reaches GeoJSON and changes the hashed export snapshot when its profile changes',async()=>{
+  const {ctx,env}=selectedDgmContext();
+  const first=await api.createManifest(ctx,env);
+  const points=api.exportPoints(env.UA,ctx);
+  const collection={type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:[ctx.allPts[0].lon,ctx.allPts[0].lat]},properties:{year:2024}}]};
+  api.attachContextProperties(collection,points);
+  expect(collection.features[0].properties).toMatchObject({matched_way_id:'23101052',road_slope_percent:-4.4,road_slope_source_id:'hannover.dgm1',road_slope_direction:'downhill_along_geometry',slope_source:'SRTM Local Tiles'});
+  expect(ctx.allPts[0].props).not.toHaveProperty('road_slope_percent');
+  expect(first.transformations.find(t=>t.transformationId==='context-evidence').parameters.sources.roadSlope.manifestSha256).toBe('a'.repeat(64));
+  ctx.contextLayerState.ways['23101052'].road_slope_percent=-4;
+  const second=await api.createManifest(ctx,env);
+  expect(second.dataFingerprint).not.toBe(first.dataFingerprint);
+  const hash=m=>m.transformations.find(t=>t.transformationId==='context-evidence').parameters.contextDataSha256;
+  expect(hash(second)).not.toBe(hash(first));
+});
+
+test('projected selected-way evidence is frozen for later attachment instead of sharing mutable loaded rows',()=>{
+  const {ctx,env}=selectedDgmContext();const points=api.exportPoints(env.UA,ctx);
+  ctx.contextLayerState.ways['23101052'].road_slope_uncertainty_reasons.push('later-change');
+  ctx.contextLayerState.ways['23101052'].road_slope_percent=-9;
+  expect(points[0].props.road_slope_percent).toBe(-4.4);
+  expect(points[0].props.road_slope_uncertainty_reasons).toEqual([]);
+});
+
+test('unused or differently pinned Way source facts are not attributed to a protected feature profile',async()=>{
+  const {ctx,env}=selectedDgmContext();
+  Object.assign(ctx.allPts[0].props,{road_slope_percent:null,road_slope_source_id:'pinned.other',road_slope_missing_reason:'bridge',road_slope_reliable_for_road:false});
+  const manifest=await api.createManifest(ctx,env);
+  const facts=manifest.transformations.find(t=>t.transformationId==='context-evidence').parameters.sources;
+  expect(facts).not.toHaveProperty('roadSlope');
+  expect(api.exportPoints(env.UA,ctx)[0].props).toMatchObject({road_slope_source_id:'pinned.other',road_slope_percent:null,road_slope_reliable_for_road:false});
+});
+
+test('GeoJSON wrapper binds one selected-way snapshot even if the loaded Way changes while the legacy exporter runs',async()=>{
+  const {ctx,env}=selectedDgmContext();
+  const sourceFacts=JSON.parse(JSON.stringify(ctx.contextLayerState.meta));
+  const root={Blob,saveAs:jest.fn()};
+  const UA={...env.UA,exportToCSV:jest.fn(),exportToKML:jest.fn(),exportToGeoJSON:async()=>{
+    ctx.contextLayerState.ways['23101052'].road_slope_percent=-9;
+    ctx.contextLayerState.ways['23101052'].road_slope_uncertainty_reasons.push('later-state');
+    ctx.contextLayerState.meta.sources.roadSlope.manifestSha256='b'.repeat(64);
+    const point=ctx.allPts[0];root.saveAs(new Blob([JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:[point.lon,point.lat]},properties:{year:2024}}]})]),'selected.geojson');
+  }};
+  api.install(UA,root);
+  const result=await UA.exportToGeoJSON(ctx);
+  expect(result.geojson.features[0].properties).toMatchObject({road_slope_percent:-4.4,road_slope_uncertainty_reasons:[]});
+  const attached=result.geojson.features[0];
+  const roundTrip={CITY_RAW:ctx.CITY_RAW,allPts:[{lat:attached.geometry.coordinates[1],lon:attached.geometry.coordinates[0],props:attached.properties}],contextLayerState:{meta:sourceFacts}};
+  const repeated=await api.createManifest(roundTrip,{UA:{BUILD:UA.BUILD},root:{}});
+  expect(repeated.dataFingerprint).toBe(result.manifest.dataFingerprint);
+});
+
+test('a feature-specific manifest pin is protected even when a loaded Way uses a newer snapshot of the same source',async()=>{
+  const {ctx,env}=selectedDgmContext();
+  Object.assign(ctx.allPts[0].props,{road_slope_percent:0,road_slope_source_id:'hannover.dgm1',road_slope_manifest_sha256:'c'.repeat(64),road_slope_reliable_for_road:true});
+  const first=await api.createManifest(ctx,env);
+  const properties=api.exportPoints(env.UA,ctx)[0].props;
+  expect(properties).toMatchObject({road_slope_percent:0,road_slope_manifest_sha256:'c'.repeat(64)});
+  expect(properties).not.toHaveProperty('road_slope_direction');
+  const facts=first.transformations.find(t=>t.transformationId==='context-evidence').parameters.sources;
+  expect(facts).not.toHaveProperty('roadSlope');
+  ctx.contextLayerState.ways['23101052'].road_slope_percent=99;
+  ctx.contextLayerState.meta.sources.roadSlope.manifestSha256='b'.repeat(64);
+  expect((await api.createManifest(ctx,env)).dataFingerprint).toBe(first.dataFingerprint);
+});
+
+test('a null-only legacy placeholder without any selected profile cannot borrow global DGM source facts',async()=>{
+  const {ctx,env}=selectedDgmContext();
+  ctx.contextLayerState.ways={};ctx.allPts[0].props.road_slope_percent=null;
+  const manifest=await api.createManifest(ctx,env);
+  expect(manifest.transformations.find(t=>t.transformationId==='context-evidence').parameters.sources).not.toHaveProperty('roadSlope');
+});
+
+test('a manifest prebound by an outer export wrapper retains its original selected-way snapshot',async()=>{
+  const {ctx,env}=selectedDgmContext();const bound=await api.createManifest(ctx,env);ctx.exportSourceManifest=bound;
+  ctx.contextLayerState.ways['23101052'].road_slope_percent=-9;
+  const root={Blob,saveAs:jest.fn()};
+  const UA={...env.UA,exportToCSV:jest.fn(),exportToKML:jest.fn(),exportToGeoJSON:async()=>{
+    const point=ctx.allPts[0];root.saveAs(new Blob([JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:[point.lon,point.lat]},properties:{year:2024}}]})]),'bound.geojson');
+  }};
+  api.install(UA,root);const result=await UA.exportToGeoJSON(ctx);
+  expect(result.manifest.dataFingerprint).toBe(bound.dataFingerprint);
+  expect(result.geojson.features[0].properties.road_slope_percent).toBe(-4.4);
+});

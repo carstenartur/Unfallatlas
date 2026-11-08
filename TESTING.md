@@ -1,5 +1,11 @@
 # Testkonzept-Implementierung für Unfallatlas
 
+Die repositoryweite [Speicherstrategie](docs/repository-storage.md) wird im Job
+`Repository storage budget` gegen die explizite PR-/Push-Baseline geprüft.
+Nach einem lokalen Commit prüft
+`node scripts/check-repository-storage.js --base <Ausgangs-SHA> --head HEAD`
+Dateigrößen, Gesamtzuwachs und Evidenzbudgets zusätzlich zum Kontextdaten-Guard.
+
 ## Übersicht
 
 Dieses Dokument beschreibt die Implementierung des Testkonzepts für die Unfallatlas-Anwendung. Die Testsuite stellt die Qualität, Stabilität und Performance der Anwendung sicher.

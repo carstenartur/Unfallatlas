@@ -725,6 +725,49 @@
       });
     }
 
+    const SELECTED_WAY_FIELDS = Object.freeze([
+      'highway', 'maxspeed', 'lanes', 'surface', 'cycleway', 'osm_incline', 'road_context_source',
+    ]);
+
+    // One evidence group must describe one selected observation/profile. Never
+    // fill a feature measurement from one source with another Way's source pins.
+    function projectSelectedWayEvidence(featureProps, selectedWayRow) {
+      const feature = featureProps && typeof featureProps === 'object' ? featureProps : {};
+      const way = selectedWayRow && typeof selectedWayRow === 'object' ? selectedWayRow : {};
+      const merged = { ...feature };
+      const seen = new WeakMap();
+      const copy = value => {
+        if (!value || typeof value !== 'object') return value;
+        if (seen.has(value)) return seen.get(value);
+        const result = Array.isArray(value) ? [] : {};
+        seen.set(value, result);
+        for (const [key, child] of Object.entries(value)) Object.defineProperty(result, key, {
+          value: copy(child), enumerable: true, configurable: true, writable: true,
+        });
+        return result;
+      };
+      const present = value => {
+        if (value === undefined || value === null) return false;
+        if (typeof value === 'string') return Boolean(value.trim());
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === 'object') return Object.keys(value).length > 0;
+        return true; // zero measurements and explicit false remain evidence
+      };
+      for (const prefix of ['road_slope_', 'traffic_']) {
+        const featureKeys = Object.keys(feature).filter(key => key.startsWith(prefix));
+        const wayKeys = Object.keys(way).filter(key => key.startsWith(prefix));
+        const featureEvidence = featureKeys.some(key => present(feature[key]));
+        const chosenKeys = featureEvidence || !wayKeys.length ? featureKeys : wayKeys;
+        const chosen = featureEvidence || !wayKeys.length ? feature : way;
+        for (const key of featureKeys) delete merged[key];
+        for (const key of chosenKeys) if (chosen[key] !== undefined) merged[key] = copy(chosen[key]);
+      }
+      for (const key of SELECTED_WAY_FIELDS) {
+        if (!present(merged[key]) && present(way[key])) merged[key] = copy(way[key]);
+      }
+      return merged;
+    }
+
     // Presentation adapter for persisted enrichment fields; does not estimate
     // new uncertainty or upgrade coarse terrain samples to road measurements.
     function presentContext(properties) {
@@ -744,10 +787,18 @@
         ? p.road_slope_uncertainty_percent : null;
       const uncertaintyReasons = Array.isArray(p.road_slope_uncertainty_reasons)
         ? p.road_slope_uncertainty_reasons.slice() : [];
+      const directionLabels = {
+        uphill_along_geometry: 'bergauf entlang der Way-Geometrie',
+        downhill_along_geometry: 'bergab entlang der Way-Geometrie',
+        approximately_flat: 'nahezu eben entlang der Way-Geometrie',
+      };
+      const direction = usesRoad && Object.hasOwn(directionLabels, p.road_slope_direction)
+        ? p.road_slope_direction : null;
       const sourceText = `${source}${resolutionMeters == null ? "" : ` (${resolutionMeters} m)`}`;
       let statement = "Neigungsangabe nicht verfügbar.";
       if (value !== null && reliableForRoad) {
-        statement = `Straßenlängsneigung: ${Math.abs(value).toFixed(1).replace(".", ",")} %` +
+        const signed = `${value > 0 ? '+' : ''}${value.toFixed(1).replace(".", ",")}`;
+        statement = `Straßenlängsneigung: ${signed} %; ${directionLabels[direction] || 'bezogen auf die Way-Geometrie'}` +
           (uncertaintyPercent === null ? "" : `; Unsicherheit ±${String(uncertaintyPercent).replace(".", ",")} Prozentpunkte`) +
           `; ${sourceText}.`;
       } else if (value !== null) {
@@ -758,7 +809,7 @@
       }
       return Object.freeze({ semanticType, valuePresent: value !== null, reliableForRoad,
         source, sourceId: usesRoad ? p.road_slope_source_id || null : (/SRTM/i.test(source) ? "global.srtm30" : null), resolutionMeters,
-        uncertaintyPercent, uncertaintyReasons: Object.freeze(uncertaintyReasons), statement });
+        uncertaintyPercent, uncertaintyReasons: Object.freeze(uncertaintyReasons), direction, statement });
     }
 
     return Object.freeze({
@@ -771,6 +822,8 @@
       createRegistry,
       computeRoadGradient,
       presentContext,
+      projectSelectedWayEvidence,
+      SELECTED_WAY_FIELDS,
       createHannoverDgm1Descriptor,
       createGlobalFallbackDescriptor,
       _test: Object.freeze({

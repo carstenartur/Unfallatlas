@@ -390,3 +390,40 @@ test('an excluded DGM road profile cannot lend its source or resolution to a loc
   expect(projected.source).toBe('SRTM Local Tiles');
   expect(projected.resolutionMeters).toBe(30);
 });
+
+describe('reviewed selected-way elevation evidence', () => {
+  test.each([
+    [-4.4, 'downhill_along_geometry', '-4,4 %', 'bergab'],
+    [4.4, 'uphill_along_geometry', '+4,4 %', 'bergauf'],
+    [0, 'approximately_flat', '0,0 %', 'nahezu eben'],
+  ])('preserves signed %s gradient and states geometry-relative direction', (value, direction, number, label) => {
+    const result=elevation.presentContext({road_slope_percent:value,road_slope_direction:direction,
+      road_slope_source:'Hannover DGM1',road_slope_source_id:'hannover.dgm1',road_slope_resolution_m:1,road_slope_reliable_for_road:true});
+    expect(result.statement).toContain(number);
+    expect(result.statement).toContain(label);
+    expect(result.statement).toContain('Way-Geometrie');
+    expect(result.direction).toBe(direction);
+  });
+  test('adds complete selected DGM profile to actual SRTM feature context and replaces an unproven null placeholder', () => {
+    const feature={matched_way_id:'23101052',slope_percent:3.2,slope_source:'SRTM Local Tiles',road_slope_percent:null,road_slope_uncertainty_reasons:[]};
+    const way={road_slope_percent:-4.4,road_slope_direction:'downhill_along_geometry',road_slope_source_id:'hannover.dgm1',road_slope_source:'DGM1',road_slope_resolution_m:1,road_slope_reliable_for_road:true,road_slope_uncertainty_reasons:[]};
+    const projected=elevation.projectSelectedWayEvidence(feature,way);
+    expect(projected).toMatchObject({...feature,...way});
+    expect(feature.road_slope_percent).toBeNull();
+    expect(projected.road_slope_uncertainty_reasons).not.toBe(way.road_slope_uncertainty_reasons);
+  });
+  test('explicit feature exclusion/source pins stay atomic and cannot borrow another way profile', () => {
+    const feature={matched_way_id:'1',road_slope_percent:null,road_slope_source_id:'pinned.dgm',road_slope_missing_reason:'bridge_surface_not_represented_by_dtm',road_slope_reliable_for_road:false};
+    const way={road_slope_percent:4.4,road_slope_source_id:'new.dgm',road_slope_source:'Different source',road_slope_resolution_m:1,road_slope_reliable_for_road:true};
+    const projected=elevation.projectSelectedWayEvidence(feature,way);
+    expect(projected).toEqual(feature);
+    expect(projected).not.toHaveProperty('road_slope_source');
+    expect(projected).not.toHaveProperty('road_slope_resolution_m');
+  });
+  test('selected-way null measurement/exclusion and legitimate zero remain evidence rather than missing fallbacks', () => {
+    const feature={slope_percent:3.2,slope_source:'SRTM Local Tiles'};
+    const way={road_slope_percent:null,road_slope_source_id:'hannover.dgm1',road_slope_reliable_for_road:false,road_slope_missing_reason:'bridge'};
+    expect(elevation.projectSelectedWayEvidence(feature,way)).toMatchObject(way);
+    expect(elevation.projectSelectedWayEvidence({road_slope_percent:0}, {road_slope_percent:9,road_slope_source_id:'different'})).toEqual({road_slope_percent:0});
+  });
+});

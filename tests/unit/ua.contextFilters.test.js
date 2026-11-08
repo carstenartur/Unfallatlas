@@ -43,6 +43,20 @@ function makeUi(overrides = {}) {
 }
 
 describe('UA.matchesContextFilters — pure predicate', () => {
+  test.each([false, true])('validated numeric evidence remains filterable with proxy capability %p', hasProxy => {
+    const UA = loadFilters();
+    UA.trafficProvider = require('../../js/ua.traffic_provider');
+    const make = require('../fixtures/typed-traffic-evidence');
+    const ctx = { contextCapabilities: { hasTrafficProxy: hasProxy, hasTrafficEvidence: true },
+      contextFilters: { trafficClasses: new Set(['very_high']) } };
+    const row = make('count', 18504, 2019);
+    expect(UA.matchesContextFilters(ctx, row)).toBe(true);
+    expect(UA.matchesContextFilters(ctx, make('model', 0, 2025))).toBe(false);
+    ctx.contextFilters.trafficClasses = new Set(['low']);
+    expect(UA.matchesContextFilters(ctx, row)).toBe(false);
+    expect(UA.matchesContextFilters(ctx, make('model', 0, 2025))).toBe(true);
+    expect(UA.matchesContextFilters(ctx, { traffic_measurement_type: 'count', traffic_volume_value: 0 })).toBe(false);
+  });
   test('returns true when no filters are active', () => {
     const UA = loadFilters();
     const ctx = { contextFilters: { slopeClasses: new Set(), trafficClasses: new Set(), onlyMatchedWays: false } };

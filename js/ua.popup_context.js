@@ -559,6 +559,9 @@
       }
     } catch (_) { return p; }
     if (!resolved || typeof resolved !== 'object') return p;
+    if (UA.elevationProvider && typeof UA.elevationProvider.projectSelectedWayEvidence === 'function') {
+      return UA.elevationProvider.projectSelectedWayEvidence(p, resolved);
+    }
     const merged = { ...p };
     const contextFields = Object.keys(resolved).filter(key => /^(road_slope_|traffic_)/.test(key));
     for (const k of new Set([...HYDRATABLE_WAY_FIELDS, ...contextFields])) {

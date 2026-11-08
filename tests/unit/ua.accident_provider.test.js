@@ -45,6 +45,8 @@ function makeUA() {
     return response.json();
   };
   loadModule('../../js/ua.data_paths.js', win);
+  loadModule('../../js/ua.spatial-grid.js', win);
+  loadModule('../../js/ua.data-budget.js', win);
   loadModule('../../js/ua.accident_provider.js', win);
   return win.UA;
 }
