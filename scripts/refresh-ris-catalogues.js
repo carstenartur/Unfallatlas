@@ -334,6 +334,11 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   }
   let inputs = catalogue.records;
   let sourceStatuses = catalogue.sourceStatuses;
+  // A composition or another source cannot establish SIM's missing clock.
+  // Reject the candidate so the normal fallback retains its original age.
+  if (sourceStatuses?.some(source => source.source === 'hannover-sim' && source.recordCount > 0 && !source.retrievedAt)) {
+    throw new Error('Contributing Hannover SIM source has no verified source timestamp');
+  }
   const historicalSourceClocks = [];
   const retainedDetails = new Map();
   // Checkpoint evidence can outlive a published snapshot. Its original detail

@@ -16,7 +16,9 @@
     "tests/fixtures/rendered-document/ci-docx-contract.json",
     "js/ua.evidence_cohort.js",
     "scripts/release-map-fixture.js",
-    "scripts/qa-numbered-appendix-rendered.js"
+    "scripts/qa-numbered-appendix-rendered.js",
+    "js/ua.analysis_scope.js",
+    "js/ua.ai_political_reference_bridge.js"
   ],
   "lockedPackages": [
     "docx"

@@ -70,3 +70,22 @@ node scripts/qa-numbered-appendix-rendered.js
 Microsoft Word remains an external review gate. The receipt explicitly keeps
 `microsoftWordEvidenceVerified: false`; no LibreOffice result or synthetic map
 fixture substitutes for a current, fingerprint-matching real Word review.
+
+## Method qualification is a separate production report check
+
+The numbered appendix has no pattern comparison. Its complete rows and map
+receipts therefore cannot establish that exploratory statistical qualifications
+survive the ordinary report pipeline. For the final integrated candidate
+`63421d9912de93760f1e676dfad8e851be78eaff`, a separate real browser check used
+`UA.computeExportReport` with the installed AnalysisScope and political-reference
+wrappers on the 37/312 Bonn Hbf selection. It retained the exact exploratory /
+unadjusted / no-multiplicity-correction note in `methodikScope.lines` and
+`limitations`, text, HTML, visible preview and both server prompt modes.
+
+Actual browser DOCX/PDF downloads preserve that note in DOCX XML and in native
+and LibreOffice-converted PDF text. The note pages were visually inspected
+(native page 2; converted DOCX page 1). These focused exports used the real local
+development URL, so the existing public-HTTPS link audit correctly rejects them;
+no audit was weakened. They are method-warning evidence only, not a filing, live
+map, model or Microsoft Word approval. Current hashes, candidate page counts and
+Word input fingerprint are in the release candidate inventory.

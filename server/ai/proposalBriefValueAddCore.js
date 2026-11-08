@@ -9,6 +9,8 @@
  * retained for inspection, but it can never be marked application-ready.
  */
 
+const { PATTERN_COMPARISON_LIMITATIONS } = require('./features/deriveFeatures.js');
+
 const VALUE_ADD_CONTRACT_VERSION = 'unfallwerkbank.proposalBriefValueAdd.v1';
 const DETERMINISTIC_DIGEST_VERSION = 'unfallwerkbank.deterministicAnalysisDigest.v1';
 const AI_COMPARISON_CONTRACT_VERSION = 'unfallwerkbank.aiAnalysisComparisonContract.v1';
@@ -232,7 +234,7 @@ function buildDeterministicDigest(structured, features) {
       baselineSampleSize: finite(baselineTotal),
       focus: list(deviations.focus).map(row => patternRow(row, localTotal, baselineTotal)),
       allRows: list(deviations.rows).map(row => patternRow(row, localTotal, baselineTotal)),
-      scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure.',
+      scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. ' + PATTERN_COMPARISON_LIMITATIONS.note,
     },
     yearlyTrend,
     spatialEvidence: {
@@ -378,13 +380,13 @@ function defaultComparisonRows(aiInput) {
   const focus = list(digest?.patternCompositionComparison?.focus);
   focus.slice(0, 3).forEach((row, index) => {
     rows.push({
-      deterministicFinding: `${row.label || `Beteiligungsmuster ${index + 1}`}: Faktor ${row.factor ?? 'unbekannt'}; ${row.isSignificant ? 'statistisch gestützt' : 'explorativ'}.`,
+      deterministicFinding: `${row.label || `Beteiligungsmuster ${index + 1}`}: Faktor ${row.factor ?? 'unbekannt'}; ${row.isSignificant ? 'explorativer Hinweis nach unbereinigter Einzelregel' : 'explorativ'}.`,
       deltaStatus: 'offen',
       aiVerification: 'Keine KI-Bewertung verfügbar; deterministischer Fallback.',
       aiAddedValue: 'Kein zusätzlicher Entscheidungswert erzeugt.',
       evidenceRefs: [`deviations.focus[${index}]`],
       uncertaintyOrCheck: row.isSignificant
-        ? 'Räumliche Lage und möglicher Konfliktmechanismus gesondert prüfen.'
+        ? 'Keine Mehrfachtestkorrektur; Stadtbaseline enthält lokalen Bereich. Räumliche Lage und Konfliktmechanismus gesondert prüfen.'
         : 'Nicht als statistisch gesicherten oder räumlichen Schwerpunkt formulieren.',
     });
   });

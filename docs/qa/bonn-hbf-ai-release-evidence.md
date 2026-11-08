@@ -154,3 +154,30 @@ rather than becoming a default Bezirksrat. The server model-input builder accept
 production configuration's `gremium` field, so the configured recipient is not
 lost during handoff. The underlying jurisdiction still requires human
 confirmation before submission.
+
+
+## Final review corrections and reproducibility, 2026-11-08
+
+The production research panel now distinguishes its generated terms from deliberate
+manual edits. A confirmed geometry-bound area replaces old generated midpoint
+terms on reopening and direct search; manual terms remain intact. Automatic AI
+research derives its location context from that same confirmation, leaving the
+unverified midpoint street/district empty, so server variant expansion cannot
+reintroduce the old Adenauerallee label. Real request/variant regressions passed.
+
+The exploratory/unadjusted limitation now survives the actual AnalysisScope
+wrapper and appears in structured methodology, preview, DOCX/PDF and both AI
+paths, including the deterministic fallback. The server prompt cache version is
+2.6. No formula, threshold, denominator or statistical value changed.
+
+Two actual Chromium runs on the integrated canonical build produced byte-identical
+Golden snapshots. Independent recursive review found exactly eight changed paths:
+the explanatory digest note, the explicit methodology limitations, and six runtime
+file hashes. Every other field—including counts, years, geometry, statistics,
+source data fingerprint, views, model-release state and political evidence—was
+unchanged. The final fixture SHA-256 is
+`38d7ae24913749d50d8abc1f633d9945b20a08a5c4f785b77a41f6808c2f6a86`.
+The combined source-clock, publication, area-name, asset, methodology, scope and
+Golden contract check passed 9 suites / 182 tests; the focused final fixture
+check passed separately. Actual model, scientific and positive political
+acceptance remain absent.

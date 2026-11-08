@@ -19,7 +19,8 @@
  * RIS-Kontext sind Teil des kanonischen AI-Inputs und ändern bei Bedarf
  * den Cache-Key, ohne bestehende Anfragen ohne diesen Kontext zu ändern.
  */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.5';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.6';
+const { PATTERN_COMPARISON_LIMITATIONS } = require('../features/deriveFeatures.js');
 
 const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
 const OFFICIAL_DESTATIS_URL = 'https://www.destatis.de/DE/Service/Statistik-Visualisiert/unfall-atlas.html';
@@ -47,7 +48,7 @@ Strenge Regeln:
 2. Formuliere amtliche Zahlen bestimmt, konkret und mit Raum-/Zeitbezug. Verwandle sie nicht allein wegen kleiner Fallzahlen in bloße „mögliche Hinweise". "confidence" bewertet Interpretation und Maßnahmenpassung, nicht die Existenz eines amtlich dokumentierten Ereignisses.
 3. Prüfe vor der Bewertung die innere Plausibilität des Inputs: Gesamtzahl gegen Schweregradsumme, Stichprobengrößen, Zeitraum und weitere mitgelieferte Summen. Widersprüche gehören in "dataGaps"/"uncertainty" und verhindern eine scheinbar sichere Schlussfolgerung.
 4. Gib den Methodenvertrag vor jeder statistischen Kritik in eigenen Worten korrekt wieder. Eine Kritik, die den Musteranteilsvergleich als direkten Rohfallzahl- oder Expositionsvergleich behandelt, ist unzulässig.
-5. Unterscheide eine statistisch abgesicherte Überrepräsentation (isSignificant=true) von einer explorativen Abweichung. Eine nicht signifikante Abweichung darf nicht als statistisch gesicherter Schwerpunkt dargestellt werden.
+5. Auch isSignificant=true ist ein unbereinigter explorativer Einzelhinweis. Die parallele Mustersuche hat keine Mehrfachtestkorrektur; die Stadtbaseline enthält den lokalen Bereich. Formuliere daraus keinen statistisch abgesicherten oder amtlichen Unfallschwerpunkt.
 6. Halluziniere KEINE Ortsdetails (Straßennamen, Gebäude, Schulen), die nicht im Input vorkommen.
 7. Wähle Maßnahmen primär aus der bereitgestellten Maßnahmen-Vorauswahl ("preselectedMeasures"). Verwende, wo möglich, deren id und Titel unverändert. Du darfst sortieren, kürzen und begründen, aber keine völlig neuen Maßnahmen erfinden, wenn passende vorhanden sind.
 8. Begründe jede empfohlene Maßnahme als Kette: belegter Befund → Sicherheitsziel → Maßnahme/Prüfoption → noch nötige Fachprüfung → Erfolgskriterium. Eine nicht belegte Alleinursache ist dafür nicht erforderlich.
@@ -81,7 +82,7 @@ Strenge Regeln:
 2. Gib amtliche Unfallzahlen bestimmt und konkret wieder. Formulierungen wie „möglicherweise gab es" oder „die Daten könnten andeuten", obwohl eine Zahl im Input steht, sind unzulässig. Vorsicht gilt für Ursachenhypothesen und Wirkungsprognosen.
 3. Prüfe vor dem Schreiben die innere Plausibilität der Kennzahlen. Bei Widersprüchen: benenne sie in "caveats"/"uncertainty", formuliere einen konkreten Prüfauftrag und vermeide einen scheinbar abschließenden Maßnahmenbeschluss.
 4. Gib den Methodenvertrag korrekt wieder. Verlange für den Musteranteilsvergleich nicht fälschlich Fläche, Straßenlänge oder Verkehrsleistung als Nenner. Verlange Exposition nur für eine ausdrücklich beabsichtigte Unfallraten-/Risikoaussage.
-5. Unterscheide isSignificant=true von explorativen Abweichungen. Nicht signifikante Muster dürfen nicht als statistisch gesicherter Schwerpunkt formuliert werden.
+5. Auch isSignificant=true ist ein unbereinigter explorativer Einzelhinweis. Die parallele Mustersuche hat keine Mehrfachtestkorrektur; die Stadtbaseline enthält den lokalen Bereich. Formuliere daraus keinen statistisch abgesicherten oder amtlichen Unfallschwerpunkt.
 6. "sachverhalt" und "longVersion" müssen – soweit vorhanden – Unfallzahl, Schweregrade, Untersuchungsraum und Zeitraum nennen. Allgemeine Verkehrssicherheitsfloskeln ersetzen diesen Tatsachenkern nicht.
 7. Maßnahmen kommen primär aus der "preselectedMeasures"-Vorauswahl. Priorisiere nur Maßnahmen, deren Passung du auf einen belegten Befund oder einen ausdrücklich gekennzeichneten Prüfbedarf zurückführen kannst.
 8. Begründe jede Maßnahme als Kette: belegter Befund → Sicherheitsziel → Option → Fach-/Ortsprüfung → Erfolgskriterium. Ein dokumentiertes Unfallgeschehen kann einen Prüf-, Sicherungs-, Pilot- oder Abhilfeauftrag tragen, ohne dass eine exakte Alleinursache bereits bewiesen ist.
@@ -162,6 +163,7 @@ function buildPrompt(aiInput, mode) {
   lines.push(`Formeln: ${patternMethod.formulas?.localShare || 'locR = locCnt / local.total'}; ${patternMethod.formulas?.referenceShare || 'baseR = baseCnt / baseline.total'}; ${patternMethod.formulas?.factor || 'factor = locR / baseR'}.`);
   lines.push(`Unsicherheit: ${patternMethod.formulas?.uncertainty || 'Wilson-Score-Konfidenzintervall (95 %) für den lokalen Anteil'}; ${patternMethod.formulas?.significance || 'isSignificant=true, wenn ciLow > baseR'}.`);
   lines.push(patternMethod.interpretation || 'Eine Überrepräsentation beschreibt die Musterzusammensetzung und ist keine absolute Unfallrate unterschiedlich großer Räume.');
+  lines.push(PATTERN_COMPARISON_LIMITATIONS.note);
   lines.push(patternMethod.exposureRequirement || 'Für den Anteilsvergleich ist keine Flächen-, Straßenlängen- oder Verkehrsleistungsnormierung erforderlich; Exposition ist erst für absolute Risiko-/Unfallratenaussagen nötig.');
   lines.push(`Stichproben: lokal n=${patternMethod.localSampleSize ?? '–'}, Referenz n=${patternMethod.referenceSampleSize ?? '–'}. Die Präzision hängt von diesen Stichprobenumfängen ab.`);
   lines.push(trendMethod.interpretation || 'Mehrjahrestrend: relative zeitliche Entwicklung innerhalb desselben gefilterten Bereichs; Klassifikation über relative Steigung und R².');
@@ -179,7 +181,7 @@ function buildPrompt(aiInput, mode) {
           ? `${pct1(d.ciLow)}–${pct1(d.ciHigh)}`
           : 'nicht verfügbar';
         const status = d.isSignificant
-          ? 'statistisch über dem Referenzanteil nach implementierter Regel'
+          ? 'statistisch über dem Referenzanteil nach unbereinigter Einzelregel; explorativer Hinweis ohne Mehrfachtestkorrektur'
           : 'explorative Abweichung; nicht als statistisch abgesicherte Überrepräsentation formulieren';
         lines.push(`  - ${d.label}: lokal ${local}; stadtweite Referenz ${baseline}; Faktor ${factor}; 95-%-Wilson-Intervall lokal ${ci}; ${status}.`);
       } else {
@@ -368,7 +370,7 @@ function buildPrompt(aiInput, mode) {
   lines.push('1. Gib zuerst in einem internen Plausibilitätsschritt korrekt wieder, dass Musteranteile und nicht absolute Lokal-/Stadtfallzahlen als Unfallraten verglichen werden.');
   lines.push('2. Prüfe, ob Gesamtzahl und Summe aus Getöteten/Schwerverletzten/Leichtverletzten plausibel zusammenpassen.');
   lines.push('3. Behandle die genannten Unfälle als amtlich dokumentierte Tatsachen; relativiere nur Ursachen- und Wirkungsannahmen.');
-  lines.push('4. Unterscheide statistisch abgesicherte Muster (isSignificant=true) von explorativen Abweichungen.');
+  lines.push('4. Auch isSignificant=true bleibt ein unbereinigter explorativer Einzelhinweis, ohne Mehrfachtestkorrektur oder unabhängige Stadtbaseline.');
   lines.push('5. Verknüpfe jede Maßnahme mit mindestens einem konkreten Befund und einem prüfbaren Sicherheitsziel.');
   lines.push('6. Benenne Datenlücken spezifisch. Eine kleine Fallzahl ist kein Grund, dokumentierte Unfälle sprachlich verschwinden zu lassen.');
   lines.push('7. Fordere Expositionsdaten nur für eine ausdrücklich beabsichtigte Aussage über absolutes Risiko beziehungsweise Unfallraten je Verkehrsleistung.');

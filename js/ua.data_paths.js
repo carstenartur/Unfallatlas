@@ -252,7 +252,7 @@
     // after parser-executed modules avoids replacing their pre-definition hooks
     // and composes deterministically with the partial-coverage export guard.
     analysisScope: injectOptionalModuleAfterDomReady(
-      'js/ua.analysis_scope.js?v=2026-07-23',
+      'js/ua.analysis_scope.js?v=2026-11-08-method-limits',
       'data-ua-analysis-scope'
     ),
     accidentViewportController: injectOptionalModule(
@@ -279,11 +279,11 @@
     // suitable, source-linked proceedings into the structured report before
     // either the server AI or a user-owned AI receives it.
     aiPoliticalEvidence: injectOptionalModuleAfterDomReady(
-      'js/ua.ai_political_evidence.js?v=2026-11-07-ris',
+      'js/ua.ai_political_evidence.js?v=2026-11-08-area-research',
       'data-ua-ai-political-evidence'
     ),
     aiPoliticalReferenceBridge: injectOptionalModuleAfterDomReady(
-      'js/ua.ai_political_reference_bridge.js?v=2026-08-15',
+      'js/ua.ai_political_reference_bridge.js?v=2026-11-08-method-limits',
       'data-ua-ai-political-reference-bridge'
     ),
     // Load last so it can extend the completed evidence chain. This adapter

@@ -7,6 +7,8 @@
   const TEMPLATE_DIR = "templates";
   // Canonical text source: templates/*.txt; generated offline defaults.
   const DEFAULT_TEMPLATES = UA.exportTemplateDefaults || {};
+  const PATTERN_COMPARISON_LIMITATIONS = Object.freeze({"inference": "exploratory", "multiplicityAdjustment": "none", "referenceIncludesLocal": true, "localIntervalOnly": true, "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."});
+  UA.patternComparisonLimitations = PATTERN_COMPARISON_LIMITATIONS;
 
   async function loadTemplate(name, stadtSlug) {
     // Fallback chain:
@@ -1993,6 +1995,10 @@
       lines.push("");
     }
 
+    if (!String(tMethod || "").includes(PATTERN_COMPARISON_LIMITATIONS.note)) {
+      lines.push(PATTERN_COMPARISON_LIMITATIONS.note, "");
+    }
+
     // Mehrjahres-Trend (#C2): kompakte Tabelle + Klassifikation.
     if (yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) {
       lines.push("Mehrjahres-Trend (Gesamtzahl pro Jahr):");
@@ -2871,6 +2877,7 @@
 
         <div style="margin-top:10px; color:#555; font-size:12px;">
           <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
+          <div><strong>Grenzen des Mustervergleichs:</strong> ${UA.escHtml(PATTERN_COMPARISON_LIMITATIONS.note)}</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
         </div>
       </div>
@@ -3017,7 +3024,7 @@
       structured.mapReferences = mapRefs;
     }
 
-    // Methodik-Scope-Block (PR 2 / Spec-Item 6): drei Sätze, die die in
+    // Methodik-Scope-Block: Zählbereiche und Einschränkungen übersetzen die in
     // structured.meta.* hinterlegten Scopes in eine renderfertige, für
     // Verwaltungspublikum verständliche Sprache übersetzen. DOCX/PDF
     // rendern dieses Block 1:1 unterhalb der „Hinweis zur Zählweise"-Box;
@@ -3026,12 +3033,14 @@
     // bereits über das Methodik-HTML-Snippet abdeckt).
     structured.methodikScope = {
       title: "Methodik – Auswertungsbereich",
+      limitations: PATTERN_COMPARISON_LIMITATIONS,
       lines: [
         `Auswertungsbereich: Auswertung umfasst Unfälle innerhalb des markierten Bereichs (${bStr})${
           areaName ? ` – „${areaName}"` : ""
         } unter den oben aufgeführten Filtern.`,
         "Analyse auffälliger Unfallmuster: Auffälligkeiten und Top-Abweichungen werden auf der gefilterten Population im Ausschnitt (Unfälle mit erfasster Beteiligung) berechnet.",
-        `Vergleich mit dem Stadtgebiet: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`
+        `Vergleich mit dem Stadtgebiet: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`,
+        PATTERN_COMPARISON_LIMITATIONS.note
       ]
     };
 

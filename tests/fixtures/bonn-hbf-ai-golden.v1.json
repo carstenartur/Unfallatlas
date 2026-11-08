@@ -200,7 +200,7 @@
         "focus": [],
         "localSampleSize": 37,
         "method": "locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR",
-        "scopeNote": "Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure."
+        "scopeNote": "Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."
       },
       "politicalResearch": {
         "references": [],
@@ -1479,6 +1479,13 @@
           "significance": "isSignificant = true, wenn ciLow > baseR",
           "uncertainty": "Wilson-Score-Konfidenzintervall (95 %)"
         },
+        "limitations": {
+          "inference": "exploratory",
+          "localIntervalOnly": true,
+          "multiplicityAdjustment": "none",
+          "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
+          "referenceIncludesLocal": true
+        },
         "localSampleSize": 37,
         "referenceSampleSize": 1963
       },
@@ -1797,14 +1804,14 @@
       }
     ],
     "runtimeFiles": {
-      "js/ua.ai_political_evidence.js": "2253e0a8484927e850c9770f0c685addb14cd5647f5eb30ffaeb2e04d103358e",
-      "js/ua.ai_political_reference_bridge.js": "421aaa9a0c164ee9f56f0bc0ab6c403b6931ef62f13c60229e19c8bfe9b198b4",
-      "js/ua.analysis_scope.js": "648e418874e344b65735991b8af2744b7b40814e5e7b010f3c29e3b76057aa59",
-      "js/ua.area_name_control.js": "ed97fa8910f543dde5ecba0d5677ca6ef70d37d28acefcac148ded941aa813c4",
+      "js/ua.ai_political_evidence.js": "96a34bb01ef8374268b1fda2b9ea9dfc60783b818258f47c35b40465f04edfb6",
+      "js/ua.ai_political_reference_bridge.js": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc",
+      "js/ua.analysis_scope.js": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4",
+      "js/ua.area_name_control.js": "879b4582ef15e8ee335c78b6431f21109bf0150e3c9226ac0bbaa2d2966bbdb1",
       "js/ua.evidence_safe_semantics.js": "cf022eed045f94f6da257ffdd2d73069c294db7e0c08e225e51fdc6629afa6f4",
       "js/ua.evidence_safe_semantics_hardening.js": "f0dc5155752e32444b38a138f8e5a6270ef881b93ca834ef82da715e48ddc98e",
-      "js/ua.export_template_defaults.js": "2d6536e517f32154fcfc5b1089642c4cf666064d047dfc3d02fdeeedf725373c",
-      "js/ua.export_v2.js": "7114eb3fb13f897b0fc4b51d9d7a3026beae6663738ae93c18000039cd0b3d65",
+      "js/ua.export_template_defaults.js": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22",
+      "js/ua.export_v2.js": "82f09ad1a7492c0637f9e161b02ae64036bcfb1ee7665a6855e27eebc200f7e4",
       "js/ua.filters.js": "0600a8b1cac3ab3fcd2dc1da58f8b75579474fa76f279b0228fefd0d07d61450",
       "js/ua.heatmap.js": "d65c22f2a07d871fb38b1c18b88877e14f2d461357458d1e4e5330cb161a86c5",
       "js/ua.stats.js": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",

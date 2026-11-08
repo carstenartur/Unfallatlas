@@ -126,3 +126,79 @@ test('same-geometry sharing uses the same six-decimal precision as selection URL
   UA.AreaNameControl.bind(restored,jest.fn());
   expect(restored.areaNameOverride).toBe('Area A');
 });
+
+function installResearchPanel() {
+  document.body.insertAdjacentHTML('beforeend', '<button id="btnPolCtxOpen"></button><div id="polCtxPanel" style="display:none"><button id="polCtxBtnClose"></button><input id="polCtxSearchInput"><button id="polCtxBtnSearch"></button><div id="polCtxStatus"></div><div id="polCtxResults"></div><div id="polCtxBasis"></div></div>');
+  for (const file of ['ua.utils.js', 'ua.political-context.js']) {
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js', file), 'utf8'));
+  }
+  ctx.locationHint = { street: 'Adenauerallee', district: 'Südstadt', label: 'Adenauerallee, Südstadt' };
+  UA.ensureLocationHint = jest.fn(async () => ctx.locationHint);
+  UA.PoliticalContext.search = jest.fn(async params => ({ references: [], meta: { city: params.city, searchTerms: params.searchTerms, searchStatus: 'searched-no-results', supported: true } }));
+  UA.AreaNameControl.bind(ctx, jest.fn());
+  return document.getElementById('polCtxSearchInput');
+}
+function confirmResearchArea(name, places, north = 50.7355) {
+  ctx.selectionBounds = bounds(north);
+  document.getElementById('areaNameInput').value = name;
+  document.getElementById('areaSearchTermsInput').value = places;
+  document.getElementById('btnConfirmAreaName').click();
+}
+function closeResearchPanel() {
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+}
+
+test('reopening research replaces its generated midpoint and area A terms after confirming area B', async () => {
+  const input = installResearchPanel();
+  await UA.PoliticalContext.openPanel(ctx);
+  expect(input.value).toContain('Adenauerallee');
+  closeResearchPanel();
+  confirmResearchArea('Hbf / Münsterplatz', 'Münsterplatz; Maximilianstraße');
+  await UA.PoliticalContext.openPanel(ctx);
+  expect(UA.PoliticalContext.search.mock.calls.at(-1)[0].searchTerms).toEqual(['Hbf / Münsterplatz', 'Münsterplatz', 'Maximilianstraße']);
+  expect(input.value).not.toMatch(/Adenauerallee|Südstadt/);
+  closeResearchPanel();
+  confirmResearchArea('Beuel Bahnhof', 'Bahnhofstraße; Beuel', 50.74);
+  await UA.PoliticalContext._runSearch(ctx);
+  expect(UA.PoliticalContext.search.mock.calls.at(-1)[0].searchTerms).toEqual(['Beuel Bahnhof', 'Bahnhofstraße', 'Beuel']);
+  await UA.PoliticalContext.openPanel(ctx);
+  expect(UA.PoliticalContext.search.mock.calls.at(-1)[0].searchTerms).toEqual(['Beuel Bahnhof', 'Bahnhofstraße', 'Beuel']);
+  expect(input.value).not.toMatch(/Adenauerallee|Südstadt|Münsterplatz|Maximilianstraße/);
+});
+
+test.each([null, 'Tempo 30; Schulwegsicherheit'])('explicit manual research input (%s) survives a new area confirmation', async value => {
+  const input = installResearchPanel();
+  await UA.PoliticalContext.openPanel(ctx);
+  // Even choosing to keep the same visible text is an explicit manual edit.
+  if (value !== null) input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  const manual = input.value;
+  closeResearchPanel();
+  confirmResearchArea('Beuel Bahnhof', 'Bahnhofstraße', 50.74);
+  await UA.PoliticalContext.openPanel(ctx);
+  expect(input.value).toBe(manual);
+  expect(UA.PoliticalContext.search.mock.calls.at(-1)[0].searchTerms).toEqual(manual.split(/[,;]+/).map(term => term.trim()));
+});
+
+test('AI request and real server variants use confirmed area B rather than midpoint or area A context', async () => {
+  installResearchPanel();
+  const search = UA.PoliticalContext.search;
+  UA.getRuntimeContext = () => ctx;
+  UA.aiProposal = { _internal: { mirrorExportOptions() {}, buildExternalAiFactsPackage: value => value } };
+  eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.ai_political_evidence.js'), 'utf8'));
+  const { buildSearchVariants } = require('../../server/political-context/services/searchVariantBuilder');
+  for (const [name, places, north] of [['Hbf / Münsterplatz', 'Münsterplatz; Maximilianstraße', 50.7355], ['Beuel Bahnhof', 'Bahnhofstraße; Beuel', 50.74]]) {
+    confirmResearchArea(name, places, north);
+    await UA.aiPoliticalEvidence.ensurePoliticalResearch(ctx);
+    const request = search.mock.calls.at(-1)[0];
+    expect(request.context).toEqual({ location: name, street: '', district: '', gremium: '' });
+    const expanded = buildSearchVariants(request.searchTerms, request.context);
+    expect(expanded).toContain(name);
+    expect(JSON.stringify({ request, expanded })).not.toMatch(/Adenauerallee|Südstadt/);
+    if (name === 'Beuel Bahnhof') expect(JSON.stringify({ request, expanded })).not.toMatch(/Münsterplatz|Maximilianstraße/);
+  }
+  // Confirmation must stop governing research when its geometry is no longer valid.
+  ctx.selectionBounds = bounds(50.75);
+  expect(UA.aiPoliticalEvidence._internal.currentLocationContext(ctx)).toMatchObject({ street: 'Adenauerallee' });
+  expect(ctx.areaNameOverride).toBeUndefined();
+});
