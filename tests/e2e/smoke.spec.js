@@ -149,19 +149,18 @@ test.describe('Smoke – Werkbank V2', () => {
     await expect(exportModal).toBeVisible({ timeout: 5000 });
   });
 
-  // Item 3 (post-PR #261 follow-up): the new top-left "Karten-Layer"
-  // overlay control is mounted by ua.map_v2 only when the loaded city
-  // exposes `hasOsmContext`. Asserting its presence on Bonn (which
+  // The unified Karte control groups the capability-gated road overlays.
+  // Asserting its title and overlay inputs on Bonn (which
   // ships with enriched ways_bonn.json) makes any future CSS or
   // capability-detection regression that hides it visible in CI.
-  test('Karten-Layer-Control ist für Stadt mit OSM-Kontext sichtbar', async ({ page }) => {
+  test('Karte-Control ist für Stadt mit OSM-Kontext sichtbar', async ({ page }) => {
     await page.goto('werkbank_v2.html?city=Bonn');
     await page.waitForFunction(() => typeof window.UA?.fetchJsonCompressed === 'function');
 
     // Gate: only enforce the assertion when the deployment actually
-    // has enriched data with slope or traffic fields. The overlay
-    // control is mounted by ua.map_v2 only when hasSlope or hasTrafficProxy
-    // is true, so unenriched data means "no overlays expected".
+    // has enriched data with slope or traffic fields. Road-overlay inputs
+    // appear only when hasSlope or hasTrafficProxy is true, so unenriched
+    // data means "no road overlays expected".
     const baseUrl = new URL(page.url());
     const dataUrl = new URL('out/output_all_years_bonn.geojson.gz', baseUrl).toString();
     const geojson = await page.evaluate(async (url) => {
@@ -180,7 +179,7 @@ test.describe('Smoke – Werkbank V2', () => {
     await expect(overlayCtrl).toBeVisible({ timeout: 15000 });
     // Title + capability-gated checkbox(es) must be present so a CSS
     // regression that hides only one of them still trips the test.
-    await expect(overlayCtrl).toContainText('Karten-Layer');
+    await expect(overlayCtrl.getByRole('button', { name: 'Karte', exact: true })).toBeVisible();
     const checkboxes = overlayCtrl.locator('input[type="checkbox"][data-context-overlay]');
     await expect.poll(async () => await checkboxes.count(), { timeout: 15000 })
       .toBeGreaterThan(0);

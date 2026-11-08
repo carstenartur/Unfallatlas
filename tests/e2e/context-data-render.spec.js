@@ -119,7 +119,7 @@ test.describe('Generated context data – browser end to end', () => {
 
     const overlayControl = page.locator('.context-overlay-control');
     await expect(overlayControl).toBeVisible({ timeout: 60_000 });
-    await expect(overlayControl).toContainText('Karten-Layer');
+    await expect(overlayControl.getByRole('button', { name: 'Karte', exact: true })).toBeVisible();
     await expect(overlayControl.locator('input[data-context-overlay="slope"]')).toBeChecked();
     await expect(overlayControl.locator('input[data-context-overlay="traffic"]')).toBeChecked();
 
