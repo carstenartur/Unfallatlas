@@ -326,3 +326,58 @@ test('does not collect an operative section inside a nonpublic parent', async ()
   const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
   expect(records[0].locationEvidence).toEqual([]);
 });
+
+test.each([
+  ['unrecognized section', '<h4>Sachverhalt</h4><p>Ein nicht erkannter Maßnahmenabschnitt.</p>'],
+  ['empty section', '<h4>Antrag</h4><p></p><h4>Begründung</h4><p>Nur eine Begründung.</p>'],
+  ['oversized paragraph', `<h4>Antrag</h4><p>${'x'.repeat(4001)}</p>`],
+])('marks a content block without usable operative evidence as unavailable: %s', async (_, body) => {
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">Radweg</a></td></tr>`),
+    [ORIGINAL]: document('Antrag Nr. 1047/2026', 'Radweg an der Limmerstraße', '', body),
+  });
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0]).toMatchObject({ locationEvidence: [], locationEvidenceUnavailable: true });
+  const { enrichRisLocations } = require('../../server/political-context/services/risLocation');
+  const [mapped] = enrichRisLocations(records, { city: 'hannover', gazetteer: { city: 'hannover', entries: [{
+    kind: 'street', name: 'Limmerstraße', attribution: 'Testgazetteer',
+    geometry: { type: 'LineString', coordinates: [[9.71, 52.37], [9.72, 52.37]] },
+  }] } });
+  expect(mapped.locations).toHaveLength(1);
+  expect(mapped.locationAssessment.status).toBe('partial');
+  expect(mapped.locationAssessment.reasons).toContain('document_text_unavailable');
+});
+
+test('continues tolerant archive imports after a cached detail loader fails and retries the failed source', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCache } = require('../../server/political-context/services/risSourceCache');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-tolerant-cache-'));
+  try {
+    const sourceCache = createRisSourceCache({ directory: folder, now: () => TODAY.getTime() });
+    const pages = {
+      'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+      [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">Erste Vorlage</a></td></tr>`
+        + `<tr><td><a href="${ANSWER}">Zweite Vorlage</a></td></tr>`),
+      [ANSWER]: document('Drucksache Nr. 1047/2026 F1', 'Zweite Vorlage'),
+    };
+    const { requestText, calls } = transport(pages);
+    const options = { now: TODAY, includeRss: false, requestText, sourceCache, strict: false };
+    const first = await collect(options);
+    expect(first.records.map(record => record.id)).toEqual(['hannover-sim:1047-2026F1']);
+    expect(first.coverage.warnings.filter(warning => warning.startsWith('Drucksachen:')))
+      .toEqual([expect.stringMatching(/Drucksachen: 1 Abruf\(e\) fehlgeschlagen.*HTTP 404/)]);
+    expect(sourceCache.stats.writes).toBe(1);
+    await expect(collect({ ...options, strict: true })).rejects.toThrow(/Drucksachen:.*HTTP 404/);
+    expect(sourceCache.stats.writes).toBe(1);
+    pages[ORIGINAL] = document('Anfrage Nr. 1047/2026', 'Erste Vorlage');
+    const recovered = await collect(options);
+    expect(recovered.records.map(record => record.id)).toEqual(['hannover-sim:1047-2026', 'hannover-sim:1047-2026F1']);
+    expect(recovered.coverage.warnings.some(warning => /fehlgeschlagen/.test(warning))).toBe(false);
+    expect(calls.filter(url => url === ROOT + ORIGINAL)).toHaveLength(3);
+    expect(calls.filter(url => url === ROOT + ANSWER)).toHaveLength(1);
+    expect(sourceCache.stats.writes).toBe(2);
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});

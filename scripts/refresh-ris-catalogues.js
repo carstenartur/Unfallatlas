@@ -325,7 +325,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   }
   const gazetteer = await loadGazetteer(city);
   const records = enrichRisLocations(inputs.filter(record => !retainedDetails.has(record.id)), { city, gazetteer, maxLocationsPerRecord: Infinity });
-  records.push(...retainedDetails.values());
+  for (const record of retainedDetails.values()) records.push(record);
   if (previous?.manifest && (catalogue.history?.interrupted || retainedDetails.size)) retainedClocks.push(previous.manifest.generatedAt);
   const retainedAt = retainedClocks.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   if (retainedAt) coverage = { ...coverage, warnings: [...new Set([...coverage.warnings,

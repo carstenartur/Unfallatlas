@@ -124,7 +124,7 @@ portion of Task 1 is reopened before merge to satisfy the large-city requirement
   archives, all canonical records/evidence/geometry, and original source clocks.
 - [x] Verify dense points and lines, crossing geometry, bounded files, corrupt
   references and full offline validation; independent scoped review.
-- [ ] Regenerate the actual indexes without recrawling sources, revalidate the
+- [x] Regenerate the actual indexes without recrawling sources, revalidate the
   export and browser, and rerun final-head CI before the authorized merge.
 - [x] Fix the confirmed coarse-overview drilldown that zoomed from 18 out to 11;
   increase zoom within the visible cell portion, explain the actual map maximum,
@@ -139,5 +139,25 @@ legacy v1, dense v2 pagination and search selection. The spatial producer's
 reviewed append corrections preserve byte-identical manifests and index roots.
 Actual packed migration preserves both cities' canonical records and maps and
 all source clocks; 3,982 referenced files contain 15,379,219 compressed bytes.
-The predecessor head passed all eight CI workflows. The final packed head must
-still pass its own canonical CI before the authorized merge.
+The packed head df50ec258d567cbec29cf0e5dbb9aa3c75002e0e passed all eight CI
+workflows, including 3,930 JavaScript tests, 42 Java tests, 141 browser scenarios
+and 12 integration tests. No gate was weakened.
+
+## GitHub provider review corrections
+
+Three open Copilot conversations blocked the first authorized merge attempt.
+All three reproduced genuine source-provider defects; the corrections are
+implemented and independently reviewed:
+
+- [x] Qualify empty/unusable operative evidence, including old parsed caches.
+- [x] Preserve verified annual-list types on success, cache and historical
+  checkpoint paths, while retaining administrative-answer precedence.
+- [x] Continue tolerant archive imports after cached detail failures, emit one
+  warning and never cache failure; preserve strict-mode rejection.
+- [x] Preserve known original detail clocks when correcting legacy checkpoint
+  evidence, including restoration without a previous published snapshot.
+- [x] Remove the retained-detail append argument-count limit without changing
+  record order, objects or provenance behavior.
+- [ ] Verify the corrected actual export, final-head CI, resolved conversations
+  and authorized integration. Existing packed-format evidence remains valid;
+  corrected metadata deliberately changes canonical records.

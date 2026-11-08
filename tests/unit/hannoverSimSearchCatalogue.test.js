@@ -131,6 +131,117 @@ test('resumes verified details through the shared source cache', async () => {
   expect(calls.filter(call => call.url === ROOT + 'DS/0001-2021')).toHaveLength(1);
 });
 
+test.each([
+  ['Anfrage', 'Drucksache', 'Radweg an der Limmerstraße', 'Anfrage'],
+  ['Änderungsantrag', 'Drucksache', 'Radweg an der Limmerstraße', 'Änderungsantrag'],
+  ['Anfrage', 'Antrag', 'Radweg an der Limmerstraße', 'Anfrage'],
+  ['Anfrage', 'Drucksache', 'Antwort zur Limmerstraße', 'Verwaltungsantwort'],
+  ['Anfrage', 'Antwort', 'Radweg an der Limmerstraße', 'Verwaltungsantwort'],
+  ['Drucksache', 'Beschlussdrucksache', 'Radweg an der Limmerstraße', 'Beschluss'],
+  ['', 'Drucksache', 'Antrag zur Limmerstraße', 'Antrag'],
+])('uses verified list type %s with detail type %s and title %s as %s', async (listType, detailType, title, expected) => {
+  const { requestText } = fixture({ years: { 2021: results([row('0001-2021', title, '01.02.2021', listType)]) },
+    documents: { 'DS/0001-2021': document('0001-2021', title).replace('Drucksache Nr.', `${detailType} Nr.`) } });
+  const { records } = await collectHannoverCatalogue({ ...options, to: '2021-12-31', requestText });
+  expect(records[0].type).toBe(expected);
+});
+
+test.each(['source cache', 'checkpoint details', 'checkpoint catalogue'])('normalizes legacy empty evidence and list types from %s without rereading details', async storage => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCache } = require('../../server/political-context/services/risSourceCache');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-legacy-projection-'));
+  const firstCheckedAt = new Date(NOW.getTime() - 86400000);
+  let cacheTime = firstCheckedAt.getTime();
+  try {
+    const key = '0001-2021';
+    const usefulKey = '0002-2021';
+    const { requestText, calls } = fixture({
+      years: { 2021: results([row(key, 'Radweg an der Limmerstraße', '01.02.2021', 'Anfrage'),
+        row(usefulKey, 'Radweg an der Limmerstraße', '01.02.2021', 'Änderungsantrag')]) },
+      documents: { ['DS/' + key]: document(key).replace('<h4>Antrag</h4>', '<h4>Sachverhalt</h4>'),
+        ['DS/' + usefulKey]: document(usefulKey) },
+    });
+    const sourceCache = storage === 'source cache' ? createRisSourceCache({ directory: folder, now: () => cacheTime }) : undefined;
+    const checkpoint = storage !== 'source cache' ? createRisSourceCheckpoint({ directory: folder }) : undefined;
+    const collectOptions = { ...options, to: '2021-12-31', requestText, sourceCache, checkpoint };
+    await collectHannoverCatalogue({ ...collectOptions, now: firstCheckedAt });
+    let cachedBytes;
+    if (sourceCache) {
+      for (const name of await fs.readdir(folder)) {
+        const filename = path.join(folder, name);
+        const entry = JSON.parse(await fs.readFile(filename, 'utf8'));
+        delete entry.payload.locationEvidenceUnavailable;
+        entry.payload.detailVerifiedAt = firstCheckedAt.toISOString();
+        await fs.writeFile(filename, JSON.stringify(entry));
+      }
+      cachedBytes = await Promise.all((await fs.readdir(folder)).sort().map(name => fs.readFile(path.join(folder, name), 'utf8')));
+    } else {
+      const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
+      delete work.details[key].result.locationEvidenceUnavailable;
+      for (const record of work.catalogue.records) {
+        delete record.locationEvidenceUnavailable;
+        record.type = 'Sonstige';
+      }
+      await checkpoint.write('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1', work);
+    }
+    cacheTime = NOW.getTime();
+    const { records } = await collectHannoverCatalogue({ ...collectOptions,
+      ...(storage === 'checkpoint catalogue' ? { from: '2022-01-01', to: '2022-12-31', workBudget: 0 } : {}) });
+    expect(records.find(record => record.id === 'hannover-sim:' + key))
+      .toMatchObject({ type: 'Anfrage', locationEvidence: [], locationEvidenceUnavailable: true });
+    const useful = records.find(record => record.id === 'hannover-sim:' + usefulKey);
+    expect(useful.type).toBe('Änderungsantrag');
+    expect(useful.locationEvidence).toEqual(['Der Radweg an der Limmerstraße wird saniert.']);
+    expect(useful.locationEvidenceUnavailable).toBeUndefined();
+    expect(records.find(record => record.id === 'hannover-sim:' + key).detailVerifiedAt).toBe(firstCheckedAt.toISOString());
+    if (sourceCache) expect(useful.detailVerifiedAt).toBe(firstCheckedAt.toISOString());
+    expect(calls.filter(call => call.url.includes('/DS/'))).toHaveLength(2);
+    if (sourceCache) {
+      expect(sourceCache.stats).toEqual({ hits: 2, misses: 2, writes: 2 });
+      expect(await Promise.all((await fs.readdir(folder)).sort().map(name => fs.readFile(path.join(folder, name), 'utf8')))).toEqual(cachedBytes);
+    } else {
+      const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
+      expect(work.details[key].checkedAt).toBe(firstCheckedAt.toISOString());
+      expect(work.details[usefulKey].checkedAt).toBe(firstCheckedAt.toISOString());
+    }
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('an old checkpoint catalogue cannot become a freshly verified snapshot when empty evidence is qualified', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const { refreshRisCatalogues } = require('../../scripts/refresh-ris-catalogues');
+  const { readRisSnapshot } = require('../../server/political-context/services/risSnapshot');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-legacy-clock-'));
+  const verifiedAt = new Date('2026-11-01T11:00:00Z');
+  const later = new Date('2026-11-20T11:00:00Z');
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const key = '0001-2021';
+    const { requestText, calls } = fixture({ years: { 2021: results([row(key)]) },
+      documents: { ['DS/' + key]: document(key).replace('<h4>Antrag</h4>', '<h4>Sachverhalt</h4>') } });
+    await collectHannoverCatalogue({ ...options, to: '2021-12-31', now: verifiedAt, checkpoint, requestText });
+    const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
+    delete work.details[key].result.locationEvidenceUnavailable;
+    delete work.catalogue.records[0].locationEvidenceUnavailable;
+    await checkpoint.write('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1', work);
+    const catalogue = await collectHannoverCatalogue({ ...options, from: '2022-01-01', to: '2022-12-31',
+      now: later, workBudget: 0, checkpoint, requestText });
+    expect(catalogue.records[0]).toMatchObject({ locationEvidenceUnavailable: true, detailVerifiedAt: verifiedAt.toISOString() });
+    expect(calls).toHaveLength(3);
+    const directory = path.join(folder, 'published');
+    await expect(refreshRisCatalogues({ directory, cities: ['hannover'], now: later,
+      fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => catalogue }))
+      .resolves.toMatchObject([{ status: 'unavailable' }]);
+    await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
 test('marks bounded operative text as truncated instead of claiming that every paragraph was examined', async () => {
   const content = document('0001-2021').replace('</main>', Array.from({ length: 45 }, (_, i) =>
     `<p>Der Radweg an der Limmerstraße erhält Maßnahme ${i + 1}.</p>`).join('') + '</main>');

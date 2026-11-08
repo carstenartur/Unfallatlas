@@ -215,7 +215,8 @@ Stadtdatei; es macht die amtlichen Quellen und die Hosting-Grenzen nicht unbegre
 
 ## Gemessener Prüfstand vom 8. November 2026
 
-Der tatsächlich erhobene und lokal validierte Bestand umfasst:
+Der tatsächlich erhobene und lokal validierte räumliche Prüfstand um 14:13 UTC
+(vor der anschließenden Providerkorrektur) umfasst:
 
 | Stadt | Vorgänge | Vorgänge mit Geometrie | Eindeutige Geometrien | Alle komprimierten Teile |
 |---|---:|---:|---:|---:|
@@ -229,6 +230,24 @@ eine Ortsprüfung; 50.322 haben bislang keine darstellbare Geometrie. Vier Detai
 ihre unabhängig geprüften Listendaten und die Einschränkungen bleiben erhalten.
 461 Prüfungen kennzeichnen begrenzte Textbelege. Dies ist keine Zusage eines
 vollständigen amtlichen Archivs oder einer vollständigen PDF-Texterfassung.
+
+Die anschließende Providerprüfung korrigiert zusätzlich die Qualität der
+Metadaten: Verwertbare Typangaben aus den geprüften Jahreslisten bleiben auch
+bei erfolgreichen Detailabrufen und älteren Cachetreffern erhalten;
+Verwaltungsantworten haben weiterhin Vorrang. Ein vorhandener Dokumentbereich
+ohne auswertbaren operativen Text wird ausdrücklich als nicht verfügbar markiert.
+Eine allein aus dem Titel abgeleitete Ortszuordnung gilt dann als teilweise
+geprüft. Bekannte ursprüngliche Detailzeitpunkte bleiben erhalten, auch beim
+Wiederaufbau ausschließlich aus historischen Checkpoints. Fehlgeschlagene
+Detailabrufe werden im toleranten Archivmodus übersprungen und einmal gemeldet,
+ohne einen Cacheerfolg zu erzeugen; der strikte Modus bricht weiterhin ab.
+
+Im ursprünglichen Bestand betrifft die nachgeholte Textqualifikation 11.213
+Vorgänge, davon 146 zuvor vollständig verortete Einträge mit ausschließlich
+titelbasierten Belegen. Bei 5.656 als „Sonstige“ eingeordneten Vorgängen ist ein
+verwertbarer spezifischer Listentyp nachgewiesen. Die Quellbezeichnung
+„Entscheidung“ bleibt bei fehlender zusätzlicher Typinformation „Sonstige“;
+sie wird nicht pauschal als Verwaltungsantwort ausgegeben.
 
 Die Migration verlor keine bereits vorhandene ID, Beziehung oder einen der 3.497
 gespeicherten Hannover-Dokumentbelege. Alle 1.829 ursprünglichen amtlichen Bonn-

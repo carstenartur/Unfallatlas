@@ -324,8 +324,25 @@ function measureText(markup) {
   const bounded = paragraphs.filter(value => value.length <= 4000);
   return {
     locationEvidence: bounded.slice(0, 40),
+    ...(!bounded.length ? { locationEvidenceUnavailable: true } : {}),
     ...(bounded.length > 40 || bounded.length !== paragraphs.length ? { locationEvidenceTruncated: true } : {}),
   };
+}
+
+function documentType(doc, result, answer = false) {
+  const detailType = inferType('', result.rawType || result.type);
+  if (answer || /^antwort\b/i.test(result.title) || detailType === 'Verwaltungsantwort') return 'Verwaltungsantwort';
+  const listType = inferType('', doc?.searchType);
+  if (listType !== 'Sonstige') return listType;
+  return detailType === 'Sonstige' ? inferType(result.title, '') : detailType;
+}
+
+function evidenceQualification(result, includeLocationEvidence, checkedAt) {
+  // Older sim-v3 entries may have parsed no usable section without qualifying it.
+  // Normalize the projection, retaining valid cached evidence and its source clock.
+  if (!result.locationEvidenceUnavailable && (!includeLocationEvidence || result.locationEvidence?.length)) return {};
+  const detailVerifiedAt = result.detailVerifiedAt || checkedAt;
+  return { locationEvidenceUnavailable: true, ...(detailVerifiedAt ? { detailVerifiedAt } : {}) };
 }
 
 function parseDocument(text, doc, includeLocationEvidence) {
@@ -611,7 +628,9 @@ async function collectHannoverYear(options = {}) {
     const readDocument = async doc => {
       const revision = `sim-v3:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
       const retained = yearWork?.details[doc.key];
-      if (retained?.revision === revision && now.getTime() - Date.parse(retained.checkedAt) < 7 * DAY_MS) return retained.result;
+      if (retained?.revision === revision && now.getTime() - Date.parse(retained.checkedAt) < 7 * DAY_MS) {
+        return { ...retained.result, ...evidenceQualification(retained.result, options.includeLocationEvidence, retained.checkedAt) };
+      }
       const metadata = () => {
         if (!retained?.result && !doc.searchTitle) return null;
         return { related: [], locationEvidence: [], ...retained?.result,
@@ -624,7 +643,13 @@ async function collectHannoverYear(options = {}) {
         return metadata();
       }
       if (yearWork) options.work.remaining--;
-      const read = () => load(doc.url, 'Drucksachen', text => parseDocument(text, doc, options.includeLocationEvidence), false, {}, searchMode);
+      let failureRecorded = false;
+      const read = async () => {
+        const result = await load(doc.url, 'Drucksachen', text => parseDocument(text, doc, options.includeLocationEvidence), false, {}, searchMode);
+        // A tolerant archive read already recorded this source failure in load().
+        failureRecorded = !result;
+        return result;
+      };
       try {
         let result;
         if (options.sourceCache) {
@@ -642,11 +667,14 @@ async function collectHannoverYear(options = {}) {
         if (yearWork && result) yearWork.details[doc.key] = { revision, checkedAt: now.toISOString(), result, doc };
         return result;
       } catch (error) {
-        if (!searchMode) throw error;
-        const phase = doc.searchTitle ? 'Drucksachen' : 'Verknüpfte Drucksachen';
-        const issue = failures.get(phase) || { count: 0, detail: String(error.message).slice(0, 160) };
-        issue.count++;
-        failures.set(phase, issue);
+        if (!searchMode && options.strict) throw error;
+        if (!failureRecorded) {
+          const phase = !searchMode || doc.searchTitle ? 'Drucksachen' : 'Verknüpfte Drucksachen';
+          const issue = failures.get(phase) || { count: 0, detail: String(error.message).slice(0, 160) };
+          issue.count++;
+          failures.set(phase, issue);
+        }
+        if (!searchMode) return null;
         // An auxiliary link has no verified year-list metadata to publish.
         // Its absence must not discard the independently verified year lists.
         if (yearWork) yearWork.failedDetails.push(doc.key);
@@ -690,16 +718,14 @@ async function collectHannoverYear(options = {}) {
 
   if (yearWork?.deferred.length) warnings.push(`Quellenarbeit ist fortsetzbar; ${yearWork.deferred.length} Drucksachen bleiben offen.`);
   const records = found.map(({ doc, result }) => {
-    const type = answers.has(doc.key) || /^antwort\b/i.test(result.title)
-      ? 'Verwaltungsantwort' : inferType('', result.rawType);
     const parent = relations.get(doc.key);
     return {
       id: `${SOURCE}:${doc.key}`, title: result.title, number: doc.number,
-      type: type === 'Sonstige' ? inferType(result.title, '') : type,
+      type: documentType(doc, result, answers.has(doc.key)),
       date: result.date || doc.searchDate || doc.feedDate || null, gremium: doc.agendaBody || doc.feedBodies?.join(', ') || result.gremium || null,
       url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
       ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
-      ...(result.locationEvidenceUnavailable ? { locationEvidenceUnavailable: true } : {}),
+      ...evidenceQualification(result, options.includeLocationEvidence),
       ...(result.detailVerifiedAt ? { detailVerifiedAt: result.detailVerifiedAt } : {}),
       ...(result.locationEvidenceTruncated ? { locationEvidenceTruncated: true } : {}),
     };
@@ -749,7 +775,16 @@ async function collectHannoverCatalogue(options = {}) {
       });
     } else if (requestedYear) { pendingYears.push(year); interrupted = true; }
     if (state.deferred?.length) interrupted = true;
-    if (state.catalogue) catalogues.push(state.catalogue);
+    if (state.catalogue) {
+      const documents = new Map((state.documents || []).map(doc => [`${SOURCE}:${doc.key}`, doc]));
+      // A retained year need not be fetched again to correct its existing evidence
+      // qualification or reapply the type from its verified annual discovery list.
+      catalogues.push({ ...state.catalogue, records: state.catalogue.records.map(record => ({
+        ...record,
+        type: documentType(documents.get(record.id), record),
+        ...evidenceQualification(record, options.includeLocationEvidence, state.details?.[record.id.slice(SOURCE.length + 1)]?.checkedAt),
+      })) });
+    }
     if (state.pending && !pendingYears.includes(year)) pendingYears.push(year);
   }
   const records = [...new Map(catalogues.flatMap(item => item.records).map(record => [record.id, record])).values()].sort((a, b) => a.id.localeCompare(b.id));
