@@ -10,6 +10,7 @@
   const DIGEST_SCHEMA = 'unfallwerkbank.deterministicAnalysisDigest.v1';
   const POLL_MS = 25;
   const MAX_POLLS = 240;
+  const PATTERN_COMPARISON_LIMITATIONS = Object.freeze({"inference": "exploratory", "multiplicityAdjustment": "none", "referenceIncludesLocal": true, "localIntervalOnly": true, "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."});
 
   const clean = value => String(value == null ? '' : value).trim();
   const finite = value => {
@@ -157,7 +158,7 @@
         localSampleSize: finite(localN), baselineSampleSize: finite(baseN),
         focus: (dev.focus || []).map(r => patternRow(r, localN, baseN)),
         allRows: (dev.rows || []).map(r => patternRow(r, localN, baseN)),
-        scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure.'
+        scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. ' + PATTERN_COMPARISON_LIMITATIONS.note
       },
       yearlyTrend: trend ? { years: trend.years || [], totals, slopePerYear: finite(trend.slope),
         meanPerYear: mean, relativeSlope: mean > 0 && finite(trend.slope) !== null ? finite(trend.slope) / mean : null,
@@ -190,6 +191,7 @@
       ],
       forbiddenMisinterpretation: 'Die Stichprobenumfänge dürfen nicht als direkter Vergleich absoluter Unfallraten, Flächen-, Straßenlängen- oder Verkehrsleistungsrisiken ausgegeben werden.',
       patternComparison: { comparisonType: 'composition-share-ratio',
+        limitations: UA.patternComparisonLimitations || PATTERN_COMPARISON_LIMITATIONS,
         localSampleSize: p.localSampleSize, referenceSampleSize: p.baselineSampleSize,
         formulas: { localShare: 'locR = locCnt / local.total',
           referenceShare: 'baseR = baseCnt / baseline.total', factor: 'factor = locR / baseR',

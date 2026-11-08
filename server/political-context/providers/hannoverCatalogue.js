@@ -55,7 +55,7 @@ function combineHannoverCatalogues(city, region, { now = new Date(), additional 
   };
   const regionStatus = region.sourceStatus || region.sourceStatuses?.find(status => status.source === 'region-hannover-ris') || {
     source: 'region-hannover-ris', status: 'partial', url: region.sources[0],
-    retrievedAt: region.generatedAt || now.toISOString(), from: region.coverage.from, to: region.coverage.to,
+    retrievedAt: region.generatedAt || null, from: region.coverage.from, to: region.coverage.to,
     recordCount: region.records.length, message: 'Öffentliche regionale Vorlagen; Abdeckung und offene Detailabrufe siehe Quellenhinweise.',
   };
   // Keep the established multi-source context, timeline and rights mapping.
@@ -87,7 +87,13 @@ function combineHannoverCatalogues(city, region, { now = new Date(), additional 
 async function collectCombinedHannoverCatalogue({ now = new Date(), from = '2014-01-01',
   maxDurationMs = 58 * 60_000, workBudget, sourceCache, checkpoint, report = () => {},
   collectCity = collectHannoverCatalogue, collectRegion = collectRegionHannoverCatalogue,
-  collectAdditional = collectHannoverAdditionalSources, onExclusions = () => {} } = {}) {
+  collectAdditional = collectHannoverAdditionalSources, onExclusions = () => {}, checkpointOnly = false } = {}) {
+  if (checkpointOnly && workBudget !== 0) throw new Error('Hannover checkpoint recovery requires zero source work');
+  let sourceReadAttempted = false;
+  const denySourceRead = () => {
+    sourceReadAttempted = true;
+    throw new Error('Official source requests are disabled during checkpoint recovery');
+  };
   // The two public systems are independent. A configured request budget is
   // shared, while their ordinary wall-clock bounds run concurrently.
   const regionBudget = workBudget === undefined ? undefined : Math.ceil(workBudget / 2);
@@ -95,17 +101,21 @@ async function collectCombinedHannoverCatalogue({ now = new Date(), from = '2014
   const outcomes = await Promise.allSettled([
     collectCity({ now, from, discovery: 'search', strict: true, maxDocuments: 50_000,
       concurrency: 8, maxDurationMs, timeoutMs: 20_000, includeLocationEvidence: true,
-      sourceCache, checkpoint, workBudget: cityBudget, report: event => report({ ...event, source: 'hannover-sim' }) }),
+      sourceCache, checkpoint, ...(checkpointOnly ? { requestText: denySourceRead } : {}), workBudget: cityBudget, report: event => report({ ...event, source: 'hannover-sim' }) }),
     collectRegion({ now, from, maxDocuments: 50_000, maxDetails: 2000,
       maxDurationMs: Math.min(15 * 60_000, maxDurationMs), timeoutMs: 20_000,
-      sourceCache, checkpoint, workBudget: regionBudget, report: event => report({ ...event, source: 'region-hannover-ris' }) })
+      sourceCache, checkpoint, ...(checkpointOnly ? { fetchHtmlImpl: denySourceRead } : {}), workBudget: regionBudget, report: event => report({ ...event, source: 'region-hannover-ris' }) })
       .then(region => { onExclusions(region.exclusions || []); return region; }),
     // Preserve the separately bounded Landtag/announcement discovery introduced
     // with consultation histories. Zero work budget remains entirely offline.
     collectAdditional({ now, sourceCache, checkpoint, workBudget,
+      ...(checkpointOnly ? { request: denySourceRead } : {}),
       maxPages: workBudget === 0 ? 0 : 2, maxNotices: workBudget === 0 ? 0 : 4 }),
   ]);
   const failures = outcomes.filter(outcome => outcome.status === 'rejected');
+  // A collector may catch transport failure and return retained data. The
+  // offline recovery boundary must still reject the attempted source read.
+  if (sourceReadAttempted) failures.push({ reason: new Error('Checkpoint recovery attempted an official source request') });
   if (failures.length) {
     const error = new Error(failures.map(outcome => outcome.reason?.message || 'Hannover source failed').join('; '));
     error.exclusions = outcomes[1].status === 'fulfilled' ? outcomes[1].value.exclusions || [] : [];

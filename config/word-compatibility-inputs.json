@@ -2,6 +2,10 @@
   "schemaVersion": "unfallwerkbank.word-compatibility-inputs/v1",
   "files": [
     "js/ua.report_v2.js",
+    "js/ua.export_v2.js",
+    "js/ua.analysis_scope.js",
+    "js/ua.ai_political_reference_bridge.js",
+    "js/ua.export_template_defaults.js",
     "js/ua.document_export_provenance.js",
     "js/ua.document_export_prewarm.js",
     "js/ua.docx_source_links.js",

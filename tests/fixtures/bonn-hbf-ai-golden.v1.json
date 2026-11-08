@@ -1,0 +1,1884 @@
+{
+  "case": {
+    "analysisUrl": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16",
+    "areaName": "Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße",
+    "bounds": {
+      "east": 7.101,
+      "north": 50.7355,
+      "south": 50.73,
+      "west": 7.091
+    },
+    "filters": {
+      "dayType": "all",
+      "hourFrom": 0,
+      "hourTo": 23,
+      "includeCar": true,
+      "includeCyclist": true,
+      "includeGkfz": false,
+      "includeMotorcycle": false,
+      "includePedestrian": false,
+      "includeSonstig": false,
+      "involvementMode": "and",
+      "roadCondition": "all",
+      "severity": "all"
+    },
+    "formerlyMislabelled": "Adenauerallee (unconfirmed midpoint; not the case name)",
+    "id": "bonn-hbf-37-rad-pkw-2019-2025"
+  },
+  "facts": {
+    "completeAreaCount": 312,
+    "deviations": {
+      "baseline": {
+        "byMask": {
+          "5": 1912,
+          "7": 13,
+          "13": 1,
+          "21": 2,
+          "37": 34,
+          "39": 1
+        },
+        "total": 1963
+      },
+      "focus": [],
+      "local": {
+        "byMask": {
+          "5": 37
+        },
+        "total": 37
+      },
+      "rows": [
+        {
+          "baseCnt": 1912,
+          "baseR": 0.9740193581253184,
+          "ciHigh": 1,
+          "ciLow": 0.9059390425448564,
+          "factor": 1.026673640167364,
+          "isSignificant": false,
+          "label": "Beteiligungskategorien: Rad + Pkw",
+          "locCnt": 37,
+          "locR": 1,
+          "mask": 5,
+          "semantics": "published-participation-categories-not-mechanism",
+          "textLabel": "Unfall mit veröffentlichter Beteiligung von Radverkehr und Pkw"
+        }
+      ],
+      "semantics": "composition-not-absolute-risk"
+    },
+    "digest": {
+      "contextEvidence": {
+        "osm": null,
+        "poi": {
+          "nearArea": [
+            {
+              "id": "osm:node:652820249",
+              "lat": 50.7341656,
+              "lon": 7.0877954,
+              "name": "Kindertageseinrichtung Rasselbande e. V.",
+              "type": "kindergarten"
+            },
+            {
+              "id": "osm:node:3743152125",
+              "lat": 50.7367446,
+              "lon": 7.0942546,
+              "name": "Stadthaus-Kita",
+              "type": "kindergarten"
+            },
+            {
+              "id": "osm:node:7004624759",
+              "lat": 50.7310233,
+              "lon": 7.102171,
+              "name": "Kinderladen Kleine Kaiser",
+              "type": "kindergarten"
+            },
+            {
+              "id": "osm:node:10113688902",
+              "lat": 50.7372114,
+              "lon": 7.098033,
+              "name": "BBZ Altenkirchen",
+              "type": "school"
+            },
+            {
+              "id": "osm:way:22292731",
+              "lat": 50.7293682,
+              "lon": 7.0895004,
+              "name": "Felix-Hausdorff-Gymnasium",
+              "type": "school"
+            },
+            {
+              "id": "osm:way:38284466",
+              "lat": 50.7279608,
+              "lon": 7.0950223,
+              "name": "Waldorfkindergarten am Schloß",
+              "type": "kindergarten"
+            },
+            {
+              "id": "osm:way:360762201",
+              "lat": 50.7314535,
+              "lon": 7.0871283,
+              "name": "Michaelschule",
+              "type": "school"
+            },
+            {
+              "id": "osm:way:886798893",
+              "lat": 50.729322,
+              "lon": 7.0955328,
+              "name": "Kita Erlöserbund",
+              "type": "kindergarten"
+            },
+            {
+              "id": "osm:way:896360907",
+              "lat": 50.7289694,
+              "lon": 7.1011534,
+              "name": "Kita Villa W.i.E",
+              "type": "kindergarten"
+            },
+            {
+              "id": "osm:relation:21068779",
+              "lat": 50.7325052,
+              "lon": 7.0886657,
+              "name": "Wittelsbacher Pänz",
+              "type": "kindergarten"
+            }
+          ],
+          "nearByType": {
+            "kindergarten": 7,
+            "school": 3
+          },
+          "totalNear": 10,
+          "totalWithin": 0,
+          "withinArea": [],
+          "withinByType": {}
+        },
+        "visual": null
+      },
+      "meta": {
+        "areaName": "Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße",
+        "city": "Bonn",
+        "filters": {
+          "dayType": "all",
+          "hourFrom": 0,
+          "hourTo": 23,
+          "includeCar": true,
+          "includeCyclist": true,
+          "includeGkfz": false,
+          "includeMotorcycle": false,
+          "includePedestrian": false,
+          "includeSonstig": false,
+          "involvementMode": "and",
+          "roadCondition": "all",
+          "severity": "all"
+        },
+        "involvementMode": "and",
+        "link": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+      },
+      "officialAccidentFacts": {
+        "fatal": 0,
+        "other": 0,
+        "serious": 1,
+        "slight": 36,
+        "total": 37
+      },
+      "patternCompositionComparison": {
+        "allRows": [
+          {
+            "baseCnt": 1912,
+            "baseR": 0.9740193581253184,
+            "baselineTotal": 1963,
+            "ciHigh": 1,
+            "ciLow": 0.9059390425448564,
+            "factor": 1.026673640167364,
+            "interpretation": "exploratory-pattern-difference",
+            "isSignificant": false,
+            "label": "[Rad]+[PKW]",
+            "locCnt": 37,
+            "locR": 1,
+            "localTotal": 37,
+            "mask": 5
+          }
+        ],
+        "baselineSampleSize": 1963,
+        "focus": [],
+        "localSampleSize": 37,
+        "method": "locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR",
+        "scopeNote": "Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."
+      },
+      "politicalResearch": {
+        "references": [],
+        "status": "not-searched"
+      },
+      "role": "verified-reproducible-baseline",
+      "schemaVersion": "unfallwerkbank.deterministicAnalysisDigest.v1",
+      "spatialEvidence": {
+        "accidentDetailTotal": 37,
+        "clusterMaps": null,
+        "spatialArgumentation": null,
+        "truncated": true
+      },
+      "temporalDistribution": {
+        "matrix": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            3,
+            0
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            5,
+            0
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            3,
+            0
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            0
+          ],
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            2,
+            0
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "total": 37,
+        "weekdayTotal": 32,
+        "weekendTotal": 5
+      },
+      "yearlyTrend": {
+        "classification": "stagnierend",
+        "meanPerYear": 5.285714285714286,
+        "method": "OLS yearly totals in the same area; classification uses slope/mean, R² and minimum years.",
+        "nYears": 7,
+        "r2": 0.013157894736846809,
+        "relativeSlope": -0.027027027027027032,
+        "slopePerYear": -0.14285714285714288,
+        "totals": [
+          6,
+          8,
+          5,
+          2,
+          2,
+          9,
+          5
+        ],
+        "years": [
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ]
+      }
+    },
+    "discoveryRows": [
+      {
+        "accidentKind": 3,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A002",
+        "hour": 9,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.730392807000044,
+        "light": 0,
+        "lon": 7.094503407000047,
+        "mapRef": "E2",
+        "month": 2,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "51930246de96e950",
+        "sourceId": "100812",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2019
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A006",
+        "hour": 9,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73039350500005,
+        "light": 0,
+        "lon": 7.094500098000026,
+        "mapRef": "E2",
+        "month": 3,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "9217373725524ef3",
+        "sourceId": "103421",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2019
+      },
+      {
+        "accidentKind": 3,
+        "accidentType": 6,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A014",
+        "hour": 11,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73033213600007,
+        "light": 0,
+        "lon": 7.09499790600006,
+        "mapRef": "E3",
+        "month": 6,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "626154e2871bbc88",
+        "sourceId": "110863",
+        "weekday": 5,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Donnerstag",
+        "year": 2019
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 3,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A015",
+        "hour": 21,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.731971731000044,
+        "light": 1,
+        "lon": 7.094826220000073,
+        "mapRef": "E4",
+        "month": 7,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "ab97daec73e48796",
+        "sourceId": "244273",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2019
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 3,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A034",
+        "hour": 18,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73061341200008,
+        "light": 2,
+        "lon": 7.099562148000075,
+        "mapRef": "E21",
+        "month": 11,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "be639633c2eeb2a7",
+        "sourceId": "252813",
+        "weekday": 5,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Donnerstag",
+        "year": 2019
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A035",
+        "hour": 10,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73083580500003,
+        "light": 0,
+        "lon": 7.098793511000054,
+        "mapRef": "E17",
+        "month": 12,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "cce196951287f7b1",
+        "sourceId": "253694",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2019
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A044",
+        "hour": 9,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73376077700004,
+        "light": 0,
+        "lon": 7.096817387000044,
+        "mapRef": "E12",
+        "month": 2,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "f5a5a3cd584a3d25",
+        "sourceId": "202940",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2020
+      },
+      {
+        "accidentKind": 0,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A048",
+        "hour": 20,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73503791500008,
+        "light": 2,
+        "lon": 7.09513652000004,
+        "mapRef": "E15",
+        "month": 3,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "729be1392f60b17d",
+        "sourceId": "204684",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2020
+      },
+      {
+        "accidentKind": 0,
+        "accidentType": 6,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A053",
+        "hour": 13,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73511029000008,
+        "light": 0,
+        "lon": 7.095147033000046,
+        "mapRef": "E16",
+        "month": 6,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "5b438eabe2e71287",
+        "sourceId": "208450",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2020
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 1,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A060",
+        "hour": 11,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73238114900005,
+        "light": 0,
+        "lon": 7.097279680000042,
+        "mapRef": "E25",
+        "month": 7,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "eaf5a7f18595079d",
+        "sourceId": "211423",
+        "weekday": 4,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Mittwoch",
+        "year": 2020
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 3,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A065",
+        "hour": 13,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73226600600003,
+        "light": 0,
+        "lon": 7.099553737000065,
+        "mapRef": "E30",
+        "month": 8,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "56dd724117bd8d19",
+        "sourceId": "213221",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2020
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A069",
+        "hour": 17,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.732474102000026,
+        "light": 0,
+        "lon": 7.097080639000069,
+        "mapRef": "E27",
+        "month": 9,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "b838a7faf3c2fd64",
+        "sourceId": "214107",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2020
+      },
+      {
+        "accidentKind": 4,
+        "accidentType": 6,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A074",
+        "hour": 15,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73376077700004,
+        "light": 0,
+        "lon": 7.096817387000044,
+        "mapRef": "E12",
+        "month": 10,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "889623ea3a4fa954",
+        "sourceId": "217245",
+        "weekday": 6,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Freitag",
+        "year": 2020
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A081",
+        "hour": 17,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73461613500007,
+        "light": 2,
+        "lon": 7.095076815000027,
+        "mapRef": "E14",
+        "month": 12,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "fafe5463f11a995f",
+        "sourceId": "219756",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2020
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A083",
+        "hour": 16,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73327620800006,
+        "light": 0,
+        "lon": 7.100629169000058,
+        "mapRef": "E32",
+        "month": 2,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "b2e0544fe2fb81bb",
+        "sourceId": "162094",
+        "weekday": 7,
+        "weekdayGroup": "Wochenende",
+        "weekdayLabel": "Samstag",
+        "year": 2021
+      },
+      {
+        "accidentKind": 3,
+        "accidentType": 6,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A087",
+        "hour": 4,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73250629900008,
+        "light": 2,
+        "lon": 7.096870562000049,
+        "mapRef": "E27",
+        "month": 6,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "f47c4cb72b51da1b",
+        "sourceId": "166785",
+        "weekday": 5,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Donnerstag",
+        "year": 2021
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A104",
+        "hour": 18,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73432246700003,
+        "light": 0,
+        "lon": 7.095018757000048,
+        "mapRef": "E13",
+        "month": 10,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 2,
+        "severityLabel": "Schwerverletzt",
+        "sourceFingerprint": "da77e42159d38fc1",
+        "sourceId": "161705",
+        "weekday": 5,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Donnerstag",
+        "year": 2021
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A109",
+        "hour": 13,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73197297200005,
+        "light": 0,
+        "lon": 7.09487895500007,
+        "mapRef": "E4",
+        "month": 11,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "7bce453f9dbd88eb",
+        "sourceId": "161311",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2021
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A111",
+        "hour": 7,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73107942900003,
+        "light": 0,
+        "lon": 7.091120219000061,
+        "mapRef": "E1",
+        "month": 11,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "469a3212f2cdc170",
+        "sourceId": "36174",
+        "weekday": 6,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Freitag",
+        "year": 2021
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 3,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A130",
+        "hour": 14,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.7337173700001,
+        "light": 0,
+        "lon": 7.09703593200004,
+        "mapRef": "E28",
+        "month": 6,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "fe5188796df18f11",
+        "sourceId": "173882",
+        "weekday": 4,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Mittwoch",
+        "year": 2022
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A149",
+        "hour": 19,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.7350393780001,
+        "light": 1,
+        "lon": 7.09513673200007,
+        "mapRef": "E15",
+        "month": 9,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "a6a640eba7ec57d7",
+        "sourceId": "179368",
+        "weekday": 7,
+        "weekdayGroup": "Wochenende",
+        "weekdayLabel": "Samstag",
+        "year": 2022
+      },
+      {
+        "accidentKind": 0,
+        "accidentType": 3,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A175",
+        "hour": 11,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73170771200006,
+        "light": 0,
+        "lon": 7.100979751000068,
+        "mapRef": "E24",
+        "month": 5,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "10ae73e032815c62",
+        "sourceId": "178153",
+        "weekday": 1,
+        "weekdayGroup": "Wochenende",
+        "weekdayLabel": "Sonntag",
+        "year": 2023
+      },
+      {
+        "accidentKind": 3,
+        "accidentType": 6,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A206",
+        "hour": 18,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.731529641000066,
+        "light": 2,
+        "lon": 7.092404002000023,
+        "mapRef": "E1",
+        "month": 12,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "fcd60b5510f6a085",
+        "sourceId": "190295",
+        "weekday": 1,
+        "weekdayGroup": "Wochenende",
+        "weekdayLabel": "Sonntag",
+        "year": 2023
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A218",
+        "hour": 16,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.735294329000055,
+        "light": 0,
+        "lon": 7.091792209000062,
+        "mapRef": "E6",
+        "month": 4,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "c2fd1e1276f2e7f4",
+        "sourceId": "174555",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2024
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A222",
+        "hour": 17,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73263091100006,
+        "light": 0,
+        "lon": 7.091841009000063,
+        "mapRef": "E1",
+        "month": 5,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "19ac5b97ad8175bb",
+        "sourceId": "176164",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2024
+      },
+      {
+        "accidentKind": 4,
+        "accidentType": 6,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A225",
+        "hour": 14,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73538760400004,
+        "light": 0,
+        "lon": 7.095980877000045,
+        "mapRef": "E16",
+        "month": 6,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "43cd8a5e37e19eac",
+        "sourceId": "177858",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2024
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 1,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A227",
+        "hour": 14,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.735102562000066,
+        "light": 0,
+        "lon": 7.095145909000053,
+        "mapRef": "E16",
+        "month": 6,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "a8a48937f6a5a133",
+        "sourceId": "178281",
+        "weekday": 4,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Mittwoch",
+        "year": 2024
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A236",
+        "hour": 21,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73368214900006,
+        "light": 1,
+        "lon": 7.091151256000046,
+        "mapRef": "E5",
+        "month": 7,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "5a3cef7a7874e2a0",
+        "sourceId": "181491",
+        "weekday": 4,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Mittwoch",
+        "year": 2024
+      },
+      {
+        "accidentKind": 0,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A238",
+        "hour": 16,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73121916300005,
+        "light": 0,
+        "lon": 7.097600217000036,
+        "mapRef": "E19",
+        "month": 7,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "48b252d3b69d8f9f",
+        "sourceId": "180189",
+        "weekday": 5,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Donnerstag",
+        "year": 2024
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 7,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A239",
+        "hour": 14,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73154383500008,
+        "light": 0,
+        "lon": 7.094911005000029,
+        "mapRef": "E4",
+        "month": 8,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "9c1694071f55e2e3",
+        "sourceId": "183548",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2024
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A251",
+        "hour": 7,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73033213600007,
+        "light": 1,
+        "lon": 7.09499790600006,
+        "mapRef": "E3",
+        "month": 11,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "c02f5f233758542f",
+        "sourceId": "55409",
+        "weekday": 2,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Montag",
+        "year": 2024
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A252",
+        "hour": 12,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.735329687000046,
+        "light": 0,
+        "lon": 7.092049453000072,
+        "mapRef": "E6",
+        "month": 11,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "9afe42f042b532be",
+        "sourceId": "189867",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2024
+      },
+      {
+        "accidentKind": 2,
+        "accidentType": 2,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A264",
+        "hour": 8,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.733231096000054,
+        "light": 0,
+        "lon": 7.10064905400003,
+        "mapRef": "E32",
+        "month": 1,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "2007813779e8f873",
+        "sourceId": "574",
+        "weekday": 4,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Mittwoch",
+        "year": 2025
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 7,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A275",
+        "hour": 11,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73500179000007,
+        "light": 0,
+        "lon": 7.09513127200006,
+        "mapRef": "E15",
+        "month": 4,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "02d316ec72952acc",
+        "sourceId": "738",
+        "weekday": 4,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Mittwoch",
+        "year": 2025
+      },
+      {
+        "accidentKind": 1,
+        "accidentType": 5,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A294",
+        "hour": 22,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73156611400003,
+        "light": 2,
+        "lon": 7.094909342000051,
+        "mapRef": "E4",
+        "month": 7,
+        "roadCondition": 1,
+        "roadConditionLabel": "nass/feucht/schlüpfrig",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "c084b35af0df2336",
+        "sourceId": "930",
+        "weekday": 1,
+        "weekdayGroup": "Wochenende",
+        "weekdayLabel": "Sonntag",
+        "year": 2025
+      },
+      {
+        "accidentKind": 5,
+        "accidentType": 3,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A297",
+        "hour": 11,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.73147164800008,
+        "light": 0,
+        "lon": 7.096784489000072,
+        "mapRef": "E9",
+        "month": 8,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "24946139ccc12781",
+        "sourceId": "981",
+        "weekday": 3,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Dienstag",
+        "year": 2025
+      },
+      {
+        "accidentKind": 2,
+        "accidentType": 6,
+        "discoveryMatch": true,
+        "discoveryRole": "durch aktive Suchfilter hervorgehoben",
+        "displayId": "A311",
+        "hour": 8,
+        "involvementLabel": "Rad + Pkw",
+        "involvementMask": 5,
+        "lat": 50.733200131000046,
+        "light": 0,
+        "lon": 7.10031295400006,
+        "mapRef": "E31",
+        "month": 12,
+        "roadCondition": 0,
+        "roadConditionLabel": "trocken",
+        "severity": 3,
+        "severityLabel": "Leichtverletzt",
+        "sourceFingerprint": "4596482c5d627406",
+        "sourceId": "1264",
+        "weekday": 6,
+        "weekdayGroup": "Werktag",
+        "weekdayLabel": "Freitag",
+        "year": 2025
+      }
+    ],
+    "heatmap": {
+      "colTotals": [
+        32,
+        5
+      ],
+      "columnLabels": {
+        "weekday": "Werktag (Mo–Fr)",
+        "weekend": "Wochenende (Sa/So)"
+      },
+      "columns": [
+        "weekday",
+        "weekend"
+      ],
+      "hours": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23
+      ],
+      "matrix": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "max": 5,
+      "rowTotals": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        2,
+        2,
+        3,
+        1,
+        5,
+        1,
+        3,
+        4,
+        1,
+        3,
+        3,
+        3,
+        1,
+        1,
+        2,
+        1,
+        0
+      ],
+      "total": 37
+    },
+    "methodLimits": {
+      "exposureRates": "unavailable without suitable traffic-performance denominators",
+      "multiplePatternSearch": "exploratory; individual isSignificant values are unadjusted, not family-wise significance",
+      "referencePopulation": {
+        "basis": "Stadtweite Population mit identischen aktiven Filtern einschließlich Beteiligungsfilter",
+        "city": "Bonn",
+        "filters": {
+          "dayType": "all",
+          "hourFrom": 0,
+          "hourTo": 23,
+          "includeCar": true,
+          "includeCyclist": true,
+          "includeGkfz": false,
+          "includeMotorcycle": false,
+          "includePedestrian": false,
+          "includeSonstig": false,
+          "involvementMode": "and",
+          "roadCondition": "all",
+          "severity": "all"
+        }
+      },
+      "statisticalMethodChanged": false
+    },
+    "methodology": {
+      "forbiddenMisinterpretation": "Die Stichprobenumfänge dürfen nicht als direkter Vergleich absoluter Unfallraten, Flächen-, Straßenlängen- oder Verkehrsleistungsrisiken ausgegeben werden.",
+      "mandatoryInterpretationBeforeQa": [
+        "Mustervergleich = lokale gegen stadtweite Anteile von Beteiligungskombinationen.",
+        "local.total und baseline.total sind Stichprobenumfänge, keine direkt verglichenen Unfallraten.",
+        "Exposition ist erst für absolute Risiko-/Unfallratenaussagen erforderlich.",
+        "Mehrjahrestrend = relative Entwicklung im selben Bereich über slope/mean und R²."
+      ],
+      "patternComparison": {
+        "comparisonType": "composition-share-ratio",
+        "exposureRequirement": "Keine Exposition für den Anteilvergleich; nur für absolute Unfallraten.",
+        "formulas": {
+          "factor": "factor = locR / baseR",
+          "localShare": "locR = locCnt / local.total",
+          "referenceShare": "baseR = baseCnt / baseline.total",
+          "significance": "isSignificant = true, wenn ciLow > baseR",
+          "uncertainty": "Wilson-Score-Konfidenzintervall (95 %)"
+        },
+        "limitations": {
+          "inference": "exploratory",
+          "localIntervalOnly": true,
+          "multiplicityAdjustment": "none",
+          "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
+          "referenceIncludesLocal": true
+        },
+        "localSampleSize": 37,
+        "referenceSampleSize": 1963
+      },
+      "schemaVersion": "unfallwerkbank.analysisMethodology.v1",
+      "yearlyTrend": {
+        "classification": "stagnierend",
+        "comparisonType": "within-area-relative-linear-trend",
+        "formula": "relativeSlope = slope / mean(yearly totals)",
+        "meanAnnualCount": 5.285714285714286,
+        "nYears": 7,
+        "r2": 0.013157894736846809,
+        "relativeSlope": -0.027027027027027032,
+        "slope": -0.14285714285714288
+      }
+    },
+    "poi": {
+      "nearArea": [
+        {
+          "id": "osm:node:652820249",
+          "lat": 50.7341656,
+          "lon": 7.0877954,
+          "name": "Kindertageseinrichtung Rasselbande e. V.",
+          "type": "kindergarten"
+        },
+        {
+          "id": "osm:node:3743152125",
+          "lat": 50.7367446,
+          "lon": 7.0942546,
+          "name": "Stadthaus-Kita",
+          "type": "kindergarten"
+        },
+        {
+          "id": "osm:node:7004624759",
+          "lat": 50.7310233,
+          "lon": 7.102171,
+          "name": "Kinderladen Kleine Kaiser",
+          "type": "kindergarten"
+        },
+        {
+          "id": "osm:node:10113688902",
+          "lat": 50.7372114,
+          "lon": 7.098033,
+          "name": "BBZ Altenkirchen",
+          "type": "school"
+        },
+        {
+          "id": "osm:way:22292731",
+          "lat": 50.7293682,
+          "lon": 7.0895004,
+          "name": "Felix-Hausdorff-Gymnasium",
+          "type": "school"
+        },
+        {
+          "id": "osm:way:38284466",
+          "lat": 50.7279608,
+          "lon": 7.0950223,
+          "name": "Waldorfkindergarten am Schloß",
+          "type": "kindergarten"
+        },
+        {
+          "id": "osm:way:360762201",
+          "lat": 50.7314535,
+          "lon": 7.0871283,
+          "name": "Michaelschule",
+          "type": "school"
+        },
+        {
+          "id": "osm:way:886798893",
+          "lat": 50.729322,
+          "lon": 7.0955328,
+          "name": "Kita Erlöserbund",
+          "type": "kindergarten"
+        },
+        {
+          "id": "osm:way:896360907",
+          "lat": 50.7289694,
+          "lon": 7.1011534,
+          "name": "Kita Villa W.i.E",
+          "type": "kindergarten"
+        },
+        {
+          "id": "osm:relation:21068779",
+          "lat": 50.7325052,
+          "lon": 7.0886657,
+          "name": "Wittelsbacher Pänz",
+          "type": "kindergarten"
+        }
+      ],
+      "nearByType": {
+        "kindergarten": 7,
+        "school": 3
+      },
+      "totalNear": 10,
+      "totalWithin": 0,
+      "withinArea": [],
+      "withinByType": {}
+    },
+    "scopeCounts": {
+      "activeInArea": 37,
+      "areaBeforeInvolvementFilter": 312,
+      "bufferedActive": 295,
+      "selectedActive": 37,
+      "visibleActive": 152
+    },
+    "severity": {
+      "bySev": {
+        "1": 0,
+        "2": 1,
+        "3": 36,
+        "other": 0
+      },
+      "total": 37
+    },
+    "totalAccidents": 37,
+    "yearTable": [
+      {
+        "classes": [
+          "🚲+🚗: 6"
+        ],
+        "textClasses": [
+          "[Rad]+[PKW]: 6"
+        ],
+        "total": 6,
+        "year": 2019
+      },
+      {
+        "classes": [
+          "🚲+🚗: 8"
+        ],
+        "textClasses": [
+          "[Rad]+[PKW]: 8"
+        ],
+        "total": 8,
+        "year": 2020
+      },
+      {
+        "classes": [
+          "🚲+🚗: 5"
+        ],
+        "textClasses": [
+          "[Rad]+[PKW]: 5"
+        ],
+        "total": 5,
+        "year": 2021
+      },
+      {
+        "classes": [
+          "🚲+🚗: 2"
+        ],
+        "textClasses": [
+          "[Rad]+[PKW]: 2"
+        ],
+        "total": 2,
+        "year": 2022
+      },
+      {
+        "classes": [
+          "🚲+🚗: 2"
+        ],
+        "textClasses": [
+          "[Rad]+[PKW]: 2"
+        ],
+        "total": 2,
+        "year": 2023
+      },
+      {
+        "classes": [
+          "🚲+🚗: 9"
+        ],
+        "textClasses": [
+          "[Rad]+[PKW]: 9"
+        ],
+        "total": 9,
+        "year": 2024
+      },
+      {
+        "classes": [
+          "🚲+🚗: 5"
+        ],
+        "textClasses": [
+          "[Rad]+[PKW]: 5"
+        ],
+        "total": 5,
+        "year": 2025
+      }
+    ],
+    "yearlyTrend": {
+      "classification": "stagnierend",
+      "counts": {
+        "fatal": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "light": [
+          6,
+          8,
+          4,
+          2,
+          2,
+          9,
+          5
+        ],
+        "severe": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        "total": [
+          6,
+          8,
+          5,
+          2,
+          2,
+          9,
+          5
+        ]
+      },
+      "intercept": 294.14285714285717,
+      "nYears": 7,
+      "r2": 0.013157894736846809,
+      "slope": -0.14285714285714288,
+      "years": [
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "zeroYears": []
+    }
+  },
+  "inputs": {
+    "mapImageEvidence": {
+      "imageSha256": null,
+      "reason": "Hermetic generation blocks external tiles. Scene/input fingerprints are not live image verification.",
+      "status": "not-captured"
+    },
+    "mapInputsFingerprint": "8e0c04b6255f8865954ddaacb1a40d187d642e34368f34fec3dd949ffcbc829f",
+    "mapScene": {
+      "accidentView": "bySeverity",
+      "center": {
+        "lat": 50.732211,
+        "lon": 7.095119
+      },
+      "city": "Bonn",
+      "filters": {
+        "contextFilters": {
+          "onlyMatchedWays": false,
+          "slopeClasses": [],
+          "trafficClasses": []
+        },
+        "dayType": "all",
+        "heatRadius": 25,
+        "hourFrom": 0,
+        "hourTo": 23,
+        "includeCar": true,
+        "includeCyclist": true,
+        "includeGkfz": false,
+        "includeMotorcycle": false,
+        "includePedestrian": false,
+        "includeSonstig": false,
+        "involvementMode": "and",
+        "maxPoints": 100000,
+        "roadCondition": "all",
+        "severity": "all",
+        "viewportPaddingPct": 20
+      },
+      "layers": {
+        "showArgumentation": true,
+        "showCluster": false,
+        "showHeatmap": false,
+        "showKindergartens": true,
+        "showOnlyAboveAverage": false,
+        "showSchools": true
+      },
+      "selection": {
+        "east": 7.101,
+        "north": 50.7355,
+        "south": 50.73,
+        "west": 7.091
+      },
+      "zoom": 16
+    },
+    "mapSceneFingerprint": "745021b2e833de92e03b81d424ad2c7dc6f14c649d076e89a88708fec1fe8022",
+    "mapViews": [
+      {
+        "id": "standard-structure",
+        "mapMode": "standard",
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+      },
+      {
+        "id": "hybrid-conflict-space",
+        "mapMode": "hybrid",
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=hybrid&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+      },
+      {
+        "id": "orthophoto-layout",
+        "mapMode": "orthophoto",
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=orthophoto&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+      },
+      {
+        "id": "analysis-density",
+        "mapMode": "analysis",
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=analysis&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=1&showHeatmap=1&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+      }
+    ],
+    "runtimeFiles": {
+      "js/ua.ai_political_evidence.js": "96a34bb01ef8374268b1fda2b9ea9dfc60783b818258f47c35b40465f04edfb6",
+      "js/ua.ai_political_reference_bridge.js": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc",
+      "js/ua.analysis_scope.js": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4",
+      "js/ua.area_name_control.js": "879b4582ef15e8ee335c78b6431f21109bf0150e3c9226ac0bbaa2d2966bbdb1",
+      "js/ua.evidence_safe_semantics.js": "cf022eed045f94f6da257ffdd2d73069c294db7e0c08e225e51fdc6629afa6f4",
+      "js/ua.evidence_safe_semantics_hardening.js": "f0dc5155752e32444b38a138f8e5a6270ef881b93ca834ef82da715e48ddc98e",
+      "js/ua.export_template_defaults.js": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22",
+      "js/ua.export_v2.js": "82f09ad1a7492c0637f9e161b02ae64036bcfb1ee7665a6855e27eebc200f7e4",
+      "js/ua.filters.js": "0600a8b1cac3ab3fcd2dc1da58f8b75579474fa76f279b0228fefd0d07d61450",
+      "js/ua.heatmap.js": "d65c22f2a07d871fb38b1c18b88877e14f2d461357458d1e4e5330cb161a86c5",
+      "js/ua.stats.js": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",
+      "js/ua.trend.js": "2bbb47165228ad8f564bb6ca18e34ce430b13ae236562108043b5a6815ff0012"
+    },
+    "sourceDataFingerprint": "969d6aa0ec8657e3d3f7bee83274103c6d984905265de6d6a4a5fdaeb42f2cca",
+    "sourceFiles": {
+      "out/output_all_years_bonn.enrichment.meta.json.gz": "1514c06b7176d9a00a68bdfcac5606d1ac6350e98afbd6a36a8cd929e32d83fe",
+      "out/output_all_years_bonn.geojson.gz": "23afbd7bc25ad170e849734db9499ce60dbf15f792a79a41cc1f357413755cce",
+      "out/poi_bonn.geojson.gz": "8bfd444ddb74494a0ef99c9dc745e7935d0a2f740660884338ca1fdd4d52ad12",
+      "templates/gremien_bonn.json": "10285c9fcb7762b76f3b52f9df6c7bb523fdcfdbbf6ac5964c64734dbef25419"
+    }
+  },
+  "modelRelease": {
+    "actualProviderRun": false,
+    "positiveAcceptance": false,
+    "providerReceipt": null,
+    "required": [
+      "Configured provider run on exact facts/prompt",
+      "Exact model version and timestamp",
+      "Production schema and value-add rubric evaluation",
+      "Completed source-linked political research",
+      "Four-mode live map inspection"
+    ],
+    "status": "blocked"
+  },
+  "politicalResearch": {
+    "attempts": [],
+    "executed": false,
+    "officialPortalUrl": "https://www.bonn.sitzung-online.de/public/",
+    "plannedQueries": [
+      {
+        "status": "planned-not-executed",
+        "term": "Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße",
+        "url": "https://www.bonn.sitzung-online.de/public/tr010?q=Bonn%20Hauptbahnhof%20%2F%20M%C3%BCnsterplatz%20%2F%20Maximilianstra%C3%9Fe%20%2F%20Thomas-Mann-Stra%C3%9Fe"
+      },
+      {
+        "status": "planned-not-executed",
+        "term": "Bonn",
+        "url": "https://www.bonn.sitzung-online.de/public/tr010?q=Bonn"
+      },
+      {
+        "status": "planned-not-executed",
+        "term": "Münsterplatz",
+        "url": "https://www.bonn.sitzung-online.de/public/tr010?q=M%C3%BCnsterplatz"
+      },
+      {
+        "status": "planned-not-executed",
+        "term": "Maximilianstraße",
+        "url": "https://www.bonn.sitzung-online.de/public/tr010?q=Maximilianstra%C3%9Fe"
+      },
+      {
+        "status": "planned-not-executed",
+        "term": "Thomas-Mann-Straße",
+        "url": "https://www.bonn.sitzung-online.de/public/tr010?q=Thomas-Mann-Stra%C3%9Fe"
+      }
+    ],
+    "positiveCaseEvidence": "blocked: real motions, resolutions, administrative answers, trials and plans have not been verified",
+    "searchTerms": [
+      "Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße",
+      "Bonn",
+      "Münsterplatz",
+      "Maximilianstraße",
+      "Thomas-Mann-Straße"
+    ],
+    "status": "not-searched",
+    "verifiedDirectProceedings": []
+  },
+  "schemaVersion": "unfallwerkbank.bonnHbfAiGolden.v1"
+}

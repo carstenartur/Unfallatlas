@@ -20,7 +20,7 @@ function readWorkflow(workflowPath) {
   return yaml.safeLoad(fs.readFileSync(path.join(ROOT, workflowPath), 'utf8'));
 }
 
-function refreshInvocation() {
+function refreshInvocation(env = {}) {
   const filename = path.join(ROOT, 'scripts/run-pages-quality-gate.cjs');
   const localRequire = createRequire(filename);
   const calls = [];
@@ -39,7 +39,7 @@ function refreshInvocation() {
     __dirname: path.dirname(filename),
     process: {
       execPath: process.execPath,
-      env: { PAGES_REFRESH_RIS: '1' },
+      env: { PAGES_REFRESH_RIS: '1', ...env },
       stdout: { write() {} },
       stderr: { write() {} },
     },
@@ -90,7 +90,7 @@ describe('Pages deployment workflow safety', () => {
   test.each(PAGE_WORKFLOWS)('%s resumes source downloads and saves progress after a failed import', workflowPath => {
     const { steps } = readWorkflow(workflowPath).jobs.build;
     const restoreIndex = steps.findIndex(step => step.uses?.startsWith('actions/cache/restore@')
-      && step.with?.path === CACHE_PATH);
+      && step.with?.path === CACHE_PATH && step.id === 'ris-source-cache');
     const saveIndex = steps.findIndex(step => step.uses?.startsWith('actions/cache/save@')
       && step.with?.path === CACHE_PATH);
     const mavenIndex = steps.findIndex(step => step.env?.PAGES_REFRESH_RIS === '1'
@@ -111,16 +111,28 @@ describe('Pages deployment workflow safety', () => {
 
     // GitHub otherwise implicitly adds success() and skips this step on failure.
     expect(save.if).toMatch(/\balways\s*\(/);
-    const condition = save.if.replace(`steps.${restore.id}.outputs.cache-hit`, 'cacheHit');
+    const condition = save.if.replace(`steps.${restore.id}.outputs.cache-hit`, 'cacheHit')
+      .replace('steps.ris-checkpoint-retry.outputs.enabled', 'recoveryEnabled');
     for (const cacheHit of ['', 'false', 'true']) {
       const saveAfterFailure = vm.runInNewContext(condition, {
         always: () => true,
         success: () => false,
         failure: () => true,
         cacheHit,
+        recoveryEnabled: 'false',
       });
       expect(saveAfterFailure).toBe(cacheHit !== 'true');
     }
+  });
+
+  test('manual recovery is passed through Maven as validated CLI arguments, never a shell command', () => {
+    const calls = refreshInvocation({ PAGES_RIS_CHECKPOINT_RETRY: 'true',
+      PAGES_RIS_SOURCE_CACHE_KEY: 'ris-sources-v1-Linux-42502618892-1',
+      PAGES_RIS_MIN_RECORDS: '674', PAGES_RIS_CACHE_HIT: 'true' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toEqual([path.join(ROOT, 'scripts/refresh-ris-catalogues.js'),
+      '--checkpoint-retry', 'hannover', '--source-cache-key', 'ris-sources-v1-Linux-42502618892-1', '--min-records', '674']);
+    expect(calls[0][2].shell).not.toBe(true);
   });
 
   test('allows the one-hour source crawl while retaining time for Pages verification and cache saving', () => {

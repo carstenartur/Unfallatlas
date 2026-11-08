@@ -322,7 +322,7 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     }
   });
 
-  test('PDF enthält Methodik – Auswertungsbereich mit drei Sätzen (Prosa-Begriffe)', async () => {
+  test('PDF retains scope prose and the exploratory limitation in its rendered method block', async () => {
     // QA-PR „Export-Semantik vor Layout": Methodik-Block verwendet
     // verwaltungstaugliche Begriffe statt Entwicklerjargon —
     //   „Auswertungsbereich" statt „Aktiver Filter-Scope"
@@ -334,7 +334,8 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
       lines: [
         'Auswertungsbereich: Auswertung umfasst Unfälle innerhalb des markierten Bereichs.',
         'Analyse auffälliger Unfallmuster: Auffälligkeiten werden auf der gefilterten Population berechnet.',
-        'Vergleich mit dem Stadtgebiet: Stadtweite Population in Hannover unter denselben Filtern.'
+        'Vergleich mit dem Stadtgebiet: Stadtweite Population in Hannover unter denselben Filtern.',
+        require('../../server/ai/features/deriveFeatures').PATTERN_COMPARISON_LIMITATIONS.note
       ]
     };
     const { definition } = await runPdfExport(makeFixtureCtx(), data, { includeMap: false });

@@ -3,6 +3,9 @@
 
   const CANON = {
     city: "city",
+    areaName: "areaName",
+    areaSearchTerms: "areaSearchTerms",
+    areaNameGeometry: "areaNameGeometry",
     accidentDataMode: "accidentDataMode",
     severity: "severity",
     dayType: "dayType",

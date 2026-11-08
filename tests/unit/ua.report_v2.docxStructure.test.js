@@ -142,6 +142,15 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
   /** Read entry as utf-8 text. */
   const readText = (zip, name) => zip.file(name).async('string');
 
+  test('actual DOCX XML retains the exploratory method qualification', async () => {
+    const limitations = require('../../server/ai/features/deriveFeatures').PATTERN_COMPARISON_LIMITATIONS;
+    const data = makeFixtureReportData();
+    data.structured.methodikScope = { title: 'Methodik – eindeutige Zählbereiche', limitations,
+      lines: ['Aktive Auswertung: 12 Unfälle.', limitations.note] };
+    const zip = await exportAndUnzip(makeFixtureCtx(), data, { includeMap: false });
+    expect(await readText(zip, 'word/document.xml')).toContain(limitations.note);
+  });
+
   test('produced DOCX has none of the known QA blockers', async () => {
     const zip = await exportAndUnzip(makeFixtureCtx(), makeFixtureReportData(), { includeMap: true });
 

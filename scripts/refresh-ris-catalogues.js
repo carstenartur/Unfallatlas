@@ -15,6 +15,7 @@ const { enrichRisLocations } = require('../server/political-context/services/ris
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
 const { createRisSourceCheckpoint } = require('../server/political-context/services/risSourceCheckpoint');
 const { collectionProvenance } = require('../server/political-context/services/risProvenance');
+const { validateCheckpointRetry } = require('./ris-checkpoint-retry-options');
 const { collectCombinedHannoverCatalogue, includesRegionSource, historicalCityStart } = require('../server/political-context/providers/hannoverCatalogue');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -36,7 +37,8 @@ const ASSET_BYTES = 16 * 1024 * 1024;
 const PUBLIC_REFRESH_FAILURE = 'Die letzte Aktualisierung der amtlichen Ratsdaten ist fehlgeschlagen.';
 
 async function collectOfficial(city, now, { previousCoverage, previousSourceStatuses, historyStartYear = HISTORY_START_YEAR, workBudget,
-  maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {}, onExclusions = () => {} } = {}) {
+  maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {}, onExclusions = () => {}, checkpointOnly = false } = {}) {
+  if (checkpointOnly && (city !== 'hannover' || workBudget !== 0)) throw new Error('Hannover checkpoint recovery requires zero source work');
   const sourceCache = createRisSourceCache({ directory: sourceDirectory, now: () => now.getTime() });
   const checkpoint = createRisSourceCheckpoint({ directory: sourceDirectory });
   const progress = event => report({ ...event, cache: sourceCache.stats });
@@ -52,9 +54,15 @@ async function collectOfficial(city, now, { previousCoverage, previousSourceStat
   }
   const requestedFrom = `${historyStartYear}-01-01`;
   const from = historicalCityStart(requestedFrom, previousCoverage, previousSourceStatuses);
+  if (checkpointOnly) {
+    for (let year = Number(from.slice(0, 4)); year <= now.getUTCFullYear(); year++) {
+      const state = await checkpoint.read('hannover-sim', 'public-year-search:true', year, 'sim-history-v1');
+      if (!Array.isArray(state?.catalogue?.records)) throw new Error(`Missing Hannover historical checkpoint for ${year}`);
+    }
+  }
   const catalogue = await collectCombinedHannoverCatalogue({
     now, from, maxDurationMs: maxDurationMs ?? 58 * 60_000,
-    sourceCache, checkpoint, workBudget, report: progress, onExclusions,
+    sourceCache, checkpoint, workBudget, report: progress, onExclusions, checkpointOnly,
   });
   return withCollectionSettings(catalogue, { workBudget, maxDurationMs: maxDurationMs ?? 58 * 60_000 });
 }
@@ -332,6 +340,21 @@ function snapshotInputs({ records, features }) {
   });
 }
 
+function retainedLegacyAssessment(record) {
+  // Legacy snapshots can contain verified detail without assessment metadata.
+  // Describe only that retained evidence; do not re-geocode it from the newer
+  // list title or imply that the unavailable document was freshly inspected.
+  const sources = ['title'];
+  if (record.locations?.some(location => location.evidence.source === 'document')) sources.push('document');
+  if (record.geometry && record.locationSource === 'official') sources.push('official');
+  const mapped = sources.includes('official') || record.locations?.some(location => location.mapped);
+  const truncated = record.locationEvidenceTruncated === true;
+  return {
+    status: mapped ? 'partial' : 'unresolved', sources,
+    reasons: ['document_text_unavailable', ...(truncated ? ['evidence_truncated'] : [])], truncated,
+  };
+}
+
 async function prepareCandidate(directory, city, now, collect, previous, report, sourceOptions = {}, onExclusions = () => {}) {
   let catalogue;
   try {
@@ -351,6 +374,14 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   let inputs = catalogue.records.filter(record => !exclusions.has(record.id));
   let excludedCount = 0;
   let sourceStatuses = catalogue.sourceStatuses;
+  // Composition cannot establish an unknown contributing source clock from
+  // another source. Retain the verified fallback and its original age instead.
+  const unverifiedSource = sourceStatuses?.find(source =>
+    ['hannover-sim', 'region-hannover-ris'].includes(source.source) && source.recordCount > 0 && !source.retrievedAt);
+  if (unverifiedSource) {
+    const label = unverifiedSource.source === 'hannover-sim' ? 'SIM' : 'Region';
+    throw new Error(`Contributing Hannover ${label} source has no verified source timestamp`);
+  }
   const historicalSourceClocks = [];
   const retainedDetails = new Map();
   // Checkpoint evidence can outlive a published snapshot. Its original detail
@@ -395,6 +426,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
         if (prior.locationAssessment) merged.locationAssessment = { ...prior.locationAssessment,
           status: ['mapped', 'partial'].includes(prior.locationAssessment.status) ? 'partial' : prior.locationAssessment.status,
           reasons: [...new Set([...prior.locationAssessment.reasons, 'document_text_unavailable'])] };
+        else merged.locationAssessment = retainedLegacyAssessment(prior);
         retainedDetails.set(next.id, merged);
         priorRecords.set(next.id, merged);
       } else priorRecords.set(next.id, next);
@@ -499,6 +531,7 @@ async function prepareLocalAssessment(directory, selected, builtAt) {
 }
 
 async function refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly, report, sourceOptions }) {
+  const checkpointRetry = city === 'hannover' && sourceOptions.checkpointRetry;
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), `ris-refresh-${city}-`));
   try {
     const deployed = path.join(scratch, 'published');
@@ -528,8 +561,8 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     const previousRegion = previous.manifest?.sourceStatuses?.find(source => source.source === 'region-hannover-ris');
     const firstRegionImport = upgradeRegion && (!previousRegion || previousRegion.status !== 'failed' && previousRegion.retrievedAt === null);
     const fallbackExpired = previous.manifest && startedAt.getTime() >= previous.generated + RIS_FALLBACK_MAX_AGE_MS;
-    const canRetrySource = firstRegionImport || !lastFailure || fallbackExpired || startedAt.getTime() - Date.parse(lastFailure) >= SOURCE_RETRY_MS;
-    const refreshDue = !previous.manifest || upgradeLocations || upgradeHistory || upgradeRegion || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS;
+    const canRetrySource = checkpointRetry || firstRegionImport || !lastFailure || fallbackExpired || startedAt.getTime() - Date.parse(lastFailure) >= SOURCE_RETRY_MS;
+    const refreshDue = checkpointRetry || !previous.manifest || upgradeLocations || upgradeHistory || upgradeRegion || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS;
     if (!restoreOnly && refreshDue && canRetrySource) {
       let exclusions = new Set();
       try {
@@ -582,6 +615,9 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     }
 
     const { manifest } = selected;
+    if (checkpointRetry && (status !== 'published' || recordCount(manifest) < checkpointRetry.minimumRecords)) {
+      throw new Error(`Hannover checkpoint recovery failed: ${reason || `${status}; ${recordCount(manifest) || 0} records, minimum ${checkpointRetry.minimumRecords}`}`);
+    }
     if (manifest) {
       assertUnexpiredSnapshot(manifest, clock());
       if (selected.rewriteManifest || selected.directory !== directory) await installSnapshot(directory, selected);
@@ -599,19 +635,26 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
 
 async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, now,
   fetchPublished = globalThis.fetch, collect = collectFromSource, restoreOnly = false, report = () => {},
-  historyStartYear = HISTORY_START_YEAR, workBudget, maxDurationMs, sourceDirectory } = {}) {
+  historyStartYear = HISTORY_START_YEAR, workBudget, maxDurationMs, sourceDirectory, checkpointRetry } = {}) {
   if (!Array.isArray(cities) || !cities.length || cities.some(city => !Object.hasOwn(SOURCE_LIMIT_MS, city))) {
     throw new Error('Supported RIS cities: bonn, hannover');
   }
   if (!Number.isInteger(historyStartYear) || historyStartYear < 1900 || historyStartYear > 9999) throw new TypeError('Invalid RIS historical start year');
   if (workBudget !== undefined && (!Number.isSafeInteger(workBudget) || workBudget < 0)) throw new TypeError('Invalid RIS work budget');
-  const sourceOptions = { historyStartYear, workBudget, maxDurationMs, sourceDirectory };
+  if (checkpointRetry !== undefined) {
+    checkpointRetry = validateCheckpointRetry(checkpointRetry);
+    if (restoreOnly || !cities.includes('hannover')) throw new Error('Checkpoint recovery requires a Hannover refresh');
+    if (workBudget !== undefined && workBudget !== 0) throw new Error('Checkpoint recovery requires zero source work');
+  }
+  const sourceOptions = { historyStartYear, workBudget: checkpointRetry ? 0 : workBudget, maxDurationMs, sourceDirectory,
+    ...(checkpointRetry ? { checkpointRetry, checkpointOnly: true } : {}) };
   const clock = now === undefined ? () => new Date() : () => now;
   const startedAt = clock();
   if (!(startedAt instanceof Date) || !Number.isFinite(startedAt.getTime())) throw new Error('Invalid RIS refresh date');
   await listDirectory(directory);
   const outcomes = await Promise.allSettled([...new Set(cities)].map(async city => {
-    const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly, report, sourceOptions });
+    const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect,
+      restoreOnly: restoreOnly || Boolean(checkpointRetry && city !== 'hannover'), report, sourceOptions });
     report(outcome);
     return outcome;
   }));
@@ -620,25 +663,44 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
   return outcomes.map(item => item.value);
 }
 
-async function main(args) {
+function parseRefreshArguments(args) {
   const usage = 'Usage: node scripts/refresh-ris-catalogues.js [--city bonn|hannover] [--restore-only] [--history-start-year 2014] [--work-budget N] [--max-duration-ms N]\n' +
+    '       node scripts/refresh-ris-catalogues.js --checkpoint-retry hannover --source-cache-key KEY --min-records N\n' +
     '       node scripts/refresh-ris-catalogues.js --validate <directory> [--require-all]';
   if (args[0] === '--validate') {
     if (!args[1] || args.length > 3 || (args[2] && args[2] !== '--require-all')) throw new Error(usage);
-    const manifests = await validateRisDirectory(path.resolve(args[1]), { requireAll: args[2] === '--require-all' });
-    console.log(`[ris] Validated ${manifests.length} snapshot(s) for Pages.`);
-    return;
+    return { validationDirectory: path.resolve(args[1]), requireAll: args[2] === '--require-all' };
   }
   const options = {};
+  let recoveryCity, sourceCacheKey;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--restore-only' && !options.restoreOnly) options.restoreOnly = true;
     else if (args[i] === '--city' && !options.cities && args[i + 1]) options.cities = [args[++i]];
-    else if (['--history-start-year', '--work-budget', '--max-duration-ms'].includes(args[i]) && /^\d+$/.test(args[i + 1] || '')) {
-      const key = { '--history-start-year': 'historyStartYear', '--work-budget': 'workBudget', '--max-duration-ms': 'maxDurationMs' }[args[i]];
+    else if (args[i] === '--checkpoint-retry' && recoveryCity === undefined && args[i + 1]) recoveryCity = args[++i];
+    else if (args[i] === '--source-cache-key' && sourceCacheKey === undefined && args[i + 1]) sourceCacheKey = args[++i];
+    else if (['--history-start-year', '--work-budget', '--max-duration-ms', '--min-records'].includes(args[i]) && /^\d+$/.test(args[i + 1] || '')) {
+      const key = { '--history-start-year': 'historyStartYear', '--work-budget': 'workBudget', '--max-duration-ms': 'maxDurationMs', '--min-records': 'minimumRecords' }[args[i]];
       if (options[key] !== undefined) throw new Error(usage);
       options[key] = Number(args[++i]);
     } else throw new Error(usage);
   }
+  if (recoveryCity !== undefined || sourceCacheKey !== undefined || options.minimumRecords !== undefined) {
+    options.checkpointRetry = validateCheckpointRetry({ city: recoveryCity, sourceCacheKey, minimumRecords: options.minimumRecords });
+    delete options.minimumRecords;
+    if (options.restoreOnly || (options.cities && !options.cities.includes('hannover'))) throw new Error(usage);
+    if (options.workBudget !== undefined && options.workBudget !== 0) throw new Error('Checkpoint recovery requires zero source work');
+  }
+  return options;
+}
+
+async function main(args) {
+  const options = parseRefreshArguments(args);
+  if (options.validationDirectory) {
+    const manifests = await validateRisDirectory(options.validationDirectory, { requireAll: options.requireAll });
+    console.log(`[ris] Validated ${manifests.length} snapshot(s) for Pages.`);
+    return;
+  }
+  if (options.checkpointRetry) console.log(`[ris] Checkpoint recovery: ${JSON.stringify({ ...options.checkpointRetry, workBudget: 0 })}`);
   await refreshRisCatalogues({
     ...options,
     report({ city, status, generatedAt, records, mapped, reason, locationAssessment, ...progress }) {
@@ -669,4 +731,4 @@ if (!isMainThread && workerData?.city) {
   });
 }
 
-module.exports = { refreshRisCatalogues, validateRisDirectory };
+module.exports = { refreshRisCatalogues, validateRisDirectory, collectOfficial, parseRefreshArguments };

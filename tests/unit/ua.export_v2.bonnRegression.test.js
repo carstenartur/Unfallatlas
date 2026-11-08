@@ -10,7 +10,7 @@
  *   2. structured.yearTable enthält Einträge für jedes vertretene Jahr.
  *   3. structured.meta.activeFilterScope / patternAnalysisScope /
  *      baselineScope sind gesetzt (PR 2-Vertrag).
- *   4. structured.methodikScope hat title + 3 Zeilen.
+ *   4. structured.methodikScope enthält Zählbereiche und explorative Grenzen.
  *   5. UA.validateExportConsistency liefert ok:true für die so erzeugte
  *      structured (Pre-Flight-Gate würde diesen Export NICHT abbrechen).
  *
@@ -45,6 +45,7 @@ describe('Bonn-Regression-Fixture (PR 3)', () => {
     mockWindow.fetch = async () => ({ ok: false, json: async () => ({}), text: async () => '' });
     mockWindow.L = { latLngBounds: () => {} };
     mockWindow.location = { href: 'http://localhost/?city=Bonn' };
+    load('ua.export_template_defaults.js');
     load('ua.export_v2.js');
     UA = mockWindow.UA;
     UA.reverseGeocode = async () => ({ label: 'Bonn-Bad Godesberg' });
@@ -104,15 +105,24 @@ describe('Bonn-Regression-Fixture (PR 3)', () => {
     expect(meta.baselineScope.city).toBe('Bonn');
   });
 
-  test('methodikScope has title + 3 scope lines', () => {
+  test('methodikScope has scope lines and the explicit exploratory qualification', () => {
     const ms = report.structured.methodikScope;
     expect(ms).toBeDefined();
     expect(typeof ms.title).toBe('string');
-    expect(ms.lines).toHaveLength(3);
+    expect(ms.lines).toHaveLength(4);
+    expect(ms.lines[3]).toBe(ms.limitations.note);
+    expect(ms.limitations.multiplicityAdjustment).toBe('none');
     // Bonn appears in the baseline sentence.
     expect(ms.lines[2]).toMatch(/Bonn/);
-    // Bonn-Bad Godesberg surfaces in the active-filter scope sentence.
-    expect(ms.lines[0]).toMatch(/Bonn-Bad Godesberg/);
+    // An unconfirmed reverse-geocoded midpoint must never name the area.
+    expect(ms.lines[0]).toMatch(/Markierter Untersuchungsbereich in Bonn/);
+    expect(ms.lines[0]).not.toMatch(/Bonn-Bad Godesberg/);
+  });
+
+  test('offline canonical resolution keeps an unresolved recipient explicit', () => {
+    expect(report.text).toContain('Zuständigkeit vor Einreichung prüfen');
+    expect(report.text).not.toMatch(/Bezirksrat/);
+    expect(report.text).not.toContain('Auffälliger Unfallschwerpunkt im markierten Bereich');
   });
 
   test('validateExportConsistency accepts the report (pre-flight passes)', () => {

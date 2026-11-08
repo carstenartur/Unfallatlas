@@ -22,6 +22,27 @@
 
   let panelController = null;
   let mapRequest = null;
+  const generatedSearchInputs = new WeakMap();
+  const observedSearchInputs = new WeakSet();
+
+  function isGeneratedSearchInput(input) {
+    return input && generatedSearchInputs.has(input) && generatedSearchInputs.get(input) === input.value;
+  }
+
+  function refreshGeneratedSearchInput(ctx, fillEmpty = false) {
+    const input = document.getElementById('polCtxSearchInput');
+    if (!input || (!isGeneratedSearchInput(input) && (!fillEmpty || input.value.trim()))) return;
+    // Do not feed the panel's previous generated terms back into the builder.
+    input.value = '';
+    const city = (ctx.CITY_RAW || '').trim();
+    input.value = UA.PoliticalContext.buildSearchTerms(ctx)
+      .filter(term => (term || '').trim() !== city).join(', ');
+    generatedSearchInputs.set(input, input.value);
+    if (!observedSearchInputs.has(input)) {
+      input.addEventListener('input', () => generatedSearchInputs.delete(input));
+      observedSearchInputs.add(input);
+    }
+  }
 
   function getPanelController(panel) {
     if (!panelController) {
@@ -102,7 +123,7 @@
 
     // Manuelle Eingabe aus dem Suchfeld (falls vorhanden)
     const inputEl = document.getElementById('polCtxSearchInput');
-    if (inputEl && inputEl.value.trim()) {
+    if (inputEl && !isGeneratedSearchInput(inputEl) && inputEl.value.trim()) {
       inputEl.value.trim().split(/[,;]+/).forEach(t => {
         if (t.trim()) terms.add(t.trim());
       });
@@ -456,6 +477,7 @@
     const btnSearch = document.getElementById('polCtxBtnSearch');
     if (!statusEl || !resultsEl) return;
 
+    refreshGeneratedSearchInput(ctx);
     const input = document.getElementById('polCtxSearchInput');
     const enteredTerms = (input?.value || '').split(/[,;]+/).map(term => term.trim()).filter(Boolean);
     const terms = enteredTerms.length ? enteredTerms.slice(0, 5) : UA.PoliticalContext.buildSearchTerms(ctx);
@@ -584,24 +606,16 @@
         || ctx.politicalSearchRequest !== previousSearch
         || (inputEl && (document.activeElement === inputEl || inputEl.value !== previousInput))) return;
 
-    // Suchbegriffe vorbelegen
-    const terms = UA.PoliticalContext.buildSearchTerms(ctx);
-    if (inputEl && !inputEl.value.trim()) {
-      // Nur die nicht-Stadt-Begriffe vorbelegen (Stadt steht schon im Kontext).
-      // Beide Seiten gleich normalisieren (Trim), damit führende/folgende
-      // Leerzeichen in CITY_RAW nicht dazu führen, dass die Stadt
-      // versehentlich doch ins Suchfeld geschrieben wird.
-      const city = ((ctx && ctx.CITY_RAW) || '').trim();
-      const filtered = terms.filter(t => ((t || '').trim()) !== city);
-      inputEl.value = filtered.join(', ');
-    }
+    // Refresh our own defaults for the current confirmation, preserving edits.
+    refreshGeneratedSearchInput(ctx, true);
 
     // Issue 3: Auto-Suche, sobald ein Ortsbezug ableitbar war oder ein
     // Gremium aus einem vorigen Export bekannt ist. Sonst (nur Stadt +
     // generischer Fallback) bleibt es beim Klick-Trigger, damit die KI-
     // Quote des Servers nicht für reine Stadt-Topic-Suchen verbraucht wird.
     const hint = (ctx && ctx.locationHint) || {};
-    const hasLocation = !!(hint.street || hint.district || hint.suburb);
+    const hasLocation = !!UA.AreaNameControl?.researchContext?.(ctx)
+      || !!(hint.street || hint.district || hint.suburb);
     const hasGremium = !!(ctx.ui && ctx.ui._lastExportResult &&
       ctx.ui._lastExportResult.structured &&
       ctx.ui._lastExportResult.structured.meta &&
@@ -677,7 +691,7 @@
     ctx.__uaPoliticalResearchRequest = null;
     ctx.__uaPoliticalResearchPromise = null;
     const input = document.getElementById('polCtxSearchInput');
-    if (input) input.value = '';
+    if (input) { input.value = ''; generatedSearchInputs.delete(input); }
     const button = document.getElementById('polCtxBtnSearch');
     if (button) {
       button.disabled = false;

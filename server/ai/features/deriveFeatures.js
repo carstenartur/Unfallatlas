@@ -26,6 +26,7 @@ const BIT_TRUCK = 16;
 // const BIT_OTHER = 32; // not used directly
 
 const { detectConflictPatterns } = require('./conflictPatterns.js');
+const PATTERN_COMPARISON_LIMITATIONS = Object.freeze({"inference": "exploratory", "multiplicityAdjustment": "none", "referenceIncludesLocal": true, "localIntervalOnly": true, "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."});
 
 /**
  * Berechnet aggregierte Anteile / Trends / Tags aus structured.
@@ -295,6 +296,7 @@ function buildAnalysisMethodology(dev, yearlyTrend) {
     patternComparison: {
       question: 'Ist eine Beteiligungskombination innerhalb der gefilterten lokalen Unfälle anteilig häufiger als in der stadtweiten Referenzpopulation?',
       comparisonType: 'composition-share-ratio',
+      limitations: PATTERN_COMPARISON_LIMITATIONS,
       localPopulation: 'Unfälle innerhalb der Auswahlgeometrie nach denselben Nicht-Beteiligungsfiltern',
       referencePopulation: 'stadtweite Unfälle nach denselben Nicht-Beteiligungsfiltern',
       localSampleSize: localTotal,
@@ -451,7 +453,8 @@ module.exports = {
   deriveFeatures,
   normalizeContextHints,
   pickDominantPatterns,
-  buildAnalysisMethodology
+  buildAnalysisMethodology,
+  PATTERN_COMPARISON_LIMITATIONS
 };
 
 /**
