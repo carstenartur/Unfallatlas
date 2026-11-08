@@ -12,13 +12,13 @@
  */
 
 describe('UA.computeExportReport – scope fields (PR 2)', () => {
-  let UA;
+  let UA, load;
 
   beforeEach(() => {
     const mockWindow = { UA: {} };
     const fs = require('fs');
     const path = require('path');
-    const load = (rel) => {
+    load = (rel) => {
       const p = path.resolve(__dirname, '../../js/' + rel);
       // eslint-disable-next-line no-eval
       (function (window) { eval(fs.readFileSync(p, 'utf8')); })(mockWindow);
@@ -39,6 +39,10 @@ describe('UA.computeExportReport – scope fields (PR 2)', () => {
     return {
       getSouthWest: () => sw,
       getNorthEast: () => ne,
+      getSouth: () => sw.lat,
+      getWest: () => sw.lng,
+      getNorth: () => ne.lat,
+      getEast: () => ne.lng,
       getCenter: () => ({ lat: 52.25, lng: 9.8 }),
       contains: (latlng) => {
         const [la, lo] = Array.isArray(latlng) ? latlng : [latlng.lat, latlng.lng];
@@ -128,9 +132,31 @@ describe('UA.computeExportReport – scope fields (PR 2)', () => {
     expect(ms.lines[2]).toMatch(/Hannover/);
   });
 
-  test('methodikScope lines reflect areaName when provided via reverseGeocode', async () => {
+  test('an unconfirmed reverse-geocoded midpoint does not name the investigation area', async () => {
     UA.reverseGeocode = async () => ({ label: 'Linden-Limmer' });
     const r = await UA.computeExportReport(makeCtx());
-    expect(r.structured.methodikScope.lines[0]).toMatch(/Linden-Limmer/);
+    const scope = r.structured.meta.activeFilterScope;
+    expect(scope.areaName).toMatch(/^Markierter Untersuchungsbereich in Hannover \(/);
+    expect(scope.areaName).toContain(scope.bounds);
+    expect(r.structured.methodikScope.lines[0]).toContain(scope.areaName);
+    expect(r.structured.methodikScope.lines[0]).not.toMatch(/Linden-Limmer/);
+  });
+
+  test('methodikScope uses the area name confirmed through the geometry-bound control', async () => {
+    document.body.innerHTML = '<input id="areaNameInput"><input id="areaSearchTermsInput">'
+      + '<button id="btnConfirmAreaName"></button><button id="btnResetAreaName"></button><div id="areaNameStatus"></div>';
+    UA.setQS = jest.fn();
+    load('ua.area_name_control.js');
+    UA.reverseGeocode = async () => ({ label: 'Unbestätigter Mittelpunktname' });
+    const ctx = makeCtx();
+    UA.AreaNameControl.bind(ctx, jest.fn());
+    document.getElementById('areaNameInput').value = 'Bestätigter Untersuchungsbereich Linden-Limmer';
+    document.getElementById('btnConfirmAreaName').click();
+    expect(JSON.parse(ctx._confirmedAreaGeometry)).toEqual(['Hannover', 52, 9.7, 52.5, 9.9]);
+
+    const r = await UA.computeExportReport(ctx);
+    expect(r.structured.meta.activeFilterScope.areaName).toBe('Bestätigter Untersuchungsbereich Linden-Limmer');
+    expect(r.structured.methodikScope.lines[0]).toContain('Bestätigter Untersuchungsbereich Linden-Limmer');
+    expect(r.structured.methodikScope.lines[0]).not.toContain('Unbestätigter Mittelpunktname');
   });
 });
