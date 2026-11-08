@@ -32,17 +32,28 @@ beforeEach(async () => {
 
 afterEach(async () => fs.rm(root, { force: true, recursive: true }));
 
-function catalogue(city, { count = 2, from = '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
+function catalogue(city, { count = 2, from = city === 'hannover' ? '2021-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
   const gremium = body || (city === 'bonn' ? 'Bonn' : 'Ratsversammlung');
   return {
+    locationRevision: 2,
     sources: [OFFICIAL[city]],
-    coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'] },
+    coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'],
+      ...(city === 'hannover' ? { scope: 'citywide' } : {}) },
     records: Array.from({ length: count }, (_, i) => ({
       id: `${city}:${i + 1}`, title: `Radverkehr ${i + 1}`, number: `${i + 1}/2026`, type: 'Antrag',
       date: to, gremium, url: `${new URL(OFFICIAL[city]).origin}/paper/${i + 1}`, source: city,
+      locationAssessment: { status: i === 0 ? 'mapped' : 'unresolved', sources: [i === 0 ? 'official' : 'title'],
+        reasons: i === 0 ? [] : ['no_specific_location'], truncated: false },
       ...(i === 0 ? { geometry: { type: 'Point', coordinates: [9.73, 52.37] }, locationSource: 'official' } : {}),
     })),
   };
+}
+
+function legacyCatalogue(city, options) {
+  const value = catalogue(city, options);
+  value.locationRevision = 1;
+  value.records.forEach(record => delete record.locationAssessment);
+  return value;
 }
 
 function fetchPages({ decoded = false, tamper } = {}) {
@@ -168,8 +179,9 @@ test('does not replace a known failure with an unmarked copy of the same generat
 
 test('publishes a successful recovery without carrying forward the failure', async () => {
   await seedFallback(published);
-  await expect(refresh({ cities: ['bonn'], collect: () => catalogue('bonn', { count: 3 }) }))
-    .resolves.toMatchObject([{ city: 'bonn', status: 'published', generatedAt: NOW.toISOString() }]);
+  const retry = new Date(NOW.getTime() + 6 * 60 * 60_000);
+  await expect(refresh({ cities: ['bonn'], now: retry, collect: () => catalogue('bonn', { count: 3 }) }))
+    .resolves.toMatchObject([{ city: 'bonn', status: 'published', generatedAt: retry.toISOString() }]);
   expect((await readRisSnapshot(directory, 'bonn')).manifest).not.toHaveProperty('refreshFailure');
 });
 
@@ -284,17 +296,171 @@ test('production artifact validation requires both city snapshots', async () => 
 });
 
 test('rebuilds a fresh legacy Hannover snapshot once to publish measure locations', async () => {
-  await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FRESH });
+  const legacy = catalogue('hannover');
+  legacy.locationRevision = 1;
+  legacy.records.forEach(record => delete record.locationAssessment);
+  await writeRisSnapshot(published, 'hannover', legacy, { now: FRESH });
   const collect = jest.fn(() => catalogue('hannover'));
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
     { city: 'hannover', status: 'published' },
   ]);
   const { manifest } = await readRisSnapshot(directory, 'hannover');
-  expect(manifest.locationRevision).toBe(1);
+  expect(manifest.locationRevision).toBe(2);
+  expect(manifest.locationAssessment.attempted).toBe(manifest.records.count);
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
     { city: 'hannover', status: 'current' },
   ]);
   expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test('assesses every Bonner record immediately when its fresh snapshot predates the common assessment contract', async () => {
+  const legacy = catalogue('bonn');
+  delete legacy.locationRevision;
+  legacy.records.forEach(record => delete record.locationAssessment);
+  await writeRisSnapshot(published, 'bonn', legacy, { now: FRESH });
+  const collect = jest.fn(() => catalogue('bonn'));
+  await expect(refresh({ cities: ['bonn'], collect })).resolves.toMatchObject([{ city: 'bonn', status: 'published' }]);
+  const { manifest, records } = await readRisSnapshot(directory, 'bonn');
+  expect(manifest.locationRevision).toBe(2);
+  expect(manifest.locationAssessment.attempted).toBe(records.length);
+  expect(records.every(record => record.locationAssessment)).toBe(true);
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s record when the official source is unavailable', async city => {
+  const legacy = legacyCatalogue(city, { count: 3 });
+  const prior = await writeRisSnapshot(published, city, legacy, { now: FALLBACK });
+  const before = await readRisSnapshot(published, city);
+  const collect = jest.fn(() => { throw new Error('Official HTTP 429'); });
+  const outcomes = await refresh({ cities: [city], collect });
+  expect(outcomes).toMatchObject([{
+    city, status: 'retained', generatedAt: FALLBACK.toISOString(), records: 3,
+    reason: expect.stringContaining('Official HTTP 429'), locationAssessment: { attempted: 3 },
+  }]);
+  const snapshot = await readRisSnapshot(directory, city);
+  expect(snapshot.records.map(record => record.id)).toEqual([`${city}:1`, `${city}:2`, `${city}:3`]);
+  expect(snapshot.records.every(record => record.locationAssessment)).toBe(true);
+  expect(snapshot.records.every(record => record.locationAssessment.reasons.includes('document_text_unavailable'))).toBe(true);
+  expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
+  expect(snapshot.manifest).toMatchObject({
+    generatedAt: prior.generatedAt, sources: prior.sources, coverage: prior.coverage, locationRevision: 2,
+    locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
+    refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
+  });
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test('reuses bounded document evidence and its precise geometry without widening a retained Hannover catalogue', async () => {
+  const legacy = legacyCatalogue('hannover', { count: 3 });
+  legacy.coverage.scope = 'selected-bodies';
+  const evidence = { source: 'document', text: 'An der Kreuzung Davenstedter Straße/Südfeldstraße wird eine Ampel errichtet.' };
+  const geometry = { type: 'Point', coordinates: [9.684182, 52.366228] };
+  legacy.records[1].locations = [{ kind: 'junction', label: 'Davenstedter Straße / Südfeldstraße', evidence, geometry }];
+  const prior = await writeRisSnapshot(published, 'hannover', legacy, { now: FALLBACK });
+  await refresh({ cities: ['hannover'], collect: () => { throw new Error('SIM unavailable'); } });
+  const snapshot = await readRisSnapshot(directory, 'hannover');
+  expect(snapshot.manifest).toMatchObject({ generatedAt: prior.generatedAt, coverage: prior.coverage, sources: prior.sources });
+  expect(snapshot.records[1].locations).toEqual([{
+    kind: 'junction', label: 'Davenstedter Straße / Südfeldstraße', evidence, mapped: true,
+  }]);
+  expect(snapshot.records[1].locationAssessment).toEqual({
+    status: 'partial', sources: ['title', 'document'], reasons: ['evidence_truncated'], truncated: true,
+  });
+  expect(snapshot.features.features.find(feature => feature.properties.recordId === 'hannover:2').geometry).toEqual(geometry);
+  expect(snapshot.manifest.refreshFailure).toMatchObject({ attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() });
+});
+
+test.each([FRESH, FALLBACK])('a recent source retry backoff permits local assessment of the %s snapshot without changing source freshness', async generatedAt => {
+  const legacy = legacyCatalogue('bonn');
+  // A revision alone is not proof that all records have been assessed.
+  legacy.locationRevision = 2;
+  const prior = await writeRisSnapshot(published, 'bonn', legacy, { now: generatedAt });
+  prior.generatedAt = generatedAt.toISOString().replace('.000Z', 'Z');
+  prior.refreshFailure = {
+    attemptedAt: '2026-11-07T09:30:00.000Z', expiresAt: new Date(generatedAt.getTime() + 14 * 86400000).toISOString(), reason: 'Official HTTP 429',
+  };
+  await fs.writeFile(path.join(published, 'bonn.json'), JSON.stringify(prior));
+  const collect = jest.fn(() => { throw new Error('Retry backoff must prevent another source request'); });
+  await expect(refresh({ cities: ['bonn'], collect })).resolves.toMatchObject([{
+    status: 'current', generatedAt: prior.generatedAt, locationAssessment: { attempted: 2 },
+  }]);
+  const snapshot = await readRisSnapshot(directory, 'bonn');
+  expect(snapshot.manifest.generatedAt).toBe(prior.generatedAt);
+  expect(snapshot.manifest.refreshFailure).toEqual(prior.refreshFailure);
+  const upgradedBytes = await fs.readFile(path.join(directory, 'bonn.json'));
+  await refresh({ cities: ['bonn'], collect });
+  expect(await fs.readFile(path.join(directory, 'bonn.json'))).toEqual(upgradedBytes);
+  expect(collect).not.toHaveBeenCalled();
+});
+
+test('attempts recovery when a recently failed fallback expires instead of keeping it during the retry backoff', async () => {
+  const prior = await seedFallback(published);
+  prior.refreshFailure.attemptedAt = new Date(EXPIRY.getTime() - 30 * 60_000).toISOString();
+  await fs.writeFile(path.join(published, 'bonn.json'), JSON.stringify(prior));
+  const collect = jest.fn(() => catalogue('bonn', { count: 3 }));
+  await expect(refresh({ cities: ['bonn'], now: EXPIRY, collect })).resolves.toMatchObject([{
+    status: 'published', generatedAt: EXPIRY.toISOString(), records: 3,
+  }]);
+  expect(collect).toHaveBeenCalledTimes(1);
+  expect((await readRisSnapshot(directory, 'bonn')).manifest).not.toHaveProperty('refreshFailure');
+});
+
+test('restore-only copies an unassessed legacy snapshot byte for byte', async () => {
+  const prior = await writeRisSnapshot(published, 'bonn', legacyCatalogue('bonn'), { now: STALE });
+  const filenames = ['bonn.json', prior.records.path, prior.map.path];
+  const before = await Promise.all(filenames.map(filename => fs.readFile(path.join(published, filename))));
+  const collect = jest.fn(() => { throw new Error('Restore-only must not contact the source'); });
+  await expect(refresh({ restoreOnly: true, cities: ['bonn'], collect })).resolves.toMatchObject([{
+    status: 'restored', generatedAt: prior.generatedAt,
+  }]);
+  const after = await Promise.all(filenames.map(filename => fs.readFile(path.join(directory, filename))));
+  expect(after).toEqual(before);
+  expect((await readRisSnapshot(directory, 'bonn')).manifest).toEqual(prior);
+  expect(collect).not.toHaveBeenCalled();
+});
+
+test('keeps the verified fallback and reports the reason if local reassessment cannot read its geodata', async () => {
+  const prior = await writeRisSnapshot(directory, 'bonn', legacyCatalogue('bonn'), { now: FALLBACK });
+  const geodataPath = path.resolve(__dirname, '../../config/ris-locations/bonn.json');
+  const readFile = fs.readFile.bind(fs);
+  const geodataFailure = jest.spyOn(fs, 'readFile').mockImplementation((filename, ...args) =>
+    filename === geodataPath ? Promise.resolve('invalid geodata JSON') : readFile(filename, ...args));
+  try {
+    await expect(refresh({ cities: ['bonn'], collect: () => { throw new Error('Official HTTP 429'); } }))
+      .resolves.toMatchObject([{ status: 'retained', reason: expect.stringMatching(/Official HTTP 429.*local location reassessment failed/i) }]);
+    const snapshot = await readRisSnapshot(directory, 'bonn');
+    expect(snapshot.manifest).toMatchObject({
+      generatedAt: prior.generatedAt, records: prior.records, map: prior.map, coverage: prior.coverage,
+      refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
+    });
+    expect(snapshot.manifest.locationAssessment).toBeUndefined();
+    await expect(validateRisDirectory(directory, { now: NOW })).resolves.toHaveLength(1);
+  } finally {
+    geodataFailure.mockRestore();
+  }
+});
+
+test('upgrades a fresh selected-committee catalogue to historical citywide discovery using the common format', async () => {
+  const legacy = catalogue('hannover', { from: '2026-01-28' });
+  legacy.coverage.scope = 'selected-bodies';
+  await writeRisSnapshot(published, 'hannover', legacy, { now: FRESH });
+  const expanded = catalogue('hannover', { count: 6, body: 'Alle öffentlichen Gremien' });
+  expanded.sources = ['https://e-government.hannover-stadt.de/lhhsimwebre.nsf/Suche.xsp'];
+  const collect = jest.fn(() => expanded);
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'published', records: 6 }]);
+  const { manifest } = await readRisSnapshot(directory, 'hannover');
+  expect(manifest.coverage).toMatchObject({ from: '2021-01-01', scope: 'citywide' });
+  expect(manifest.sources).toEqual(expanded.sources);
+  expect(manifest.locationAssessment.attempted).toBe(6);
+});
+
+test('retains citywide coverage when a later refresh only supplies selected bodies', async () => {
+  const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  const reduced = catalogue('hannover');
+  reduced.coverage.scope = 'selected-bodies';
+  await expect(refresh({ cities: ['hannover'], collect: () => reduced }))
+    .resolves.toMatchObject([{ city: 'hannover', status: 'retained' }]);
+  expect((await readRisSnapshot(directory, 'hannover')).manifest.records).toEqual(prior.records);
 });
 
 test('publishes a documented Hannover crossing and the three stated addresses from the checked-in geodata', async () => {

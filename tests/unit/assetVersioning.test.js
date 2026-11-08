@@ -37,9 +37,15 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each([
-    'css/ua.css', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js', 'js/ua.political-context.js',
+    'css/ua.css', 'js/ua.ris-layer.js',
   ])('%s invalidates the cache for RIS location evidence', asset => {
     expect(html).toContain(`${asset}?v=2026-11-07-ris-orte"`);
+  });
+
+  test.each([
+    'js/ua.ris-catalogue.js', 'js/ua.political-context.js',
+  ])('%s invalidates the cache for the common location assessment contract', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-ris-pruefung"`);
   });
 
   test('support metadata and runtime BUILD expose the same release timestamp', () => {

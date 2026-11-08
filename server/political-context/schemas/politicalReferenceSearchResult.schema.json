@@ -86,6 +86,7 @@
             "to": { "type": ["string", "null"] },
             "bodies": { "type": "array", "items": { "type": "string" } },
             "complete": { "type": "boolean" },
+            "scope": { "enum": ["citywide", "selected-bodies"] },
             "warnings": { "type": "array", "items": { "type": "string" } }
           }
         },

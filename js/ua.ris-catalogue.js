@@ -15,6 +15,13 @@
     ['address', ['Point']],
     ['place', ['Point', 'Polygon', 'MultiPolygon']]
   ]);
+  const LOCATION_STATUSES = new Set(['mapped', 'partial', 'unresolved', 'unavailable']);
+  const LOCATION_SOURCES = new Set(['title', 'document', 'official']);
+  const LOCATION_REASONS = new Set([
+    'gazetteer_unavailable', 'document_text_unavailable', 'evidence_truncated', 'location_limit',
+    'unverified_name', 'no_specific_location', 'unmapped_location', 'non_traffic_address'
+  ]);
+  const LOCATION_TOTALS = ['attempted', 'mapped', 'partial', 'unresolved', 'unavailable', 'truncated'];
 
   function cityKey(city) {
     return String(city || '').trim().toLowerCase()
@@ -71,6 +78,10 @@
     return value === undefined || (Number.isSafeInteger(value) && value > 0);
   }
 
+  function validCoverageScope(value) {
+    return value === undefined || value === 'citywide' || value === 'selected-bodies';
+  }
+
   function listOf(values, minimum, validItem) {
     if (!Array.isArray(values) || values.length < minimum) return false;
     for (const value of values) if (!validItem(value)) return false;
@@ -88,6 +99,45 @@
   function validLocations(locations) {
     return locations === undefined || (Array.isArray(locations) && locations.length <= MAX_LOCATIONS_PER_RECORD
       && listOf(locations, 0, validLocation));
+  }
+
+  function validLocationAssessment(value, locations) {
+    if (value === undefined) return true;
+    if (!isObject(value) || Object.keys(value).length !== 4 || !LOCATION_STATUSES.has(value.status)
+        || typeof value.truncated !== 'boolean') return false;
+    const uniqueList = (values, allowed, minimum) => listOf(values, minimum, item => allowed.has(item))
+      && values.length <= allowed.size && new Set(values).size === values.length;
+    if (!uniqueList(value.sources, LOCATION_SOURCES, 1) || !uniqueList(value.reasons, LOCATION_REASONS, 0)) return false;
+    const truncated = value.reasons.includes('evidence_truncated') || value.reasons.includes('location_limit');
+    if (value.truncated !== truncated) return false;
+    const mapped = value.sources.includes('official') || locations?.some(location => location.mapped) === true;
+    if (value.status === 'mapped') return mapped && !value.reasons.length
+      && !locations?.some(location => !location.mapped);
+    if (value.status === 'partial') return mapped && value.reasons.length > 0;
+    if (mapped || !value.reasons.length) return false;
+    return value.status !== 'unavailable' || value.reasons.includes('gazetteer_unavailable');
+  }
+
+  function summarizeLocationAssessments(records) {
+    const summary = { attempted: 0, mapped: 0, partial: 0, unresolved: 0, unavailable: 0, truncated: 0 };
+    for (const { locationAssessment } of records) {
+      if (!locationAssessment) continue;
+      summary.attempted++;
+      summary[locationAssessment.status]++;
+      if (locationAssessment.truncated) summary.truncated++;
+    }
+    return summary.attempted ? summary : undefined;
+  }
+
+  function validLocationAssessmentSummary(value, count, records) {
+    if (value === undefined) return true;
+    if (!isObject(value) || Object.keys(value).length !== LOCATION_TOTALS.length
+        || !LOCATION_TOTALS.every(key => Number.isSafeInteger(value[key]) && value[key] >= 0 && value[key] <= count)
+        || value.mapped + value.partial + value.unresolved + value.unavailable !== value.attempted
+        || value.truncated > value.attempted) return false;
+    if (!records) return true;
+    const actual = summarizeLocationAssessments(records);
+    return LOCATION_TOTALS.every(key => value[key] === (actual?.[key] ?? 0));
   }
 
   function position(value) {
@@ -129,6 +179,7 @@
     if (!isObject(value) || value.type !== 'FeatureCollection' || Object.hasOwn(value, 'crs')
         || !Array.isArray(value.features) || value.features.length !== count) return false;
     const seen = new Map();
+    const official = new Set();
     for (const feature of value.features) {
       if (!isObject(feature) || feature.type !== 'Feature' || Object.hasOwn(feature, 'crs')
           || !isObject(feature.properties)) return false;
@@ -142,14 +193,20 @@
         const location = record.locations?.[locationIndex];
         if (!location?.mapped || !validLocationGeometry(feature.geometry, location.kind)) return false;
         if (!validLocationText(label) || (label !== location.label && !label.startsWith(`${location.label} — `))) return false;
-      } else if (record.locations?.length || !validAccuracy(accuracy) || !validGeometry(feature.geometry)) {
-        return false;
+      } else {
+        if (!validAccuracy(accuracy) || !validGeometry(feature.geometry)) return false;
+        if (record.locations?.length && (accuracy !== 'official' || !record.locationAssessment?.sources.includes('official'))) return false;
+        if (accuracy === 'official') official.add(recordId);
       }
       indices.add(locationIndex);
+      if (indices.size > MAX_LOCATIONS_PER_RECORD) return false;
       seen.set(recordId, indices);
     }
     for (const [id, record] of recordsById) {
       if (record.locations?.some(({ mapped }, i) => mapped && !seen.get(id)?.has(i))) return false;
+      const assessment = record.locationAssessment;
+      if (assessment && (assessment.sources.includes('official') !== official.has(id)
+          || (assessment.status === 'mapped' || assessment.status === 'partial') !== Boolean(seen.get(id)?.size))) return false;
     }
     return true;
   }
@@ -181,13 +238,15 @@
         || !manifest.sources.every(source => isSourceUrl(source))
         || typeof coverage?.complete !== 'boolean'
         || !Array.isArray(coverage.bodies) || !Array.isArray(coverage.warnings)
+        || !validCoverageScope(coverage.scope)
         || !coverage.bodies.every(validText) || !coverage.warnings.every(validText)
         || !validDay(coverage.from) || !validDay(coverage.to)
         || (coverage.from && coverage.to && coverage.from > coverage.to)
         || !validRefreshFailure(manifest.refreshFailure, manifest.generatedAt)
         || !validLocationRevision(manifest.locationRevision)
         || !validAsset(manifest.records, key, 'records') || !manifest.records.count
-        || !validAsset(manifest.map, key, 'map', manifest.records.count * MAX_LOCATIONS_PER_RECORD)) throw invalid();
+        || !validAsset(manifest.map, key, 'map', manifest.records.count * MAX_LOCATIONS_PER_RECORD)
+        || !validLocationAssessmentSummary(manifest.locationAssessment, manifest.records.count)) throw invalid();
     return manifest;
   }
 
@@ -290,6 +349,9 @@
     return {
       ...record,
       ...(record.locations ? { locations: record.locations.map(location => ({ ...location, evidence: { ...location.evidence } })) } : {}),
+      ...(record.locationAssessment ? { locationAssessment: {
+        ...record.locationAssessment, sources: [...record.locationAssessment.sources], reasons: [...record.locationAssessment.reasons]
+      } } : {}),
       snapshot,
       aiGating: { allowed: false, reason: 'Der veröffentlichte Katalog ergänzt die manuelle Recherche.' }
     };
@@ -401,7 +463,8 @@
       if (!Array.isArray(records) || records.length !== manifest.records.count
           || records.some(record => !validText(record?.id) || !validText(record.title) || !validText(record.type)
             || !validText(record.source) || !validDay(record.date) || !isSourceUrl(record.url, manifest.sources)
-            || !validLocations(record.locations))) {
+            || !validLocations(record.locations) || !validLocationAssessment(record.locationAssessment, record.locations))
+          || !validLocationAssessmentSummary(manifest.locationAssessment, records.length, records)) {
         throw invalid();
       }
       const byId = new Map(records.map(record => [record.id, record]));
@@ -462,7 +525,8 @@
     module.exports = {
       cityKey, createCatalogue, searchSnapshot, snapshotStatus,
       snapshotFormat: {
-        MAX_LOCATIONS_PER_RECORD, validLocations, validGeometry, validLocationGeometry, validAccuracy, validMap, validLocationRevision
+        MAX_LOCATIONS_PER_RECORD, validLocations, validGeometry, validLocationGeometry, validAccuracy, validMap, validLocationRevision,
+        validCoverageScope, validLocationAssessment, validLocationAssessmentSummary, summarizeLocationAssessments
       }
     };
   }

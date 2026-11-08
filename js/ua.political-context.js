@@ -134,6 +134,45 @@
     ['junction', 'Kreuzung'], ['section', 'Abschnitt'], ['street', 'Straßenbezug'],
     ['address', 'Adresse'], ['place', 'Ort'],
   ]);
+  const locationStatuses = new Map([
+    ['mapped', 'Auf der Karte verortet'], ['partial', 'Teilweise auf der Karte verortet'],
+    ['unresolved', 'Kein eindeutiger Ortsbezug für die Karte'], ['unavailable', 'Keine geeigneten Geodaten für die Ortsprüfung'],
+  ]);
+  const locationReasons = new Map([
+    ['gazetteer_unavailable', 'Für diese Stadt fehlen geeignete Geodaten.'],
+    ['document_text_unavailable', 'Der Dokumenttext war nicht vollständig verfügbar.'],
+    ['evidence_truncated', 'Der geprüfte Dokumenttext ist begrenzt.'],
+    ['location_limit', 'Es konnten nicht alle erkannten Orte übernommen werden.'],
+    ['unverified_name', 'Ein Ortsname ist nicht eindeutig oder nicht ausreichend belegt.'],
+    ['no_specific_location', 'Die geprüften Angaben enthalten keinen eindeutig zuordenbaren Ort.'],
+    ['unmapped_location', 'Mindestens eine genannte Lage ist noch ungeklärt.'],
+    ['non_traffic_address', 'Eine Adresse ohne Verkehrsbezug wird nur als Ortsangabe angezeigt.'],
+  ]);
+
+  function renderLocationAssessment(assessment) {
+    const label = locationStatuses.get(assessment?.status);
+    if (!label) return null;
+    const section = document.createElement('section');
+    section.setAttribute('aria-label', 'Ortsprüfung');
+    section.style.cssText = 'margin:8px 0;font-size:13px;line-height:1.4';
+    const heading = document.createElement('strong');
+    heading.textContent = label;
+    section.append(heading);
+    const sourceLabels = new Map([['title', 'Titel'], ['document', 'Dokumenttext'], ['official', 'amtliche Geometrie']]);
+    const sources = (Array.isArray(assessment.sources) ? assessment.sources : []).map(source => sourceLabels.get(source)).filter(Boolean);
+    if (sources.length) {
+      const basis = document.createElement('div');
+      basis.textContent = `Geprüfte Grundlage: ${sources.join(', ')}`;
+      section.append(basis);
+    }
+    const reasons = (Array.isArray(assessment.reasons) ? assessment.reasons : []).map(reason => locationReasons.get(reason)).filter(Boolean);
+    if (reasons.length) {
+      const detail = document.createElement('div');
+      detail.textContent = reasons.join(' ');
+      section.append(detail);
+    }
+    return section;
+  }
 
   function renderLocation(location) {
     if (typeof location?.label !== 'string' || !location.label.trim()) return null;
@@ -267,6 +306,8 @@
         </label>
       </div>
       ${url ? `<a href="${UA.escHtml(url)}" target="_blank" rel="noopener noreferrer">Amtliches Original öffnen</a>` : ''}`;
+    const assessment = renderLocationAssessment(ref.locationAssessment);
+    if (assessment) card.insertBefore(assessment, card.querySelector('a'));
     const locations = renderLocations(ref, ctx);
     if (locations) card.insertBefore(locations, card.querySelector('a'));
     return card;

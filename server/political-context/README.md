@@ -235,7 +235,7 @@ erscheinen im Bericht.
 | Stadt | Quelle und Umfang |
 |---|---|
 | Bonn | Öffentliche OParl-Drucksachen ab 2014. |
-| Hannover | Öffentliches SIM-Sitzungsarchiv der Ratsversammlung und des Stadtbezirksrats Linden-Limmer ab 2026, ergänzt durch die aktuellen SIM-Feeds. |
+| Hannover | Öffentliche SIM-Vorlagensuche für alle Gremien, jahrgangsweise ab dem 1. Januar fünf Jahre vor dem laufenden Jahr (beim Ausbau 2021–2026), ergänzt durch aktuelle SIM-Feeds und verlinkte Vorgänge. Bereits veröffentlichte ältere Jahrgänge bleiben erhalten. |
 
 Der Schalter „Ratsvorgänge“ unter „Karten-Layer“ ist anfangs aus. In Hannover werden benannte
 Kreuzungen, Abschnitte und verkehrsbezogene Hausnummern aus Titel und öffentlichem Maßnahmentext
@@ -244,11 +244,40 @@ je Ort die Fundstelle und öffnet eine belegte Geometrie mit „Auf Karte zeigen
 offener Geometrie bleiben in der Suche sichtbar. Die Karte unterscheidet amtliche Geometrien,
 abgeleitete Lagen und reine Straßenbezüge. Der Datenstand bleibt in Recherche und Bericht sichtbar.
 
+Alle Indexeinträge beider Städte durchlaufen denselben Ortsabgleich. Das gemeinsame
+`locationAssessment` nennt die geprüften Grundlagen (`title`, `document`, `official`),
+den Status und gegebenenfalls Einschränkungen. `mapped` bezeichnet belegte Kartenlagen,
+`partial` belegte Kartenlagen mit offenen oder begrenzten Belegen, `unresolved` eine
+erfolglose räumliche Zuordnung und `unavailable` fehlende geeignete Ortsdaten. Das Manifest
+zählt geprüfte Einträge und die vier Ergebnisse getrennt von der Zahl der Kartenobjekte.
+Eine Prüfung jedes Eintrags bedeutet daher keine erfolgreiche Verortung jedes Eintrags.
+Bestehende amtliche Geometrien bleiben erhalten; abgeleitete Orte werden bei jeder
+Neubewertung ersetzt. Es werden höchstens acht Ortsbelege je Vorgang veröffentlicht.
+Fehlende Dokumenttexte und Begrenzungen bei Text oder Ortsbelegen bleiben im Prüfstatus sichtbar.
+
+Hannover übermittelt für jeden Jahrgang eine Suche ohne Stichwort, mit allen Typen und
+Gremien sowie allen Ergebnissen. Der Import vergleicht die gelesenen Tabellenzeilen mit
+der amtlich genannten Trefferzahl. Nicht verfügbare Detailseiten verlieren dadurch ihren
+verifizierten Listeneintrag nicht. `coverage.scope: "citywide"` beschreibt den stadtweiten
+Suchumfang; `complete: false` bleibt bestehen, da damit keine Vollständigkeit des gesamten
+amtlichen Archivs nachgewiesen ist. Ältere Kataloge ohne diese optionalen Felder bleiben lesbar.
+
 `node scripts/refresh-ris-catalogues.js` ruft die städtischen Quellen ab und schreibt die Kataloge.
+Mit `--city bonn` beziehungsweise `--city hannover` lässt sich derselbe Ablauf auf eine Stadt
+begrenzen. Erfolgreich geprüfte Quelldaten liegen im gemeinsamen Cache `.cache/ris-sources/`.
+Quellrevision, Parserrevision und eine maximale Lebensdauer von sieben Tagen verhindern die
+unbegrenzte Wiederverwendung alter Antworten. Fehlgeschlagene Abrufe werden nicht gespeichert.
+Die bestehenden Pages-Workflows sichern diesen Cache auch nach einem fehlgeschlagenen Build;
+die veröffentlichten Dateien bleiben wie bisher Manifest, komprimierter Index und Kartenobjekte.
 Ein Katalog gilt nach acht Tagen als veraltet und läuft 14 Tage nach seiner ursprünglichen
 Erstellung ab. Schlägt die Aktualisierung für Pages fehl, kennzeichnet das Manifest den letzten
 verifizierten Stand mit `refreshFailure` (Zeitpunkt, Grund und Ablaufdatum). Datenstand und
 erfasster Umfang bleiben erhalten. Normale Builds übernehmen lokal vorhandene Kataloge ohne Netzabruf.
+Fehlt einem noch gültigen, verifizierten Bestand der aktuelle Ortsprüfstatus, kann derselbe
+Ablauf ihn auch bei Quellausfall lokal ergänzen. Dafür werden Titel, bereits gespeicherte
+Belegauszüge und amtliche Kartenlagen erneut bewertet. Begrenzte oder fehlende Dokumenttexte
+werden ausdrücklich markiert. Quellzeit, Umfang, Wiederholungsfrist und Ablaufdatum bleiben
+unverändert; `--restore-only` übernimmt weiterhin exakt den veröffentlichten Bestand.
 Für einen Docker-Build mit veröffentlichten Katalogen steht `--build-arg RESTORE_PUBLISHED_RIS=1`
 zur Verfügung. Der Browser benötigt für die Kartenprüfung HTTPS oder `localhost`.
 

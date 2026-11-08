@@ -15,13 +15,14 @@ function enrich(records, entries = [limmerstrasse, lutherkirche], city = 'hannov
   return enrichRisLocations(records, { city, gazetteer: { city: 'hannover', entries } });
 }
 
-test('derives a street line from an exact title reference and identifies the source and scale', () => {
+test('derives a street line from an exact title reference and retains its evidence and attribution', () => {
   const paper = { id: 'A', title: 'Verkehrssicherheit in der Limmerstrasse' };
   const [mapped] = enrich([paper]);
   expect(mapped).toMatchObject({
-    ...paper, geometry: { type: 'LineString', coordinates: [[9.71, 52.37], [9.72, 52.37]] },
-    locationSource: 'derived',
-    locationLabel: expect.stringMatching(/Limmerstraße.*Titel.*Straßenverlauf.*© OpenStreetMap-Mitwirkende/i),
+    ...paper, locations: [{ kind: 'street', label: 'Limmerstraße',
+      geometry: { type: 'LineString', coordinates: [[9.71, 52.37], [9.72, 52.37]] },
+      evidence: { source: 'title', text: paper.title }, attribution: '© OpenStreetMap-Mitwirkende, ODbL',
+    }],
   });
   expect(paper).not.toHaveProperty('geometry');
 });
@@ -30,15 +31,14 @@ test('labels a supplied partial street line as a cartographic extract', () => {
   const [record] = enrich([{ title: 'Verkehrssicherheit in der Limmerstraße' }], [
     { ...limmerstrasse, extent: 'part' },
   ]);
-  expect(record.locationLabel).toMatch(/kartierter Teil des Straßenverlaufs als Orientierung/iu);
+  expect(record.locations[0]).toMatchObject({ kind: 'street', extent: 'part', geometry: limmerstrasse.geometry });
 });
 
 test('accepts an explicitly named place at its supplied position', () => {
   const [mapped] = enrich([{ title: 'Sicherer Zugang zur Lutherkirche' }]);
-  expect(mapped).toMatchObject({
-    geometry: { type: 'Point', coordinates: [9.72, 52.38] }, locationSource: 'derived',
-    locationLabel: expect.stringContaining('Landeshauptstadt Hannover'),
-  });
+  expect(mapped.locations).toMatchObject([{ kind: 'place',
+    geometry: { type: 'Point', coordinates: [9.72, 52.38] }, attribution: 'Landeshauptstadt Hannover',
+  }]);
 });
 
 test('preserves existing geometry, accuracy and label even when the title also matches', () => {
@@ -46,18 +46,22 @@ test('preserves existing geometry, accuracy and label even when the title also m
     title: 'Verkehrssicherheit in der Limmerstraße', locationSource: 'official',
     geometry: { type: 'Point', coordinates: [9.715, 52.374] }, locationLabel: 'Lageplan der Vorlage',
   };
-  expect(enrich([paper])[0]).toBe(paper);
+  expect(enrich([paper])[0]).toMatchObject(paper);
 });
 
 test('does not attach data from a different city', () => {
   const paper = { title: 'Verkehrssicherheit in der Limmerstraße' };
-  expect(enrich([paper], [limmerstrasse], 'bonn')[0]).toBe(paper);
+  expect(enrich([paper], [limmerstrasse], 'bonn')[0]).toMatchObject({
+    ...paper, locations: [], locationAssessment: { status: 'unavailable' },
+  });
 });
 
 test('leaves a repeated street name in different locations unresolved', () => {
   const otherStreet = { ...limmerstrasse, geometry: { type: 'LineString', coordinates: [[9.74, 52.4], [9.76, 52.4]] } };
   const paper = { title: 'Verkehrssicherheit in der Limmerstraße' };
-  expect(enrich([paper], [limmerstrasse, otherStreet])[0]).toBe(paper);
+  expect(enrich([paper], [limmerstrasse, otherStreet])[0]).toMatchObject({
+    ...paper, locations: [], locationAssessment: { status: 'unresolved' },
+  });
 });
 
 test.each([
@@ -76,7 +80,10 @@ test.each([
   'Radwegeausbau am Lindener Stichkanal und am Mittellandkanal',
 ])('leaves an unclear or more specific location searchable only: %s', title => {
   const paper = { title, meetingLocation: 'Limmerstraße' };
-  expect(enrich([paper])[0]).toBe(paper);
+  const [record] = enrich([paper]);
+  expect(record).toMatchObject({ ...paper, locationAssessment: { status: 'unresolved' } });
+  expect(record.locations.every(location => !location.geometry)).toBe(true);
+  expect(record.geometry).toBeUndefined();
 });
 
 test('requires a street cue for a name that could be a description of a nearby location', () => {
@@ -86,8 +93,8 @@ test('requires a street cue for a name that could be a description of a nearby l
     { title: 'Radständer am Hauptbahnhof' },
   ];
   const [mapped, ambiguous] = enrich(papers, [street]);
-  expect(mapped).toHaveProperty('locationSource', 'derived');
-  expect(ambiguous).toBe(papers[1]);
+  expect(mapped.locations).toMatchObject([{ label: 'Am Hauptbahnhof', geometry: street.geometry }]);
+  expect(ambiguous).toMatchObject({ ...papers[1], locations: [], locationAssessment: { status: 'unresolved' } });
 });
 
 test('refuses a point in place of a street line, an invalid position or missing attribution', () => {
@@ -98,7 +105,7 @@ test('refuses a point in place of a street line, an invalid position or missing 
     { ...limmerstrasse, geometry: { ...limmerstrasse.geometry, crs: 'EPSG:4326' } },
     { ...limmerstrasse, attribution: '' },
   ]) {
-    expect(enrich([paper], [entry])[0]).toBe(paper);
+    expect(enrich([paper], [entry])[0]).toMatchObject({ ...paper, locations: [], locationAssessment: { status: 'unresolved' } });
   }
 });
 
@@ -108,10 +115,9 @@ test.each([
 ])('uses the verified %s gazetteer for public record %s', (city, number, title, knownPosition) => {
   const gazetteer = require(`../../config/ris-locations/${city}.json`);
   const [record] = enrichRisLocations([{ title, number }], { city, gazetteer });
-  expect(record).toMatchObject({ locationSource: 'derived', geometry: { type: 'MultiLineString' } });
-  expect(record.geometry.coordinates.flat(1)).toContainEqual(knownPosition);
-  expect(record.locationLabel).toContain('Straßenverlauf als Orientierung');
-  expect(record.locationLabel).toContain('© OpenStreetMap-Mitwirkende');
+  expect(record.locations).toMatchObject([{ kind: 'street', geometry: { type: 'MultiLineString' }, evidence: { source: 'title', text: title } }]);
+  expect(record.locations[0].geometry.coordinates.flat(1)).toContainEqual(knownPosition);
+  expect(record.locations[0].attribution).toContain('© OpenStreetMap-Mitwirkende');
 });
 
 const street = (name, coordinates) => ({
@@ -317,4 +323,135 @@ test('keeps the address in a non-traffic matter as a search location without an 
   } });
   expect(record.locations[0]).toMatchObject({ kind: 'address', label: 'Stephanusstraße 12' });
   expect(record.locations[0].geometry).toBeUndefined();
+});
+
+test.each(['bonn', 'hannover'])('checks every %s title with the multi-location parser without requiring document text', city => {
+  const [record] = enrichRisLocations([{ title: 'Radwege an der Limmerstraße und an der Lutherkirche' }], {
+    city, gazetteer: { city, entries: [limmerstrasse, lutherkirche] },
+  });
+  expect(record.locations?.map(({ label }) => label)).toEqual(['Limmerstraße', 'Lutherkirche']);
+  expect(record.locationAssessment).toEqual({ status: 'mapped', sources: ['title'], reasons: [], truncated: false });
+});
+
+test('records an unresolved result even when no specific location is found', () => {
+  const [record] = enrich([{ title: 'Verkehrssicherheit im Stadtgebiet', locationEvidence: [] }]);
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment).toEqual({
+    status: 'unresolved', sources: ['title'], reasons: ['no_specific_location'], truncated: false,
+  });
+});
+
+test('reports missing city geodata without borrowing another city or keeping an old derived point', () => {
+  const [record] = enrich([{
+    title: 'Verkehrssicherheit in der Limmerstraße',
+    geometry: { type: 'Point', coordinates: [9.71, 52.37] }, locationSource: 'derived', locationLabel: 'Alter Punkt',
+  }], [limmerstrasse], 'bonn');
+  expect(record.geometry).toBeUndefined();
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment).toEqual({
+    status: 'unavailable', sources: ['title'], reasons: ['gazetteer_unavailable'], truncated: false,
+  });
+});
+
+test('replaces obsolete derived locations when a new assessment no longer finds evidence', () => {
+  const original = {
+    title: 'Verkehrssicherheit im Stadtgebiet', locationEvidence: [],
+    locations: [{ kind: 'street', label: 'Limmerstraße', geometry: limmerstrasse.geometry,
+      evidence: { source: 'title', text: 'Ein inzwischen korrigierter Titel' } }],
+  };
+  const [record] = enrich([original]);
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment.status).toBe('unresolved');
+  expect(original.locations).toHaveLength(1);
+});
+
+test('retains a verified official geometry while also assessing other explicitly named locations', () => {
+  const geometry = { type: 'Point', coordinates: [9.715, 52.374] };
+  const [record] = enrich([{
+    title: 'Sicherer Zugang zur Lutherkirche', geometry, locationSource: 'official', locationLabel: 'Amtlicher Lageplan',
+  }]);
+  expect(record).toMatchObject({ geometry, locationSource: 'official', locationLabel: 'Amtlicher Lageplan' });
+  expect(record.locations).toMatchObject([{ label: 'Lutherkirche', geometry: lutherkirche.geometry }]);
+  expect(record.locationAssessment).toEqual({
+    status: 'mapped', sources: ['title', 'official'], reasons: [], truncated: false,
+  });
+});
+
+test('does not count malformed official coordinates as mapped evidence', () => {
+  const [record] = enrich([{
+    title: 'Verkehrssicherheit im Stadtgebiet', locationSource: 'official',
+    geometry: { type: 'Point', coordinates: [9.71, 520] },
+  }]);
+  expect(record.geometry).toBeUndefined();
+  expect(record.locationAssessment.status).toBe('unresolved');
+  expect(record.locationAssessment.sources).toEqual(['title']);
+});
+
+test('distinguishes partly mapped places from a wholly unresolved result', () => {
+  const [record] = enrich([{
+    title: 'Radverkehr verbessern',
+    locationEvidence: ['Die Fahrbahn in der Limmerstraße wird saniert.', 'Fahrradbügel in der Limmerstraße 14.'],
+  }]);
+  // A specific address takes precedence over a general reference to that street.
+  expect(record.locationAssessment.status).toBe('unresolved');
+  const [partial] = enrich([{
+    title: 'Radverkehr verbessern',
+    locationEvidence: ['Sicherer Zugang zur Lutherkirche.', 'Fahrradbügel in der Limmerstraße 14.'],
+  }]);
+  expect(partial.locationAssessment).toEqual({
+    status: 'partial', sources: ['title', 'document'], reasons: ['unmapped_location'], truncated: false,
+  });
+});
+
+test('reports ambiguous names without converting them into a map marker', () => {
+  const [record] = enrich([{ title: 'Verkehrssicherheit in der Limmerstraße' }], [
+    limmerstrasse, { ...limmerstrasse, geometry: { type: 'LineString', coordinates: [[9.74, 52.4], [9.76, 52.4]] } },
+  ]);
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment.status).toBe('unresolved');
+  expect(record.locationAssessment.reasons).toContain('unverified_name');
+});
+
+test('retains available evidence and reports a truncated or unavailable document fetch', () => {
+  const [record] = enrich([{
+    title: 'Verkehrssicherheit', locationEvidence: ['Die Fahrbahn in der Limmerstraße wird saniert.'],
+    locationEvidenceTruncated: true, locationEvidenceUnavailable: true,
+  }]);
+  expect(record.locations[0].geometry).toEqual(limmerstrasse.geometry);
+  expect(record.locationAssessment).toEqual({
+    status: 'partial', sources: ['title', 'document'],
+    reasons: ['document_text_unavailable', 'evidence_truncated'], truncated: true,
+  });
+});
+
+test('does not claim a document was reviewed when its fetch was unavailable', () => {
+  const [record] = enrich([{
+    title: 'Verkehrssicherheit im Stadtgebiet', locationEvidence: [], locationEvidenceUnavailable: true,
+  }]);
+  expect(record.locationAssessment.sources).toEqual(['title']);
+  expect(record.locationAssessment.reasons).toContain('document_text_unavailable');
+  expect(record.locationAssessment.status).toBe('unresolved');
+});
+
+test('reports that more than eight identified places could not all be published', () => {
+  const entries = Array.from({ length: 9 }, (_, i) => street(`Teststraße ${i + 1}`, [[9.7, 52.37], [9.71, 52.37]]));
+  const [record] = enrich([{
+    title: 'Fahrbahnsanierung', locationEvidence: entries.map(entry => `Die Fahrbahn in der ${entry.name} wird saniert.`),
+  }], entries);
+  expect(record.locations).toHaveLength(8);
+  expect(record.locationAssessment).toEqual({
+    status: 'partial', sources: ['title', 'document'], reasons: ['location_limit'], truncated: true,
+  });
+});
+
+test.each([
+  { title: 'Einladung zur Sitzung in der Limmerstraße 14', locationEvidence: [] },
+  { title: 'Radverkehr verbessern', locationEvidence: ['Wie bereits in der Limmerstraße 14 sollen Fahrradbügel aufgestellt werden.'] },
+])('does not treat meeting addresses or comparisons as the proposed measure location', paper => {
+  const [record] = enrichRisLocations([paper], { city: 'hannover', gazetteer: {
+    city: 'hannover', entries: [{ ...limmerstrasse, streetKey: 'example' }],
+    addresses: { example: { '14': [9.715, 52.37] } },
+  } });
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment.status).toBe('unresolved');
 });

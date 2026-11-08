@@ -12,6 +12,7 @@ const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const { readRisSnapshot, writeRisSnapshot, RIS_FALLBACK_MAX_AGE_MS } = require('../server/political-context/services/risSnapshot');
 const { enrichRisLocations } = require('../server/political-context/services/risLocation');
+const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIRECTORY = path.join(ROOT, 'data', 'ris');
@@ -19,18 +20,18 @@ const PUBLISHED_DIRECTORY = 'https://carstenartur.github.io/Unfallatlas/data/ris
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Allow the weekly workflow to start a few hours earlier than its previous run.
 const REFRESH_AFTER_MS = 6.5 * DAY_MS;
-const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 9 * 60_000 };
+const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 60 * 60_000 };
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
-const HANNOVER_LOCATION_REVISION = 1;
-const LOCATION_UPGRADE_RETRY_MS = 6 * 60 * 60_000;
+const LOCATION_REVISION = 2;
+const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
 const ASSET_BYTES = 16 * 1024 * 1024;
 // Public manifests must not carry raw errors from source responses or local filesystem paths.
 const PUBLIC_REFRESH_FAILURE = 'Die letzte Aktualisierung der amtlichen Ratsdaten ist fehlgeschlagen.';
 
-async function collectOfficial(city, now) {
+async function collectOfficial(city, now, { previousCoverage, report = () => {} } = {}) {
   if (city === 'bonn') {
     const { collectBonnCatalogue } = require('../server/political-context/providers/bonnOparlClient');
     return collectBonnCatalogue({
@@ -39,23 +40,32 @@ async function collectOfficial(city, now) {
     });
   }
   const { collectHannoverCatalogue } = require('../server/political-context/providers/hannoverSimCatalogue');
+  const requestedFrom = `${now.getUTCFullYear() - 5}-01-01`;
+  // Preserve already published history when the five-year window advances.
+  const from = previousCoverage?.from && previousCoverage.from < requestedFrom ? previousCoverage.from : requestedFrom;
+  const sourceCache = createRisSourceCache({ directory: path.join(ROOT, '.cache', 'ris-sources') });
   return collectHannoverCatalogue({
-    now, from: '2026-01-01', strict: true, maxMeetings: 60,
-    discoverArchives: ['districts'], archiveBodies: [HANNOVER_DISTRICT],
-    includeLocationEvidence: true,
+    now, from, discovery: 'search', strict: true, maxDocuments: 50_000,
+    concurrency: 8, maxDurationMs: 58 * 60_000, timeoutMs: 20_000,
+    includeLocationEvidence: true, sourceCache,
+    report: event => report({ ...event, cache: sourceCache.stats }),
   });
 }
 
-async function collectFromSource(city, now) {
+async function collectFromSource(city, now, { previousCoverage, report = () => {} } = {}) {
   // A worker bounds the wall clock even if a source keeps a connection alive.
-  const worker = new Worker(__filename, { workerData: { city, now: now.toISOString() } });
+  const worker = new Worker(__filename, { workerData: { city, now: now.toISOString(), previousCoverage } });
   let timer;
   try {
     return await new Promise((resolve, reject) => {
       timer = setTimeout(() => reject(new Error(`Source crawl exceeded ${SOURCE_LIMIT_MS[city] / 60_000} minutes`)), SOURCE_LIMIT_MS[city]);
       worker.once('error', reject);
       worker.once('exit', code => reject(new Error(`Source worker exited without a catalogue (${code})`)));
-      worker.once('message', ({ catalogue, error }) => error ? reject(new Error(error)) : resolve(catalogue));
+      worker.on('message', ({ catalogue, error, progress }) => {
+        if (progress) report(progress);
+        else if (error) reject(new Error(error));
+        else resolve(catalogue);
+      });
     });
   } finally {
     clearTimeout(timer);
@@ -206,17 +216,20 @@ function rejectCoverageDowngrade(next, previous) {
   const old = previous.coverage;
   if ((old.complete && !coverage.complete) || (old.from && coverage.from > old.from) ||
       (old.to && coverage.to < old.to)) throw new Error('Official coverage is narrower than the previous snapshot');
+  if (old.scope === 'citywide' && coverage.scope !== 'citywide') {
+    throw new Error('Citywide discovery was reduced to selected councils');
+  }
   const scopeBodies = ({ city, coverage: { bodies } }) => bodies.map(body => {
     const label = body.toLowerCase();
     return city === 'bonn' && /^(?:(?:bundes)?stadt )?bonn$/.test(label) ? 'bonn' : label;
   }).filter(body => next.city !== 'hannover' || HANNOVER_ARCHIVE_BODIES.has(body));
   const nextBodies = new Set(scopeBodies(next));
-  if (scopeBodies(previous).some(body => !nextBodies.has(body))) {
+  if (coverage.scope !== 'citywide' && scopeBodies(previous).some(body => !nextBodies.has(body))) {
     throw new Error('An official council is missing from the new snapshot');
   }
   // Hannover's daily RSS can legitimately lose a recent council name as its window rolls.
   // The archive and feed URLs capture the source scope independently of that window.
-  if (next.city === 'hannover' && previous.sources.some(source => !next.sources.includes(source))) {
+  if (next.city === 'hannover' && coverage.scope !== 'citywide' && previous.sources.some(source => !next.sources.includes(source))) {
     throw new Error('An official archive or feed is missing from the new snapshot');
   }
   if (next.records.count < previous.records.count * 0.9) {
@@ -245,8 +258,8 @@ async function loadGazetteer(city) {
   return { ...atkis, entries: [...atkis.entries, ...additional] };
 }
 
-async function prepareCandidate(directory, city, now, collect, previous) {
-  const catalogue = await collect(city, now);
+async function prepareCandidate(directory, city, now, collect, previous, report) {
+  const catalogue = await collect(city, now, { previousCoverage: previous?.coverage, report });
   const coverage = catalogue?.coverage;
   if (!catalogue?.records?.length || !coverage?.from || !coverage.to || !coverage.bodies?.length ||
       (city === 'bonn' && !coverage.complete)) {
@@ -254,14 +267,53 @@ async function prepareCandidate(directory, city, now, collect, previous) {
   }
   const gazetteer = await loadGazetteer(city);
   const records = enrichRisLocations(catalogue.records, { city, gazetteer });
-  const revision = city === 'hannover' ? { locationRevision: HANNOVER_LOCATION_REVISION } : {};
-  await writeRisSnapshot(directory, city, { ...catalogue, records, ...revision }, { now });
+  await writeRisSnapshot(directory, city, { ...catalogue, records, locationRevision: LOCATION_REVISION }, { now });
   const { manifest } = await readRisSnapshot(directory, city);
+  if (manifest.locationAssessment?.attempted !== manifest.records.count) {
+    throw new Error('Not every indexed record received a location assessment');
+  }
   if (previous) rejectCoverageDowngrade(manifest, previous);
   return { directory, manifest };
 }
 
-async function refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly }) {
+function needsLocationAssessment(manifest) {
+  return (manifest?.locationRevision ?? 0) < LOCATION_REVISION ||
+    manifest?.locationAssessment?.attempted !== manifest?.records.count;
+}
+
+async function prepareLocalAssessment(directory, selected) {
+  const source = selected.manifest;
+  const { records, features } = await readRisSnapshot(selected.directory, source.city);
+  const official = new Map(features.features.filter(feature => feature.properties.accuracy === 'official')
+    .map(feature => [feature.properties.recordId, feature]));
+  const inputs = records.map(record => {
+    const document = [...new Set((record.locations || []).filter(location => location.evidence.source === 'document')
+      .map(location => location.evidence.text))];
+    const feature = official.get(record.id);
+    return {
+      ...record, locationEvidence: document,
+      // A published snapshot stores selected quotations, never the full text.
+      locationEvidenceTruncated: document.length > 0 || record.locationAssessment?.truncated === true,
+      locationEvidenceUnavailable: !document.length || record.locationAssessment?.reasons.includes('document_text_unavailable') === true,
+      ...(feature ? { geometry: feature.geometry, locationSource: 'official', locationLabel: feature.properties.label } : {}),
+    };
+  });
+  const gazetteer = await loadGazetteer(source.city);
+  const next = await writeRisSnapshot(directory, source.city, {
+    sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISION,
+    records: enrichRisLocations(inputs, { city: source.city, gazetteer }),
+  }, { now: new Date(source.generatedAt) });
+  // Local analysis does not refresh the official source or its retry/expiry
+  // clock. The writer deliberately omits refreshFailure, so restore and verify it.
+  const preserved = { ...next, generatedAt: source.generatedAt,
+    ...(source.refreshFailure ? { refreshFailure: source.refreshFailure } : {}) };
+  await fs.writeFile(path.join(directory, `${source.city}.json`), `${JSON.stringify(preserved, null, 2)}\n`);
+  const { manifest } = await readRisSnapshot(directory, source.city);
+  if (needsLocationAssessment(manifest)) throw new Error('Not every retained record received a location assessment');
+  return { directory, manifest };
+}
+
+async function refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly, report }) {
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), `ris-refresh-${city}-`));
   try {
     const deployed = path.join(scratch, 'published');
@@ -280,11 +332,16 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     let status = restoreOnly ? 'restored' : 'current';
     let reason;
     const lastFailure = previous.manifest?.refreshFailure?.attemptedAt;
-    const upgradeLocations = city === 'hannover' && (previous.manifest?.locationRevision ?? 0) < HANNOVER_LOCATION_REVISION
-      && (!lastFailure || startedAt.getTime() - Date.parse(lastFailure) >= LOCATION_UPGRADE_RETRY_MS);
-    if (!restoreOnly && (!previous.manifest || upgradeLocations || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS)) {
+    const upgradeLocations = needsLocationAssessment(previous.manifest);
+    const upgradeHistory = city === 'hannover' && (previous.manifest?.coverage.scope !== 'citywide' ||
+      previous.manifest?.coverage.from > `${startedAt.getUTCFullYear() - 5}-01-01`);
+    const fallbackExpired = previous.manifest && startedAt.getTime() >= previous.generated + RIS_FALLBACK_MAX_AGE_MS;
+    const canRetrySource = !lastFailure || fallbackExpired || startedAt.getTime() - Date.parse(lastFailure) >= SOURCE_RETRY_MS;
+    const refreshDue = !previous.manifest || upgradeLocations || upgradeHistory || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS;
+    if (!restoreOnly && refreshDue && canRetrySource) {
       try {
-        selected = await prepareCandidate(path.join(scratch, 'candidate'), city, startedAt, collect, previous.manifest);
+        selected = await prepareCandidate(path.join(scratch, 'candidate'), city, startedAt, collect, previous.manifest,
+          progress => report({ city, status: 'collecting', ...progress }));
         status = 'published';
       } catch (error) {
         reason = error?.message || 'Official RIS refresh failed';
@@ -307,6 +364,15 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
       }
     }
 
+    if (!restoreOnly && selected.manifest && needsLocationAssessment(selected.manifest)) {
+      assertUnexpiredSnapshot(selected.manifest, clock());
+      try {
+        selected = await prepareLocalAssessment(path.join(scratch, 'local-assessment'), selected);
+      } catch (error) {
+        reason = [reason, `Local location reassessment failed: ${error?.message || 'Unknown error'}`].filter(Boolean).join('; ');
+      }
+    }
+
     const { manifest } = selected;
     if (manifest) {
       assertUnexpiredSnapshot(manifest, clock());
@@ -315,7 +381,8 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     await pruneCity(directory, city, manifest);
     return {
       city, status, ...(reason ? { reason } : {}),
-      ...(manifest ? { generatedAt: manifest.generatedAt, records: manifest.records.count, mapped: manifest.map.count } : {}),
+      ...(manifest ? { generatedAt: manifest.generatedAt, records: manifest.records.count, mapped: manifest.map.count,
+        locationAssessment: manifest.locationAssessment } : {}),
     };
   } finally {
     await fs.rm(scratch, { recursive: true, force: true });
@@ -332,7 +399,7 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
   if (!(startedAt instanceof Date) || !Number.isFinite(startedAt.getTime())) throw new Error('Invalid RIS refresh date');
   await listDirectory(directory);
   const outcomes = await Promise.allSettled([...new Set(cities)].map(async city => {
-    const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly });
+    const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect, restoreOnly, report });
     report(outcome);
     return outcome;
   }));
@@ -358,15 +425,23 @@ async function main(args) {
   }
   await refreshRisCatalogues({
     ...options,
-    report({ city, status, generatedAt, records, mapped, reason }) {
-      const detail = generatedAt ? ` (${generatedAt}; ${records} records, ${mapped} mapped)` : '';
+    report({ city, status, generatedAt, records, mapped, reason, locationAssessment, ...progress }) {
+      if (status === 'collecting') {
+        console.log(`[ris] ${city}: ${JSON.stringify(progress)}`);
+        return;
+      }
+      const assessment = locationAssessment ? `, ${locationAssessment.attempted} assessed, ` +
+        `${locationAssessment.mapped + locationAssessment.partial} located records` : '';
+      const detail = generatedAt ? ` (${generatedAt}; ${records} records, ${mapped} map features${assessment})` : '';
       console.log(`[ris] ${city}: ${status}${detail}${reason ? ` — ${reason}` : ''}`);
     },
   });
 }
 
 if (!isMainThread && workerData?.city) {
-  collectOfficial(workerData.city, new Date(workerData.now)).then(
+  collectOfficial(workerData.city, new Date(workerData.now), {
+    previousCoverage: workerData.previousCoverage, report: progress => parentPort.postMessage({ progress }),
+  }).then(
     catalogue => parentPort.postMessage({ catalogue }),
     error => parentPort.postMessage({ error: error.message }),
   );
