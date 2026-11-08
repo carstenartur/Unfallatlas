@@ -280,6 +280,15 @@
       ctx.accidentView = (UA.accidentViews && UA.accidentViews[v]) ? v : (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
     }
 
+    // RIS controls are created by initLeaflet, before data and the selection
+    // rectangle arrive. Their desired state must already be canonical here.
+    // Road flags are applied later, once the city's capabilities are known.
+    const requestedOverlays = typeof UA.parseMapLayerCsv === 'function'
+      ? UA.parseMapLayerCsv(UA.qGet('mapLayer', ''))
+      : { slope: false, traffic: false, ris: false };
+    ctx.contextOverlays = { active: { slope: false, traffic: false, ris: !!requestedOverlays.ris } };
+    if (UA.RisViewState) ctx.risView = UA.RisViewState.fromSearch(UA.qs());
+
     UA.bindDom(ctx);
     UA.initLeaflet(ctx);
 
@@ -327,8 +336,10 @@
     await UA.loadPOIData(ctx);
 
     // if no URL view and no state: fit
+    let restoredCityState = false;
     if (!UA.viewParamsPresent()) {
       const hadState = UA.restoreCityStateIfNoUrlView(ctx);
+      restoredCityState = hadState;
       if (!hadState) UA.fitToAllPoints(ctx);
       // if selectionBounds restored: draw it
       if (ctx.selectionBounds) {
@@ -352,11 +363,9 @@
     // shared link with `?mapLayer=slope,traffic` shows the overlays
     // immediately. Default is "all off"; the controls themselves only
     // appear when the city carries the corresponding capability.
-    if (typeof UA.parseMapLayerCsv === 'function') {
-      const desired = UA.parseMapLayerCsv(UA.qGet('mapLayer', ''));
-      ctx.contextOverlays = ctx.contextOverlays || { active: { slope: false, traffic: false }, layers: { slope: null, traffic: null }, layerControl: null, legendControl: null };
-      ctx.contextOverlays.active.slope   = !!desired.slope;
-      ctx.contextOverlays.active.traffic = !!desired.traffic;
+    if (!restoredCityState) {
+      ctx.contextOverlays.active.slope   = !!requestedOverlays.slope;
+      ctx.contextOverlays.active.traffic = !!requestedOverlays.traffic;
     }
     if (typeof UA.refreshContextOverlays === 'function') {
       UA.refreshContextOverlays(ctx);
@@ -457,6 +466,13 @@ if (UA.qBool("export", false)) {
       // und dieselbe URL (Idempotenz).
       if (typeof UA.setHydrating === "function") UA.setHydrating(false);
       try {
+        // A missing/invalid selection can only be cleared after hydration;
+        // a valid shared rectangle was not available at initial control mount.
+        UA.RisLayer?.refresh(ctx);
+      } catch (e) {
+        console.warn("RIS-Kartenansicht nach Hydration konnte nicht aktualisiert werden:", e);
+      }
+      try {
         if (ctx && ctx.ui && typeof UA.syncAllToUrl === "function") {
           UA.syncAllToUrl(ctx);
         }
@@ -464,6 +480,13 @@ if (UA.qBool("export", false)) {
         // Bewusst geschluckt: ein fehlgeschlagener Normalisierungs-
         // Schreibvorgang darf den App-Start nicht verhindern.
         console.warn("URL-Normalisierung nach Hydration fehlgeschlagen:", e);
+      }
+      try {
+        // Detail resolution is independent of map geometry and must see the
+        // finished canonical state, including a restored city-only session.
+        UA.RisDetails?.refresh(ctx);
+      } catch (e) {
+        console.warn("RIS-Detailansicht nach Hydration konnte nicht geöffnet werden:", e);
       }
     }
   }

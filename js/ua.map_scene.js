@@ -62,10 +62,11 @@
         accidentView: "bySeverity",
         // Export / report options
         exportOptions: {},
-        // Context map overlays (slope, traffic)
+        // Context map overlays; RIS documents may also be open with no layer.
         contextOverlays: {
-          active: { slope: false, traffic: false }
-        }
+          active: { slope: false, traffic: false, ris: false }
+        },
+        risView: UA.RisViewState?.normalize()
       };
 
       if (!overrides) return defaults;
@@ -91,6 +92,7 @@
           );
         }
       }
+      if (UA.RisViewState) result.risView = UA.RisViewState.normalize(overrides.risView);
       return result;
     },
 
@@ -126,6 +128,7 @@
 
       const ui = ctx.ui || {};
       const cf = ctx.contextFilters || {};
+      const active = ctx.contextOverlays?.active || {};
 
       return UA.MapScene.create({
         city: ctx.CITY_RAW || "",
@@ -164,7 +167,8 @@
         },
         accidentView:   ctx.accidentView   || "bySeverity",
         exportOptions:  ctx.exportOptions  || {},
-        contextOverlays: ctx.contextOverlays || { active: { slope: false, traffic: false } }
+        contextOverlays: { active: { slope: !!active.slope, traffic: !!active.traffic, ris: !!active.ris } },
+        risView: UA.RisViewState?.normalize(ctx.risView)
       });
     }
   };

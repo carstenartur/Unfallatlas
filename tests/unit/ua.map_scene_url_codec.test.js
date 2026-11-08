@@ -10,6 +10,7 @@ function loadModules(extraWin) {
       eval(fs.readFileSync(path.resolve(__dirname, '../../js/' + file), 'utf8'));
     })(win);
   };
+  if (fs.existsSync(path.resolve(__dirname, '../../js/ua.ris_view_state.js'))) load('ua.ris_view_state.js');
   load('ua.map_scene.js');
   load('ua.map_scene_url_codec.js');
   return win.UA;
@@ -20,6 +21,53 @@ describe('UA.MapSceneUrlCodec', () => {
   beforeEach(() => { UA = loadModules(); });
 
   describe('encode / decode round-trip', () => {
+    test('restores every RIS view option alongside both road layers and the selected map area', () => {
+      const scene = UA.MapScene.create({
+        city: 'Hannover', center: { lat: 52.3759, lon: 9.732 }, zoom: 15,
+        selection: { south: 52.37, west: 9.72, north: 52.38, east: 9.74 },
+        contextOverlays: { active: { slope: true, traffic: true, ris: true } },
+        risView: {
+          selectionOnly: true, recordId: 'region-hannover-ris:2026/123+Anfrage A', section: 'relations', collapsed: true,
+          eventsPage: 2, relationsPage: 3, relatedPage: 4, locationsPage: 5,
+        },
+      });
+      const encoded = UA.MapSceneUrlCodec.encode(scene);
+      const query = new URLSearchParams(encoded);
+      expect(query.get('mapLayer')).toBe('slope,traffic,ris');
+      expect(query.get('risRelatedPage')).toBe('4');
+      const decoded = UA.MapSceneUrlCodec.decode(encoded);
+      expect(decoded.risView).toEqual({
+        selectionOnly: true, recordId: 'region-hannover-ris:2026/123+Anfrage A', section: 'relations', collapsed: true,
+        eventsPage: 2, relationsPage: 3, relatedPage: 4, locationsPage: 5,
+      });
+      expect(decoded.contextOverlays.active).toEqual({ slope: true, traffic: true, ris: true });
+      expect(decoded.selection).toEqual({ south: 52.37, west: 9.72, north: 52.38, east: 9.74 });
+      expect(decoded.center).toEqual({ lat: 52.3759, lon: 9.732 });
+      expect(decoded.zoom).toBe(15);
+    });
+
+    test('an unmapped document remains shareable while the RIS map layer is disabled', () => {
+      const scene = UA.MapScene.create({
+        city: 'Hannover', risView: { recordId: 'region-hannover-ris:unmapped', section: 'locations' },
+      });
+      const encoded = UA.MapSceneUrlCodec.encode(scene);
+      expect(new URLSearchParams(encoded).has('mapLayer')).toBe(false);
+      const restored = UA.MapSceneUrlCodec.decode(encoded);
+      expect(restored.risView?.recordId).toBe('region-hannover-ris:unmapped');
+      expect(restored.risView?.section).toBe('locations');
+      expect(restored.contextOverlays.active.ris).toBe(false);
+    });
+
+    test('legacy slope and traffic links keep their layers and default to a closed RIS view', () => {
+      const restored = UA.MapSceneUrlCodec.decode('?city=Bonn&mapLayer=slope,traffic&showCluster=0');
+      expect(restored.contextOverlays.active).toEqual({ slope: true, traffic: true, ris: false });
+      expect(restored.risView).toEqual({
+        selectionOnly: false, recordId: null, section: 'history', collapsed: false,
+        eventsPage: 0, relationsPage: 0, relatedPage: 0, locationsPage: 0,
+      });
+      expect(restored.layers.showCluster).toBe(false);
+    });
+
     test('default scene encodes to empty string (all defaults omitted)', () => {
       const scene = UA.MapScene.create({ city: '' });
       const encoded = UA.MapSceneUrlCodec.encode(scene);

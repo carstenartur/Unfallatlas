@@ -52,6 +52,28 @@ describe('map control disclosure', () => {
     delete window.L;
   });
 
+  // Break caught: default top-left zoom sits underneath the main panel; adding a second control leaves duplicate actions.
+  test('initialization places the native zoom before Draw and Karte in one right column', () => {
+    require('leaflet-draw');
+    ctx.map.remove();
+    ctx = {};
+    UA.initLeaflet(ctx);
+    const column = document.querySelector('#map .leaflet-top.leaflet-right');
+    const zoom = ctx.map.zoomControl.getContainer();
+    const draw = ctx.drawControl.getContainer();
+    const card = document.querySelector('.carte-control');
+    expect(zoom.parentElement).toBe(column);
+    expect([...column.children].indexOf(zoom)).toBeLessThan([...column.children].indexOf(draw));
+    expect([...column.children].indexOf(draw)).toBeLessThan([...column.children].indexOf(card));
+    expect(document.querySelectorAll('.leaflet-control-zoom')).toHaveLength(1);
+    const before = ctx.map.getZoom();
+    zoom.querySelector('.leaflet-control-zoom-in').click();
+    expect(ctx.map.getZoom()).toBe(before + 1);
+    UA.refreshContextOverlays(ctx);
+    expect(ctx.map.zoomControl.getContainer()).toBe(zoom);
+    expect(document.querySelectorAll('.leaflet-control-zoom')).toHaveLength(1);
+  });
+
   test('one labelled Karte groups background and independently selectable accident layers', () => {
     document.body.insertAdjacentHTML('beforeend', '<section id="mapBackgroundControls"><button id="mapModeStandard">Standardkarte</button></section><div id="mapAccidentControls"><button id="toggleCluster">Cluster</button><button id="toggleHeat">Heatmap</button></div>');
     const background = document.getElementById('mapBackgroundControls');

@@ -15,6 +15,18 @@
 
   const cityOf = ctx => String(ctx.CITY_RAW || '').trim();
 
+  function sharedState(ctx) {
+    ctx.contextOverlays ||= {};
+    ctx.contextOverlays.active ||= { slope: false, traffic: false };
+    ctx.contextOverlays.active.ris = !!ctx.contextOverlays.active.ris;
+    ctx.risView ||= { selectionOnly: false };
+    return ctx.contextOverlays.active;
+  }
+
+  function sync(ctx) {
+    if (!UA._hydrating) UA.syncAllToUrl?.(ctx);
+  }
+
   function text(parent, tag, content) {
     const el = document.createElement(tag);
     el.textContent = content;
@@ -206,8 +218,7 @@
     return { active, captureLayout, reflow, pending, setPending };
   }
 
-  function recordContext(parent, entry, state, data, guard) {
-    const { active, captureLayout, reflow, pending, setPending } = guard;
+  function recordContext(parent, entry, ctx, guard) {
     const context = entry.sourceContext;
     if (context) {
       const levels = { city: 'Stadt', region: 'Region', state: 'Land' };
@@ -221,66 +232,13 @@
       const link = text(parent, 'a', 'Original-PDF');
       link.href = pdf; link.target = '_blank'; link.rel = 'noopener noreferrer';
     }
-    for (const field of ['events', 'relationships']) {
-      const events = field === 'events';
-      const count = entry[events ? 'eventCount' : 'relationshipCount'] ?? entry[field]?.length;
-      const detail = text(parent, 'details', '');
-      detail.style.cssText = 'max-width:100%;min-width:0;overflow-wrap:anywhere;margin:6px 0';
-      const summary = text(detail, 'summary', `${events ? 'Beratungsverlauf' : 'Zusammenhänge'}${count === undefined ? '' : ` (${count})`}`);
-      summary.style.cursor = 'pointer';
-      const list = text(detail, 'ol', ''); list.style.cssText = 'padding-left:20px;margin:4px 0';
-      const status = text(detail, 'div', ''); status.setAttribute('aria-live', 'polite');
-      const more = document.createElement('button');
-      more.textContent = events ? 'Weitere Beratungen laden' : 'Weitere Zusammenhänge laden';
-      more.type = 'button'; more.className = 'smallBtn'; more.hidden = true;
-      let page = 0, loaded = false;
-      const seen = new Set();
-      async function loadPage() {
-        if (!active() || pending(more)) return;
-        if (!more.parentElement) detail.append(more);
-        setPending(more, true);
-        status.textContent = 'Quellenbelege werden geladen …';
-        let view;
-        try {
-          const local = entry[field];
-          const result = !data.partitioned || local !== undefined
-            ? { [field]: local || [], known: local !== undefined, total: local?.length ?? null, nextPage: null, complete: true }
-            : await UA.RisCatalogue[events ? 'loadRecordEvents' : 'loadRecordRelationships'](state.city, entry.id, page, { snapshot: data.manifest });
-          if (!active()) return;
-          view = captureLayout();
-          for (const [index, item] of result[field].entries()) {
-            const key = result.start === undefined ? `${page}:${index}` : result.start + index;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            const row = text(list, 'li', ''); row.style.marginBottom = '6px';
-            if (events) text(row, 'div', [item.date || 'Datum nicht angegeben', item.body || 'Gremium nicht angegeben', item.outcome].filter(Boolean).join(' · '));
-            else {
-              const roles = { answer: 'Antwort', proposal: 'Vorlage / Antrag', amendment: 'Änderungsantrag' };
-              text(row, 'div', [item.type === 'mentions' ? 'Im Dokument erwähnt' : 'Amtlicher Querverweis', roles[item.targetRole]].filter(Boolean).join(' · '));
-            }
-            const url = httpsUrl(events ? item.url : item.targetUrl);
-            if (url) {
-              const link = text(row, 'a', events ? 'Amtlicher Sitzungsbeleg' : item.label);
-              link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
-            }
-            text(row, 'div', item.evidence);
-          }
-          loaded = true;
-          status.textContent = !result.known
-            ? events ? 'Beratungsverlauf im geprüften Datenbestand nicht dokumentiert.' : 'Zusammenhänge im geprüften Datenbestand nicht dokumentiert.'
-            : result.complete === false ? 'Quellenbelege unvollständig; bitte erneut versuchen.'
-              : !seen.size ? events ? 'Keine öffentlichen Beratungen dokumentiert.' : 'Keine amtlichen Zusammenhänge dokumentiert.'
-                : `${seen.size}${result.total == null ? '' : ` von ${result.total}`} Quellenbelege geladen.`;
-          more.hidden = result.nextPage == null && result.complete !== false;
-          if (result.nextPage != null) page = result.nextPage;
-        } catch (error) {
-          if (active()) { status.textContent = error?.message || 'Quellenbelege konnten nicht geladen werden.'; more.hidden = false; }
-        } finally {
-          if (active()) { setPending(more, false); reflow(view); }
-        }
-      }
-      detail.addEventListener('toggle', () => { if (detail.open && !loaded) loadPage(); });
-      more.addEventListener('click', loadPage);
+    if (entry.id && typeof UA.RisDetails?.open === 'function') {
+      const open = text(parent, 'button', 'Verlauf und Zusammenhänge');
+      open.type = 'button'; open.className = 'smallBtn';
+      open.setAttribute('aria-label', `Verlauf und Zusammenhänge: ${entry.title}`);
+      open.addEventListener('click', () => {
+        if (guard.active()) UA.RisDetails.open(ctx, entry.id, { trigger: ctx.map.getContainer() });
+      });
     }
   }
 
@@ -309,7 +267,7 @@
       text(parent, 'strong', entry.title);
       const meta = [entry.type, entry.number, entry.date, entry.gremium || entry.premium].filter(Boolean);
       if (meta.length) text(parent, 'div', meta.join(' · '));
-      recordContext(parent, entry, state, data, guard);
+      recordContext(parent, entry, ctx, guard);
       if (details) {
         details.style.cssText = 'margin:4px 0;overflow-wrap:anywhere';
         parent.append(details);
@@ -436,7 +394,7 @@
       text(parent, 'strong', entry.title);
       const meta = [entry.type, entry.number, entry.date, entry.gremium || entry.premium].filter(Boolean);
       if (meta.length) text(parent, 'div', meta.join(' · '));
-      recordContext(parent, entry, state, data, { active, captureLayout, reflow, pending, setPending });
+      recordContext(parent, entry, ctx, { active });
       if (location) text(parent, 'div', [styles[location.accuracy || props.accuracy]?.label, location.label].filter(Boolean).join(' · '));
       const evidence = text(parent, 'div', '');
       const place = entry.locations?.find(item => item.id === location?.locationId);
@@ -808,14 +766,39 @@
     if (state.city !== city) {
       clearLayer(state);
       Object.assign(state, { city, data: null, pending: null, loadedKey: null, requestVersion: (state.requestVersion || 0) + 1 });
-      state.toggle.checked = state.filter.checked = false;
       state.body.hidden = state.legend.hidden = state.coverage.hidden = true;
       state.status.textContent = '';
+      state.loadError = null;
     }
+    const active = sharedState(ctx);
+    const wasEnabled = state.toggle.checked;
+    state.toggle.checked = active.ris;
+    state.body.hidden = !active.ris;
     const rect = rectOf(ctx.selectionBounds);
     state.filter.disabled = !rect;
     state.filter.parentElement.style.display = rect ? 'block' : 'none';
-    if (!rect) state.filter.checked = false;
+    if (!rect && ctx.risView.selectionOnly && !UA._hydrating) {
+      ctx.risView.selectionOnly = false;
+      sync(ctx);
+    }
+    state.filter.checked = !!ctx.risView.selectionOnly;
+    if (!active.ris) {
+      if (wasEnabled || state.layer) {
+        if (state.data?.partitioned) {
+          state.requestVersion = (state.requestVersion || 0) + 1;
+          state.pending = state.pendingKey = null;
+          state.loadedKey = null;
+        }
+        clearLayer(state);
+        state.status.textContent = '';
+        state.legend.hidden = state.coverage.hidden = true;
+      }
+      return;
+    }
+    if (!state.data && !state.pending && !state.loadError) {
+      state.status.textContent = 'Ratsvorgänge werden geladen …';
+      loadSnapshot(ctx, state);
+    }
     if (state.toggle.checked && state.data) {
       const { manifest } = state.data;
       const freshness = UA.RisCatalogue.snapshotStatus(manifest);
@@ -891,15 +874,6 @@
     return request;
   }
 
-  function enable(ctx, state) {
-    if (state.data) {
-      refresh(ctx);
-    } else {
-      state.status.textContent = 'Ratsvorgänge werden geladen …';
-      loadSnapshot(ctx, state);
-    }
-  }
-
   function snapshotMatches(manifest, snapshot) {
     return snapshot?.sha256 && snapshot.mapSha256 && snapshot.city === manifest.city
       && snapshot.sha256 === (manifest.generation || manifest.records?.sha256) && snapshot.mapSha256 === (manifest.generation || manifest.map?.sha256);
@@ -946,8 +920,16 @@
           feature = data.features.find(item => item.properties.geometryId === geometryId) || { ...exact, bbox: exact.bounds || coordinateBounds(exact.geometry.coordinates) };
         }
       }
-    } else feature = data.features.find(feature => feature.properties.locations.some(location =>
-      location.recordId === ref.id && location.locationIndex === index));
+    } else {
+      const geometryId = index && typeof index === 'object' ? index.geometryId : null;
+      feature = data.features.find(feature => feature.properties.locations.some(location => {
+        if (location.recordId !== ref.id) return false;
+        if (!geometryId) return location.locationIndex === index;
+        const identity = Number.isInteger(location.locationIndex)
+          ? `legacy:location:${location.locationIndex}` : 'legacy:record';
+        return geometryId === identity;
+      }));
+    }
     if (!feature) throw new Error('Für diesen Ort ist keine Kartenlage verfügbar.');
     const selection = state.filter.checked && rectOf(ctx.selectionBounds);
     if (selection && !featureHits(feature, selection)) {
@@ -955,6 +937,7 @@
     }
 
     if (data.partitioned) state.focused = feature;
+    sharedState(ctx).ris = true;
     state.toggle.checked = true;
     state.body.hidden = false;
     const [west, south, east, north] = feature.bbox;
@@ -973,6 +956,7 @@
     const element = target?.getElement?.();
     if (!element) throw new Error('Für diesen Ort ist keine Kartenlage im Kartenausschnitt verfügbar.');
     target.openPopup();
+    sync(ctx);
     return element;
   }
 
@@ -1020,11 +1004,10 @@
     });
     toggle.addEventListener('change', () => {
       state.interactionEpoch = (state.interactionEpoch || 0) + 1;
-      refresh(ctx);
       if (!current(ctx, state)) return;
-      body.hidden = !toggle.checked;
-      if (toggle.checked) enable(ctx, state);
-      else {
+      sharedState(ctx).ris = toggle.checked;
+      state.loadError = null;
+      if (!toggle.checked) {
         if (state.data?.partitioned) {
           state.requestVersion = (state.requestVersion || 0) + 1;
           state.pending = state.pendingKey = null;
@@ -1034,8 +1017,15 @@
         status.textContent = '';
         legend.hidden = coverage.hidden = true;
       }
+      refresh(ctx);
+      sync(ctx);
     });
-    filter.addEventListener('change', () => refresh(ctx));
+    filter.addEventListener('change', () => {
+      sharedState(ctx);
+      ctx.risView.selectionOnly = filter.checked;
+      refresh(ctx);
+      sync(ctx);
+    });
     refresh(ctx);
     return root;
   }
