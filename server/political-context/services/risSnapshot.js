@@ -8,6 +8,7 @@ const { URL } = require('node:url');
 const { promisify, TextDecoder } = require('node:util');
 const zlib = require('node:zlib');
 const { snapshotFormat } = require('../../../js/ua.ris-catalogue.js');
+const { buildProvenance, assertProvenance, verifyDistribution } = require('./risProvenance');
 
 // Publication and the browser apply the same location and feature contract.
 const {
@@ -323,6 +324,7 @@ async function withTemporaryFile(directory, filename, bytes, install) {
 }
 
 async function installAsset(directory, { bytes, reference }, kind) {
+  let compressedBytes = bytes.length;
   await withTemporaryFile(directory, reference.path, bytes, async (temporary, destination) => {
     try {
       // An existing reader may still hold a manifest pointing to this file.
@@ -330,8 +332,10 @@ async function installAsset(directory, { bytes, reference }, kind) {
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
       await readAsset(directory, reference, kind);
+      compressedBytes = (await fs.stat(destination)).size;
     }
   });
+  return compressedBytes;
 }
 
 /** Write immutable assets first and publish their manifest in a single rename. */
@@ -350,14 +354,19 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, sc
   const locationAssessment = summarizeLocationAssessments(records);
   const date = new Date(typeof now === 'function' ? now() : now);
   if (!Number.isFinite(date.getTime())) throw new Error('Invalid RIS generation timestamp');
-  const generatedAt = timestamp(date.toISOString());
+  const generatedAt = timestamp(catalogue.generatedAt || date.toISOString());
 
   const [recordsAsset, mapAsset] = await Promise.all([
     encodeAsset(city, 'records', records),
     encodeAsset(city, 'map', features),
   ]);
+  await fs.mkdir(directory, { recursive: true });
+  recordsAsset.compressedBytes = await installAsset(directory, recordsAsset, 'records');
+  mapAsset.compressedBytes = await installAsset(directory, mapAsset, 'map');
+  const provenance = buildProvenance(catalogue.provenance, { generatedAt, recordCount: records.length, coverage, now, assets: [recordsAsset, mapAsset] });
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
+    ...(provenance === undefined ? {} : { provenance }),
     records: recordsAsset.reference, map: mapAsset.reference,
     ...(locationRevision === undefined ? {} : { locationRevision }),
     ...(locationAssessment === undefined ? {} : { locationAssessment }),
@@ -365,9 +374,6 @@ async function writeRisSnapshot(directory, city, catalogue, { now = Date.now, sc
   const bytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
   if (bytes.length > MAX_MANIFEST_BYTES) throw new Error('RIS manifest exceeds its size limit');
 
-  await fs.mkdir(directory, { recursive: true });
-  await installAsset(directory, recordsAsset, 'records');
-  await installAsset(directory, mapAsset, 'map');
   await withTemporaryFile(directory, `${city}.json`, bytes, fs.rename);
   return manifest;
 }
@@ -388,6 +394,7 @@ async function readRisSnapshot(directory, city) {
   const coverage = normalizeCoverage(value.coverage);
   const recordsAsset = normalizeDescriptor(value.records, city, 'records', 1, MAX_RECORDS);
   const mapAsset = normalizeDescriptor(value.map, city, 'map', 0, recordsAsset.count * MAX_LOCATIONS_PER_RECORD);
+  assertProvenance(value.provenance, generatedAt, recordsAsset.count, coverage);
   if (!validLocationAssessmentSummary(value.locationAssessment, recordsAsset.count)) throw new Error('Invalid RIS location assessment totals');
   const [rows, map] = await Promise.all([
     readAsset(directory, recordsAsset, 'records'),
@@ -396,9 +403,11 @@ async function readRisSnapshot(directory, city) {
   const { records, byId } = normalizeRecords(rows, hosts, recordsAsset.count);
   if (!validLocationAssessmentSummary(value.locationAssessment, records.length, records)) throw new Error('Invalid RIS location assessment totals');
   const features = normalizeMap(map, byId, mapAsset.count);
+  await verifyDistribution(directory, value.provenance, [recordsAsset, mapAsset]);
   const manifest = {
     schemaVersion: SCHEMA_VERSION, city, generatedAt, sources, coverage,
     records: recordsAsset, map: mapAsset,
+    ...(value.provenance === undefined ? {} : { provenance: value.provenance }),
     ...(locationRevision === undefined ? {} : { locationRevision }),
     ...(value.locationAssessment === undefined ? {} : { locationAssessment: { ...value.locationAssessment } }),
     ...(refreshFailure ? { refreshFailure } : {}),

@@ -128,7 +128,7 @@
     "leaflet-image": "0.4.0",
     "leaflet.heat": "1.0.0",
     "leaflet.markercluster": "1.5.3",
-    "pdfmake": "0.3.13"
+    "pdfmake": "0.3.14"
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.7",

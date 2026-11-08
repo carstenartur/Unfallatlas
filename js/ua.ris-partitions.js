@@ -80,6 +80,50 @@
     }
     return { bounds, featureCount };
   }
+  // One bounded contract for both snapshot versions, in Node and the browser.
+  function validProvenance(value, generatedAt, recordCount, coverage) {
+    if (value === undefined) return true;
+    const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+    const fields = (v, names) => object(v) && Object.keys(v).length === names.length
+      && names.every(name => Object.prototype.hasOwnProperty.call(v, name));
+    const text = (v, max = 256) => typeof v === 'string' && v.length > 0 && v.length <= max
+      && v.trim() === v && !/[<>\p{Cc}\p{Cf}\p{Cs}]/u.test(v);
+    const count = v => Number.isSafeInteger(v) && v >= 0;
+    const optionalCount = v => v === null || count(v);
+    const time = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)
+      && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
+    const day = v => v === null || typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
+      && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+    if (!fields(value, ['schemaVersion', 'producer', 'builtAt', 'sourceVerifiedAt', 'provider', 'normalizationRevision',
+      'sourceFingerprint', 'collection', 'rights', 'distribution']) || value.schemaVersion !== 1
+      || !fields(value.producer, ['name', 'version']) || value.producer.name !== 'unfallwerkbank-ris' || !text(value.producer.version)
+      || !time(value.builtAt) || !time(value.sourceVerifiedAt) || value.sourceVerifiedAt !== generatedAt
+      || Date.parse(value.sourceVerifiedAt) > Date.parse(value.builtAt)
+      || !text(value.provider, 80) || !text(value.normalizationRevision, 128)
+      || !fields(value.sourceFingerprint, ['algorithm', 'kind', 'sha256'])
+      || value.sourceFingerprint.algorithm !== 'sha256' || value.sourceFingerprint.kind !== 'provider-projection-v1'
+      || typeof value.sourceFingerprint.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.sourceFingerprint.sha256)) return false;
+    const c = value.collection, r = value.rights, d = value.distribution;
+    if (!fields(c, ['pages', 'rawItems', 'normalizedItems', 'requestedFrom', 'requestedTo', 'limits', 'continuation'])
+      || !optionalCount(c.pages) || !optionalCount(c.rawItems) || !count(c.normalizedItems) || c.normalizedItems !== recordCount
+      || !day(c.requestedFrom) || !day(c.requestedTo) || c.requestedFrom && c.requestedTo && c.requestedFrom > c.requestedTo
+      || !fields(c.limits, ['maxPages', 'pageSize', 'maxDocuments', 'workBudget', 'maxDurationMs'])
+      || !Object.values(c.limits).every(optionalCount)
+      || !fields(c.continuation, ['pending', 'interrupted', 'pendingYears', 'reason'])) return false;
+    const next = c.continuation;
+    if (![null, true, false].includes(next.pending) || ![null, true, false].includes(next.interrupted)
+      || !Array.isArray(next.pendingYears) || next.pendingYears.length > 200
+      || !next.pendingYears.every(y => Number.isSafeInteger(y) && y >= 1000 && y <= 9999)
+      || new Set(next.pendingYears).size !== next.pendingYears.length
+      || ![null, 'page-limit', 'work-budget', 'time-limit', 'source-failure'].includes(next.reason)
+      || next.pendingYears.length && next.pending !== true
+      || coverage?.complete === true && (next.pending === true || next.interrupted === true || next.reason !== null)) return false;
+    return fields(r, ['status', 'license', 'attribution']) && ['specified', 'not-specified'].includes(r.status)
+      && (r.status === 'specified' ? text(r.license, 128) : r.license === null)
+      && Array.isArray(r.attribution) && r.attribution.length <= 16 && r.attribution.every(v => text(v, 512))
+      && fields(d, ['compression', 'assetCount', 'compressedBytes', 'uncompressedBytes']) && d.compression === 'gzip'
+      && [d.assetCount, d.compressedBytes, d.uncompressedBytes].every(v => count(v) && v > 0);
+  }
   function manifest(value, city) {
     if (value?.schemaVersion !== 2
         || value.city !== city
@@ -98,6 +142,7 @@
         || value.gridZoom !== 12
         || (value.spatialFormat !== undefined && value.spatialFormat !== SPATIAL_FORMAT)
         || (value.spatialFormat === SPATIAL_FORMAT && (!spatialDescriptor(value.roots.spatial, city) || value.roots.spatial.featureCount !== value.geometryCount))) throw invalid('Invalid RIS partition manifest');
+    if (!validProvenance(value.provenance, value.generatedAt, value.recordCount, value.coverage)) throw invalid('Invalid RIS provenance');
     return value;
   }
   function node(value, ref, city, spatialFormat) {
@@ -328,6 +373,7 @@
   }
   return {
     SPATIAL_FORMAT,
+    validProvenance,
     validBounds,
     spatialDescriptor,
     spatialLocator,

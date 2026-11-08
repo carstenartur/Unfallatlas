@@ -637,3 +637,59 @@ test('checkpoint detail age also constrains a previous snapshot refresh-failure 
   expect((await readRisSnapshot(directory, 'hannover')).manifest).toMatchObject({ generatedAt: STALE.toISOString(),
     refreshFailure: { ...prior.refreshFailure, expiresAt: '2026-11-11T09:00:00.000Z' } });
 });
+
+// Provenance is optional for legacy assets; newly collected facts stay bound
+// through fallback and local location-only changes.
+test('newly collected provenance binds source time and remains byte-identical in fallback and restore-only', async () => {
+  const fresh = catalogue('bonn');
+  fresh.generatedAt = FALLBACK.toISOString();
+  fresh.cache = { pages: 9, items: 20 };
+  await refresh({ cities: ['bonn'], collect: () => fresh });
+  const first = await readRisSnapshot(directory, 'bonn');
+  expect(first.manifest.provenance).toMatchObject({ builtAt: NOW.toISOString(), sourceVerifiedAt: FALLBACK.toISOString(),
+    collection: { pages: 9, rawItems: null, normalizedItems: 2 } });
+  const provenance = first.manifest.provenance;
+  // Source unavailable: fallback adds only failure metadata, never rewrites facts.
+  await refresh({ cities: ['bonn'], collect: () => { throw new Error('source unavailable'); } });
+  expect((await readRisSnapshot(directory, 'bonn')).manifest.provenance).toEqual(provenance);
+  await fs.mkdir(published, { recursive: true });
+  for (const file of await fs.readdir(directory)) await fs.copyFile(path.join(directory, file), path.join(published, file));
+  const originalBytes = await fs.readFile(path.join(published, 'bonn.json'));
+  await refresh({ cities: ['bonn'], restoreOnly: true, collect: () => { throw new Error('must not collect'); } });
+  expect(await fs.readFile(path.join(directory, 'bonn.json'))).toEqual(originalBytes);
+});
+
+test.each([false, true])('local v1 migration/reassessment preserves optional acquisition facts (reassess=%s)', async reassess => {
+  const { collectionProvenance } = require('../../server/political-context/services/risProvenance');
+  const c = reassess ? legacyCatalogue('bonn') : catalogue('bonn');
+  const p = collectionProvenance({ catalogue: c, city: 'bonn', records: c.records, sourceRecords: c.records,
+    sourceVerifiedAt: FRESH.toISOString(), now: FRESH });
+  // Write explicit v1 so the ordinary migration and reassessment paths both run.
+  await writeSnapshot(published, 'bonn', { ...c, provenance: p }, { now: FRESH, schemaVersion: 1 });
+  await refresh({ cities: ['bonn'], collect: () => { throw new Error('source unavailable'); } });
+  const m = (await readRisSnapshot(directory, 'bonn')).manifest;
+  expect(m.schemaVersion).toBe(2);
+  expect(m.provenance).toMatchObject({ sourceVerifiedAt: FRESH.toISOString(), builtAt: NOW.toISOString(),
+    sourceFingerprint: p.sourceFingerprint, collection: p.collection, rights: p.rights });
+});
+
+test('even an available cached source detail constrains source verification without an unavailable-detail warning', async () => {
+  const next = catalogue('hannover');
+  next.generatedAt = FRESH.toISOString();
+  next.records[0].detailVerifiedAt = FALLBACK.toISOString();
+  await refresh({ cities: ['hannover'], collect: () => next });
+  const m = (await readRisSnapshot(directory, 'hannover')).manifest;
+  expect(m.generatedAt).toBe(FALLBACK.toISOString());
+  expect(m.provenance.sourceVerifiedAt).toBe(FALLBACK.toISOString());
+  expect(m.provenance.builtAt).toBe(NOW.toISOString());
+  expect(m.coverage.warnings.join(' ')).not.toMatch(/Nicht aktuell verfügbare Details/);
+});
+
+test('local migration keeps historical provenance absent when it was never recorded', async () => {
+  await writeRisSnapshot(published, 'bonn', legacyCatalogue('bonn'), { now: FRESH });
+  await refresh({ cities: ['bonn'], collect: () => { throw new Error('source unavailable'); } });
+  const m = (await readRisSnapshot(directory, 'bonn')).manifest;
+  expect(m.schemaVersion).toBe(2);
+  expect(m.generatedAt).toBe(FRESH.toISOString());
+  expect(m).not.toHaveProperty('provenance');
+});

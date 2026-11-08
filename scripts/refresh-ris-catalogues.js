@@ -14,6 +14,7 @@ const { readRisSnapshot, writeRisSnapshot, enumerateSnapshotAssets, RIS_FALLBACK
 const { enrichRisLocations } = require('../server/political-context/services/risLocation');
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
 const { createRisSourceCheckpoint } = require('../server/political-context/services/risSourceCheckpoint');
+const { collectionProvenance } = require('../server/political-context/services/risProvenance');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIRECTORY = path.join(ROOT, 'data', 'ris');
@@ -35,26 +36,32 @@ const PUBLIC_REFRESH_FAILURE = 'Die letzte Aktualisierung der amtlichen Ratsdate
 
 async function collectOfficial(city, now, { previousCoverage, historyStartYear = HISTORY_START_YEAR, workBudget,
   maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {} } = {}) {
-  const sourceCache = createRisSourceCache({ directory: sourceDirectory });
+  const sourceCache = createRisSourceCache({ directory: sourceDirectory, now: () => now.getTime() });
   const checkpoint = createRisSourceCheckpoint({ directory: sourceDirectory });
   const progress = event => report({ ...event, cache: sourceCache.stats });
   if (city === 'bonn') {
-    const { collectBonnCatalogue, fetchJson } = require('../server/political-context/providers/bonnOparlClient');
-    return collectBonnCatalogue({
+    const { collectBonnCatalogue } = require('../server/political-context/providers/bonnOparlClient');
+    const catalogue = await collectBonnCatalogue({
       now, lookbackYears: now.getUTCFullYear() - historyStartYear, maxPages: 300, pageLimit: 100,
-      checkpoint, workBudget, maxDurationMs: maxDurationMs ?? 18 * 60_000,
-      fetchJsonImpl: (url, options) => sourceCache.getOrLoad(url, 'bonn-json-v1', () => fetchJson(url, options)),
+      checkpoint, sourceCache, workBudget, maxDurationMs: maxDurationMs ?? 18 * 60_000,
       requestOptions: { timeoutMs: 20_000, maxRedirects: 0, maxBytes: 4 * 1024 * 1024 },
     });
+    return withCollectionSettings(catalogue, { maxPages: 300, pageSize: 100, workBudget, maxDurationMs: maxDurationMs ?? 18 * 60_000 },
+      { requestedFrom: `${historyStartYear}-01-01`, requestedTo: null });
   }
   const { collectHannoverCatalogue } = require('../server/political-context/providers/hannoverSimCatalogue');
   const requestedFrom = `${historyStartYear}-01-01`;
   const from = previousCoverage?.from && previousCoverage.from < requestedFrom ? previousCoverage.from : requestedFrom;
-  return collectHannoverCatalogue({
+  const catalogue = await collectHannoverCatalogue({
     now, from, discovery: 'search', strict: true, maxDocuments: 50_000,
     concurrency: 8, maxDurationMs: maxDurationMs ?? 58 * 60_000, timeoutMs: 20_000,
     includeLocationEvidence: true, sourceCache, checkpoint, workBudget, report: progress,
   });
+  return withCollectionSettings(catalogue, { maxDocuments: 50_000, workBudget, maxDurationMs: maxDurationMs ?? 58 * 60_000 });
+}
+
+function withCollectionSettings(catalogue, limits, scope = {}) {
+  return { ...catalogue, provenance: { ...catalogue.provenance, collection: { ...scope, ...catalogue.provenance?.collection, limits } } };
 }
 
 async function collectFromSource(city, now, { report = () => {}, ...options } = {}) {
@@ -332,10 +339,12 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   const retainedAt = retainedClocks.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   if (retainedAt) coverage = { ...coverage, warnings: [...new Set([...coverage.warnings,
     `Nicht aktuell verfügbare Details behalten ihren zuletzt verifizierten Stand vom ${retainedAt}.`])] };
-  const provenance = retainedAt ? { generatedAt: retainedAt,
-    ...(previous?.manifest.refreshFailure ? { refreshFailure: { ...previous.manifest.refreshFailure,
-      expiresAt: new Date(Date.parse(retainedAt) + RIS_FALLBACK_MAX_AGE_MS).toISOString() } } : {}) } : {};
-  await writeRisSnapshot(directory, city, { ...catalogue, ...provenance, coverage, records, locationRevision: LOCATION_REVISION }, { now, schemaVersion: 2 });
+  const sourceClock = [catalogue.generatedAt, retainedAt, ...inputs.map(record => record.detailVerifiedAt)].filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] || now.toISOString();
+  const retainedSource = { generatedAt: sourceClock,
+    ...(retainedAt && previous?.manifest.refreshFailure ? { refreshFailure: { ...previous.manifest.refreshFailure,
+      expiresAt: new Date(Date.parse(sourceClock) + RIS_FALLBACK_MAX_AGE_MS).toISOString() } } : {}) };
+  const provenance = collectionProvenance({ catalogue, city, records, sourceRecords: inputs, sourceVerifiedAt: sourceClock, now, sourceOptions });
+  await writeRisSnapshot(directory, city, { ...catalogue, ...retainedSource, provenance, coverage, records, locationRevision: LOCATION_REVISION }, { now, schemaVersion: 2 });
   const { manifest } = await readRisSnapshot(directory, city);
   if (manifest.locationAssessment?.attempted !== recordCount(manifest)) throw new Error('Not every indexed record received a location assessment');
   assertUnexpiredSnapshot(manifest, now);
@@ -348,12 +357,12 @@ function needsLocationAssessment(manifest) {
     manifest?.locationAssessment?.attempted !== recordCount(manifest);
 }
 
-async function prepareLocalAssessment(directory, selected) {
+async function prepareLocalAssessment(directory, selected, builtAt) {
   const source = selected.manifest;
   const original = await readRisSnapshot(selected.directory, source.city);
   if (!needsLocationAssessment(source)) {
     const manifest = await writeRisSnapshot(directory, source.city, { ...source, records: original.records, features: original.features },
-      { now: new Date(source.generatedAt), schemaVersion: 2 });
+      { now: builtAt, schemaVersion: 2 });
     return { directory, manifest };
   }
   const { features } = original;
@@ -376,8 +385,8 @@ async function prepareLocalAssessment(directory, selected) {
   const next = await writeRisSnapshot(directory, source.city, {
     sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISION,
     records: enrichRisLocations(inputs, { city: source.city, gazetteer, maxLocationsPerRecord: Infinity }),
-    generatedAt: source.generatedAt, ...(source.refreshFailure ? { refreshFailure: source.refreshFailure } : {}),
-  }, { now: new Date(source.generatedAt), schemaVersion: 2 });
+    generatedAt: source.generatedAt, ...(source.provenance === undefined ? {} : { provenance: source.provenance }), ...(source.refreshFailure ? { refreshFailure: source.refreshFailure } : {}),
+  }, { now: builtAt, schemaVersion: 2 });
   // Local analysis does not refresh the official source or its retry/expiry
   // clock. The writer deliberately omits refreshFailure, so restore and verify it.
   const preserved = { ...next, generatedAt: source.generatedAt,
@@ -443,7 +452,7 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     if (!restoreOnly && selected.manifest && (needsLocationAssessment(selected.manifest) || selected.manifest.schemaVersion !== 2)) {
       assertUnexpiredSnapshot(selected.manifest, clock());
       try {
-        selected = await prepareLocalAssessment(path.join(scratch, 'local-assessment'), selected);
+        selected = await prepareLocalAssessment(path.join(scratch, 'local-assessment'), selected, startedAt);
       } catch (error) {
         reason = [reason, `Local location reassessment failed: ${error?.message || 'Unknown error'}`].filter(Boolean).join('; ');
       }

@@ -306,3 +306,69 @@ vollständigen Großstadtkatalog mit 150.001 Geometrien veröffentlicht zu haben
 
 Diese Zahlen beschreiben den lokalen Erhebungs- und Prüfstand. Die veröffentlichten
 Manifeste geben den jeweils tatsächlich ausgelieferten Quellenstand an.
+
+## Herkunft und exakter Exportbezug
+
+Neu gesammelte Kataloge ergänzen das weiterhin gültige Snapshotformat
+`schemaVersion: 2` um ein optionales `provenance`-Objekt mit eigener
+`schemaVersion: 1`. Vorhandene v1-/v2-Manifeste bleiben ohne dieses Objekt
+lesbar. Eine lokale Migration erfindet keine historische Herkunftsmetadaten.
+Ist das Objekt vorhanden, lehnen Server und Browser unbekannte Versionen,
+unbekannte Felder, ungültige Zeiten, überlange Texte und unsichere Zähler ab.
+Der gemeinsame Validator liegt in `ua.ris-partitions.js`.
+
+| Feld | Bedeutung |
+|---|---|
+| `producer` | Generator `unfallwerkbank-ris` mit expliziter Revision `ris-provenance-v1`; keine behauptete Paketversion |
+| `builtAt` | Zeitpunkt dieses Asset-Builds, unabhängig vom Alter der amtlichen Quelle |
+| `sourceVerifiedAt` | Identisch mit `generatedAt`; ältester bekannter verwendeter Quellen-/Detailstand, niemals nach `builtAt` |
+| `provider`, `normalizationRevision` | Quellenkennung und explizite Revision der zitierten Metadatenprojektion; getrennt von `locationRevision` |
+| `sourceFingerprint` | SHA-256 der kanonischen Providerprojektion vor der Ortsanreicherung, bezeichnet als `provider-projection-v1` |
+| `collection` | Beobachtete Seiten, rohe Eingabezeilen, normalisierte Vorgänge, angefragter Zeitraum, angewandte Limits und begrenzter Fortsetzungsstatus |
+| `rights` | Verifizierte Lizenzkennung und Quellenhinweise, sofern bekannt; andernfalls `not-specified`, `license: null` |
+| `distribution` | gzip-Dateianzahl, komprimierte und unkomprimierte Gesamtbytes aller eindeutig referenzierten Assets einschließlich Indexdateien |
+
+Nicht überlieferte Zähler und Limits sind `null`. Insbesondere sind Bonns
+`cache.items` bereits projizierte beziehungsweise anhand stabiler IDs
+abgeglichene Vorgänge und kein Rohzeilenzähler. Sie werden deshalb nicht als
+`rawItems` ausgegeben. Bonns logische `cache.pages` kann dagegen als
+Seitenanzahl übernommen werden; fehlende Hannover-Seitenzähler bleiben
+unbekannt. Angewandte Produktionslimits stammen aus dem Aufruf des jeweiligen
+Sammlers. Unbegrenzte oder nicht anwendbare Werte werden als `null`, niemals
+als `Infinity` serialisiert. Fortsetzungsmetadaten enthalten nur Status,
+Jahrgänge und einen begrenzten Grund, keine lokalen Pfade, Cookies, Rohfehler
+oder internen Cursor.
+
+Der Quellenfingerabdruck bindet nach stabiler ID sortierte Vorgänge und
+rekursiv sortierte Objektschlüssel. Er umfasst Zitatfelder, Beziehungen,
+verwendete amtliche Textbelege und amtliche Geometrien. Er ist kein Hash
+unverfügbarer HTTP-Rohbytes. Cache-Status, Abruf-/Buildzeiten und abgeleitete
+Ortsgeometrien gehören nicht zur Projektion. Dagegen bezeichnet die vorhandene
+`generation` weiterhin exakt die ausgelieferten Inhaltsverzeichnisse; ein
+neuer Buildzeitpunkt allein ändert sie nicht.
+
+Bei der Größenrechnung zählt jeder Assetpfad genau einmal, auch wenn ein
+Geometrieverzeichnis zusätzlich auf ein räumliches Blatt verweist. Das mutable
+Manifest selbst ist ausgeschlossen, damit keine selbstbezügliche Summe
+entsteht. Die Rechnung verwendet tatsächlich installierte gzip-Bytes, auch
+wenn ein bereits vorhandenes adressiertes Asset mit anderer, aber gültiger
+Kompression wiederverwendet wird. Der Server prüft die Summen bei vollständiger
+Assetvalidierung gegen die Dateien; beim partiellen Browserzugriff bleibt der
+jeweilige Dateihash maßgeblich.
+
+Fallback und unveränderte Wiederherstellung bewahren die Herkunftsfakten.
+Eine lokale Neuverortung oder v1-Migration darf Buildzeit, Generatorrevision
+und Assetgrößen aktualisieren; Quellenzeit, Quellenfingerabdruck,
+Erhebungszähler und Erhebungsscope bleiben erhalten. Der Frischezustand wird
+weiterhin ausschließlich aus `generatedAt`, `coverage.complete` und
+`refreshFailure` abgeleitet, nicht aus einem zweiten eingefrorenen Status.
+
+Text-, HTML-, DOCX- und PDF-Ausgaben kennzeichnen übernommene Vorgänge mit
+`Recherchequelle: veröffentlichter Ratsdaten-Snapshot` und dem vollständigen
+`Snapshot-SHA-256`. Bei v2 ist dies `generation`; bei v1 ist es der Records-Hash.
+Ein davon abweichender v1-Kartenhash erscheint zusätzlich vollständig als
+`Karten-SHA-256`. Zeilenumbruch ist erlaubt, Kürzung des prüfbaren Digests
+nicht. Katalogdatum, Einschränkungen, Warnungen und amtliche Vorgangslinks
+bleiben Teil desselben Quellenbelegs. Der Snapshothash bezeichnet den konkret
+verwendeten lokalen Datenstand und behauptet keine erneute Prüfung des
+amtlichen Links beim Export.

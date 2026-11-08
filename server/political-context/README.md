@@ -225,6 +225,23 @@ in einer konfigurierbaren Liste innerhalb des jeweiligen Provider-Moduls.
 
 ## Veröffentlichte Ratsdaten und Karte
 
+Der Bonner OParl-Leser teilt vollständige Kataloge zwischen unterschiedlichen
+Suchanfragen. `collectBonnCatalogue().cache` beziehungsweise
+`searchOparl().meta.catalogueCache` nennt den ältesten tatsächlich genutzten
+Quellenzeitpunkt (`refreshedAt`), den Zeitpunkt dieses Zugriffs (`retrievedAt`),
+Alter, Cachezustand, Quelle, Seiten-/Vorgangszahlen sowie Begrenzungen und
+Aktualisierungsfehler. `networkRequests` zählt nur die Netzarbeit dieses Aufrufs;
+`pages` und `items` beschreiben den verwendeten Katalog. `layer` unterscheidet
+die Wiederverwendung eines gesamten Katalogs von einzelnen Quellenantworten.
+
+Abgelaufene Kataloge werden vor dem nächsten Abruf verworfen. Die erlaubte
+Nutzung abgelaufener Kataloge bei einem Quellenfehler beträgt damit null;
+ein fehlgeschlagener Abruf liefert keine vermeintlich vollständigen Nulltreffer.
+Bei gemischten Cachetreffern und neuen Antworten bestimmt die älteste verwendete
+Quellenzeit den Datenstand. Fortsetzbare Arbeit speichert diese Zeit je Vorgang.
+Ältere Arbeitsstände ohne rekonstruierbare Quellenzeit behalten ihre Vorgänge,
+gelten aber erst nach erneuter Quellenprüfung als vollständig verifiziert.
+
 Bonn und Hannover teilen sich ein versioniertes Format unter `data/ris/`. Version 2 trennt
 Vorgänge, Suchindex, Ortsbelege, Beziehungen und räumliche Kartenobjekte in begrenzte,
 bedarfsgerecht geladene Teile. Das kleine Manifest nennt Quellen, Datenstand,

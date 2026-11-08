@@ -17,6 +17,32 @@
       "required": ["city", "searchTerms", "searchedAt", "totalFound"],
       "additionalProperties": false,
       "properties": {
+        "catalogueCache": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "layer", "retrievedAt", "refreshedAt", "ageMs", "hits", "misses", "networkRequests", "pages", "items", "sourceUrl", "truncated", "refreshFailure"],
+          "properties": {
+            "status": { "enum": ["hit", "miss", "mixed", "coalesced", "failed"] },
+            "layer": { "enum": ["catalogue", "source-pages"] },
+            "retrievedAt": { "type": ["string", "null"], "format": "date-time" },
+            "refreshedAt": { "type": ["string", "null"], "format": "date-time" },
+            "ageMs": { "type": ["integer", "null"], "minimum": 0 },
+            "hits": { "type": "integer", "minimum": 0 },
+            "misses": { "type": "integer", "minimum": 0 },
+            "networkRequests": { "type": "integer", "minimum": 0 },
+            "pages": { "type": "integer", "minimum": 0 },
+            "items": { "type": "integer", "minimum": 0 },
+            "sourceUrl": { "type": ["string", "null"] },
+            "truncated": { "type": "boolean" },
+            "refreshFailure": {
+              "type": ["object", "null"], "additionalProperties": false,
+              "required": ["code", "message"],
+              "properties": {
+                "code": { "type": "string", "maxLength": 100 },
+                "message": { "type": "string", "maxLength": 240 }
+              }
+            }
+          }
+        },
         "complete": { "type": "boolean" },
         "nextPage": { "type": ["string", "null"], "maxLength": 2048, "pattern": "^ris2\\.[A-Za-z0-9_-]+\\.[a-f0-9]{64}$" },
         "snapshot": { "$ref": "politicalReference.schema.json#/properties/snapshot" },

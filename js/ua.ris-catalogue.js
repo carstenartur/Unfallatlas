@@ -236,7 +236,7 @@
     if (manifest?.schemaVersion === 2) {
       partitions().manifest(manifest,key);
       const hash='a'.repeat(64);
-      checkManifest({...manifest,schemaVersion:1,locationAssessment:undefined,records:{path:`${key}.${hash}.records.json.gz`,sha256:hash,bytes:1,count:1},map:{path:`${key}.${hash}.map.json.gz`,sha256:hash,bytes:1,count:0}},key);
+      checkManifest({...manifest,schemaVersion:1,provenance:undefined,locationAssessment:undefined,records:{path:`${key}.${hash}.records.json.gz`,sha256:hash,bytes:1,count:1},map:{path:`${key}.${hash}.map.json.gz`,sha256:hash,bytes:1,count:0}},key);
       if(!validLocationAssessmentSummary(manifest.locationAssessment,manifest.recordCount))throw invalid();
       return manifest;
     }
@@ -256,6 +256,7 @@
         || !validAsset(manifest.records, key, 'records') || !manifest.records.count
         || !validAsset(manifest.map, key, 'map', manifest.records.count * MAX_LOCATIONS_PER_RECORD)
         || !validLocationAssessmentSummary(manifest.locationAssessment, manifest.records.count)) throw invalid();
+    if (manifest.provenance !== undefined && !partitions()?.validProvenance(manifest.provenance, manifest.generatedAt, manifest.records.count, coverage)) throw invalid('Invalid RIS provenance');
     return manifest;
   }
 

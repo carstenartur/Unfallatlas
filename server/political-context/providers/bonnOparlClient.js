@@ -449,6 +449,7 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
   const requestOptions = params.requestOptions || {};
   const firstUrl = officialCollectionUrl(source.paperListUrl, pageSize, 1);
   const firstPage = collectionPage(await fetchJsonImpl(firstUrl, requestOptions), firstUrl, pageSize);
+  firstPage.verifiedAt = params.sourceTimes?.get(firstUrl);
   const cache = new Map([[firstUrl, firstPage]]);
   const visited = new Set();
   const items = [];
@@ -482,19 +483,25 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
       if (state) annual.set(year, state);
     }
   }
-  async function reconcilePapers(papers, undatedYear = checkpointYear) {
+  async function reconcilePapers(papers, undatedYear = checkpointYear, verifiedAt) {
     const changed = new Set();
     for (const paper of papers) {
       if (!paper?.id) continue;
       // A Paper ID is stable across corrected/unknown dates and tombstones.
       // Remove every old bucket copy before installing the observed revision.
       for (const [year, state] of annual) {
-        if (Object.hasOwn(state.papers, paper.id)) { delete state.papers[paper.id]; changed.add(year); }
+        if (Object.hasOwn(state.papers, paper.id)) {
+          delete state.papers[paper.id];
+          if (state.sourceTimes) delete state.sourceTimes[paper.id];
+          changed.add(year);
+        }
       }
       const date = paperDate(paper);
       const year = date ? Number(date.slice(0, 4)) : undatedYear;
       const state = annual.get(year) || { papers: {} };
       state.papers[paper.id] = paper;
+      state.sourceTimes ||= {};
+      if (verifiedAt) state.sourceTimes[paper.id] = verifiedAt;
       annual.set(year, state); changed.add(year);
     }
     for (const year of changed) await checkpoint.write(sourceKey, checkpointScope, year, checkpointRevision, annual.get(year));
@@ -505,7 +512,7 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
   let recoveredPage = false;
   for (const entry of cursors.sort((a, b) => a.year - b.year)) {
     if (!entry.state.pendingPage) continue;
-    await reconcilePapers(entry.state.pendingPage, entry.year);
+    await reconcilePapers(entry.state.pendingPage, entry.year, entry.state.sourceVerifiedAt);
     const { pendingPage, ...completed } = entry.state;
     await checkpoint.write(sourceKey, `${checkpointScope}:cursor`, entry.year, checkpointRevision, completed);
     if (!cursor || entry.year >= cursorYear) { cursor = completed; cursorYear = entry.year; }
@@ -534,6 +541,7 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
     if (!page) {
       const payload = await fetchJsonImpl(currentUrl, requestOptions);
       page = collectionPage(payload, currentUrl, pageSize);
+      page.verifiedAt = params.sourceTimes?.get(currentUrl);
       requests += 1;
     }
     if (newestFirst && currentUrl === startUrl && page.next) {
@@ -553,16 +561,25 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
     currentUrl = newestFirst ? page.previous : page.next;
     if (checkpoint) {
       const completed = { sourceRevision, nextUrl: currentUrl || '', pages, complete: !currentUrl,
-        checkedAt: new Date(params.now ?? Date.now()).toISOString() };
+        checkedAt: page.verifiedAt, sourceVerifiedAt: page.verifiedAt };
       await checkpoint.write(sourceKey, `${checkpointScope}:cursor`, checkpointYear, checkpointRevision, { ...completed, pendingPage: page.data });
-      await reconcilePapers(page.data);
+      await reconcilePapers(page.data, checkpointYear, page.verifiedAt);
       await checkpoint.write(sourceKey, `${checkpointScope}:cursor`, checkpointYear, checkpointRevision, completed);
     }
   }
 
+  const retainedTimes = [];
+  let sourceTimeUnknown = false;
+  for (const state of annual.values()) for (const id of Object.keys(state.papers)) {
+    const value = state.sourceTimes?.[id];
+    const time = typeof value === 'string' ? Date.parse(value) : NaN;
+    if (Number.isFinite(time) && time <= catalogueTime(params)) retainedTimes.push(new Date(time).toISOString());
+    else sourceTimeUnknown = true;
+  }
   return {
     items: checkpoint ? [...annual.values()].flatMap(state => Object.values(state.papers)) : items,
     ...(checkpoint ? { retainedHistoricalFrom: [...annual.keys()].sort((a, b) => a - b)[0] } : {}),
+    ...(checkpoint ? { sourceVerifiedAt: retainedTimes.sort()[0] || null, sourceTimeUnknown } : {}),
     pages,
     pagesFetched: requests,
     scanPagesFetched,
@@ -651,10 +668,6 @@ function assertCurrentBonnHttpsUrl(value) {
   return url;
 }
 
-function officialJsonFetcher(fetchJsonImpl) {
-  return (value, options) => fetchJsonImpl(assertCurrentBonnHttpsUrl(value), options);
-}
-
 function projectSource({ body, bodyList, ...metadata }) {
   return {
     ...metadata,
@@ -663,15 +676,69 @@ function projectSource({ body, bodyList, ...metadata }) {
   };
 }
 
-async function readPaperCatalogue(params, systemUrl, fetchJsonImpl) {
-  const source = projectSource(await resolvePaperSource(params, fetchJsonImpl, systemUrl));
-  const { paperList: { pages, ...paperList }, ...listMetadata } = await fetchPaperList(source, params, fetchJsonImpl);
-  return {
-    source,
-    paperList,
-    ...listMetadata,
-    listWarnings: paperListWarnings(paperList, pages),
+function catalogueTime(params) {
+  const time = new Date(params.now ?? Date.now()).getTime();
+  if (!Number.isFinite(time)) throw new TypeError('Invalid Bonn catalogue time');
+  return time;
+}
+
+function reusedCatalogue(catalogue, params, status) {
+  const retrievedAt = new Date(catalogueTime(params)).toISOString();
+  return { ...catalogue, cache: { ...catalogue.cache, status, layer: 'catalogue', retrievedAt,
+    ageMs: catalogue.cache.refreshedAt ? Math.max(0, Date.parse(retrievedAt) - Date.parse(catalogue.cache.refreshedAt)) : null,
+    hits: 1, misses: 0, networkRequests: 0 } };
+}
+
+async function readPaperCatalogue(params, systemUrl, fetchJsonImpl, officialOnly = false) {
+  const now = catalogueTime(params);
+  const sourceTimes = new Map();
+  let hits = 0, misses = 0, networkRequests = 0;
+  let observedPages = 0, observedItems = 0, source;
+  const read = async (value, options) => {
+    const url = officialOnly ? assertCurrentBonnHttpsUrl(value) : value;
+    let loaded = false;
+    const loader = async () => { loaded = true; misses++; networkRequests++; return fetchJsonImpl(url, options); };
+    const entry = params.sourceCache?.getOrLoadWithMetadata
+      ? await params.sourceCache.getOrLoadWithMetadata(url, 'bonn-json-v1', loader)
+      : { payload: await loader(), cachedAt: now };
+    if (!loaded) hits++;
+    if (!Number.isFinite(entry.cachedAt) || entry.cachedAt < 0 || entry.cachedAt > now) {
+      throw new Error('Invalid Bonn source verification time');
+    }
+    sourceTimes.set(url, new Date(entry.cachedAt).toISOString());
+    if (isOfficialBonnPaperCollection(url)) {
+      const items = Array.isArray(entry.payload) ? entry.payload : entry.payload?.data;
+      if (Array.isArray(items)) { observedPages++; observedItems += items.length; }
+    }
+    return entry.payload;
   };
+  const metadata = (source, paperList, error) => {
+    const times = [...sourceTimes.values(), ...(paperList?.sourceVerifiedAt ? [paperList.sourceVerifiedAt] : [])].sort();
+    const refreshedAt = paperList?.sourceTimeUnknown ? null : times[0] || null;
+    return {
+      status: error ? 'failed' : hits ? (misses ? 'mixed' : 'hit') : 'miss',
+      layer: 'source-pages', retrievedAt: new Date(now).toISOString(), refreshedAt,
+      ageMs: refreshedAt ? Math.max(0, now - Date.parse(refreshedAt)) : null,
+      hits, misses, networkRequests,
+      pages: paperList?.pages?.length ?? observedPages, items: paperList?.items?.length ?? observedItems,
+      sourceUrl: source?.sourceUrl || systemUrl,
+      truncated: Boolean(error || paperList?.truncated || paperList?.sourceTimeUnknown || source?.bodyList.truncated),
+      refreshFailure: error ? compactError(error) : source?.discoveryError || null,
+    };
+  };
+  try {
+    source = projectSource(await resolvePaperSource(params, read, systemUrl));
+    const { paperList, ...listMetadata } = await fetchPaperList(source, { ...params, sourceTimes }, read);
+    const listWarnings = paperListWarnings(paperList, paperList.pages);
+    if (paperList.sourceTimeUnknown) listWarnings.push('Für zurückbehaltene Bonner Vorgänge fehlt die ursprüngliche Quellenzeit; eine erneute Quellenprüfung ist erforderlich.');
+    const cache = metadata(source, paperList);
+    const { pages, ...retainedPaperList } = paperList;
+    return { source, paperList: retainedPaperList, ...listMetadata, listWarnings,
+      generatedAt: cache.refreshedAt, cache };
+  } catch (error) {
+    error.catalogueCache = metadata(source, null, error);
+    throw error;
+  }
 }
 
 function pruneCatalogueSnapshots(now) {
@@ -714,9 +781,8 @@ function retainCatalogueSnapshot(key, catalogue) {
 }
 
 function loadPaperCatalogue(params, systemUrl, officialOnly = false) {
-  if (params.fetchJsonImpl) {
-    const fetchJsonImpl = officialOnly ? officialJsonFetcher(params.fetchJsonImpl) : params.fetchJsonImpl;
-    return readPaperCatalogue(params, systemUrl, fetchJsonImpl);
+  if (params.fetchJsonImpl || params.sourceCache || params.checkpoint) {
+    return readPaperCatalogue(params, systemUrl, params.fetchJsonImpl || fetchJson, officialOnly);
   }
 
   const request = params.requestOptions || {};
@@ -729,11 +795,21 @@ function loadPaperCatalogue(params, systemUrl, officialOnly = false) {
   ]);
   pruneCatalogueSnapshots(Date.now());
   const cached = catalogueSnapshots.get(key);
-  if (cached) return cached.catalogue;
+  if (cached) return Promise.resolve(reusedCatalogue(cached.catalogue, params, 'hit'));
   const inFlight = pendingCatalogueReads.get(key);
-  if (inFlight) return inFlight;
+  if (inFlight) return inFlight.then(
+    catalogue => reusedCatalogue(catalogue, params, 'coalesced'),
+    error => {
+      const failure = error instanceof OParlClientError
+        ? new OParlClientError(error.code, error.message, error.details)
+        : new Error(error.message);
+      Object.assign(failure, error);
+      if (error.catalogueCache) failure.catalogueCache = reusedCatalogue({ cache: error.catalogueCache }, params, 'failed').cache;
+      throw failure;
+    }
+  );
 
-  const pending = readPaperCatalogue(params, systemUrl, officialJsonFetcher(fetchJson))
+  const pending = readPaperCatalogue(params, systemUrl, fetchJson, true)
     .then(catalogue => {
       const { source, paperList, listWarnings } = catalogue;
       if (!paperList.truncated && !source.bodyList.truncated && !listWarnings.length) {
@@ -757,9 +833,14 @@ async function collectBonnCatalogue(params = {}) {
   const sources = systemUrl ? [systemUrl] : [];
   const coverage = { from: null, to: null, bodies: [], complete: false, warnings: [] };
   const records = [];
+  let cache;
+  let generatedAt;
   try {
     const url = systemUrl || assertCurrentBonnHttpsUrl(params.systemUrl || SYSTEM_URL);
-    const { source, paperList, listWarnings } = await loadPaperCatalogue(params, url, true);
+    const catalogue = await loadPaperCatalogue(params, url, true);
+    const { source, paperList, listWarnings } = catalogue;
+    cache = catalogue.cache;
+    generatedAt = catalogue.generatedAt;
     sources.splice(0, sources.length, ...new Set([source.sourceUrl, source.paperListUrl]));
     const sourceOrigins = new Set(sources.map(value => new URL(value).origin));
     coverage.bodies.push(String(source.body.name || source.body.shortName || 'Bonn').trim());
@@ -798,10 +879,11 @@ async function collectBonnCatalogue(params = {}) {
     coverage.complete = records.length > 0 && !invalidRecords && !source.bodyList.truncated
       && !paperList.truncated && !listWarnings.length;
   } catch (error) {
+    cache = error.catalogueCache;
     const failure = compactError(error);
     coverage.warnings.push(`Bonner OParl-Abruf fehlgeschlagen (${failure.code}: ${failure.message}).`);
   }
-  return { records, sources, coverage };
+  return { records, sources, coverage, ...(generatedAt ? { generatedAt } : {}), ...(cache ? { cache } : {}) };
 }
 
 async function searchOparl(params = {}) {
@@ -832,7 +914,7 @@ async function searchOparl(params = {}) {
     };
   }
 
-  const { source, paperList, unfilteredRetry, reverseTraversal, listWarnings } = await loadPaperCatalogue(params, systemUrl);
+  const { source, paperList, unfilteredRetry, reverseTraversal, listWarnings, cache } = await loadPaperCatalogue(params, systemUrl);
   queryLog.forEach(entry => { entry.url = source.paperListUrl; });
 
   const matches = [];
@@ -909,6 +991,7 @@ async function searchOparl(params = {}) {
       status,
       sourceType: 'oparl-1.1',
       sourceUrl: source.sourceUrl,
+      catalogueCache: cache,
       bodyId: normalizeUrl(source.body.id),
       bodyName: source.body.name || source.body.shortName || 'Bonn',
       paperListUrl: normalizeUrl(source.paperListUrl),

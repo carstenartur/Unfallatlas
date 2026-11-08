@@ -7,6 +7,7 @@ const {
 } = require('node:zlib');
 const P = require('../../../js/ua.ris-partitions');
 const grid = require('../../../js/ua.spatial-grid');
+const { buildProvenance, assertProvenance, verifyDistribution } = require('./risProvenance');
 const {
   partitionInternals: I
 } = require('./risSnapshot');
@@ -44,7 +45,7 @@ function pages(target, id, items) {
     start += batch.length;
   });
 }
-async function tree(directory, city, kind, entries, { spatial = false, onLeaf } = {}) {
+async function tree(directory, city, kind, entries, { spatial = false, onLeaf, assets } = {}) {
   entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
   for (let i = 1; i < entries.length; i++) if (entries[i][0] === entries[i - 1][0]) throw new Error('Duplicate RIS index key');
   async function put(type, rows) {
@@ -63,10 +64,9 @@ async function tree(directory, city, kind, entries, { spatial = false, onLeaf } 
       };
     if (spatial) Object.assign(reference, P.spatialMetadata({type, entries: rows}, city));
     if (type === 'leaf' && onLeaf) onLeaf(rows, reference);
-    await I.installAsset(directory, {
-      bytes: gzipSync(raw),
-      reference
-    }, kind);
+    const asset = { bytes: gzipSync(raw), reference };
+    const compressedBytes = await I.installAsset(directory, asset, kind);
+    assets?.set(reference.path, { reference, compressedBytes });
     return reference;
   }
   let level = [];
@@ -285,9 +285,10 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
   await fs.mkdir(directory, {
     recursive: true
   });
+  const assets = new Map();
   const roots = Object.fromEntries(P.ROOTS.map(kind => [kind, null]));
   roots.spatial = await tree(directory, city, 'spatial', indices.spatial, {
-    spatial: packed,
+    assets, spatial: packed,
     onLeaf: packed ? (entries, asset) => {
       for (const [spatialKey, feature] of entries) if (spatialKey.startsWith('feature:')) {
         const geometryId = feature.properties.geometryId;
@@ -295,11 +296,13 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
       }
     } : undefined
   });
-  for (const kind of P.ROOTS) if (kind !== 'spatial') roots[kind] = await tree(directory, city, kind, indices[kind]);
+  for (const kind of P.ROOTS) if (kind !== 'spatial') roots[kind] = await tree(directory, city, kind, indices[kind], { assets });
   const generation = I.digest(Buffer.from(JSON.stringify(roots)));
   const locationAssessment = I.summarizeLocationAssessments(records);
+  const provenance = buildProvenance(catalogue.provenance, { generatedAt, recordCount: records.length, coverage, now, assets: [...assets.values()] });
   const manifest = {
     schemaVersion: 2,
+    ...(provenance === undefined ? {} : { provenance }),
     ...(packed ? {spatialFormat: P.SPATIAL_FORMAT} : {}),
     city,
     generatedAt,
@@ -391,11 +394,13 @@ async function enumerateSnapshotAssets(directory, value, {
     I.normalizeSources(m.sources, m.city);
     I.normalizeCoverage(m.coverage);
     I.timestamp(m.generatedAt);
+    assertProvenance(m.provenance, m.generatedAt, m.records?.count, m.coverage);
     const refs = [I.normalizeDescriptor(m.records, m.city, 'records', 1, 50000), I.normalizeDescriptor(m.map, m.city, 'map', 0, m.records.count * 8)];
     for (let i = 0; i < refs.length; i++) {
       if (loadAsset) await loadAsset(refs[i]);
       await I.readAsset(directory, refs[i], i ? 'map' : 'records');
     }
+    await verifyDistribution(directory, m.provenance, refs);
     return refs;
   }
   const reader = P.createReader({
@@ -411,6 +416,7 @@ async function enumerateSnapshotAssets(directory, value, {
     audit?.visit(ref, node);
   });
   audit?.verify();
+  await verifyDistribution(directory, m.provenance, [...assets.values()]);
   return [...assets.values()];
 }
 async function readPartitionedSnapshot(directory, city, value) {
@@ -422,7 +428,8 @@ async function readPartitionedSnapshot(directory, city, value) {
       load: ref => I.readAsset(directory, ref, ref.kind)
     }),
     records = [],
-    features = [];
+    features = [],
+    assets = new Map();
   let geometryCount = 0;
   const audit = spatialAudit(m);
   const all = async (kind, id) => {
@@ -446,6 +453,7 @@ async function readPartitionedSnapshot(directory, city, value) {
     });
   };
   for (const kind of P.ROOTS) await reader.walk(kind, async (ref, node) => {
+    assets.set(ref.path, ref);
     audit?.visit(ref, node);
     if (node.type !== 'leaf') return;
     if (kind === 'records') for (const [, record] of node.entries) {
@@ -471,6 +479,7 @@ async function readPartitionedSnapshot(directory, city, value) {
     if (kind === 'geometry' && !audit) for (const [id, feature] of node.entries) await appendGeometry(id, feature);
   });
   if (audit) for (const [id, {feature}] of audit.verify()) await appendGeometry(id, feature);
+  await verifyDistribution(directory, m.provenance, [...assets.values()]);
 
   if (geometryCount !== m.geometryCount
       || new Set(features.map(f => f.properties.recordId)).size !== m.mappedRecordCount) throw new Error('RIS map count mismatch');
