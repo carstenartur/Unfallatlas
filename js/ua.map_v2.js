@@ -919,10 +919,89 @@
   // ----------------------------
   // Layer Legend Control (bottom right)
   // ----------------------------
+  const mapControlDisclosures = new WeakMap();
+  const compactMapQuery = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
+
+  function mapControlState(ctx) {
+    let state = mapControlDisclosures.get(ctx);
+    if (state) return state;
+    const media = window.matchMedia?.(compactMapQuery);
+    state = { mobile: !!media?.matches, choices: new Map(), controls: new Map() };
+    mapControlDisclosures.set(ctx, state);
+    const resize = () => {
+      state.mobile = !!media.matches;
+      for (const [key, entry] of [...state.controls]) {
+        if (!entry.control._map) continue;
+        const focused = entry.container.contains(document.activeElement) ? document.activeElement : null;
+        const position = state.mobile ? 'topright' : entry.desktopPosition;
+        if (entry.control.getPosition() !== position) entry.control.setPosition(position);
+        const current = state.controls.get(key);
+        current.apply();
+        if (focused) {
+          const target = current.container.contains(focused) ? focused
+            : focused.id ? document.getElementById(focused.id)
+              : [...current.body.querySelectorAll('[data-layer]')]
+                .find(element => element.dataset.layer === focused.dataset.layer);
+          (target && !target.closest('[hidden]') ? target : current.button).focus({ preventScroll: true });
+        }
+      }
+      if (ctx.contextOverlays?.legendControl) _refreshContextLegend(ctx);
+    };
+    media?.addEventListener?.('change', resize);
+    ctx.map?.once?.('unload', () => {
+      media?.removeEventListener?.('change', resize);
+      mapControlDisclosures.delete(ctx);
+    });
+    return state;
+  }
+
+  // Only the disclosure changes: selected layers and their data keep running.
+  // State belongs to the map context because lazy loading rebuilds controls.
+  function mapControlBody(ctx, control, container, key, label, desktopPosition) {
+    const state = mapControlState(ctx);
+    if (!state.choices.has(key)) state.choices.set(key, {});
+    const choices = state.choices.get(key);
+    container.classList.add('mapControl');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mapControlToggle';
+    button.id = key + '-title';
+    button.textContent = label;
+    const body = document.createElement('div');
+    body.id = key + '-body';
+    body.className = 'mapControlBody';
+    button.setAttribute('aria-controls', body.id);
+    const apply = () => {
+      const collapsed = choices[state.mobile ? 'mobile' : 'desktop'] ?? state.mobile;
+      if (collapsed && body.contains(document.activeElement)) button.focus({ preventScroll: true });
+      body.hidden = collapsed;
+      button.setAttribute('aria-expanded', String(!collapsed));
+      button.title = label + (collapsed ? ' ausklappen' : ' einklappen');
+    };
+    button.addEventListener('click', () => {
+      const collapsed = !body.hidden;
+      choices[state.mobile ? 'mobile' : 'desktop'] = collapsed;
+      // On a phone, one open map card leaves room for the map and its controls.
+      if (state.mobile && !collapsed) {
+        for (const [otherKey, entry] of state.controls) {
+          if (otherKey === key) continue;
+          state.choices.get(otherKey).mobile = true;
+          entry.apply();
+        }
+      }
+      body.scrollTop = 0;
+      apply();
+    });
+    container.append(button, body);
+    state.controls.set(key, { control, desktopPosition, container, body, button, apply });
+    apply();
+    return body;
+  }
+
   UA.addLayerLegend = function addLayerLegend(ctx, map) {
     const LayerLegend = L.Control.extend({
       options: {
-        position: 'bottomright'
+        position: mapControlState(ctx).mobile ? 'topright' : 'bottomright'
       },
 
       onAdd: function(map) {
@@ -931,6 +1010,8 @@
         // Prevent map interactions when clicking on legend
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
+        const body = mapControlBody(ctx, this, container, 'layer-legend-control', 'Ebenen', 'bottomright');
+        body.classList.add('layerLegendItems');
 
         // Use existing layer states from ctx (initialized in ua.app_v2.js)
         // Default to true if not set
@@ -951,7 +1032,8 @@
 
         items.forEach(item => {
           const cls = ctx[item.stateKey] ? 'legend-item active' : 'legend-item';
-          const btn = L.DomUtil.create('button', cls, container);
+          const btn = L.DomUtil.create('button', cls, body);
+          btn.type = 'button';
           btn.innerHTML = `<span class="legend-icon">${item.icon}</span>`;
           btn.title = item.label;
           btn.setAttribute('aria-label', item.label);
@@ -1279,12 +1361,13 @@
     const reg = _ensureOverlayRegistry(ctx);
     if (!reg.legendControl || !reg.legendControl._container) return;
     const c = reg.legendControl._container;
-    while (c.firstChild) c.removeChild(c.firstChild);
+    const body = c.querySelector('.mapControlBody') || c;
+    while (body.firstChild) body.removeChild(body.firstChild);
     let added = 0;
     for (const kind of CONTEXT_OVERLAY_KINDS) {
       if (!reg.active[kind] || !reg.layers[kind]) continue;
       try {
-        c.appendChild(UA.contextRoadLayer.buildLegend(kind));
+        body.appendChild(UA.contextRoadLayer.buildLegend(kind));
         added++;
       } catch (_) { /* ignore */ }
     }
@@ -1292,7 +1375,7 @@
       const note = document.createElement('div');
       note.className = 'context-road-legend__combined-note';
       note.textContent = 'Kombiniert: Steigung außen, Verkehr gestrichelt innen.';
-      c.appendChild(note);
+      body.appendChild(note);
     }
     c.style.display = added > 0 ? '' : 'none';
   }
@@ -1680,6 +1763,17 @@
     if (!UA.contextRoadLayer && !risControl) return;
     const focusedRis = risControl?.contains(document.activeElement) ? document.activeElement : null;
     const reg  = _ensureOverlayRegistry(ctx);
+    const focusedControl = [reg.layerControl, reg.legendControl]
+      .find(control => control?._container?.contains(document.activeElement));
+    const focusedElement = focusedRis || (focusedControl ? document.activeElement : null);
+    const focusedTitleId = focusedControl?._container?.querySelector('.mapControlToggle')?.id;
+    const restoreControlFocus = () => {
+      if (!focusedElement) return;
+      const target = focusedElement.isConnected ? focusedElement : document.getElementById(focusedElement.id);
+      const opener = document.getElementById(focusedTitleId)
+        || document.getElementById('context-overlay-control-title');
+      (target && !target.closest('[hidden]') ? target : opener)?.focus({ preventScroll: true });
+    };
     const caps = ctx.contextCapabilities || {};
     const state = ctx.contextLayerState;
     // PR-E (full-network v3): a state with `tileIndex` is considered
@@ -1755,13 +1849,7 @@
       c.style.borderRadius = '4px';
       // A11y: this is a logically grouped set of layer toggles.
       c.setAttribute('role', 'group');
-
-      const title = document.createElement('div');
-      title.id = 'context-overlay-control-title';
-      title.textContent = 'Karten-Layer';
-      title.style.fontWeight = '700';
-      title.style.marginBottom = '4px';
-      c.appendChild(title);
+      const body = mapControlBody(ctx, ctrl, c, 'context-overlay-control', 'Karten-Layer', 'topright');
       c.setAttribute('aria-labelledby', 'context-overlay-control-title');
 
       // Pending vs. unavailable hint — the overlay control is built
@@ -1777,14 +1865,14 @@
         hint.style.fontSize = '11px';
         hint.style.color    = '#555';
         hint.style.marginBottom = '4px';
-        c.appendChild(hint);
+        body.appendChild(hint);
       } else if ((showSlope || showTraffic) && geomUnavailable) {
         const hint = document.createElement('div');
         hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
         hint.style.fontSize = '11px';
         hint.style.color    = '#555';
         hint.style.marginBottom = '4px';
-        c.appendChild(hint);
+        body.appendChild(hint);
       }
 
       const add = (kind, label) => {
@@ -1816,23 +1904,26 @@
         });
         row.appendChild(cb);
         row.appendChild(document.createTextNode(' ' + label));
-        c.appendChild(row);
+        body.appendChild(row);
       };
       if (showSlope)   add('slope',   'Straßensteigung');
       if (showTraffic) add('traffic', 'Verkehrsbelastung');
-      if (risControl) c.appendChild(risControl);
+      if (risControl) body.appendChild(risControl);
       return c;
     };
     ctrl.addTo(ctx.map);
     reg.layerControl = ctrl;
-    if (focusedRis?.isConnected) focusedRis.focus({ preventScroll: true });
-    if (!showSlope && !showTraffic) return;
+    if (!showSlope && !showTraffic) {
+      restoreControlFocus();
+      return;
+    }
 
     // Floating legend — bottom-left, only visible when ≥ 1 overlay active.
-    const legend = window.L.control({ position: 'bottomleft' });
+    const legend = window.L.control({ position: mapControlState(ctx).mobile ? 'topright' : 'bottomleft' });
     legend.onAdd = function() {
       const c = window.L.DomUtil.create('div', 'context-overlay-legend');
       window.L.DomEvent.disableClickPropagation(c);
+      window.L.DomEvent.disableScrollPropagation(c);
       c.style.background  = 'rgba(255,255,255,0.92)';
       c.style.padding     = '6px 8px';
       c.style.borderRadius = '4px';
@@ -1847,6 +1938,7 @@
       c.id = 'context-overlay-legend';
       c.setAttribute('role', 'region');
       c.setAttribute('aria-label', 'Legende der Karten-Layer');
+      mapControlBody(ctx, legend, c, 'context-overlay-legend', 'Legende', 'bottomleft');
       return c;
     };
     legend.addTo(ctx.map);
@@ -1862,6 +1954,7 @@
       }
     }
     _refreshContextLegend(ctx);
+    restoreControlFocus();
     _ensureMoveEndHandler(ctx);
     if (hasV3Tiles && CONTEXT_OVERLAY_KINDS.some(kind => reg.active[kind])) {
       _ensureViewportTilesLoaded(ctx).then(() => {

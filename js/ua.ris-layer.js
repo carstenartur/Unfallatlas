@@ -271,6 +271,16 @@
     if (!view.width || !view.height) return options;
 
     const margin = 8;
+    if (window.matchMedia?.('(max-width: 640px), (max-height: 500px) and (pointer: coarse)').matches) {
+      // CSS temporarily hides the task sheet and map cards while this popup
+      // is open. Its first layout must already use that unobstructed space.
+      return {
+        maxWidth: Math.max(50, Math.min(options.maxWidth, view.width - 2 * margin - 50)),
+        maxHeight: Math.max(50, Math.min(options.maxHeight, view.height - 2 * margin - 56)),
+        autoPanPaddingTopLeft: [margin, margin],
+        autoPanPaddingBottomRight: [margin, margin],
+      };
+    }
     const panel = ctx.ui?.panelEl?.getBoundingClientRect();
     const layerControl = state.root.closest('.context-overlay-control')?.getBoundingClientRect();
     const legend = container.querySelector('.layer-legend-control')?.getBoundingClientRect();

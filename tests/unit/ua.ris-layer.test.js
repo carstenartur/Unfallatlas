@@ -133,6 +133,33 @@ describe('Ratsvorgänge in the V2 map', () => {
     delete window.L;
   });
 
+  test('phone record popups use the map width while the surrounding cards are hidden', async () => {
+    const matchMedia = window.matchMedia;
+    window.matchMedia = () => ({ matches: true });
+    try {
+      ctx.map.getContainer().getBoundingClientRect = () => ({
+        left: 0, top: 0, right: 390, bottom: 844, width: 390, height: 844,
+      });
+      ctx.ui.panelEl = document.createElement('div');
+      ctx.ui.panelEl.getBoundingClientRect = () => ({
+        left: 8, top: 766, right: 288, bottom: 836, width: 280, height: 70,
+      });
+      UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point]));
+      UA.refreshContextOverlays(ctx);
+      checkbox('Ratsvorgänge').click();
+      await flush();
+      const layer = risFeatures(ctx.map)[0];
+      layer.openPopup();
+      expect(layer.getPopup().options.maxWidth).toBeGreaterThanOrEqual(300);
+      expect(layer.getPopup().options.maxHeight).toBe(280);
+      expect(layer.getPopup().options.autoPanPaddingTopLeft).toEqual([8, 8]);
+      expect(checkbox('Ratsvorgänge').checked).toBe(true);
+      expect(risRecordIds(ctx.map)).toEqual(['A']);
+    } finally {
+      window.matchMedia = matchMedia;
+    }
+  });
+
   test('opt-in renders separately, opens safe linked popups, and adopts a single selected document', async () => {
     const accidents = L.layerGroup([L.circleMarker([50.72, 7.09])]).addTo(ctx.map);
     UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point, line, polygon]));

@@ -1,10 +1,13 @@
 (() => {
   const UA = (window.UA = window.UA || {});
-  
+  const COMPACT_PANEL_QUERY = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
+  const boundPanelButtons = new WeakSet();
+  const boundLegendButtons = new WeakSet();
 
   UA.bindDom = function bindDom(ctx){
     const ui = {};
     ui.panelEl = document.getElementById('panel');
+    ui.panelBodyEl = document.getElementById('panelBody');
     ui.collapseBtn = document.getElementById('collapseBtn');
     ui.legendBtn = document.getElementById('legendBtn');
     ui.legendBox = document.getElementById('legendBox');
@@ -83,6 +86,8 @@
       : [];
 
     ctx.ui = ui;
+    // Disclosure must work even while city data is pending or has failed.
+    UA.bindPanelDisclosure(ctx);
 
     // QA-Härtung „Ladezustand": Build/Quelle erst sichtbar machen, wenn
     // beide echte Werte tragen. UA.BUILD ist beim Laden der Seite über
@@ -174,14 +179,77 @@
     wrap.hidden = false;
   };
 
-  function setCollapsed(ctx, on){
-    const ui = ctx.ui;
+  function setCollapsed(ui, on, preferenceKey){
+    const body = ui.panelBodyEl || ui.panelEl.querySelector('.panelBody');
+    if (on && body && body.contains(document.activeElement)) {
+      ui.collapseBtn.focus({ preventScroll: true });
+    }
     ui.panelEl.classList.toggle('collapsed', on);
+    ui.panelEl.scrollTop = 0;
+    if (body) body.scrollTop = 0;
     ui.collapseBtn.textContent = on ? ">" : "v";
+    const label = on ? 'Bedienfeld ausklappen' : 'Bedienfeld einklappen';
     ui.collapseBtn.setAttribute('aria-expanded', on ? 'false' : 'true');
-    ui.collapseBtn.setAttribute('aria-label', on ? 'Bedienfeld ausklappen' : 'Bedienfeld einklappen');
-    try { localStorage.setItem("ua_panel_collapsed", on ? "1" : "0"); } catch {}
+    ui.collapseBtn.setAttribute('aria-label', label);
+    ui.collapseBtn.title = label;
+    // Only an explicit panel toggle stores a preference, never its default.
+    if (preferenceKey) {
+      try { localStorage.setItem(preferenceKey, on ? "1" : "0"); } catch {}
+    }
   }
+
+  function setLegendExpanded(ui, expanded){
+    if (!expanded && ui.legendBox.contains(document.activeElement)) {
+      ui.legendBtn.focus({ preventScroll: true });
+    }
+    ui.legendBox.style.display = expanded ? "block" : "none";
+    const label = expanded ? 'Legende ausblenden' : 'Legende einblenden';
+    ui.legendBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    ui.legendBtn.setAttribute('aria-label', label);
+    ui.legendBtn.title = label;
+  }
+
+  UA.bindPanelDisclosure = function bindPanelDisclosure(ctx){
+    const ui = ctx && ctx.ui;
+    if (!ui) return;
+
+    if (ui.panelEl && ui.collapseBtn && !boundPanelButtons.has(ui.collapseBtn)) {
+      const compactQuery = typeof window.matchMedia === 'function'
+        ? window.matchMedia(COMPACT_PANEL_QUERY)
+        : null;
+      // Keep explicit phone and desktop choices separate across layout changes.
+      const preferenceKey = () => compactQuery && compactQuery.matches
+        ? "ua_panel_collapsed_mobile"
+        : "ua_panel_collapsed";
+      const restoreCollapsed = () => {
+        const compact = !!(compactQuery && compactQuery.matches);
+        const saved = (() => { try { return localStorage.getItem(preferenceKey()); } catch { return null; } })();
+        setCollapsed(ui, saved === "1" || (saved !== "0" && compact));
+      };
+      restoreCollapsed();
+      ui.collapseBtn.addEventListener('click', () => {
+        setCollapsed(ui, !ui.panelEl.classList.contains('collapsed'), preferenceKey());
+      });
+      if (compactQuery && typeof compactQuery.addEventListener === 'function') {
+        compactQuery.addEventListener('change', restoreCollapsed);
+      } else if (compactQuery && typeof compactQuery.addListener === 'function') {
+        compactQuery.addListener(restoreCollapsed);
+      }
+      boundPanelButtons.add(ui.collapseBtn);
+    }
+
+    if (ui.legendBtn && ui.legendBox && !boundLegendButtons.has(ui.legendBtn)) {
+      setLegendExpanded(ui, ui.legendBox.style.display === "block");
+      ui.legendBtn.addEventListener('click', () => {
+        const expanded = ui.legendBox.style.display !== "block";
+        if (expanded && ui.panelEl && ui.collapseBtn && ui.panelEl.classList.contains('collapsed')) {
+          setCollapsed(ui, false);
+        }
+        setLegendExpanded(ui, expanded);
+      });
+      boundLegendButtons.add(ui.legendBtn);
+    }
+  };
 
   UA.syncHourUI = function syncHourUI(ctx, changed){
     const ui = ctx.ui;
@@ -334,17 +402,8 @@
   UA.bindUi = function bindUi(ctx){
     const ui = ctx.ui;
 
-    // panel collapse + legend
-    const savedCollapsed = (() => { try { return localStorage.getItem("ua_panel_collapsed"); } catch { return null; } })();
-    if (savedCollapsed === "1") setCollapsed(ctx, true);
-
-    ui.collapseBtn.addEventListener('click', () => setCollapsed(ctx, !ui.panelEl.classList.contains('collapsed')));
-    ui.legendBtn.addEventListener('click', () => {
-      const expanded = ui.legendBox.style.display !== "block";
-      ui.legendBox.style.display = expanded ? "block" : "none";
-      ui.legendBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      ui.legendBtn.setAttribute('aria-label', expanded ? 'Legende ausblenden' : 'Legende einblenden');
-    });
+    // Safe for legacy/direct callers; bindDom normally binds these earlier.
+    UA.bindPanelDisclosure(ctx);
 
     // defaults from URL
     ui.severityEl.value = UA.qGet("severity","all");
