@@ -15,6 +15,7 @@ function loadModule(filePath, win) {
 
 function makeUA() {
   const win = { UA: {}, location: { href: 'http://localhost/' } };
+  loadModule('../../js/ua.ris_view_state.js',   win);
   loadModule('../../js/ua.map_scene.js',         win);
   loadModule('../../js/ua.map_scene_url_codec.js', win);
   loadModule('../../js/ua.traffic_situation.js', win);
@@ -486,6 +487,32 @@ describe('UA.TrafficSituation', () => {
       expect(encoded).toContain('city=Bonn');
       expect(encoded).toContain('severity=2');
       expect(encoded).toContain('mapLayer=slope');
+    });
+
+    test('the worked RIS document survives a TrafficSituation JSON round-trip', () => {
+      const scene = UA.MapSceneUrlCodec.decode('?city=Hannover&mapLayer=ris&risSelectionOnly=1&risRecord=region%3AA&risView=relations&risCollapsed=1&risEventsPage=2&risRelationsPage=3&risRelatedPage=4&risLocationsPage=5');
+      const situation = UA.TrafficSituation.fromMapScene(scene);
+      const restored = UA.TrafficSituation.deserialize(JSON.parse(JSON.stringify(UA.TrafficSituation.serialize(situation))));
+      const result = UA.TrafficSituation.toMapScene(restored);
+
+      expect(result.risView).toEqual({
+        selectionOnly: true, recordId: 'region:A', section: 'relations', collapsed: true,
+        eventsPage: 2, relationsPage: 3, relatedPage: 4, locationsPage: 5,
+      });
+      expect(new URLSearchParams(UA.MapSceneUrlCodec.encode(result)).get('risRecord')).toBe('region:A');
+    });
+
+    test('road-layer metadata cannot switch off an independently enabled RIS map overlay', () => {
+      const scene = UA.MapScene.create({ contextOverlays: { active: { slope: true, traffic: false, ris: true } } });
+      const situation = UA.TrafficSituation.addLayer(UA.TrafficSituation.fromMapScene(scene), {
+        type: 'contextRoad', version: 1, data: {},
+        meta: { contextOverlays: { active: { slope: false, traffic: true } } },
+      });
+
+      const result = UA.TrafficSituation.toMapScene(situation);
+
+      expect(result.contextOverlays.active).toEqual({ slope: false, traffic: true, ris: true });
+      expect(new URLSearchParams(UA.MapSceneUrlCodec.encode(result)).get('mapLayer')).toBe('traffic,ris');
     });
   });
 

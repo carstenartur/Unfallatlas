@@ -504,11 +504,33 @@
       }
     }
 
+    function assertRequestedSnapshot(manifest, snapshot) {
+      if (!snapshot) return;
+      const recordsHash = snapshot.generation || snapshot.records?.sha256 || snapshot.sha256;
+      const mapHash = snapshot.generation || snapshot.map?.sha256 || snapshot.mapSha256;
+      if (snapshot.city && snapshot.city !== manifest.city
+          || recordsHash !== (manifest.generation || manifest.records?.sha256)
+          || mapHash !== undefined && mapHash !== (manifest.generation || manifest.map?.sha256)) {
+        throw error('RIS_SNAPSHOT_REFERENCE_MISMATCH', 'Der Ratsdatenstand hat sich geändert. Bitte erneut öffnen.');
+      }
+    }
+
+    async function legacyBundle(city, withMap, options) {
+      const bundle = await load(city, withMap);
+      // Missing assets may have revalidated the manifest after partition().
+      assertRequestedSnapshot(bundle.manifest, options.snapshot);
+      return bundle;
+    }
+
+    // Legacy geometry identity is scoped by record ID and its pinned snapshot.
+    // validMap permits at most one unindexed shape and one per location index.
+    const legacyGeometryId = index => Number.isInteger(index) ? `legacy:location:${index}` : 'legacy:record';
+
     const partitionReaders = new Map();
     async function partition(city, options = {}) {
       const manifest = await loadManifest(city, options.revalidate === true);
       availableStatus(manifest, now());
-      if (options.snapshot && (options.snapshot.city && options.snapshot.city !== manifest.city || (options.snapshot.generation || options.snapshot.records?.sha256 || options.snapshot.sha256) !== (manifest.generation || manifest.records?.sha256))) throw error('RIS_SNAPSHOT_REFERENCE_MISMATCH', 'Der Ratsdatenstand hat sich geändert. Bitte erneut öffnen.');
+      assertRequestedSnapshot(manifest, options.snapshot);
       if (manifest.schemaVersion !== 2) return null;
       let reader = partitionReaders.get(manifest.generation);
       if (!reader) {
@@ -558,15 +580,23 @@
     async function loadRecord(city, id, options = {}) {
       const part = await partition(city, options);
       if (!part) {
-        const bundle = await load(city);
-        return bundle.records.find(r => r.id === id) || null;
+        const bundle = await legacyBundle(city, false, options);
+        const record = bundle.records.find(r => r.id === id);
+        if (!record) return null;
+        return attachSnapshot({ ...record,
+          ...(record.locations ? { locations: record.locations.map((location, index) => ({
+            ...location, ...(location.mapped ? { geometryId: legacyGeometryId(index) } : {})
+          })) } : {})
+        }, referenceSnapshot(bundle.manifest, availableStatus(bundle.manifest, now())));
       }
       return recordFrom(part, id);
     }
     async function loadRecordLocations(city, id, page = 0, options = {}) {
+      if (!Number.isSafeInteger(page) || page < 0) throw invalid();
       const part = await partition(city, options);
       if (!part) {
-        const record = await loadRecord(city, id);
+        const record = await loadRecord(city, id, options);
+        if (page !== 0) throw error('RIS_SNAPSHOT_INVALID', 'RIS page does not exist');
         return {
           locations: record?.locations || [],
           total: record?.locations?.length || 0,
@@ -600,7 +630,8 @@
       const count = partitions().HISTORY_FIELDS[field];
       if (!part) {
         const record = await loadRecord(city, id, options);
-        if (!record || page !== 0) throw invalid();
+        if (!record) throw invalid();
+        if (page !== 0) throw error('RIS_SNAPSHOT_INVALID', 'RIS page does not exist');
         const known = record[field] !== undefined;
         return { [field]: record[field] || [], known, total: known ? record[field].length : null,
           start: 0, page, nextPage: null, complete: true, missing: [] };
@@ -639,15 +670,15 @@
     }
     async function loadRecordGeometries(city, id, page = 0, options = {}) {
       const part = await partition(city, options);
-      if (!part) return {
-        geometryIds: [],
-        total: 0,
-        start: 0,
-        page: 0,
-        nextPage: null,
-        complete: true,
-        missing: []
-      };
+      if (!part) {
+        const bundle = await legacyBundle(city, true, options);
+        if (!bundle.records.some(record => record.id === id)) throw invalid();
+        if (!Number.isSafeInteger(page) || page < 0) throw invalid();
+        if (page !== 0) throw error('RIS_SNAPSHOT_INVALID', 'RIS page does not exist');
+        const geometryIds = bundle.features.features.filter(feature => feature.properties.recordId === id)
+          .map(feature => legacyGeometryId(feature.properties.locationIndex));
+        return { geometryIds, total: geometryIds.length, start: 0, page: 0, nextPage: null, complete: true, missing: [] };
+      }
       const {
         items,
         ...metadata
@@ -661,9 +692,7 @@
     async function loadRelatedRecords(city, id, page = 0, options = {}) {
       const part = await partition(city, options);
       if (!part) {
-        const {
-          records
-        } = await load(city);
+        const { records } = await legacyBundle(city, false, options);
         const current = records.find(r => r.id === id);
         const related = records.filter(r => r.relatedTo === id || r.id === current?.relatedTo);
         return {

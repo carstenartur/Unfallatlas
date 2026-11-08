@@ -224,6 +224,26 @@ table.report th, table.report td{ padding:6px 6px; border-bottom:1px solid rgba(
 table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left; }
 .pill{ display:inline-block; padding:2px 8px; border:1px solid rgba(0,0,0,.12); border-radius:999px; background:rgba(255,255,255,.7); }
 
+/* Native zoom, Draw and Karte share the map's available height. Fixed native
+   controls keep their size; the settings body scrolls in the remaining space. */
+#map .leaflet-top.leaflet-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  height: 100%;
+  max-height: 100%;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+#map .leaflet-top.leaflet-right > .leaflet-control {
+  float: none;
+  flex: 0 0 auto;
+}
+#map .leaflet-top.leaflet-right > .carte-control {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Layer Legend Control (bottom right) */
 .layer-legend-control {
   background: rgba(255, 255, 255, 0.9);
@@ -272,9 +292,11 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
   font: 13px/1.4 system-ui, sans-serif;
 }
 .carte-control:has(> .mapControlToggle[aria-expanded="false"]) { width: auto; min-width: 100px; }
-.carte-control .mapControlToggle { min-height: 44px; }
+.carte-control .mapControlToggle { flex: 0 0 auto; min-height: 44px; }
 .carte-control .mapControlBody {
-  max-height: calc(100dvh - 100px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -622,8 +644,9 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
     box-shadow: 0 -8px 28px rgba(0,0,0,.22);
     overscroll-behavior: contain;
   }
-  /* The bottom sheet would leave too little map space for an open record. */
+  /* Keep the compact record and its close action clear of overlapping controls. */
   #map:has(.ua-ris-popup) + #panel,
+  #map:has(.ua-ris-popup) .leaflet-top.leaflet-right,
   #map:has(.ua-ris-popup) .mapControl { display: none; }
   .panelHeader {
     z-index: 4;
@@ -661,7 +684,7 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
     padding: 8px 2px;
   }
   .context-overlay-control input[type="checkbox"] { width: 22px; height: 22px; }
-  .carte-control .mapControlBody { max-height: clamp(64px, calc(100dvh - 190px), 56dvh); }
+  .carte-control .mapControlBody { max-height: 56dvh; }
   .layerLegendItems { flex-direction: row; flex-wrap: wrap; max-width: 150px; }
   .legend-item { width: 44px; height: 44px; flex: 0 0 44px; }
   .row {

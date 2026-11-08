@@ -115,6 +115,24 @@ function makeCtx(UA) {
 }
 
 describe('ua.map_v2 context overlays', () => {
+  test('RIS round-trips in the layer CSV without enabling either road overlay', () => {
+    const UA = loadMapModule();
+    expect(UA.parseMapLayerCsv(' ris,traffic,slope,ris,unknown,toString ')).toEqual({ slope: true, traffic: true, ris: true });
+    expect(UA.serializeMapLayerCsv({ ris: true, traffic: true, slope: true })).toBe('slope,traffic,ris');
+
+    const ctx = makeCtx(UA);
+    ctx.contextOverlays.active = UA.parseMapLayerCsv('ris');
+    ctx.contextCapabilities.hasTrafficProxy = true;
+    ctx.contextLayerState = { ways: { W1: { road_slope_class: 'steep' } }, geometries: { W1: [50, 7, 50.001, 7.001] } };
+    UA.refreshContextOverlays(ctx);
+
+    expect(UA.serializeMapLayerCsv(ctx.contextOverlays.active)).toBe('ris');
+    expect(ctx.map._layers).toEqual([]);
+    expect(ctx.contextOverlays.layers.slope).toBeNull();
+    expect(ctx.contextOverlays.layers.traffic).toBeNull();
+    expect(ctx.contextOverlays.pending).toEqual({ slope: false, traffic: false });
+  });
+
   test('typed-only traffic preserves its active overlay and control', () => {
     const UA = loadMapModule();
     const ctx = makeCtx(UA);

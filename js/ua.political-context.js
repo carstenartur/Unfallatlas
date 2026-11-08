@@ -374,7 +374,7 @@
               <span style="color:#888;">${dateStr}${gremiumStr}${numberStr}</span>
               <span style="float:right;color:#aaa;font-size:10px;">${score}</span>
             </div>
-            ${related ? `<small>Gehört zu Drucksache ${UA.escHtml(related.number || related.title)}</small>` : ''}
+            ${related ? `<small>${ref.relatedTo === related.id ? 'Gehört zu Drucksache' : 'Verknüpfter Vorgang:'} ${UA.escHtml(related.number || related.title)}</small>` : ''}
             ${snippet}
           </div>
         </label>
@@ -384,6 +384,18 @@
     if (assessment) card.insertBefore(assessment, card.querySelector('a'));
     const locations = renderLocations(ref, ctx);
     if (locations) card.insertBefore(locations, card.querySelector('a'));
+    if (ref.id && ref.snapshot && typeof UA.RisDetails?.open === 'function') {
+      const open = document.createElement('button');
+      open.type = 'button'; open.className = 'smallBtn';
+      open.textContent = 'Verlauf und Zusammenhänge';
+      open.setAttribute('aria-label', `Verlauf und Zusammenhänge: ${ref.title}`);
+      open.addEventListener('click', () => {
+        const panel = document.getElementById('polCtxPanel');
+        if (panel) closePanel(panel, { restoreFocus: false });
+        UA.RisDetails.open(ctx, ref.id, { trigger: document.getElementById('btnPolCtxOpen') });
+      });
+      card.append(open);
+    }
     if (includeRelated && ref.id && ref.snapshot && typeof UA.RisCatalogue?.loadRelatedRecords === 'function') {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'smallBtn'; button.textContent = 'Verknüpfte Vorgänge anzeigen';
@@ -684,6 +696,7 @@
     ctx.politicalReferences = [];
     ctx.politicalReferencesCity = ctx.CITY_RAW || '';
     ctx.politicalContextCityRevision = Symbol('political-city');
+    UA.RisDetails?.refresh(ctx);
     ctx.politicalSearchRequest = null;
     ctx.politicalContextResearch = null;
     UA.lastPoliticalContextResearch = null;

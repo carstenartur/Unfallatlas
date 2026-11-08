@@ -143,14 +143,16 @@
         const city = String(step.value || "").trim();
         if (!city || city === ctx.CITY_RAW) break;
         ctx.CITY_RAW = city;
-        UA.PoliticalContext?.resetCity?.(ctx);
+        if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize();
+        if (UA.PoliticalContext?.resetCity) UA.PoliticalContext.resetCity(ctx);
+        else UA.RisDetails?.refresh(ctx);
         UA.RisLayer?.refresh(ctx);
         // Update dropdown if present
         if (ctx.ui && ctx.ui.citySel) {
           ctx.ui.citySel.value = city;
         }
         // Update URL param
-        UA.setQS({ city });
+        UA.setQS({ city, ...(UA.RisViewState?.toQuery(ctx.risView) || {}) });
         // Load data directly (no page reload)
         try {
           if (ctx.ui && ctx.ui.statEl) {

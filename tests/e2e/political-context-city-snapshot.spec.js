@@ -305,6 +305,12 @@ test('partitioned catalogue keeps a dense mobile map lazy and pages documents, r
     await expect(documents).toHaveCount(196);
   });
   await popup.locator('.leaflet-popup-close-button').click();
+  await expect(popup).toHaveCount(0);
+  await expect(page.locator('.leaflet-control-zoom')).toBeVisible();
+  await expect(page.locator('.leaflet-draw-draw-rectangle')).toBeVisible();
+  const zoomBefore = await page.evaluate(() => window.UA.getRuntimeContext().map.getZoom());
+  await page.locator('.leaflet-control-zoom-out').click();
+  await expect.poll(() => page.evaluate(() => window.UA.getRuntimeContext().map.getZoom())).toBe(zoomBefore - 1);
 
   const panel = page.locator('#collapseBtn');
   if (await panel.getAttribute('aria-expanded') === 'false') await panel.click();

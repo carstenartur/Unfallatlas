@@ -1,0 +1,476 @@
+/* Vertical chronology inspired by Ratsatlas Bonn; independently implemented. */
+.ris-details {
+  --ris-ink: #202536;
+  --ris-muted: #535d6c;
+  --ris-accent: #532b78;
+  --ris-line: #d9cce4;
+  position: fixed;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  width: min(42rem, calc(100vw - 2rem));
+  height: min(54rem, calc(100vh - 2rem));
+  height: min(54rem, calc(100dvh - 2rem));
+  min-width: 0;
+  min-height: 0;
+  max-width: calc(100vw - 2rem);
+  overflow: hidden;
+  box-sizing: border-box;
+  color: var(--ris-ink);
+  background: #fff;
+  border: 1px solid #d6d0df;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgb(24 16 36 / 22%), 0 2px 8px rgb(24 16 36 / 12%);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  isolation: isolate;
+}
+
+.ris-details[hidden],
+.ris-details [hidden],
+.ris-record-view [hidden] { display: none; }
+
+.ris-details *,
+.ris-record-view * { box-sizing: border-box; }
+
+.ris-details__toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  background: #f8f5fb;
+  border-bottom: 1px solid #e7e0ed;
+}
+
+.ris-details__toolbar h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+  font-size: .9rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  overflow-wrap: anywhere;
+}
+
+.ris-details__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ris-details button,
+.ris-record-view__button,
+.ris-record-view__link {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d5cede;
+  border-radius: 8px;
+  color: #42225f;
+  background: #fff;
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.ris-details button:hover,
+.ris-record-view__button:hover,
+.ris-record-view__link:hover {
+  background: #f2ebf8;
+  border-color: #ac95c1;
+}
+
+.ris-details :where(button, a, input, [tabindex]):focus-visible,
+.ris-record-view :where(button, a, [tabindex]):focus-visible {
+  outline: 3px solid #1d5fd0;
+  outline-offset: 3px;
+}
+
+.ris-details button[aria-disabled="true"],
+.ris-record-view button[aria-disabled="true"] {
+  color: #68717d;
+  background: #f5f5f7;
+  border-color: #e0dfe4;
+  cursor: default;
+}
+
+.ris-details__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.ris-details__status {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 12px 18px;
+  border-top: 1px solid #e7e0ed;
+  color: #424d60;
+  background: #f8f5fb;
+  font-size: .82rem;
+  overflow-wrap: anywhere;
+}
+
+.ris-details__status:empty { display: none; }
+
+.ris-details__status input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #b6a5c8;
+  border-radius: 6px;
+  color: #202536;
+  background: #fff;
+  font: inherit;
+}
+
+.ris-details.ris-details--collapsed {
+  inset-block-start: auto;
+  inset-block-end: 1rem;
+  width: min(33rem, calc(100vw - 2rem));
+  height: auto;
+}
+
+.ris-details--collapsed .ris-details__toolbar { border-bottom: 0; }
+
+.ris-record-view {
+  --ris-ink: #202536;
+  --ris-muted: #535d6c;
+  --ris-accent: #532b78;
+  --ris-line: #d9cce4;
+  min-width: 0;
+  color: var(--ris-ink);
+  background: #fff;
+  font-size: .9rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.ris-record-view__header { padding: 22px 24px 18px; }
+
+.ris-record-view__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 8px;
+  color: var(--ris-accent);
+  font-size: .77rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.ris-record-view__kind {
+  display: inline-block;
+  padding: 3px 8px;
+  border: 1px solid #e1d5eb;
+  border-radius: 5px;
+  color: #4d286d;
+  background: #f4eef9;
+}
+
+.ris-record-view__number {
+  color: #4b5360;
+  font-variant-numeric: tabular-nums;
+}
+
+.ris-record-view__title {
+  margin: 0 0 14px;
+  font-size: clamp(1.2rem, 2.6vw, 1.55rem);
+  font-weight: 750;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+
+.ris-record-view__source {
+  margin: 0 0 4px;
+  color: #313947;
+  font-size: .86rem;
+  font-weight: 650;
+}
+
+.ris-record-view__metadata,
+.ris-record-view__intro {
+  margin: 5px 0 12px;
+  color: var(--ris-muted);
+  font-size: .83rem;
+  line-height: 1.55;
+}
+
+.ris-record-view__facts {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  gap: 3px 14px;
+  margin: 14px 0 16px;
+  font-size: .8rem;
+}
+
+.ris-record-view__facts dt { color: var(--ris-muted); }
+.ris-record-view__facts dd { min-width: 0; margin: 0; }
+
+.ris-record-view__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ris-record-view__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ris-record-view__tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(44px, max-content);
+  gap: 4px;
+  padding: 8px 20px;
+  border-top: 1px solid #ebe5f0;
+  border-bottom: 1px solid #ddd3e5;
+  background: #faf8fc;
+}
+
+.ris-record-view__tabs [role="tab"] {
+  min-width: 0;
+  padding: 10px 6px;
+  border-color: transparent;
+  color: #4b5360;
+  background: transparent;
+  border-radius: 7px;
+  font-size: .83rem;
+}
+
+.ris-record-view__tabs [aria-selected="true"] {
+  color: #fff;
+  background: var(--ris-accent);
+  border-color: var(--ris-accent);
+  box-shadow: 0 2px 4px rgb(66 34 95 / 12%);
+}
+
+.ris-record-view__tabs [aria-selected="true"]:hover { background: #462167; }
+.ris-record-view__panel { padding: 22px 24px 26px; }
+.ris-record-view__collection + .ris-record-view__collection { margin-top: 28px; padding-top: 24px; border-top: 1px solid #e5deeb; }
+.ris-record-view__section-title { margin: 0 0 6px; font-size: 1rem; line-height: 1.4; }
+
+.ris-record-view__status {
+  margin: 12px 0;
+  color: #535d6c;
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.ris-record-view__status:empty { display: none; }
+
+.ris-record-view__notice {
+  padding: 11px 13px;
+  border: 1px dashed #b5a57e;
+  border-radius: 8px;
+  color: #5c4b26;
+  background: #fcf9ef;
+  font-size: .82rem;
+  line-height: 1.55;
+}
+
+.ris-process,
+.ris-record-view__cards {
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ris-process-step {
+  position: relative;
+  min-width: 0;
+  padding: 0 0 26px 27px;
+}
+
+.ris-process-step::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 1px;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ris-accent);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px #fff;
+}
+
+.ris-process-step::after {
+  content: "";
+  position: absolute;
+  top: 17px;
+  bottom: -3px;
+  left: 5px;
+  width: 0;
+  border-left: 2px solid var(--ris-line);
+}
+
+.ris-process-step:last-child { padding-bottom: 0; }
+.ris-process-step:last-child::after { display: none; }
+.ris-process--undated .ris-process-step::before { border-style: dashed; border-color: #7a6c4d; }
+.ris-process--undated .ris-process-step::after { border-left-style: dashed; border-left-color: #cfc4ab; }
+
+.ris-process-step__date {
+  margin: 0 0 4px;
+  color: var(--ris-accent);
+  font-size: .8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ris-process-step__body,
+.ris-record-view__card h5 {
+  margin: 0 0 7px;
+  color: #202536;
+  font-size: .96rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.ris-process-step__outcome { margin: 7px 0 10px; font-size: .86rem; }
+.ris-record-view__gap { margin: 7px 0 10px; color: #6a5d43; font-size: .82rem; font-style: italic; }
+.ris-record-view__undated-title { margin: 26px 0 12px; color: #695a3b; font-size: .9rem; }
+
+.ris-record-view__evidence {
+  margin: 12px 0;
+  padding: 11px 13px;
+  border-left: 3px solid #d9cce4;
+  border-radius: 0 6px 6px 0;
+  background: #f7f4fa;
+}
+
+.ris-record-view__evidence-label {
+  margin: 0 0 5px;
+  color: #5d476f;
+  font-size: .74rem;
+  font-weight: 650;
+}
+
+.ris-record-view__evidence blockquote {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #414b5a;
+  font-size: .82rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ris-record-view__source-host {
+  display: block;
+  margin-top: 4px;
+  color: #68717d;
+  font-size: .72rem;
+}
+
+.ris-record-view__card {
+  margin: 0 0 12px;
+  padding: 15px;
+  border: 1px solid #e2dae9;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ris-record-view__assessment {
+  margin: 0 0 24px;
+  padding: 13px 15px;
+  border: 1px dashed #b9ac92;
+  border-radius: 8px;
+  color: #5a4e37;
+  background: #fcfaf4;
+  font-size: .82rem;
+}
+
+.ris-record-view__assessment h4 { margin: 0 0 8px; font-size: .9rem; }
+.ris-record-view__assessment p { margin: 6px 0 0; }
+
+.ris-record-view__pager {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #e9e3ee;
+}
+
+.ris-record-view__pager button { min-width: 0; }
+.ris-record-view__page-label { color: var(--ris-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
+  .ris-details {
+    inset: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    width: auto;
+    max-width: none;
+    height: auto;
+    border-radius: 12px;
+  }
+
+  .ris-details__toolbar { display: block; padding: 8px 10px; }
+  .ris-details__toolbar h2 { margin-bottom: 4px; font-size: .8rem; }
+  .ris-details__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+  .ris-details__actions button { min-width: 0; padding: 8px 5px; font-size: .76rem; }
+  .ris-details__status { padding: 10px 14px; }
+  .ris-record-view__header { padding: 14px 16px 12px; }
+  .ris-record-view__eyebrow { margin-bottom: 6px; }
+  .ris-record-view__title { margin-bottom: 10px; }
+  .ris-record-view__metadata,
+  .ris-record-view__intro { margin: 4px 0 8px; }
+  .ris-record-view__actions { margin-top: 8px; }
+  .ris-record-view__notice { margin: 10px 0 0; padding: 9px 11px; line-height: 1.45; }
+  .ris-record-view__tabs { padding: 6px 10px; gap: 3px; }
+  .ris-record-view__tabs [role="tab"] { padding: 9px 4px; font-size: .75rem; }
+  .ris-record-view__panel { padding: 14px 16px 20px; }
+  .ris-record-view__facts { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 4px 10px; margin: 10px 0 12px; }
+  .ris-record-view__status { margin: 8px 0; }
+  .ris-process,
+  .ris-record-view__cards { margin-top: 12px; }
+  .ris-record-view__card { padding: 12px; }
+  .ris-process-step { padding-left: 23px; }
+  .ris-record-view__evidence { padding: 10px; }
+  .ris-record-view__pager { gap: 7px; }
+  .ris-record-view__pager button { padding-inline: 7px; }
+
+  .ris-details.ris-details--collapsed {
+    inset-block-start: max(8px, env(safe-area-inset-top));
+    inset-inline-start: max(8px, env(safe-area-inset-left));
+    inset-inline-end: auto;
+    inset-block-end: auto;
+    width: min(16rem, calc(100vw - 8.5rem));
+    height: auto;
+  }
+
+  .ris-details--collapsed .ris-details__actions { display: flex; }
+  .ris-details--collapsed .ris-details__actions button { flex: 1 1 auto; overflow-wrap: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ris-details__body { scroll-behavior: auto; }
+}

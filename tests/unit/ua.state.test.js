@@ -18,6 +18,31 @@ function loadState(href) {
 }
 
 describe('UA.cleanUrlIfNeeded', () => {
+  test('accepts all RIS view parameters without redirecting or discarding the shared document', () => {
+    const href = 'http://localhost/werkbank_v2.html?city=Hannover&mapLayer=ris&risSelectionOnly=1&risRecord=region-hannover-ris%3A123&risView=relations&risCollapsed=1&risEventsPage=2&risRelationsPage=3&risRelatedPage=4&risLocationsPage=5';
+    const win = loadState(href);
+
+    expect(win.UA.cleanUrlIfNeeded()).toBe(false);
+    expect(win.location.replace).not.toHaveBeenCalled();
+  });
+
+  test('legacy cleanup retains the exact encoded RIS record identity and all document options', () => {
+    const query = new URLSearchParams({
+      city: 'Hannover', kat: '2', mapLayer: 'slope,traffic,ris', risSelectionOnly: '1',
+      risRecord: 'region-hannover-ris:2026/123+Anfrage A', risView: 'locations', risCollapsed: '1',
+      risEventsPage: '2', risRelationsPage: '3', risRelatedPage: '4', risLocationsPage: '5',
+    });
+    const win = loadState(`http://localhost/werkbank_v2.html?${query}`);
+
+    expect(win.UA.cleanUrlIfNeeded()).toBe(true);
+    const cleaned = new URL(win.location.replace.mock.calls[0][0]);
+    expect(Object.fromEntries(cleaned.searchParams)).toEqual({
+      city: 'Hannover', severity: '2', mapLayer: 'slope,traffic,ris', risSelectionOnly: '1',
+      risRecord: 'region-hannover-ris:2026/123+Anfrage A', risView: 'locations', risCollapsed: '1',
+      risEventsPage: '2', risRelationsPage: '3', risRelatedPage: '4', risLocationsPage: '5',
+    });
+  });
+
   test('accepts map/context params as canonical (no unknown/reload)', () => {
     const href = 'http://localhost/werkbank_v2.html?city=Bonn&mapMode=hybrid&orthophotoOpacity=70&mapLayer=slope,traffic&ctxSlope=steep,very_steep&ctxTraffic=high&ctxOnlyMatched=1';
     const win = loadState(href);
