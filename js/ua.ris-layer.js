@@ -296,10 +296,39 @@
       text(root, 'p', `${props.recordCount} Ratsvorgänge · ${props.geometryCount} Kartenlagen in dieser Zelle. Die Fläche zeigt eine Zusammenfassung, keine genaue Lage.`);
       const zoom = text(root, 'button', 'Für Details vergrößern');
       zoom.type = 'button'; zoom.className = 'smallBtn';
+      const zoomStatus = text(root, 'div', '');
+      zoomStatus.setAttribute('role', 'status');
+      const canZoom = () => {
+        const maximum = state.map.getMaxZoom();
+        const atMaximum = Number.isFinite(maximum) && state.map.getZoom() >= maximum;
+        zoom.disabled = atMaximum;
+        zoom.textContent = atMaximum ? 'Maximale Vergrößerung erreicht' : 'Für Details vergrößern';
+        zoomStatus.hidden = !atMaximum;
+        zoomStatus.textContent = atMaximum
+          ? 'Die Karte kann hier nicht weiter vergrößert werden. Die Übersicht bleibt zusammengefasst.' : '';
+        return !atMaximum;
+      };
+      canZoom();
       zoom.addEventListener('click', () => {
         if (!active()) return;
-        const [w, s, e, n] = feature.bbox;
-        state.map.fitBounds([[s, w], [n, e]], { maxZoom: 18 });
+        if (!canZoom()) { reflow(); return; }
+        const map = state.map;
+        const currentZoom = map.getZoom();
+        const maximum = map.getMaxZoom();
+        const zoomLimit = Number.isFinite(maximum) ? maximum : Math.max(18, currentZoom + 1);
+        let [w, s, e, n] = feature.bbox;
+        // Budget fallbacks can return a cell much larger than the current
+        // high-zoom view. Drill into its visible part, never back out to it.
+        const viewport = rectOf(map.getBounds());
+        if (viewport) {
+          const clipped = [Math.max(w, viewport[0]), Math.max(s, viewport[1]),
+            Math.min(e, viewport[2]), Math.min(n, viewport[3])];
+          if (clipped[0] < clipped[2] && clipped[1] < clipped[3]) [w, s, e, n] = clipped;
+        }
+        const bounds = window.L.latLngBounds([s, w], [n, e]);
+        const nextZoom = Math.min(zoomLimit, Math.max(currentZoom + 1, map.getBoundsZoom(bounds)));
+        map.setView(bounds.getCenter(), nextZoom, { animate: false });
+        map.getContainer().focus({ preventScroll: true });
       });
       return root;
     }
@@ -609,8 +638,11 @@
         let status = data.overview
           ? 'Übersicht: zusammengefasste Zellen · Für genaue Kartenlagen vergrößern'
           : `${visible.length} Kartenlagen im Kartenausschnitt`;
-        if (!data.coverage?.complete) status += ' · Kartenabdeckung unvollständig; Daten fehlen';
-        else if (!visible.length) status = 'Keine verorteten Ratsvorgänge im Kartenausschnitt' + (rect ? ' innerhalb der Markierung' : '') + '.';
+        const budgetOverview = data.overview && data.coverage?.truncated === true
+          && Array.isArray(data.coverage.missing) && data.coverage.missing.length === 0;
+        if (!data.coverage?.complete) {
+          if (!budgetOverview) status += ' · Kartenabdeckung unvollständig; Daten fehlen';
+        } else if (!visible.length) status = 'Keine verorteten Ratsvorgänge im Kartenausschnitt' + (rect ? ' innerhalb der Markierung' : '') + '.';
         if (data.coverage?.truncated) status += ' · Detailbudget erreicht';
         if (!complete) status += ' · Teilbestand';
         if (stale) status += ' · Veralteter Datenstand';

@@ -29,6 +29,57 @@
         && value.count >= 0
         && value.count <= FANOUT;
   }
+  const SPATIAL_FORMAT = 'packed-bounds-v1';
+  function validBounds(bounds) {
+    return Array.isArray(bounds) && bounds.length === 4 && bounds.every(Number.isFinite)
+      && bounds[0] >= -180 && bounds[2] <= 180 && bounds[1] >= -90 && bounds[3] <= 90
+      && bounds[0] <= bounds[2] && bounds[1] <= bounds[3];
+  }
+  function spatialDescriptor(ref, city) {
+    return descriptor(ref, city) && ref.kind === 'spatial' && Number.isSafeInteger(ref.featureCount)
+      && ref.featureCount >= 0 && (ref.featureCount ? validBounds(ref.bounds) : ref.bounds === null);
+  }
+  function spatialFeatureKey(key, geometryId) {
+    return typeof key === 'string' && /^feature:\d{16}:geometry:[a-f0-9]{64}$/.test(key)
+      && key.endsWith(`:${geometryId}`);
+  }
+  function spatialLocator(value, geometryId, city) {
+    return value && value.geometryId === geometryId && /^geometry:[a-f0-9]{64}$/.test(geometryId)
+      && spatialFeatureKey(value.spatialKey, geometryId) && spatialDescriptor(value.asset, city)
+      && value.asset.featureCount > 0;
+  }
+  function spatialMetadata(value, city) {
+    let bounds = null, featureCount = 0;
+    const grid = typeof module === 'object' && module.exports ? require('./ua.spatial-grid') : window.UA.SpatialGrid;
+    for (const [key, item] of value.entries) {
+      let box, count;
+      if (value.type === 'branch') {
+        if (!spatialDescriptor(item, city)) throw invalid('Invalid RIS spatial child descriptor');
+        box = item.bounds; count = item.featureCount;
+      } else if (key.startsWith('feature:')) {
+        const id = item?.properties?.geometryId;
+        if (item?.type !== 'Feature' || !spatialFeatureKey(key, id) || !validBounds(item.bounds)
+            || !['official', 'derived', 'mixed'].includes(item.properties.accuracy)
+            || !Number.isSafeInteger(item.properties.recordCount) || item.properties.recordCount < 1
+            || JSON.stringify(grid.geometryBounds(item.geometry)) !== JSON.stringify(item.bounds)) {
+          throw invalid('Invalid RIS spatial feature');
+        }
+        box = item.bounds; count = 1;
+      } else {
+        if (!key.startsWith('overview:') || !validBounds(item?.bounds) || !Number.isSafeInteger(item.count)
+            || item.count < 1 || !Number.isSafeInteger(item.geometryCount) || item.geometryCount < 1) {
+          throw invalid('Invalid RIS spatial overview');
+        }
+        continue;
+      }
+      featureCount += count;
+      if (!Number.isSafeInteger(featureCount)) throw invalid('Invalid RIS spatial feature total');
+      if (!count) continue;
+      bounds = bounds ? [Math.min(bounds[0], box[0]), Math.min(bounds[1], box[1]),
+        Math.max(bounds[2], box[2]), Math.max(bounds[3], box[3])] : [...box];
+    }
+    return { bounds, featureCount };
+  }
   function manifest(value, city) {
     if (value?.schemaVersion !== 2
         || value.city !== city
@@ -44,10 +95,12 @@
         || value.mappedRecordCount < 0
         || value.mappedRecordCount > value.recordCount
         || ![0, 4, 6, 8].includes(value.overviewZoom)
-        || value.gridZoom !== 12) throw invalid('Invalid RIS partition manifest');
+        || value.gridZoom !== 12
+        || (value.spatialFormat !== undefined && value.spatialFormat !== SPATIAL_FORMAT)
+        || (value.spatialFormat === SPATIAL_FORMAT && (!spatialDescriptor(value.roots.spatial, city) || value.roots.spatial.featureCount !== value.geometryCount))) throw invalid('Invalid RIS partition manifest');
     return value;
   }
-  function node(value, ref, city) {
+  function node(value, ref, city, spatialFormat) {
     if (!value
         || !['leaf', 'branch'].includes(value.type)
         || !Array.isArray(value.entries)
@@ -94,6 +147,17 @@
         }
       }
     }
+    if (spatialFormat === SPATIAL_FORMAT) {
+      if (ref.kind === 'spatial') {
+        if (!spatialDescriptor(ref, city)) throw invalid('Invalid RIS spatial descriptor');
+        const actual = spatialMetadata(value, city);
+        if (actual.featureCount !== ref.featureCount || JSON.stringify(actual.bounds) !== JSON.stringify(ref.bounds)) {
+          throw invalid('RIS spatial bounds or feature count mismatch');
+        }
+      } else if (ref.kind === 'geometry' && value.type === 'leaf') {
+        for (const [id, locator] of value.entries) if (!spatialLocator(locator, id, city)) throw invalid('Invalid RIS geometry locator');
+      }
+    }
     return value;
   }
   function createReader({
@@ -115,23 +179,27 @@
         budget.seen.add(ref.path);
         budget.bytes += ref.bytes;
       }
-      const existing = cache.get(ref.path);
+      const cacheKey = JSON.stringify([ref.path, ref.bytes, ref.count, ref.bounds, ref.featureCount]);
+      const existing = cache.get(cacheKey);
       if (existing) return existing;
-      const promise = scheduler.run(async () => node(await load(ref), ref, m.city));
-      cache.set(ref.path, promise, ref.bytes);
+      const promise = scheduler.run(async () => node(await load(ref), ref, m.city, m.spatialFormat));
+      cache.set(cacheKey, promise, ref.bytes);
       promise.catch(() => {
-        if (cache.get(ref.path) === promise) cache.delete(ref.path);
+        if (cache.get(cacheKey) === promise) cache.delete(cacheKey);
       });
       return promise;
     }
-    async function get(kind, wanted, budget) {
+    async function get(kind, wanted, budget, withReference = false) {
       let ref = m.roots[kind],
         lower = null,
         upper = null;
       for (let depth = 0; depth < 32; depth++) {
         const n = await asset(ref, budget);
         if (upper !== null && (n.entries.at(-1)?.[0] !== upper || lower !== null && n.entries[0]?.[0] <= lower)) throw invalid('Invalid RIS directory range');
-        if (n.type === 'leaf') return n.entries.find(([k]) => k === wanted)?.[1] ?? null;
+        if (n.type === 'leaf') {
+          const entry = n.entries.find(([key]) => key === wanted);
+          return entry ? (withReference ? {value: entry[1], reference: ref} : entry[1]) : null;
+        }
         const next = n.entries.find(([upper]) => wanted <= upper);
         if (!next) return null;
         const index = n.entries.indexOf(next);
@@ -194,6 +262,38 @@
         missing: []
       };
     }
+    async function spatial(bounds, limit = 1000, budget) {
+      if (m.spatialFormat !== SPATIAL_FORMAT || !validBounds(bounds) || !Number.isSafeInteger(limit) || limit < 1) throw invalid('Invalid RIS spatial query');
+      const grid = typeof module === 'object' && module.exports ? require('./ua.spatial-grid') : window.UA.SpatialGrid;
+      const stack = [{ ref: m.roots.spatial, lower: null, upper: null, depth: 0 }], seen = new Set(), ids = new Set(), features = [];
+      while (stack.length) {
+        const { ref, lower, upper, depth } = stack.pop();
+        if (depth > 32 || seen.has(ref.path)) throw invalid('Invalid RIS spatial tree');
+        seen.add(ref.path);
+        const value = await asset(ref, budget);
+        if (upper !== null && (value.entries.at(-1)?.[0] !== upper || lower !== null && value.entries[0]?.[0] <= lower)) throw invalid('Invalid RIS spatial directory range');
+        if (!ref.featureCount || !grid.intersectsBounds(ref.bounds, bounds)) continue;
+        if (ref.featureCount > limit && bounds[0] <= ref.bounds[0] && bounds[1] <= ref.bounds[1]
+            && bounds[2] >= ref.bounds[2] && bounds[3] >= ref.bounds[3]) return {features, truncated: true};
+        if (value.type === 'branch') {
+          for (let i = value.entries.length - 1; i >= 0; i--) {
+            const [key, child] = value.entries[i];
+            if (child.featureCount && grid.intersectsBounds(child.bounds, bounds)) {
+              stack.push({ref: child, lower: i ? value.entries[i - 1][0] : lower, upper: key, depth: depth + 1});
+            }
+          }
+        } else {
+          for (const [key, feature] of value.entries) {
+            if (!key.startsWith('feature:') || !grid.intersectsBounds(feature.bounds, bounds)) continue;
+            const id = feature.properties.geometryId;
+            if (ids.has(id)) throw invalid('Duplicate RIS spatial geometry');
+            if (features.length >= limit) return {features, truncated: true};
+            ids.add(id); features.push(feature);
+          }
+        }
+      }
+      return {features, truncated: false};
+    }
     function scoped({
       maxBytes = 3 * 1024 * 1024,
       maxAssets = 128
@@ -205,6 +305,9 @@
         seen: new Set()
       };
       return {
+        locate: (kind, key) => get(kind, key, budget, true),
+        asset: ref => asset(ref, budget),
+        spatial: (bounds, limit) => spatial(bounds, limit, budget),
         get: (kind, key) => get(kind, key, budget),
         page: (kind, id, index) => page(kind, id, index, budget),
         stats: () => ({
@@ -214,7 +317,9 @@
       };
     }
     return {
+      locate: (kind, key) => get(kind, key, undefined, true),
       scoped,
+      spatial,
       get,
       page,
       walk,
@@ -222,6 +327,11 @@
     };
   }
   return {
+    SPATIAL_FORMAT,
+    validBounds,
+    spatialDescriptor,
+    spatialLocator,
+    spatialMetadata,
     MAX_BYTES,
     FANOUT,
     PAGE_SIZE,

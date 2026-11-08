@@ -677,11 +677,24 @@
         missing: ids.filter((_, i) => !records[i])
       };
     }
-    async function geometryFrom(part, id) {
-      const feature = await part.reader.get('geometry', id);
-      if (feature && (!validGeometry(feature.geometry) || feature.properties?.geometryId !== id || !['official', 'derived', 'mixed'].includes(feature.properties.accuracy) || !Number.isSafeInteger(feature.properties.recordCount) || feature.properties.recordCount < 1)) throw invalid();
-      if (feature && JSON.stringify(feature.bounds) !== JSON.stringify(spatialGrid().geometryBounds(feature.geometry))) throw invalid();
+    function checkedFeature(feature, id) {
+      if (!feature || !validGeometry(feature.geometry) || feature.properties?.geometryId !== id
+          || !['official', 'derived', 'mixed'].includes(feature.properties.accuracy)
+          || !Number.isSafeInteger(feature.properties.recordCount) || feature.properties.recordCount < 1
+          || JSON.stringify(feature.bounds) !== JSON.stringify(spatialGrid().geometryBounds(feature.geometry))) throw invalid();
       return feature;
+    }
+    async function geometryFrom(part, id) {
+      const value = await part.reader.get('geometry', id);
+      if (!value) return null;
+      if (part.manifest.spatialFormat === partitions().SPATIAL_FORMAT) {
+        if (!partitions().spatialLocator(value, id, part.manifest.city)) throw invalid();
+        const found = await part.reader.locate('spatial', value.spatialKey);
+        if (!found || !['path', 'sha256', 'bytes', 'count', 'kind', 'featureCount'].every(field => found.reference[field] === value.asset[field])
+            || JSON.stringify(found.reference.bounds) !== JSON.stringify(value.asset.bounds)) throw invalid();
+        return checkedFeature(found.value, id);
+      }
+      return checkedFeature(value, id);
     }
     async function loadGeometry(city, id, options = {}) {
       const part = await partition(city, options);
@@ -770,6 +783,18 @@
         const grid = spatialGrid(),
           bounds = requestedBounds(options.bounds),
           budget = Math.min(2000, Math.max(1, options.maxFeatures || 1000));
+        if (part.manifest.spatialFormat === partitions().SPATIAL_FORMAT) {
+          const extent = grid.tileRange({west: bounds[0], south: bounds[1], east: bounds[2], north: bounds[3]}, 12);
+          if (extent?.count > 64) return overviewMap(originalPart, bounds);
+          const {features, truncated} = await part.reader.spatial(bounds, budget);
+          if (truncated) return overviewMap(originalPart, bounds);
+          for (const feature of features) checkedFeature(feature, feature.properties.geometryId);
+          return {
+            manifest: part.manifest, partitioned: true, features: {type: 'FeatureCollection', features},
+            coverage: {complete: true, missing: [], truncated: false}, overview: false,
+            recordCount: part.manifest.mappedRecordCount
+          };
+        }
         let tiles;
         try {
           tiles = grid.tilesForBounds({

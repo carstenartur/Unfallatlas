@@ -44,7 +44,7 @@ function pages(target, id, items) {
     start += batch.length;
   });
 }
-async function tree(directory, city, kind, entries) {
+async function tree(directory, city, kind, entries, { spatial = false, onLeaf } = {}) {
   entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
   for (let i = 1; i < entries.length; i++) if (entries[i][0] === entries[i - 1][0]) throw new Error('Duplicate RIS index key');
   async function put(type, rows) {
@@ -61,6 +61,8 @@ async function tree(directory, city, kind, entries) {
         count: rows.length,
         kind
       };
+    if (spatial) Object.assign(reference, P.spatialMetadata({type, entries: rows}, city));
+    if (type === 'leaf' && onLeaf) onLeaf(rows, reference);
     await I.installAsset(directory, {
       bytes: gzipSync(raw),
       reference
@@ -75,6 +77,34 @@ async function tree(directory, city, kind, entries) {
     level = next;
   }
   return level[0][1];
+}
+// Recursively partition by actual coordinate centers rather than a fixed-resolution grid.
+// Rank is only a storage key; source record, location and geometry IDs stay unchanged.
+function spatialOrder(geometries) {
+  const ordered = [];
+  function partition(rows) {
+    if (rows.length <= 1) { ordered.push(...rows); return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [, feature] of rows) {
+      const b = feature.bounds, x = (b[0] + b[2]) / 2, y = (b[1] + b[3]) / 2;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    const axis = maxX - minX >= maxY - minY ? 0 : 1;
+    rows.sort((a, b) => (a[1].bounds[axis] + a[1].bounds[axis + 2]) - (b[1].bounds[axis] + b[1].bounds[axis + 2])
+      || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    const middle = Math.floor(rows.length / 2);
+    partition(rows.slice(0, middle)); partition(rows.slice(middle));
+  }
+  partition([...geometries]);
+  return ordered.map(([id, feature], index) => [`feature:${String(index).padStart(16, '0')}:${id}`, feature]);
+}
+function buildSpatialEntries(geometries, summaries = []) {
+  const entries = spatialOrder(geometries);
+  // Avoid function argument limits when a large city has hundreds of thousands
+  // of distinct geometries. Array construction and bounded appends preserve order.
+  for (const summary of summaries) entries.push(summary);
+  return entries;
 }
 function tileKeys(bounds) {
   try {
@@ -92,9 +122,11 @@ function tileKeys(bounds) {
   }
 }
 async function writePartitionedSnapshot(directory, city, catalogue, {
-  now = Date.now
+  now = Date.now, spatialFormat = P.SPATIAL_FORMAT
 } = {}) {
   I.assertCity(city);
+  if (![P.SPATIAL_FORMAT, 'grid-v1'].includes(spatialFormat)) throw new Error('Unsupported RIS spatial format');
+  const packed = spatialFormat === P.SPATIAL_FORMAT;
   const {
       sources,
       hosts
@@ -106,7 +138,7 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
     records,
     byId
   } = I.normalizeRecords(catalogue.records, hosts, undefined, migrated ? undefined : (r, id) => I.collectSourceLocations(r, id, features, Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
-  if (migrated) features.push(...migrated);
+  if (migrated) for (const feature of migrated) features.push(feature);
   if (!F.validMap({
     type: 'FeatureCollection',
     features
@@ -180,8 +212,10 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
   }
   for (const [id, geometry] of geometries) {
     geometry.properties.recordCount = new Set(links.get(id).map(l => l.recordId)).size;
-    indices.geometry.push([id, geometry]);
-    for (const tile of tileKeys(geometry.bounds)) add(tiles, tile, id);
+    if (!packed) {
+      indices.geometry.push([id, geometry]);
+      for (const tile of tileKeys(geometry.bounds)) add(tiles, tile, id);
+    }
   }
   for (const [id, items] of locationLists) pages(indices.locations, id, items);
   // Store each connected family once, plus a tiny per-record membership entry.
@@ -247,15 +281,26 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
       geometryCount: cell.geometryCount
     }]);
   }
+  if (packed) indices.spatial = buildSpatialEntries(geometries, indices.spatial);
   await fs.mkdir(directory, {
     recursive: true
   });
-  const roots = {};
-  for (const kind of P.ROOTS) roots[kind] = await tree(directory, city, kind, indices[kind]);
+  const roots = Object.fromEntries(P.ROOTS.map(kind => [kind, null]));
+  roots.spatial = await tree(directory, city, 'spatial', indices.spatial, {
+    spatial: packed,
+    onLeaf: packed ? (entries, asset) => {
+      for (const [spatialKey, feature] of entries) if (spatialKey.startsWith('feature:')) {
+        const geometryId = feature.properties.geometryId;
+        indices.geometry.push([geometryId, {geometryId, spatialKey, asset}]);
+      }
+    } : undefined
+  });
+  for (const kind of P.ROOTS) if (kind !== 'spatial') roots[kind] = await tree(directory, city, kind, indices[kind]);
   const generation = I.digest(Buffer.from(JSON.stringify(roots)));
   const locationAssessment = I.summarizeLocationAssessments(records);
   const manifest = {
     schemaVersion: 2,
+    ...(packed ? {spatialFormat: P.SPATIAL_FORMAT} : {}),
     city,
     generatedAt,
     sources,
@@ -296,6 +341,47 @@ async function checkedManifest(directory, value) {
   if (I.digest(Buffer.from(JSON.stringify(m.roots))) !== m.generation) throw new Error('RIS generation integrity check failed');
   return m;
 }
+// Publication/install validation checks the whole spatial tree, including branches
+// a viewport query correctly skips, and the one-to-one geometry directory links.
+function spatialAudit(manifest) {
+  if (manifest.spatialFormat !== P.SPATIAL_FORMAT) return null;
+  const directory = new Map(), spatial = new Map();
+  return {
+    visit(reference, node) {
+      if (node.type !== 'leaf') return;
+      if (reference.kind === 'geometry') {
+        for (const [id, locator] of node.entries) {
+          if (directory.has(id)) throw new Error('Duplicate RIS geometry directory entry');
+          directory.set(id, locator);
+        }
+      }
+      if (reference.kind === 'spatial') {
+        for (const [key, feature] of node.entries) if (key.startsWith('feature:')) {
+          const id = feature.properties.geometryId;
+          if (spatial.has(id) || id !== `geometry:${I.digest(Buffer.from(JSON.stringify(feature.geometry)))}`) {
+            throw new Error('Invalid or duplicate RIS spatial geometry identity');
+          }
+          spatial.set(id, {feature, key, asset: reference});
+        }
+      }
+    },
+    verify() {
+      if (directory.size !== manifest.geometryCount || spatial.size !== manifest.geometryCount) {
+        throw new Error('RIS spatial coverage and geometry directory count mismatch');
+      }
+      const fields = ['path', 'sha256', 'bytes', 'count', 'kind', 'featureCount'];
+      for (const [id, locator] of directory) {
+        const actual = spatial.get(id);
+        if (!actual || locator.spatialKey !== actual.key
+            || !fields.every(field => locator.asset[field] === actual.asset[field])
+            || JSON.stringify(locator.asset.bounds) !== JSON.stringify(actual.asset.bounds)) {
+          throw new Error('RIS geometry directory does not match its spatial leaf');
+        }
+      }
+      return spatial;
+    }
+  };
+}
 async function enumerateSnapshotAssets(directory, value, {
   loadAsset
 } = {}) {
@@ -319,10 +405,12 @@ async function enumerateSnapshotAssets(directory, value, {
         return I.readAsset(directory, ref, ref.kind);
       }
     }),
-    assets = new Map();
-  for (const kind of P.ROOTS) await reader.walk(kind, ref => {
+    assets = new Map(), audit = spatialAudit(m);
+  for (const kind of P.ROOTS) await reader.walk(kind, (ref, node) => {
     assets.set(ref.path, ref);
+    audit?.visit(ref, node);
   });
+  audit?.verify();
   return [...assets.values()];
 }
 async function readPartitionedSnapshot(directory, city, value) {
@@ -336,6 +424,7 @@ async function readPartitionedSnapshot(directory, city, value) {
     records = [],
     features = [];
   let geometryCount = 0;
+  const audit = spatialAudit(m);
   const all = async (kind, id) => {
     const items = [];
     let page = 0;
@@ -346,7 +435,18 @@ async function readPartitionedSnapshot(directory, city, value) {
     } while (page !== null);
     return items;
   };
+  const appendGeometry = async (id, feature) => {
+    for (const link of await all('links', id)) features.push({
+      type: 'Feature', geometry: feature.geometry,
+      properties: {
+        recordId: link.recordId, accuracy: link.accuracy,
+        ...(link.label ? {label: link.label} : {}),
+        ...(link.locationIndex === undefined ? {} : {locationIndex: link.locationIndex})
+      }
+    });
+  };
   for (const kind of P.ROOTS) await reader.walk(kind, async (ref, node) => {
+    audit?.visit(ref, node);
     if (node.type !== 'leaf') return;
     if (kind === 'records') for (const [, record] of node.entries) {
       const locations = await all('locations', record.id);
@@ -368,21 +468,10 @@ async function readPartitionedSnapshot(directory, city, value) {
       });
     }
     if (kind === 'geometry') geometryCount += node.entries.length;
-    if (kind === 'geometry') for (const [id, feature] of node.entries) for (const link of await all('links', id)) features.push({
-      type: 'Feature',
-      geometry: feature.geometry,
-      properties: {
-        recordId: link.recordId,
-        accuracy: link.accuracy,
-        ...(link.label ? {
-          label: link.label
-        } : {}),
-        ...(link.locationIndex === undefined ? {} : {
-          locationIndex: link.locationIndex
-        })
-      }
-    });
+    if (kind === 'geometry' && !audit) for (const [id, feature] of node.entries) await appendGeometry(id, feature);
   });
+  if (audit) for (const [id, {feature}] of audit.verify()) await appendGeometry(id, feature);
+
   if (geometryCount !== m.geometryCount
       || new Set(features.map(f => f.properties.recordId)).size !== m.mappedRecordCount) throw new Error('RIS map count mismatch');
   const {
@@ -404,6 +493,7 @@ async function readPartitionedSnapshot(directory, city, value) {
   };
 }
 module.exports = {
+  partitionFormat: {buildSpatialEntries},
   writePartitionedSnapshot,
   readPartitionedSnapshot,
   enumerateSnapshotAssets

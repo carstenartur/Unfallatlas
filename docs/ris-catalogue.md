@@ -26,9 +26,9 @@ Version 2 trennt diese Zugriffsarten:
 | `locations` | Ortsbelege mit stabiler Identität und optionalem Geometrieverweis | Ortsliste eines Vorgangs |
 | `search` | Begriff und seitenweise Trefferverweise | Recherche |
 | `relations` | Zusammengehörige Vorgänge, einschließlich Rückverweisen | Angeforderte Beziehungsseite |
-| `geometry` | Einmal gespeicherte Geometrie mit Darstellungsmerkmalen und Anzahl | Passender Kartenausschnitt oder gezielter Ort |
+| `geometry` | Stabile Geometrie-ID mit Verweis auf das räumliche Blatt | Gezielter Ort eines Vorgangs |
 | `links` | Zuordnung zwischen Geometrien, Vorgängen und Ortsbelegen | Geöffnete Kartenstelle |
-| `spatial` | Räumliche Verweise und ausdrücklich gekennzeichnete Übersichtszellen | Kartenausschnitt |
+| `spatial` | Räumlich gruppierte, einmal gespeicherte Geometrien mit begrenzten Verzeichniszweigen und gekennzeichneten Übersichtszellen | Kartenausschnitt |
 
 Ein historischer Vorgang behält seine ID, wenn sich Jahrpartition, räumlicher Ausschnitt
 oder Reihenfolge ändert. Derselbe Straßenverlauf wird nur einmal als Geometrie gespeichert.
@@ -44,6 +44,15 @@ Blätter und Verzeichnisebenen, keine immer größere globale ID-, Begriffs- ode
 Listen haben höchstens 64 Einträge pro Seite und können wegen der Bytegrenze kleiner sein.
 Eine Folgeseite ist ausdrücklich adressierbar.
 
+Der räumliche Index verwendet `spatialFormat: "packed-bounds-v1"`. Jeder Zweig
+beschreibt die räumlichen Grenzen und die Anzahl der enthaltenen Geometrien.
+Der Leser schließt unpassende Zweige aus, bevor er deren Geometriedateien lädt.
+Die Blätter gruppieren benachbarte Geometrien; ihre stabilen IDs bleiben unabhängig
+von dieser Speicherreihenfolge. Der zusätzliche `geometry`-Index verweist auf
+dasselbe Blatt und speichert keine zweite Kopie der Form. So erzwingen viele
+verschiedene Orte in einer groben Kachel keinen Download aller Kachelgeometrien,
+wenn nur ein kleiner Ausschnitt angefordert wird.
+
 Alle Teile sind komprimierte JSON-Dateien mit SHA-256 im Dateinamen. Leser prüfen
 Dateiname, Größe, Inhaltshash, Indexstruktur und verwendeten Datenstand. Dateien sind
 unveränderlich; die Veröffentlichung ersetzt das Manifest erst, wenn alle referenzierten
@@ -55,7 +64,10 @@ Ein Kartenausschnitt darf für Details bis zu 3 MiB unkomprimierte Teilbestände
 Übersicht mit einem weiteren Budget von 1 MiB verwendet. Zellen sind als Zusammenfassung
 gekennzeichnet und ermöglichen das Näherzoomen. Sie werden nicht als genaue Punktlagen
 von Dokumenten ausgegeben. Linien, Straßenabschnitte und mehrteilige Geometrien bleiben
-in allen geschnittenen Kacheln auffindbar.
+anhand ihrer vollständigen räumlichen Grenzen auch über Blattgrenzen hinweg auffindbar.
+Die Vergrößerungsaktion verwendet den sichtbaren Teil einer Übersichtszelle, erhöht
+die Zoomstufe und respektiert die tatsächliche Kartengrenze. Am maximalen Zoom erklärt
+die Oberfläche, dass keine weitere Vergrößerung möglich ist.
 
 Der gemeinsame Leser begrenzt gleichzeitige Dateianfragen und seinen Cache nach
 unkomprimierten Bytes. Die Module `ua.spatial-grid.js` und `ua.data-budget.js` werden auch
@@ -146,8 +158,11 @@ des lokalen Index beseitigt. Ein vollständiges PDF-Archiv wird nicht gespiegelt
 
 ## Migration und Gültigkeit
 
-Der Browser und der gemeinsame Offline-Leser unterstützen Version 1 weiterhin.
-Der reguläre Erneuerungspfad schreibt Version 2. Eine reine Formatmigration erhält
+Der Browser und der gemeinsame Offline-Leser unterstützen Version 1 und frühere
+Version-2-Bestände mit festem Kachelindex weiterhin. Das Manifest kennzeichnet den
+neuen räumlichen Aufbau ausdrücklich; ein fehlendes `spatialFormat` verwendet den
+bisherigen Version-2-Lesepfad. Der reguläre Erneuerungspfad schreibt Version 2 mit
+räumlich gruppierten Geometrien. Eine reine Formatmigration erhält
 alle kanonischen Vorgänge und Kartenobjekte sowie Quellenzeit, Abdeckung, Ortsprüfungen
 und einen vorhandenen Fehler-/Ablaufvermerk. Eine neue Ortsprüfrevision ist ein eigener
 Schritt: Sie bewertet vorhandene Titel, gespeicherte Belege und amtliche Lagen gegen
@@ -204,8 +219,8 @@ Der tatsächlich erhobene und lokal validierte Bestand umfasst:
 
 | Stadt | Vorgänge | Vorgänge mit Geometrie | Eindeutige Geometrien | Alle komprimierten Teile |
 |---|---:|---:|---:|---:|
-| Bonn | 25.206 | 1.837 | 740 | 4.617.039 Bytes |
-| Hannover | 54.217 | 3.895 | 1.992 | 10.661.288 Bytes |
+| Bonn | 25.206 | 1.837 | 740 | 4.640.150 Bytes |
+| Hannover | 54.217 | 3.895 | 1.992 | 10.729.555 Bytes |
 
 Hannovers jährliche öffentliche Suche wurde für 2014 bis 2026 ausgeführt. Gegenüber
 dem zuvor importierten Bestand kamen 29.950 Vorgänge hinzu. Jeder Vorgang erhielt
@@ -221,19 +236,39 @@ Geometrien blieben erhalten. Bonn behielt seinen verifizierten Quellenstand vom
 7. November und den bestehenden Aktualisierungsfehler samt Ablaufdatum.
 
 Für einen repräsentativen Detailausschnitt lud der gemeinsame Leser in Bonn
-121 Geometrien über 15 Anfragen mit 88.826 komprimierten Bytes. In Hannover waren
-es im erweiterten Bestand 249 Geometrien über 35 Anfragen mit 399.281 Bytes.
-Dabei wurden nur Manifest, räumlicher Index und Geometrien gelesen, keine
+121 Geometrien über 10 Anfragen mit 45.491 komprimierten Bytes. In Hannover waren
+es im erweiterten Bestand 249 Geometrien über 17 Anfragen mit 151.410 Bytes.
+Dabei wurden nur Manifest und räumliche Blätter mit Geometrien gelesen, keine
 Vorgangs-, Orts-, Beziehungs-, Zuordnungs- oder Suchdateien. Diese Messung verwendet
 lokale verifizierte Dateien und ist keine Aussage über Netzlatenz.
 
 Ein zusätzlicher synthetischer Belastungsfall hielt die zehn sichtbaren Geometrien
 konstant und erhöhte den Bestand von 10.000 auf 100.000 Vorgänge, davon jeweils
-zehn Prozent mit Ortsbezug. Die erste Kartenansicht benötigte in beiden Fällen drei
-Anfragen; die komprimierten Bytes stiegen von 3.974 auf 3.987. Die zugehörigen
+zehn Prozent mit Ortsbezug. Die erste Kartenansicht benötigte in beiden Fällen zwei
+Anfragen; die komprimierten Bytes stiegen von 3.651 auf 3.663. Die zugehörigen
 Vorgänge und 90.000 verknüpften Antworten blieben seitenweise erreichbar. Dieser
 Fall belegt die Trennung von Archivumfang und Kartenlast; er ersetzt keine
 Messung sämtlicher denkbarer Großstadt-Geometrien.
+
+Eine zweite Belastungsprüfung verteilte 12.000 verschiedene Punktgeometrien in
+derselben früheren Zoom-12-Kachel. Ein enger Ausschnitt mit genau einem Ort
+lieferte diesen Ort bei Zoom 18 und bei weiterem Vergrößern auf Zoom 22 jeweils
+als Detail: sieben Anfragen, 27.645 komprimierte und 136.085 entpackte Bytes bei
+kaltem Cache. Der bisherige feste Kachelzugriff hatte für denselben Fall
+3.287.274 entpackte Bytes gelesen und nur die Übersicht zurückgegeben. Ein
+Ausschnitt mit neun Orten benötigte im neuen Aufbau zwölf Anfragen und 270.890
+entpackte Bytes. Der Blick auf die gesamte dichte Kachel lieferte dagegen bewusst
+eine Übersicht mit der korrekten Anzahl 12.000.
+
+Ein zusätzlicher Linienfall enthielt 320 außerhalb des Ausschnitts liegende
+Linien mit jeweils 1.000 Stützpunkten, einen sichtbaren Punkt und einen langen
+kreuzenden mehrteiligen Verlauf. Die beiden passenden Geometrien blieben über
+drei Anfragen und 257.823 entpackte Bytes erreichbar. Diese Fälle prüfen die
+räumliche Auswahl zusätzlich zur getrennten Skalierung des Dokumentenarchivs.
+Der Aufbau der räumlichen Eintragsliste wurde zusätzlich mit 150.001 verschiedenen
+Punktgeometrien geprüft. Dabei entstehen keine von der Gesamtzahl abhängigen
+Funktionsargumentlisten. Diese Prüfung des Erzeugers ist keine Behauptung, einen
+vollständigen Großstadtkatalog mit 150.001 Geometrien veröffentlicht zu haben.
 
 Diese Zahlen beschreiben den lokalen Erhebungs- und Prüfstand. Die veröffentlichten
 Manifeste geben den jeweils tatsächlich ausgelieferten Quellenstand an.

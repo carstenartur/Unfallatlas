@@ -695,6 +695,78 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(UA.RisCatalogue.loadFeatureRecords).not.toHaveBeenCalled();
   });
 
+  test.each([true, false])('budget overview distinguishes aggregation from missing data with source completeness %s', async sourceComplete => {
+    const overview = { ...polygon, bounds: [7, 50.6, 7.2, 50.8],
+      properties: { overview: true, geometryId: 'overview:8/1/2', recordCount: 72, geometryCount: 40 } };
+    const bundle = { ...partitionSnapshot([overview]), overview: true,
+      coverage: { complete: false, missing: [], truncated: true } };
+    bundle.manifest.coverage.complete = sourceComplete;
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    const status = document.querySelector('.context-overlay-control [role="status"]').textContent;
+    expect(status).toContain('Übersicht: zusammengefasste Zellen');
+    expect(status).toContain('Detailbudget erreicht');
+    expect(status).not.toMatch(/Kartenabdeckung unvollständig|Daten fehlen/);
+    if (sourceComplete) expect(status).not.toContain('Teilbestand');
+    else expect(status).toContain('Teilbestand');
+  });
+
+  async function openOverviewAt(zoom, maxZoom, bounds = [7, 50.6, 7.2, 50.8]) {
+    const [w, s, e, n] = bounds;
+    const overview = { type: 'Feature', bounds,
+      geometry: { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] },
+      properties: { overview: true, geometryId: 'overview:8/1/2', recordCount: 72, geometryCount: 40 } };
+    ctx.map.setMaxZoom(maxZoom).setView([50.74, 7.18], zoom, { animate: false });
+    UA.RisCatalogue.loadMap.mockResolvedValue({ ...partitionSnapshot([overview]), overview: true });
+    UA.RisCatalogue.loadFeatureRecords = jest.fn();
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+    risFeatures(ctx.map)[0].openPopup();
+    return document.querySelector('.ua-ris-popup');
+  }
+
+  test('a coarse overview fallback at high zoom drills into the visible part without zooming out', async () => {
+    const popup = await openOverviewAt(18, 19);
+    const visibleCenter = ctx.map.getCenter();
+    const visibleBounds = ctx.map.getBounds();
+    const button = [...popup.querySelectorAll('button')].find(node => node.textContent === 'Für Details vergrößern');
+    button.focus();
+    button.click();
+    await flush();
+    expect(ctx.map.getZoom()).toBe(19);
+    expect(visibleBounds.contains(ctx.map.getCenter())).toBe(true);
+    expect(ctx.map.getCenter().distanceTo(visibleCenter)).toBeLessThan(1);
+    expect(document.activeElement).toBe(ctx.map.getContainer());
+    expect(UA.RisCatalogue.loadFeatureRecords).not.toHaveBeenCalled();
+  });
+
+  test('low zoom overview drilldown still fits a smaller selected cell', async () => {
+    const bounds = [7.16, 50.72, 7.20, 50.76];
+    const popup = await openOverviewAt(8, 19, bounds);
+    [...popup.querySelectorAll('button')].find(node => node.textContent === 'Für Details vergrößern').click();
+    await flush();
+    expect(ctx.map.getZoom()).toBeGreaterThan(8);
+    expect(ctx.map.getZoom()).toBeLessThanOrEqual(19);
+    expect(L.latLngBounds([bounds[1], bounds[0]], [bounds[3], bounds[2]]).contains(ctx.map.getCenter())).toBe(true);
+  });
+
+  test('an overview at the map maximum explains that further zoom is unavailable', async () => {
+    const popup = await openOverviewAt(18, 18);
+    const before = ctx.map.getCenter();
+    const button = [...popup.querySelectorAll('button')].find(node => /Maximale Vergrößerung/.test(node.textContent));
+    expect(button).toBeDefined();
+    expect(button.disabled).toBe(true);
+    expect(popup.querySelector('[role="status"]').textContent).toMatch(/nicht weiter vergrößert/);
+    button.click();
+    await flush();
+    expect(ctx.map.getZoom()).toBe(18);
+    expect(ctx.map.getCenter()).toEqual(before);
+    expect(UA.RisCatalogue.loadFeatureRecords).not.toHaveBeenCalled();
+  });
+
   test('partitioned viewport ignores out-of-order and disabled responses', async () => {
     const first = deferred(), second = deferred();
     UA.RisCatalogue.loadMap.mockResolvedValueOnce(partitionSnapshot([partitionFeature()]))

@@ -108,3 +108,36 @@ references coordinated with the other owners.
 - [ ] Run canonical available verification and existing remote CI on final head.
 - [ ] Update the existing PR with results, merge exact verified head into main,
   then verify main/publication and provide the resulting code/data status.
+
+## Additional acceptance finding: distinct geometry density
+
+The first archive-scale test held geometry count constant. A subsequent actual-reader
+reproduction with 12,000 different points within one z12 cell showed that a tiny
+viewport containing one point still decoded 5,760 offscreen points, exhausted the
+3 MiB query budget, and returned only overview at both z18 and z22. The spatial
+portion of Task 1 is reopened before merge to satisfy the large-city requirement.
+
+- [x] Store and traverse a bounded hierarchical spatial index that filters by
+  query bounds before reading geometry payloads. Pack geometry spatially, with a
+  stable geometry-ID lookup and each shape stored once.
+- [x] Preserve the common public reader methods, original v1 and existing grid-v2
+  archives, all canonical records/evidence/geometry, and original source clocks.
+- [x] Verify dense points and lines, crossing geometry, bounded files, corrupt
+  references and full offline validation; independent scoped review.
+- [ ] Regenerate the actual indexes without recrawling sources, revalidate the
+  export and browser, and rerun final-head CI before the authorized merge.
+- [x] Fix the confirmed coarse-overview drilldown that zoomed from 18 out to 11;
+  increase zoom within the visible cell portion, explain the actual map maximum,
+  and preserve keyboard focus. Distinguish budget aggregation from genuinely
+  missing files. The full 47-test renderer suite passes; independent scoped
+  review accepted.
+
+Final local integration: all eight shared RIS suites pass (222 tests), and all
+five Chromium scenarios pass, including actual published-data-style assets,
+legacy v1, dense v2 pagination and search selection. The spatial producer's
+150,001-feature assembly regression removes the argument-count ceiling;
+reviewed append corrections preserve byte-identical manifests and index roots.
+Actual packed migration preserves both cities' canonical records and maps and
+all source clocks; 3,982 referenced files contain 15,379,219 compressed bytes.
+The predecessor head passed all eight CI workflows. The final packed head must
+still pass its own canonical CI before the authorized merge.
