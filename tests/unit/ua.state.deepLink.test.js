@@ -87,6 +87,15 @@ describe('UA.state explicit deep-link precedence', () => {
     'includeCyclist=1',
     'mapMode=standard',
     'selSouth=52&selWest=9&selNorth=53&selEast=10',
+    'mapLayer=ris',
+    'risSelectionOnly=0',
+    'risRecord=region-hannover-ris%3A123',
+    'risView=relations',
+    'risCollapsed=1',
+    'risEventsPage=2',
+    'risRelationsPage=3',
+    'risRelatedPage=4',
+    'risLocationsPage=5',
   ])('does not restore localStorage when URL contains %s', (parameter) => {
     const UA = loadStateModules(`http://localhost:8000/werkbank_v2.html?city=Hannover&${parameter}`);
     const ctx = makeCtx();

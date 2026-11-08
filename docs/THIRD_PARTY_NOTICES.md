@@ -1,5 +1,20 @@
 # Third-party browser dependencies
 
+## Process-view design reference
+
+The RIS record view takes visual inspiration from the per-record process line in
+[Ratsatlas Bonn](https://github.com/daimpad/ratsatlas-bonn/tree/bcefc9e9e5931689ba10da55ebe56c92f01761d6)
+by Damian Paderta, notably `site/app.js` (`stepHtml`) and `site/style.css` at
+commit `bcefc9e9e5931689ba10da55ebe56c92f01761d6`.
+The renderer and its catalogue integration are implemented independently here;
+no Bonn-specific procedural phases or legal assumptions are imported.
+The upstream project uses the MIT License, copyright © 2026 Damian Paderta;
+its [complete license notice](licenses/ratsatlas-bonn-MIT.txt) is retained with
+this attribution. This design reference does not add a runtime vendor dependency
+or alter the locked browser-library provenance described below.
+
+## Locked browser libraries
+
 The canonical site build obtains browser libraries from the exact top-level
 versions in `package-lock.json`. It writes three mutually bound, deterministic
 records below `_site/vendor/` and records their SHA-256 digests in

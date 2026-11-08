@@ -299,6 +299,8 @@
     };
     if (removeSelection) {
       upd.selSouth = null; upd.selWest = null; upd.selNorth = null; upd.selEast = null;
+      upd.risSelectionOnly = null;
+      if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize({ ...ctx.risView, selectionOnly: false });
     } else if (ctx.selectionBounds) {
       upd.selSouth = ctx.selectionBounds.getSouth().toFixed(6);
       upd.selWest  = ctx.selectionBounds.getWest().toFixed(6);
@@ -311,6 +313,7 @@
 
   UA.syncAllToUrl = function syncAllToUrl(ctx){
     const ui = ctx.ui;
+    if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize(ctx.risView);
     const cf = ctx.contextFilters || {};
     const slopeStr   = cf.slopeClasses   ? Array.from(cf.slopeClasses).sort().join(",")   : "";
     const trafficStr = cf.trafficClasses ? Array.from(cf.trafficClasses).sort().join(",") : "";
@@ -344,12 +347,13 @@
       ctxSlope:        slopeStr,
       ctxTraffic:      trafficStr,
       ctxOnlyMatched:  cf.onlyMatchedWays ? 1 : 0,
-      // First-class context map overlays (slope/traffic). CSV; empty
+      // Context map overlays (slope/traffic/RIS). CSV; empty
       // string when no overlay is active. See UA.refreshContextOverlays
       // and UA.parseMapLayerCsv.
       mapLayer: (typeof UA.serializeMapLayerCsv === 'function')
         ? UA.serializeMapLayerCsv(ctx.contextOverlays && ctx.contextOverlays.active)
         : '',
+      ...(UA.RisViewState?.toQuery(ctx.risView) || {}),
     });
     UA.syncViewToUrl(ctx);
   };
@@ -617,7 +621,8 @@
 
       const u = new URL(window.location.href);
       u.searchParams.set("city", nextCity);
-      ["centerLat","centerLon","zoom","selSouth","selWest","selNorth","selEast","export"].forEach(k => u.searchParams.delete(k));
+      ["centerLat","centerLon","zoom","selSouth","selWest","selNorth","selEast","export",
+        ...Object.keys(UA.RisViewState?.toQuery() || {})].forEach(k => u.searchParams.delete(k));
       window.location.assign(u.toString());
     });
 

@@ -34,6 +34,14 @@
     ctxTraffic: "ctxTraffic",
     ctxOnlyMatched: "ctxOnlyMatched",
     mapLayer: "mapLayer",
+    risSelectionOnly: "risSelectionOnly",
+    risRecord: "risRecord",
+    risView: "risView",
+    risCollapsed: "risCollapsed",
+    risEventsPage: "risEventsPage",
+    risRelationsPage: "risRelationsPage",
+    risRelatedPage: "risRelatedPage",
+    risLocationsPage: "risLocationsPage",
     debugSlope: "debugSlope",
     debugSlopeSamples: "debugSlopeSamples",
     centerLat: "centerLat",
@@ -144,18 +152,13 @@
   UA.installMarkerClusterChunkGuard();
 
   function parseSearchKeepLast(search) {
-    const raw = search.replace(/^\?/, "");
-    const pairs = raw ? raw.split("&") : [];
+    const pairs = new URLSearchParams(search.replace(/^\?/, ""));
     const map = new Map();
     let hadDup = false;
     let hadLegacy = false;
     let hadUnknown = false;
 
-    for (const part of pairs) {
-      if (!part) continue;
-      const i = part.indexOf("=");
-      const k0 = decodeURIComponent(i>=0 ? part.slice(0,i) : part);
-      const v0 = decodeURIComponent(i>=0 ? part.slice(i+1) : "");
+    for (const [k0, v0] of pairs) {
       const k = LEGACY[k0] || k0;
       if (k0 !== k) hadLegacy = true;
       if (!CANON[k]) hadUnknown = true;
@@ -201,6 +204,9 @@
   const CITY_STATE_KEY = (city) => `ua_state_${UA.normKey(city)}`;
 
   UA.saveCityState = function saveCityState(ctx){
+    // Initial controls and map events must not overwrite the saved city before
+    // the URL/local-state decision is complete. The final URL sync saves once.
+    if (UA._hydrating === true) return;
     try {
       const { CITY_RAW, map, ui, selectionBounds } = ctx;
       const c = map.getCenter();
@@ -224,6 +230,12 @@
         showCluster: ctx.showCluster ? 1 : 0,
         showHeatmap: ctx.showHeatmap ? 1 : 0,
         showOnlyAboveAverage: ctx.showOnlyAboveAverage ? 1 : 0,
+        contextOverlays: { active: {
+          slope: !!ctx.contextOverlays?.active?.slope,
+          traffic: !!ctx.contextOverlays?.active?.traffic,
+          ris: !!ctx.contextOverlays?.active?.ris
+        } },
+        risView: UA.RisViewState?.normalize(ctx.risView),
         centerLat: Number(c.lat.toFixed(6)),
         centerLon: Number(c.lng.toFixed(6)),
         zoom: map.getZoom(),
@@ -265,6 +277,18 @@
       ctx.showCluster = !!st.showCluster;
       ctx.showHeatmap = !!st.showHeatmap;
       ctx.showOnlyAboveAverage = !!st.showOnlyAboveAverage;
+      if (st.contextOverlays?.active && typeof st.contextOverlays.active === 'object') {
+        // Controls and Leaflet layers may already exist. Restore desired flags
+        // into that registry instead of replacing live runtime objects.
+        ctx.contextOverlays = ctx.contextOverlays || {};
+        ctx.contextOverlays.active = ctx.contextOverlays.active || {};
+        Object.assign(ctx.contextOverlays.active, {
+          slope: st.contextOverlays.active.slope === true,
+          traffic: st.contextOverlays.active.traffic === true,
+          ris: st.contextOverlays.active.ris === true
+        });
+      }
+      if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize(st.risView);
 
       if (Number.isFinite(st.centerLat) && Number.isFinite(st.centerLon) && Number.isFinite(st.zoom)) {
         ctx.map.setView([st.centerLat, st.centerLon], st.zoom);

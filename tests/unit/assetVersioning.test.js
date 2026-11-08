@@ -22,16 +22,16 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=2026-11-08-scalable-catalogue"`);
   });
 
-  test.each(['js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.filters.js'])('%s refreshes typed traffic controls', asset => {
+  test.each(['js/ua.filters.js'])('%s refreshes typed traffic controls', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-context-review"`);
   });
 
-  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
+  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
   });
 
   test('the tour invalidates the cache for the political research UI', () => {
-    expect(html).toContain('js/ua.tour.js?v=2026-11-07');
+    expect(html).toContain('js/ua.tour.js?v=2026-11-08-ris-view');
   });
 
   test.each([
@@ -42,7 +42,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each(['js/ua.state.js', 'js/ua.app_v2.js'])('%s refreshes confirmed area scope', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-area-name"`);
+    expect(html).toContain(`${asset}?v=2026-11-08-ris-view"`);
   });
 
   test('both canonical template and export assets load the current defaults', () => {
@@ -50,7 +50,7 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/ua.export_v2.js?v=2026-11-08-method-limits"');
   });
 
-  test.each(['js/ua.political-context.js', 'js/ua.area_name_control.js', 'js/ua.data_paths.js'])('%s refreshes confirmed research scope', asset => {
+  test.each(['js/ua.area_name_control.js', 'js/ua.data_paths.js'])('%s refreshes confirmed research scope', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-area-research"`);
   });
 
@@ -60,8 +60,15 @@ describe('Werkbank deployment asset versions', () => {
     expect(paths).toContain('js/ua.ai_political_reference_bridge.js?v=2026-11-08-method-limits');
   });
 
-  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s refreshes paged consultation history', asset => {
+  test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js'])('%s refreshes paged consultation history', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
+  });
+
+  test.each(['js/ua.ris_view_state.js', 'js/ua.ris-record-view.js', 'js/ua.ris-details.js',
+    'js/ua.ris-layer.js', 'js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.map_scene.js',
+    'js/ua.map_scene_url_codec.js', 'js/ua.traffic_situation.js', 'js/ua.political-context.js', 'css/ris-record-view.css'])
+  ('%s refreshes the shareable RIS view', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-ris-view"`);
   });
 
   test('shared spatial budgets and partitions load before their consumers', () => {

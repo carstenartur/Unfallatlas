@@ -6,6 +6,8 @@ const path = require('path');
 function loadMapScene(extraWin) {
   const win = Object.assign({ UA: {}, location: { href: 'http://localhost/' } }, extraWin || {});
   (function (window) {
+    const stateFile = path.resolve(__dirname, '../../js/ua.ris_view_state.js');
+    if (fs.existsSync(stateFile)) eval(fs.readFileSync(stateFile, 'utf8'));
     eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.map_scene.js'), 'utf8'));
   })(win);
   return win.UA;
@@ -73,6 +75,26 @@ describe('UA.MapScene', () => {
   });
 
   describe('fromCtx', () => {
+    test('snapshots independent RIS state and layer flags without copying Leaflet controls', () => {
+      const registry = { active: { slope: true, traffic: false, ris: true }, layers: {} };
+      registry.layers.ris = { registry };
+      const ctx = {
+        contextOverlays: registry,
+        risView: { selectionOnly: true, recordId: 'region:A', section: 'locations', relatedPage: 3 },
+      };
+      const scene = UA.MapScene.fromCtx(ctx);
+      expect(scene.contextOverlays).toEqual({ active: { slope: true, traffic: false, ris: true } });
+      expect(scene.risView).toEqual({
+        selectionOnly: true, recordId: 'region:A', section: 'locations', collapsed: false,
+        eventsPage: 0, relationsPage: 0, relatedPage: 3, locationsPage: 0,
+      });
+      expect(() => JSON.stringify(scene)).not.toThrow();
+      ctx.contextOverlays.active.ris = false;
+      ctx.risView.recordId = 'region:B';
+      expect(scene.contextOverlays.active.ris).toBe(true);
+      expect(scene.risView.recordId).toBe('region:A');
+    });
+
     test('returns default scene for null ctx', () => {
       const scene = UA.MapScene.fromCtx(null);
       expect(scene.city).toBe('');

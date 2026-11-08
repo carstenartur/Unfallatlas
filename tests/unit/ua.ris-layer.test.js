@@ -133,6 +133,35 @@ describe('Ratsvorgänge in the V2 map', () => {
     delete window.L;
   });
 
+  test('the RIS checkbox and selection restriction project canonical share state', async () => {
+    UA.syncAllToUrl = jest.fn();
+    ctx.contextOverlays = { active: { slope: true, traffic: false, ris: true } };
+    ctx.risView = { selectionOnly: true };
+    ctx.selectionBounds = L.latLngBounds([50.69, 7.09], [50.71, 7.11]);
+    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point]));
+    UA.refreshContextOverlays(ctx);
+    await flush();
+    expect(checkbox('Ratsvorgänge').checked).toBe(true);
+    expect(checkbox('Nur in markierter Fläche').checked).toBe(true);
+    expect(risRecordIds(ctx.map)).toEqual(['A']);
+    ctx.contextOverlays.active.slope = true;
+    checkbox('Ratsvorgänge').click();
+    expect(ctx.contextOverlays.active.ris).toBe(false);
+    expect(ctx.contextOverlays.active.slope).toBe(true);
+    expect(UA.syncAllToUrl).toHaveBeenCalledWith(ctx);
+    expect(risRecordIds(ctx.map)).toEqual([]);
+  });
+
+  test('selecting a map location enables RIS in shared state', async () => {
+    UA.syncAllToUrl = jest.fn();
+    const { entry, bundle } = searchableLocations();
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    UA.refreshContextOverlays(ctx);
+    await UA.RisLayer.showLocation(ctx, entry, 0, () => true);
+    expect(ctx.contextOverlays.active.ris).toBe(true);
+    expect(UA.syncAllToUrl).toHaveBeenCalledWith(ctx);
+  });
+
   test('desktop popups retain a usable central strip beside the unified tall Karte card', async () => {
     ctx.map.getContainer().getBoundingClientRect = () => ({ left: 0, top: 0, right: 1280, bottom: 800, width: 1280, height: 800 });
     ctx.ui.panelEl = document.createElement('div');
@@ -525,7 +554,7 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(risFeatures(ctx.map)).toHaveLength(3);
   });
 
-  test('rapid toggles share a pending fetch and a late result from the old city cannot update the new city', async () => {
+  test('rapid toggles share a fetch and city changes preserve the requested layer while rejecting old results', async () => {
     const bonn = deferred();
     const hannover = deferred();
     UA.RisCatalogue.loadMap.mockImplementation(city => city === 'Bonn' ? bonn.promise : hannover.promise);
@@ -538,11 +567,10 @@ describe('Ratsvorgänge in the V2 map', () => {
 
     ctx.CITY_RAW = 'Hannover';
     UA.renderLayers(ctx);
-    expect(checkbox('Ratsvorgänge').checked).toBe(false);
-    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledTimes(1);
-    checkbox('Ratsvorgänge').click();
+    expect(checkbox('Ratsvorgänge').checked).toBe(true);
     hannover.resolve(snapshot([line]));
     await flush();
+    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledTimes(2);
     bonn.resolve(snapshot([point, polygon]));
     await flush();
     expect(risRecordIds(ctx.map)).toEqual(['B']);
@@ -550,8 +578,7 @@ describe('Ratsvorgänge in the V2 map', () => {
     ctx.CITY_RAW = 'Bonn';
     UA.renderLayers(ctx);
     expect(risFeatures(ctx.map)).toHaveLength(0);
-    expect(checkbox('Ratsvorgänge').checked).toBe(false);
-    checkbox('Ratsvorgänge').click();
+    expect(checkbox('Ratsvorgänge').checked).toBe(true);
     checkbox('Ratsvorgänge').click();
     await flush();
     expect(risFeatures(ctx.map)).toHaveLength(0);
@@ -1142,39 +1169,29 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(content.scrollTop).toBe(87);
   });
 
-  test('consultation and direct relationship details stay lazy, page explicitly and ignore closed generations', async () => {
-    const delayed = deferred();
-    UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
-    const sourceContext={level:'state',publisher:'Landtag',issuer:null,documentKind:'Drucksache',status:'answer',publicationDate:null,documentDate:'2026-06-01',meetingDate:null};
-    UA.RisCatalogue.loadFeatureRecords=jest.fn().mockResolvedValue({records:[{...records[0],eventCount:65,relationshipCount:1,sourceContext}],links:[{recordId:'A',accuracy:'official'}],nextPage:null,complete:true});
-    const event={date:'2026-06-25',body:'Rat',outcome:'Vertagt',url:validUrl,evidence:'25.06.2026 Rat Vertagt'};
-    UA.RisCatalogue.loadRecordEvents=jest.fn().mockResolvedValueOnce({known:true,events:[event],total:65,nextPage:1,complete:true}).mockReturnValueOnce(delayed.promise);
-    UA.RisCatalogue.loadRecordRelationships=jest.fn().mockResolvedValue({known:true,relationships:[{type:'related',label:'Antwort auf andere Drucksache',targetRole:'answer',targetUrl:validUrl,evidence:'Amtlicher Querverweis'}],nextPage:null,complete:true});
-    UA.refreshContextOverlays(ctx);checkbox('Ratsvorgänge').click();await flush();
-    const layer=risFeatures(ctx.map)[0];layer.openPopup();await flush();
-    expect(UA.RisCatalogue.loadRecordEvents).not.toHaveBeenCalled();expect(UA.RisCatalogue.loadRecordRelationships).not.toHaveBeenCalled();
-    const content=document.querySelector('.leaflet-popup-content');expect(content.textContent).toContain('Landtag');expect(content.textContent).toContain('Dokumentdatum: 2026-06-01');
-    const details=[...content.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent.startsWith('Beratungsverlauf'));
-    expect(details).toBeDefined();details.open=true;details.dispatchEvent(new Event('toggle'));await flush();
-    expect(UA.RisCatalogue.loadRecordEvents).toHaveBeenCalledWith('Bonn','A',0,{snapshot:expect.any(Object)});
-    expect(details.textContent).toContain('Vertagt');expect(details.querySelector('a').href).toBe(validUrl);
-    const more=[...details.querySelectorAll('button')].find(b=>b.textContent==='Weitere Beratungen laden');more.focus();more.click();more.click();
-    expect(UA.RisCatalogue.loadRecordEvents).toHaveBeenCalledTimes(2);expect(more.getAttribute('aria-disabled')).toBe('true');
-    const relations=[...content.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent.startsWith('Zusammenhänge'));
-    relations.open=true;relations.dispatchEvent(new Event('toggle'));await flush();expect(relations.textContent).toContain('Antwort auf andere Drucksache');
-    const old=details.textContent;layer.closePopup();delayed.resolve({known:true,events:[{...event,evidence:'STALE_ROW'}],nextPage:null,complete:true});await flush();
-    expect(details.textContent).toBe(old);expect(details.textContent).not.toContain('STALE_ROW');
-  });
-
-  test('legacy popups distinguish unavailable history and render their source rows through the shared details', async () => {
-    const event={date:null,body:null,outcome:null,url:validUrl,evidence:'Öffentlicher Beratungsvermerk ohne Datierung'};
-    UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point],[{...records[0],events:[event]}]));
-    UA.refreshContextOverlays(ctx);checkbox('Ratsvorgänge').click();await flush();risFeatures(ctx.map)[0].openPopup();
-    const details=[...document.querySelectorAll('.leaflet-popup details')];
-    expect(details).toHaveLength(2);details[0].open=true;details[0].dispatchEvent(new Event('toggle'));await flush();
-    expect(details[0].textContent).toContain('Öffentlicher Beratungsvermerk ohne Datierung');
-    details[1].open=true;details[1].dispatchEvent(new Event('toggle'));await flush();
-    expect(details[1].textContent).toMatch(/nicht dokumentiert/);
+  test.each(['legacy', 'partitioned'])('%s popups open the shared record view without loading hidden history', async kind => {
+    UA.RisDetails = { open: jest.fn() };
+    const sourceContext = { level: 'region', publisher: 'Region Hannover', documentKind: 'Drucksache',
+      status: 'proposal', documentDate: '2026-06-01' };
+    const entry = { ...records[0], eventCount: 65, relationshipCount: 1, sourceContext };
+    if (kind === 'legacy') UA.RisCatalogue.loadMap.mockResolvedValue(snapshot([point], [entry]));
+    else {
+      UA.RisCatalogue.loadMap.mockResolvedValue(partitionSnapshot([partitionFeature()]));
+      UA.RisCatalogue.loadFeatureRecords = jest.fn().mockResolvedValue({ records: [entry],
+        links: [{ recordId: 'A', accuracy: 'official' }], nextPage: null, complete: true });
+    }
+    UA.RisCatalogue.loadRecordEvents = jest.fn();
+    UA.RisCatalogue.loadRecordRelationships = jest.fn();
+    UA.refreshContextOverlays(ctx); checkbox('Ratsvorgänge').click(); await flush();
+    risFeatures(ctx.map)[0].openPopup(); await flush();
+    const content = document.querySelector('.leaflet-popup-content');
+    expect(content.textContent).toContain('Region Hannover');
+    expect(content.textContent).toContain('Dokumentdatum: 2026-06-01');
+    const open = [...content.querySelectorAll('button')].find(b => b.textContent === 'Verlauf und Zusammenhänge');
+    expect(open).toBeDefined(); open.click();
+    expect(UA.RisDetails.open).toHaveBeenCalledWith(ctx, 'A', { trigger: ctx.map.getContainer() });
+    expect(UA.RisCatalogue.loadRecordEvents).not.toHaveBeenCalled();
+    expect(UA.RisCatalogue.loadRecordRelationships).not.toHaveBeenCalled();
   });
 
 });

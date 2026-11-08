@@ -135,7 +135,8 @@
       selectedAccidentIds: null,
       exportOptions:      {},
       reportOptions:      {},
-      contextOverlays:    { active: { slope: false, traffic: false } }
+      contextOverlays:    { active: { slope: false, traffic: false, ris: false } },
+      risView:            UA.RisViewState?.normalize()
     };
   }
 
@@ -159,6 +160,7 @@
         );
       }
     }
+    if (UA.RisViewState) result.risView = UA.RisViewState.normalize(overrides.risView);
     return result;
   }
 
@@ -276,7 +278,8 @@
         context: {
           selectionQuery:  _selectionQueryFromScene(scene),
           exportOptions:   _clone(scene.exportOptions || {}),
-          contextOverlays: _clone(scene.contextOverlays || _defaultContext().contextOverlays)
+          contextOverlays: _clone(scene.contextOverlays || _defaultContext().contextOverlays),
+          risView:         UA.RisViewState?.normalize(scene.risView)
         },
         layers:   layers ? _clone(layers) : {}
       });
@@ -331,12 +334,17 @@
         layers:          _clone(core.layerVisibility || {}),
         accidentView:    core.accidentView || 'bySeverity',
         exportOptions:   _clone((ts.context && ts.context.exportOptions) || {}),
-        contextOverlays: _clone((ts.context && ts.context.contextOverlays) || { active: { slope: false, traffic: false } })
+        contextOverlays: _clone((ts.context && ts.context.contextOverlays) || _defaultContext().contextOverlays),
+        risView:         UA.RisViewState?.normalize(ts.context?.risView)
       };
       // Carry context-overlay state from the contextRoad layer if present.
       const ctxLayer = ts.layers && ts.layers[LAYER_TYPES.CONTEXT_ROAD];
       if (ctxLayer && ctxLayer.meta && ctxLayer.meta.contextOverlays) {
+        const ris = scene.contextOverlays.active?.ris === true;
         scene.contextOverlays = _clone(ctxLayer.meta.contextOverlays);
+        // Road metadata may override road presentation, never the independent
+        // catalogue layer selection captured by the scene.
+        scene.contextOverlays.active = Object.assign({}, scene.contextOverlays.active, { ris });
       }
       if (UA.MapScene && typeof UA.MapScene.create === 'function') {
         return UA.MapScene.create(scene);

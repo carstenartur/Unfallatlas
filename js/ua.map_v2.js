@@ -1149,6 +1149,9 @@
   // ----------------------------
 
   const CONTEXT_OVERLAY_KINDS = ['slope', 'traffic'];
+  // RIS has its own catalogue loader. Only URL serialization includes it in
+  // this list; road geometry/tile/legend work stays scoped to the two above.
+  const MAP_LAYER_KINDS = ['slope', 'traffic', 'ris'];
   const CONTEXT_TILE_DEFAULT_ZOOM = 13;
 
   function _lonToTileX(lon, z) {
@@ -1222,17 +1225,17 @@
   }
 
   UA.parseMapLayerCsv = function parseMapLayerCsv(raw) {
-    const out = { slope: false, traffic: false };
+    const out = { slope: false, traffic: false, ris: false };
     if (!raw) return out;
     const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
-    for (const p of parts) if (p in out) out[p] = true;
+    for (const p of parts) if (MAP_LAYER_KINDS.includes(p)) out[p] = true;
     return out;
   };
 
   UA.serializeMapLayerCsv = function serializeMapLayerCsv(active) {
     const a = active || {};
     const out = [];
-    for (const k of CONTEXT_OVERLAY_KINDS) if (a[k]) out.push(k);
+    for (const k of MAP_LAYER_KINDS) if (a[k]) out.push(k);
     return out.join(',');
   };
 
@@ -1242,7 +1245,7 @@
   function _ensureOverlayRegistry(ctx) {
     if (!ctx.contextOverlays) {
       ctx.contextOverlays = {
-        active:  { slope: false, traffic: false },
+        active:  { slope: false, traffic: false, ris: false },
         layers:  { slope: null,  traffic: null  },
         pending: { slope: false, traffic: false },
         // The controls are managed by refreshContextOverlays; track
@@ -1255,7 +1258,7 @@
       ctx.contextOverlays.pending = { slope: false, traffic: false };
     }
     if (!ctx.contextOverlays.active) {
-      ctx.contextOverlays.active = { slope: false, traffic: false };
+      ctx.contextOverlays.active = { slope: false, traffic: false, ris: false };
     }
     if (!ctx.contextOverlays.layers) {
       ctx.contextOverlays.layers = { slope: null, traffic: null };

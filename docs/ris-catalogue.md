@@ -302,6 +302,57 @@ Das Schließen des Menüs schaltet keine Karteninhalte ab. Lesbare Beschriftunge
 Tastaturbedienung, Fokusrückgabe und mindestens 44 CSS-Pixel große Berührungsziele
 ergänzen die zurückhaltend durchscheinende Oberfläche.
 
+## Ratsvorgänge über die URL teilen
+
+Die Ebene **Ratsvorgänge** ist Bestandteil des gemeinsamen URL-Zustands:
+`mapLayer=ris` schaltet sie ein; mehrere Ebenen werden beispielsweise als
+`mapLayer=slope,traffic,ris` gespeichert. Das Weitergeben der Adresse erhält
+auch die bestehenden Unfallfilter, den Kartenausschnitt und die markierte Fläche.
+Ein expliziter Link hat Vorrang vor zuvor lokal gespeicherten Einstellungen.
+
+Karten-Popups und Suchtreffer öffnen über **Verlauf und Zusammenhänge** dieselbe
+eigenständige Vorgangsansicht. Dafür ist keine Geometrie erforderlich. Das Öffnen
+eines Dokuments verändert weder die gewählten Kartenebenen noch den Ausschnitt.
+**Ansicht teilen** kopiert die vollständige aktuelle URL. Ein- und Ausklappen ist
+ebenfalls teilbar; **Schließen** entfernt die Dokumentauswahl aus dem Link.
+
+| URL-Parameter | Bedeutung | Standard |
+|---|---|---|
+| `mapLayer` | Aktive zusätzliche Ebenen, einschließlich `ris` | Keine |
+| `risSelectionOnly=1` | RIS-Karte auf die markierte Fläche beschränken | Aus |
+| `risRecord` | Stabile ID des geöffneten Vorgangs im Stadtkatalog | Kein Vorgang |
+| `risView` | `history`, `relations` oder `locations` | `history` |
+| `risCollapsed=1` | Detailansicht eingeklappt | Aus |
+| `risEventsPage` | Sichtbare Seite der Beratungen, ab 0 | 0 |
+| `risRelationsPage` | Sichtbare Seite direkter Querverweise, ab 0 | 0 |
+| `risRelatedPage` | Sichtbare Seite verknüpfter Vorgänge, ab 0 | 0 |
+| `risLocationsPage` | Sichtbare Seite der Ortsbelege/Kartenlagen, ab 0 | 0 |
+
+Standardwerte werden weggelassen. Jede Datenseite wird gezielt geladen; eine große
+Seitenzahl in einem Link löst keinen Nachladezyklus über sämtliche Vorgänger aus.
+Ungültige Seiten werden berichtigt. Beim Stadtwechsel werden Dokumentauswahl,
+Detailseiten und Flächenfilter zurückgesetzt, die gewünschte RIS-Ebene bleibt erhalten.
+
+Die Prozesslinie zeigt für jede dokumentierte Beratung Datum, Gremium, Ergebnis,
+Quellenbeleg und Link zum amtlichen Sitzungsnachweis. Datumslose Angaben stehen
+gesondert. Eine fehlende Historie, ein belegter leerer Bestand und ein unvollständiger
+Abruf werden unterschiedlich erläutert. Die Dokumentart wird nicht als
+Verfahrensfortschritt ausgelegt. Die zeitliche Sortierung bezieht sich ausdrücklich
+auf die gerade sichtbare Seite.
+
+**Zusammenhänge** trennt direkte amtliche Querverweise von Vorgängen, die über weitere
+Dokumente verbunden sind. Eine Verbindung allein belegt keine Reihenfolge oder
+Zuständigkeit. Verfügbare Ziele lassen sich intern öffnen; amtliche Quellen bleiben
+direkt erreichbar. **Orte** zeigt Fundstellen und bietet für verortete Einträge den
+Übergang zur Karte. Auf Telefon und Tablet ist die Ansicht einklappbar und schließbar.
+
+Gestalterische Referenz für die vertikale Prozesslinie:
+[Ratsatlas Bonn von Damian Paderta](https://github.com/daimpad/ratsatlas-bonn/tree/bcefc9e9e5931689ba10da55ebe56c92f01761d6),
+insbesondere `site/app.js` (`stepHtml`) und `site/style.css`. Die Unfallwerkbank
+verwendet eine eigene Umsetzung für ihre stadtübergreifenden, seitenweise geladenen
+Katalogdaten. Quellenmodell und Verfahrensannahmen des Ratsatlas werden nicht
+übertragen; siehe [Drittanbieterhinweise](THIRD_PARTY_NOTICES.md).
+
 ## Skalierung einordnen
 
 Zusätzliche Indizes und kleine komprimierte Teile erhöhen den Speicherbedarf der

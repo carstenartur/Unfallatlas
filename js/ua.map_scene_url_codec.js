@@ -92,8 +92,11 @@
         const layers = [];
         if (ovl.slope)   layers.push('slope');
         if (ovl.traffic) layers.push('traffic');
+        if (ovl.ris)     layers.push('ris');
         if (layers.length) set('mapLayer', layers.join(','));
       }
+
+      for (const [key, value] of Object.entries(UA.RisViewState?.toQuery(scene.risView) || {})) set(key, value);
 
       return p.toString();
     },
@@ -139,10 +142,12 @@
 
       let mapLayerSlope   = false;
       let mapLayerTraffic = false;
+      let mapLayerRis     = false;
       if (qs.has('mapLayer')) {
-        const parts = qs.get('mapLayer').split(',');
+        const parts = qs.get('mapLayer').split(',').map(part => part.trim());
         mapLayerSlope   = parts.includes('slope');
         mapLayerTraffic = parts.includes('traffic');
+        mapLayerRis     = parts.includes('ris');
       }
 
       return UA.MapScene.create({
@@ -182,8 +187,9 @@
         },
         accidentView: get('accidentView', 'bySeverity'),
         contextOverlays: {
-          active: { slope: mapLayerSlope, traffic: mapLayerTraffic }
-        }
+          active: { slope: mapLayerSlope, traffic: mapLayerTraffic, ris: mapLayerRis }
+        },
+        risView: UA.RisViewState?.fromSearch(qs)
       });
     }
   };
