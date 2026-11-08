@@ -1,0 +1,132 @@
+{
+  "countDistribution": {
+    "url": "https://opendata.duesseldorf.de/sites/default/files/Mannesmannufer_IN_OUT_2024_0.csv",
+    "retrievedAt": "2026-11-08T19:46:32.423995+00:00",
+    "status": 200,
+    "mediaType": "text/csv",
+    "bytes": 408091,
+    "sha256": "06f2f90fb145b224077f69f777aff345007ca7612f916b58ba9a764f6e1576f7",
+    "md5": "f1f4a4606b8858af8ee4be8e08b340ed"
+  },
+  "stationDistribution": {
+    "url": "https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_2.csv",
+    "retrievedAt": "2026-11-08T19:45:55.431954+00:00",
+    "status": 200,
+    "finalUrl": "https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_2.csv",
+    "mediaType": "text/csv",
+    "bytes": 1692,
+    "sha256": "e436955bd45fc322d62cd96b9cbdcc353d5ea9256a950785fcee8d8cfaed32db",
+    "storedAs": {
+      "file": "stations-original.csv.gz",
+      "compression": "gzip; mtime=0; original CRLF retained",
+      "bytes": 646,
+      "sha256": "f692cb7542c07e325f5280a09cdb17e19933f7780e2892c97a88ec593e257778"
+    }
+  },
+  "countLicenseMetadata": {
+    "url": "https://www.govdata.de/ckan/dataset/wetterabhangige-jahresubersicht-der-dauerzahlstellen-radverkehr-2024.ttl",
+    "retrievedAt": "2026-11-08T19:45:55.433509+00:00",
+    "status": 200,
+    "finalUrl": "https://www.govdata.de/ckan/dataset/wetterabhangige-jahresubersicht-der-dauerzahlstellen-radverkehr-2024.ttl",
+    "mediaType": "text/turtle",
+    "bytes": 67753,
+    "sha256": "4aeec43fc8dcc639d88aec472c381378585c45c9076a2206aab833751642b8bc",
+    "storedAs": {
+      "file": "duesseldorf-2024.ttl.gz",
+      "compression": "gzip; mtime=0",
+      "bytes": 6530,
+      "sha256": "26134c386202b21fce01618ef46de840d64f8762d2f45184b9f3ee3d6740402a"
+    }
+  },
+  "stationLicenseMetadata": {
+    "url": "https://www.govdata.de/ckan/dataset/standorte-der-dauerzahlstellen-radverkehr-in-dusseldorf.ttl",
+    "retrievedAt": "2026-11-08T19:45:55.432800+00:00",
+    "status": 200,
+    "finalUrl": "https://www.govdata.de/ckan/dataset/standorte-der-dauerzahlstellen-radverkehr-in-dusseldorf.ttl",
+    "mediaType": "text/turtle",
+    "bytes": 9955,
+    "sha256": "e5d42f0034bf66ec0dd58afd9d6abbba666f9ab88b82f35a81272894f900cf12",
+    "storedAs": {
+      "file": "duesseldorf-stations.ttl.gz",
+      "compression": "gzip; mtime=0",
+      "bytes": 2168,
+      "sha256": "e06045ac22de6cdeb663be213f1c8621732045f791e577a69e34cd890e49e983"
+    }
+  },
+  "excerpt": {
+    "file": "mannesmannufer2024-original-excerpt.csv",
+    "physicalLines": [
+      1,
+      2,
+      3,
+      2163,
+      2164,
+      7203,
+      8784
+    ],
+    "bytes": 408,
+    "sha256": "14cea34c8d8216a067ecfa01a90c52c97abffe2c28e1573f3b438ca17d608753",
+    "operation": "Concatenate unchanged complete original header and selected original physical rows, preserving UTF-8 BOM and CRLF.",
+    "storedAs": {
+      "file": "mannesmannufer2024-original-excerpt.csv.gz",
+      "compression": "gzip; mtime=0; original CRLF retained",
+      "bytes": 251,
+      "sha256": "78a3a4f9646ab55dc6c8a607e13b2e654c89891f9e9edece1fd124af015c6b78"
+    }
+  },
+  "independentPython": {
+    "countRows": 8783,
+    "observations": 17566,
+    "zeroCells": 1223,
+    "missingCountCells": 0,
+    "distinctLabels": 8783,
+    "gaps": [
+      {
+        "previous": "31-03-2024 01:00:00",
+        "next": "31-03-2024 03:00:00",
+        "labelHours": 2
+      }
+    ],
+    "stationRows": 19,
+    "selectedStation": {
+      "standort": "mannesmann ufer-totem 01",
+      "installiert": "10.12.2013",
+      "latitude": "51.22015",
+      "longitude": "6.76712",
+      "kommentar": "3 schleifenpaare unter 6 cm steine gelegt totem am 27.10.2014 installiert"
+    },
+    "method": "Independent Python csv.DictReader/datetime parsing of complete actual original files, without provider code."
+  },
+  "independentProvider": {
+    "coverage": {
+      "rowCount": 8783,
+      "missingCountCells": 0,
+      "gaps": [
+        {
+          "previous": "31-03-2024 01:00:00",
+          "next": "31-03-2024 03:00:00",
+          "labelHours": 2
+        }
+      ],
+      "observationCount": 17566,
+      "stationCount": 1
+    },
+    "exactIndependentComparisons": 17566,
+    "wrongCityOrModeObservations": 0,
+    "countSourceClock": "2026-11-08T19:46:32.423995+00:00",
+    "geometrySourceClock": "2026-11-08T19:45:55.431954+00:00",
+    "originalHash": "06f2f90fb145b224077f69f777aff345007ca7612f916b58ba9a764f6e1576f7",
+    "originalStationHash": "e436955bd45fc322d62cd96b9cbdcc353d5ea9256a950785fcee8d8cfaed32db"
+  },
+  "wgs84Corroboration": {
+    "url": "https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_1.geojson",
+    "retrievedAt": "2026-11-08T19:51:59.478579+00:00",
+    "status": 200,
+    "mediaType": "application/geo+json",
+    "bytes": 3960,
+    "sha256": "575a0958400030f50967be6948bb582532286e456b3c0a4729a00b604fdbdd84",
+    "md5": "53c9dbd3397abec517575507a0f184e6",
+    "features": 19,
+    "exactStationCoordinateComparisons": 19
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "url": "https://www.bast.de/DE/Themen/Digitales/HF_1/Massnahmen/verkehrszaehlung/Daten/2023_1/Jawe2023.csv?view=renderTcDataExportCSV&strTyp=A",
+  "retrievedAt": "2026-11-08T19:32:15.636750+00:00",
+  "status": 200,
+  "finalUrl": "https://www.bast.de/DE/Themen/Digitales/HF_1/Massnahmen/verkehrszaehlung/Daten/2023_1/Jawe2023.csv?view=renderTcDataExportCSV&strTyp=A",
+  "mediaType": "text/csv;charset=ISO-8859-15",
+  "bytes": 1878927,
+  "sha256": "5108764655cc3d75878a887d4631f787d8216c54bb3fc3b63460c1a7b0fcb550",
+  "excerpt": {
+    "file": "jawe2023-original-excerpt.csv",
+    "originalPhysicalLines": [
+      1,
+      2,
+      10,
+      1236
+    ],
+    "bytes": 5576,
+    "sha256": "86891ba55684167d25cd857e73ebff1427254dda73f953f35b2a28fed6683da3",
+    "operation": "Concatenate unmodified original header and selected complete original physical rows; retain ISO-8859-15 and line endings."
+  },
+  "fieldDescription": {
+    "url": "https://www.bast.de/DE/Themen/Digitales/HF_1/Massnahmen/verkehrszaehlung/pdf-dateien/DZ-Abkuerzungen-Beschreibung.pdf?__blob=publicationFile",
+    "retrievedAt": "2026-11-08T19:32:15.637749+00:00",
+    "status": 200,
+    "finalUrl": "https://www.bast.de/DE/Themen/Digitales/HF_1/Massnahmen/verkehrszaehlung/pdf-dateien/DZ-Abkuerzungen-Beschreibung.pdf?__blob=publicationFile",
+    "mediaType": "application/pdf;charset=UTF-8",
+    "bytes": 521039,
+    "sha256": "70d7d253106f44b1b03fad8b99f3a89420ff8625d09fe6007b2bcb14771a2216"
+  },
+  "licenseMetadata": {
+    "url": "https://www.govdata.de/ckan/dataset/automatische-zahlstellen-auf-autobahnen-und-bundesstrassen.ttl",
+    "retrievedAt": "2026-11-08T19:38:10.579533+00:00",
+    "status": 200,
+    "mediaType": "text/turtle",
+    "bytes": 29686,
+    "sha256": "19d2bf5a93de0bdffef4aa7bb663f0b544dc805e0facc0a67cd1a2b8df977cb0",
+    "storedAs": {
+      "file": "govdata-metadata.ttl.gz",
+      "compression": "gzip; mtime=0",
+      "bytes": 3288,
+      "sha256": "b80ce671a3d97245ef7f2d2d5c7f2b71dce9cc5c50a6c584b5164c80580df711"
+    }
+  },
+  "independentValidation": {
+    "originalHash": "5108764655cc3d75878a887d4631f787d8216c54bb3fc3b63460c1a7b0fcb550",
+    "coverage": {
+      "stationCount": 2116,
+      "stationsWithoutCount": 559,
+      "observationCount": 4671
+    },
+    "pythonExactObservationComparisons": 4671,
+    "nonOptInObservations": 0,
+    "geographicCoordinates": "Original WGS84 copied without transformation",
+    "firstObservedSourceClock": "2026-11-08T19:32:15.636750+00:00",
+    "utmWgsConsistency": {
+      "library": "proj4 2.22.0",
+      "points": 2116,
+      "medianMeters": 0.47172040812264754,
+      "maxMeters": 0.7051502267109575,
+      "limitation": "Independent coordinate representation consistency check only, with metre-rounded original UTM coordinates and ETRS89/WGS84 treated alike. Not station accuracy, road alignment or a production transform."
+    }
+  }
+}

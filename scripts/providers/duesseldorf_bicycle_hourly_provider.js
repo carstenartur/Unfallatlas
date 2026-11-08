@@ -1,0 +1,163 @@
+"use strict";
+
+// Optional source pilot: actual published Mannesmannufer hourly values and
+// a separately licensed official station point. No road matching or resampling.
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const {TextDecoder} = require('node:util');
+const traffic = require('../../js/ua.traffic_provider');
+const {parseCsv} = require('./koeln_kfz_link_csv_provider');
+
+const SOURCE_ID = 'traffic.count.duesseldorf-mannesmannufer-hourly-2024';
+const DISTRIBUTION_URL = 'https://opendata.duesseldorf.de/sites/default/files/Mannesmannufer_IN_OUT_2024_0.csv';
+const STATIONS_URL = 'https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_2.csv';
+const DISTRIBUTION_SHA256 = '06f2f90fb145b224077f69f777aff345007ca7612f916b58ba9a764f6e1576f7';
+const STATIONS_SHA256 = 'e436955bd45fc322d62cd96b9cbdcc353d5ea9256a950785fcee8d8cfaed32db';
+const DISTRIBUTION_BYTES = 408091;
+const STATIONS_BYTES = 1692;
+const COUNT_HEADER_SHA256 = 'ad6dc3e2d2643877c72abf7041bedac470b7a21b725367be29c9f85ec354e2fc';
+const STATION_HEADER = 'standort;installiert;latitude;longitude;kommentar';
+const STATION_NAME = 'mannesmann ufer-totem 01';
+const DIRECTIONS = Object.freeze(['Mannesmann Ufer Stadteinwaerts (Ri. Sueden)', 'Mannesmann Ufer Stadtauswaerts (Ri. Norden)']);
+const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
+
+class DuesseldorfHourlyError extends Error {
+  constructor(code, message) {super(`${code}: ${message}`); this.name = 'DuesseldorfHourlyError'; this.code = code;}
+}
+function fail(code, message) {throw new DuesseldorfHourlyError(code, message);}
+
+function csv(bytes, limit) {
+  if (!Buffer.isBuffer(bytes) || bytes.length > limit) fail('invalid_distribution', 'Expected bounded original CSV bytes');
+  let text;
+  try {text = new TextDecoder('utf8', {fatal: true}).decode(bytes);} catch (_) {fail('invalid_utf8', 'Original CSV must be UTF8');}
+  try {return parseCsv(text);} catch (error) {fail('invalid_csv', error.message);}
+}
+
+function stationPoint(bytes) {
+  const {delimiter, rows} = csv(bytes, 10000);
+  if (delimiter !== ';' || rows[0].join(';') !== STATION_HEADER) fail('invalid_header', 'Official station columns changed');
+  const seen = new Set();
+  let selected;
+  for (const row of rows.slice(1)) {
+    if (row.length !== 5) fail('row_width', 'Invalid station row');
+    const [name, installed, lat, lon, notes] = row;
+    if (!name || seen.has(name)) fail('duplicate_station', 'Missing or duplicated official station name');
+    seen.add(name);
+    if (![lat, lon].every(value => /^\d+\.\d+$/.test(value)) || Number(lat) < 51 || Number(lat) > 52 || Number(lon) < 6 || Number(lon) > 7)
+      fail('invalid_coordinate', 'Invalid official Düsseldorf station point');
+    if (name === STATION_NAME) selected = {geometry: {type: 'Point', coordinates: [Number(lon), Number(lat)]}, installed, notes};
+  }
+  if (!selected) fail('missing_station', 'Exact reviewed official Mannesmannufer station absent');
+  return selected;
+}
+
+function sourceTime(value) {
+  const match = /^(\d{2})-(\d{2})-(2024) (\d{2}):00:00$/.exec(value);
+  if (!match || Number(match[4]) > 23) fail('invalid_time', value);
+  const [, day, month, year, hour] = match;
+  // UTC is used only as a calendar-label arithmetic device. The source has no
+  // timezone; this number is never emitted as a physical instant or UTC clock.
+  const label = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour));
+  const date = new Date(label);
+  if (date.getUTCFullYear() !== 2024 || date.getUTCMonth() !== Number(month) - 1 || date.getUTCDate() !== Number(day)) fail('invalid_time', value);
+  return {label, id: `${year}${month}${day}T${hour}`};
+}
+
+function parseHourlyCsv(countBytes, stationBytes) {
+  const station = stationPoint(stationBytes);
+  const {delimiter, rows} = csv(countBytes, 1000000);
+  if (delimiter !== ';' || sha256(rows[0].join(';')) !== COUNT_HEADER_SHA256) fail('invalid_header', 'Official count columns changed');
+  const observations = [], gaps = [], seen = new Set();
+  let previous, missingCountCells = 0;
+  for (const row of rows.slice(1)) {
+    if (row.length !== 6) fail('row_width', 'Incomplete or extended original count row');
+    const time = sourceTime(row[0]);
+    if (seen.has(row[0])) fail('duplicate_time', 'Ambiguous repeated source time label');
+    seen.add(row[0]);
+    if (previous) {
+      const hours = (time.label - previous.label) / 3600000;
+      if (hours <= 0) fail('unordered_time', 'Source rows are not chronological');
+      if (hours !== 1) gaps.push({previous: previous.text, next: row[0], labelHours: hours});
+    }
+    previous = {...time, text: row[0]};
+    for (const [i, direction] of DIRECTIONS.entries()) {
+      const text = row[i + 1];
+      if (text === '') {missingCountCells += 1; continue;}
+      if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text))) fail('invalid_count', text);
+      observations.push({observationId: `duesseldorf-mannesmannufer-${time.id}-${i === 0 ? 'in' : 'out'}`,
+        measurementType: 'count', mode: 'bicycle', year: 2024, period: `Stundenwert, Quellzeit: ${row[0]}`,
+        value: Number(text), unit: 'Fahrräder/Stunde', direction, geometry: station.geometry,
+        qualityNotes: [
+          'Originaler Stundenwert; Zeitzone und genaue Intervallgrenzen nicht angegeben. Keine Tagesumrechnung oder Richtungssumme.',
+          'Zeitlücken bleiben Lücken; wiederholte Zeitlabels werden nicht ohne amtliche Unterscheidung zusammengefasst.',
+          `Amtliche Standortbezeichnung: ${STATION_NAME}; installiert laut Standortdatei: ${station.installed}; ${station.notes}.`,
+          'Amtlicher Stationspunkt; Standortdistribution geändert 31.03.2022. Keine belegte Lagegenauigkeit oder OSM-/Straßenzuordnung.',
+        ]});
+    }
+  }
+  return {rowCount: rows.length - 1, missingCountCells, gaps, observations};
+}
+
+function createDescriptor(options) {
+  const opts = options || {};
+  for (const key of ['retrievedAt', 'stationsRetrievedAt'])
+    if (typeof opts[key] !== 'string' || !opts[key].includes('T')) fail('invalid_date', `${key} requires an actual retrieval timestamp`);
+  const base = {id: SOURCE_ID, publisher: 'Landeshauptstadt Düsseldorf – Amt für Verkehrsmanagement',
+    datasetTitle: 'Mannesmannufer IN OUT – Wetterabhängige Jahresübersicht Dauerzählstelle 2024',
+    datasetUrl: 'https://opendata.duesseldorf.de/dataset/wetterabh%C3%A4ngige-jahres%C3%BCbersicht-der-dauerz%C3%A4hlstellen-radverkehr-2024',
+    distributionUrl: DISTRIBUTION_URL, licenseId: 'DL-DE-BY-2.0',
+    licenseName: 'Datenlizenz Deutschland – Namensnennung – Version 2.0', licenseUrl: 'https://www.govdata.de/dl-de/by-2-0',
+    requiredAttribution: 'Landeshauptstadt Düsseldorf', temporalCoverage: '2024-01-01/2024-12-31', spatialCoverage: 'Düsseldorf – Dauerzählstelle Mannesmannufer',
+    contentHash: DISTRIBUTION_SHA256, changedOrDerived: true,
+    changeNotice: 'Originale UTF8-CSV-Stundenwerte richtungsgetrennt normalisiert und mit dem ausdrücklich benannten amtlichen Standortpunkt verbunden; keine Tagesumrechnung, Lückenfüllung oder OSM-Zuordnung.',
+    permissions: {permitsRedistribution: true, permitsDerivatives: true, commercialUseAllowed: true},
+    measurementType: 'count', modes: ['bicycle'], unit: 'Fahrräder/Stunde', priority: 1};
+  // Both acquisition clocks use the existing strict SourceManifest validator.
+  // Only the primary count descriptor is emitted; geometry has its own literal
+  // provenance/clock below, not a fictitious second count observation.
+  traffic.normalizeDescriptor({...base, retrievedAt: opts.stationsRetrievedAt});
+  return traffic.normalizeDescriptor({...base, retrievedAt: opts.retrievedAt, qualityNotes: [
+    'Historische Richtungs-Stundenwerte 2024; kein DTV oder tägliches Verkehrsvolumen. Originale Zeitlabels ohne belegte Zeitzone/Intervallgrenzen.',
+    'Original: 8.783 eindeutige Stundenlabels; 31.03.2024 02:00 fehlt, 27.10.2024 02:00 steht nur einmal. Keine Zeitzonen-/Sommerzeitrekonstruktion.',
+    `Separate amtliche Standortdistribution: ${STATIONS_URL}; SHA256 ${STATIONS_SHA256}; Lizenz DL-DE-Zero-2.0; Abruf ${opts.stationsRetrievedAt}; Distributionsänderung 2022-03-31.`,
+    'Koordinaten aus expliziter Standortzeile mannesmann ufer-totem 01; keine belegte Lagegenauigkeit, Straßenpassung oder OSM-Way-ID.',
+  ]});
+}
+
+function confinedFile(root, relative) {
+  if (typeof relative !== 'string' || !relative || path.isAbsolute(relative)) fail('unsafe_path', 'Expected confined relative file path');
+  const file = path.resolve(root, relative), rel = path.relative(root, file);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) fail('unsafe_path', 'File escapes allowedRoot');
+  let cursor = root;
+  for (const part of rel.split(path.sep)) {cursor = path.join(cursor, part); if (fs.lstatSync(cursor).isSymbolicLink()) fail('unsafe_symlink', 'File path contains symlink');}
+  const stat = fs.statSync(file);
+  if (!stat.isFile() || stat.size > 1000000) fail('invalid_distribution', 'Not a bounded regular file');
+  return file;
+}
+
+function readPinned(file, expectedHash, expectedBytes) {
+  const bytes = fs.readFileSync(file);
+  if (sha256(bytes) !== expectedHash) fail('distribution_hash_mismatch', 'Original distribution bytes changed');
+  if (bytes.length !== expectedBytes) fail('distribution_size_mismatch', 'Original distribution size changed');
+  return bytes;
+}
+
+function createDuesseldorfBicycleHourlyProvider(options) {
+  const opts = options || {};
+  if (opts.expectedDistributionSha256 !== DISTRIBUTION_SHA256 || opts.expectedBytes !== DISTRIBUTION_BYTES ||
+      opts.expectedStationsSha256 !== STATIONS_SHA256 || opts.expectedStationsBytes !== STATIONS_BYTES)
+    fail('unreviewed_distribution', 'Both reviewed original hashes and byte sizes are required');
+  const descriptor = createDescriptor(opts);
+  if (typeof opts.allowedRoot !== 'string') fail('unsafe_path', 'Expected explicit local allowedRoot');
+  const root = fs.realpathSync(opts.allowedRoot);
+  const csvPath = confinedFile(root, opts.csvPath), stationsPath = confinedFile(root, opts.stationsPath);
+  const parsed = parseHourlyCsv(readPinned(csvPath, DISTRIBUTION_SHA256, DISTRIBUTION_BYTES), readPinned(stationsPath, STATIONS_SHA256, STATIONS_BYTES));
+  const provider = traffic.createProvider({descriptor, canProvide: context =>
+    ['Düsseldorf', 'Duesseldorf'].includes(context.city) && context.mode === 'bicycle', loadObservations: async () => parsed.observations});
+  return Object.freeze({...provider, coverage: Object.freeze({rowCount: parsed.rowCount, missingCountCells: parsed.missingCountCells,
+    gaps: parsed.gaps, observationCount: parsed.observations.length, stationCount: 1})});
+}
+
+module.exports = Object.freeze({SOURCE_ID, DISTRIBUTION_URL, STATIONS_URL, DISTRIBUTION_SHA256, DISTRIBUTION_BYTES,
+  STATIONS_SHA256, STATIONS_BYTES, DuesseldorfHourlyError, parseHourlyCsv, createDescriptor, createDuesseldorfBicycleHourlyProvider});

@@ -162,5 +162,18 @@ Für die vollständige Umsetzung von #413 fehlen weiterhin:
   Popups und Exporte;
 - manuell gegen die Originalquellen geprüfte Goldfälle.
 
-Bis diese Schritte abgeschlossen sind, bleiben die Provider opt-in und der
-ausgelieferte Standardbestand qualitativ.
+Ein weiterer optionaler, tatsächlich gegen Originalbytes geprüfter Provider
+importiert die überregionalen BASt-Jahres-DTV 2023 einschließlich amtlicher
+WGS84-Stationspunkte. Er erhält 4.671 getrennte Querschnitts-/Richtungsbeobachtungen
+aus 1.557 Stationen; weitere 559 Stationen besitzen keine Kfz-Jahreswerte.
+Er führt kein Straßenmatching und keine Produktionsaktivierung aus. Siehe
+[BASt-Jahres-DTV-Provider](bast-annual-dtv-provider.md).
+
+Der ebenfalls optionale [Düsseldorfer Stundenwert-Pilot](duesseldorf-bicycle-hourly-provider.md)
+erhält 17.566 richtungsgetrennte Fahrrad-Stundenwerte der Station Mannesmannufer
+für 2024 mit separat belegtem amtlichem Stationspunkt. Er ergänzt Köln als
+zweite gegen Originaldaten geprüfte kommunale Quelle. Jahres-DTV und
+Fahrrad-Stundenwerte bleiben unterschiedliche Messgrößen; dieser Quellenbaustein
+behauptet keine Straßenpassung oder vollständige Abnahme von #413.
+
+Die Provider bleiben opt-in; der ausgelieferte Standardbestand bleibt qualitativ.
