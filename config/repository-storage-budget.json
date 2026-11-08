@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "contract": "unfallwerkbank-repository-storage/v1",
+  "purpose": "Bound new Git storage while preserving accepted media and immutable legacy downloads. A PR is checked against its baseline policy, so a simultaneous policy increase cannot authorize oversized data.",
+  "limits": {
+    "maxSingleFileBytes": 16777216,
+    "maxTrackedBytes": 335544320,
+    "maxChangedFiles": 5000,
+    "maxAddedFiles": 1000,
+    "maxDeletedFiles": 1000,
+    "maxRewrittenBytes": 134217728,
+    "maxPositiveGrowthBytes": 67108864,
+    "maxNetGrowthBytes": 33554432,
+    "maxEvidenceBytes": 4194304,
+    "maxEvidenceFileBytes": 1048576,
+    "maxPublishedDataBytes": 167772160
+  },
+  "evidencePrefixes": ["qa/", "docs/release-evidence/", "docs/storage-evidence/"],
+  "diagnosticPrefixes": ["out/qa/", "coverage/", "test-results/", "playwright-report/", ".build/"],
+  "rawDataPrefixes": ["raw/", "data/raw/", "out/raw/"],
+  "legacyReleaseAssets": {
+    "unfallatlas-website-2.1.0.zip": "909bb7eff07fc67a78d7e905de8a0b99df1ea4c4",
+    "unfallatlas-website-2.1.1.zip": "9c7a7818bdb8fc1a2c813476a92c431cfeb6f4b2",
+    "unfallatlas-website-2.1.2.zip": "72740415c4923a4145fc85ff3ccac14d3c52c05a",
+    "unfallatlas-website-2.1.3.zip": "84d614cc9e888f1bd19df6ab72768d3b3829bd81"
+  }
+}

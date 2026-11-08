@@ -21,6 +21,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  repository-storage:
+    name: Repository storage budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the reviewed tree and its parents
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Check repository storage against the explicit baseline
+        shell: bash
+        env:
+          STORAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          STORAGE_EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Manual rehearsals compare with their real parent; write workflows and
+          # pull requests must supply their event baseline and never initialize it.
+          if [[ "$STORAGE_EVENT" == "workflow_dispatch" ]]; then
+            STORAGE_BASE="$(git rev-parse HEAD^)"
+          fi
+          [[ "$STORAGE_BASE" =~ ^[0-9a-f]{40}$ && "$STORAGE_BASE" != 0000000000000000000000000000000000000000 ]] || {
+            echo "Missing or invalid storage baseline" >&2
+            exit 1
+          }
+          if ! git cat-file -e "$STORAGE_BASE^{commit}"; then
+            git fetch --no-tags --depth=1 origin "$STORAGE_BASE"
+          fi
+          # Depth-two checkout contains both parents for the normal PR/merge path.
+          # For multi-commit pushes, fetch the bounded ancestry needed by the check.
+          if ! git merge-base --is-ancestor "$STORAGE_BASE" HEAD; then
+            git fetch --no-tags --deepen=100 origin
+          fi
+          node scripts/check-repository-storage.js --base "$STORAGE_BASE" --head HEAD --report out/qa/repository-storage.json
+
+      - name: Upload storage evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: repository-storage-evidence
+          path: out/qa/repository-storage.json
+          if-no-files-found: ignore
+          retention-days: 30
+
   tests:
     name: Maven verify (Java 25, Node 26)
     runs-on: ubuntu-latest
