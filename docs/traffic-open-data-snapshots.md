@@ -151,16 +151,28 @@ const observations = await registry.collect({
 oder nicht mehr reproduzierbarer Provider darf nicht stillschweigend den
 qualitativen Fallback verdecken.
 
-## Noch offene Produktionsintegration
+## Nachgewiesene optionale Integration und verbleibende Abnahme
 
-Für die vollständige Umsetzung von #413 fehlen weiterhin:
+Der Kölner Link-CSV-Pilot wurde am 8. November 2026 mit den tatsächlichen
+amtlichen CSV-/Shapefile-Distributionen und einem separat gepinnten OSM-Abruf
+geprüft. Alle 5.197 Beobachtungen besitzen eine exakte Verbindung zur amtlichen
+Geometrie; die anschließende OSM-Zuordnung akzeptiert 2.743 Beobachtungen,
+kennzeichnet 213 als mehrdeutig und lässt 2.241 ohne Zuordnung. Niedrige Qualität,
+Richtung und Messjahre 2016–2019 bleiben erhalten. Diese Zahlen bezeichnen
+verschiedene Prüfschritte und sind keine Behauptung einer vollständigen
+OSM-Zuordnung oder eines aktuellen Messjahres.
 
-- WFS/GML- und XLSX-Parser mit Originalzeilen-/Feature-IDs und Goldwerten;
-- Geometrie- und richtungsbewusstes Matching der Kölner Link-Werte;
-- Coverage-Bericht, Frischeprüfung und sichtbare Warnung bei alten Messständen;
-- Übernahme der ausgewählten Evidenz in Unfall-GeoJSON, Way-Tiles, Sidecar,
-  Popups und Exporte;
-- manuell gegen die Originalquellen geprüfte Goldfälle.
+Die optionale Übernahme in Unfall-GeoJSON und Way-Tiles prüft Originalbytes,
+normalisiertes Artefakt und die tatsächlich verwendeten geordneten Zielgeometrien
+vor jedem Schreiben. Typisierte Quelle, Datentyp, Alter, Qualität und ausgewählte
+Straßenevidenz werden in Popups und Exporten erhalten. Der reale, isolierte
+Kölner Probelauf und seine Grenzen sind in
+[koeln-kfz-link-csv-provider.md](koeln-kfz-link-csv-provider.md) dokumentiert.
+Der veröffentlichte Standardbestand wurde damit nicht auf Zählwerte umgestellt.
 
-Bis diese Schritte abgeschlossen sind, bleiben die Provider opt-in und der
-ausgelieferte Standardbestand qualitativ.
+Für die vollständige Abnahme von #413 fehlen weiterhin zusätzliche unabhängig
+gegen Originaldaten geprüfte Zählquellen, darunter ein überregionaler Bestand,
+und die fachliche Abnahme der schwachen oder gemeinsam zugeordneten
+Straßensegmente. Die generischen Berliner Source-Descriptoren oben ersetzen
+keine geprüften WFS/GML-/XLSX-Importe und zählen nicht als real aktivierte Quellen.
+Die Provider bleiben opt-in; der ausgelieferte Standardbestand bleibt qualitativ.

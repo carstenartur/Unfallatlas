@@ -5,13 +5,8 @@
   // Export templates (optional)
   // --------------------
   const TEMPLATE_DIR = "templates";
-  const DEFAULT_TEMPLATES = {
-    intro: `Bezirksratsantrag (Entwurf) – Unfallwerkbank\n\nBetreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im markierten Bereich\n`,
-    sachverhalt: `Sachverhalt:\nIm markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.\n\nVerletzungsschwere (Ausschnitt):\n{{severity_summary}}`,
-    beschluss: `Beschlussvorschlag:\nDer Bezirksrat bittet die Verwaltung, den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung.\n3) Monitoring: Nach Umsetzung Evaluation anhand Unfallatlas-Daten der Folgejahre.\n`,
-    hinweis: `Hinweis (intern, vor Versand entfernen): Dieser Text wurde automatisiert erzeugt. Link zur Überarbeitung: {{link}}\n`,
-    lizenz: `Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).\n`
-  };
+  // Canonical text source: templates/*.txt; generated offline defaults.
+  const DEFAULT_TEMPLATES = UA.exportTemplateDefaults || {};
 
   async function loadTemplate(name) {
     const url = `${TEMPLATE_DIR}/${name}.txt`;
@@ -245,6 +240,7 @@ if (center) {
 
     const vars = {
       city: CITY_RAW,
+      GREMIUM_QUALIFIER: " (Zuständigkeit vor Einreichung prüfen)",
       bounds: bStr,
       local_total: dev.local.total.toLocaleString(),
       baseline_total: dev.baseline.total.toLocaleString(),

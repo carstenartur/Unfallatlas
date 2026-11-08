@@ -184,7 +184,7 @@ function isAvailable() {
 function buildAiInputV2(structured, features, preselected, contextHints) {
   const meta = structured?.meta || {};
   const gremium = meta.gremium
-    ? { name: meta.gremium.name || '', type: meta.gremium.typ || '' }
+    ? { name: meta.gremium.name || meta.gremium.gremium || '', type: meta.gremium.typ || '' }
     : undefined;
   const filters = meta.filters || {};
   const risSnapshotContext = buildRisSnapshotContext(structured);

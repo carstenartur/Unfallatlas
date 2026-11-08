@@ -11,7 +11,6 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'js/ua.utils.js',
     'js/ua.lifecycle.js',
-    'js/ua.app_v2.js',
     'js/ua.priorities.js',
   ])('%s uses the current cache buster', (asset) => {
     expect(html).toContain(`${asset}?v=${version}`);
@@ -34,9 +33,18 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'js/ua.data_paths.js',
     'js/ua.ai_proposal.js',
-    'js/ua.export_v2.js', 'js/ua.report_v2.js',
+    'js/ua.report_v2.js',
   ])('%s uses the verified RIS rollout version', asset => {
     expect(html).toContain(`${asset}?v=2026-11-07-ris`);
+  });
+
+  test.each(['js/ua.state.js', 'js/ua.app_v2.js'])('%s refreshes confirmed area scope', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-area-name"`);
+  });
+
+  test('both canonical template and export assets load the current defaults', () => {
+    expect(html).toContain('js/ua.export_template_defaults.js?v=2026-11-08"');
+    expect(html).toContain('js/ua.export_v2.js?v=2026-11-08-canonical-templates"');
   });
 
   test.each([

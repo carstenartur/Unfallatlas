@@ -365,6 +365,17 @@
         Für präzisere Anträge bitte zuerst „Bereich markieren" nutzen.
       </div>
 
+      <fieldset style="margin-top:10px; padding:10px; border:1px solid #aaa; border-radius:6px;">
+        <legend>Untersuchungsbereich benennen</legend>
+        <label for="areaNameInput">Bereichsname (von Ihnen bestätigt, kein Mittelpunkt-Treffer)</label>
+        <input id="areaNameInput" type="text" maxlength="240" style="display:block; width:100%; box-sizing:border-box;" placeholder="z. B. Hauptbahnhof / Münsterplatz">
+        <label for="areaSearchTermsInput">Relevante Straßen, Plätze oder Landmarken für die Recherche (mit Semikolon trennen)</label>
+        <input id="areaSearchTermsInput" type="text" maxlength="1500" style="display:block; width:100%; box-sizing:border-box;" placeholder="Münsterplatz; Maximilianstraße; Thomas-Mann-Straße">
+        <button type="button" class="smallBtn" id="btnConfirmAreaName">Bereichsnamen bestätigen</button>
+        <button type="button" class="smallBtn" id="btnResetAreaName">Neutrale Bezeichnung verwenden</button>
+        <div id="areaNameStatus" role="status" aria-live="polite"></div>
+      </fieldset>
+
       <div id="exportHtml" style="margin-top:10px; padding:10px 12px; border:1px solid rgba(0,0,0,.12); border-radius:12px; background:rgba(255,255,255,.85);">
         <div style="color:#666; font-size:12px;">(Report wird erzeugt…)</div>
       </div>
@@ -647,7 +658,7 @@
   <script src="js/ua.bootstrap.js?v=2026-08-01"></script>
   <script src="js/ua.core.js?v=2026-11-08-context"></script>
   <script src="js/ua.utils.js?v=2026-07-19"></script>
-  <script src="js/ua.state.js?v=2026-01-01"></script>
+  <script src="js/ua.state.js?v=2026-11-08-area-name"></script>
   <script src="js/ua.map_layer_registry.js?v=2026-06-28"></script>
   <script src="js/ua.ui.js?v=2026-11-08-context-review"></script>
   <!-- gzip fetch utility — must load before context_layers, accident_provider and data_v2 -->
@@ -695,11 +706,13 @@
   <script src="js/ua.trend.js?v=2026-01-01"></script>
   <script src="js/ua.heatmap.js?v=2026-01-01"></script>
   <script src="js/ua.osm_context.js?v=2026-01-01"></script>
-  <script src="js/ua.export_v2.js?v=2026-11-07-ris"></script>
+  <script src="js/ua.export_template_defaults.js?v=2026-11-08"></script>
+  <script src="js/ua.export_v2.js?v=2026-11-08-canonical-templates"></script>
   <script src="js/ua.ai_proposal.js?v=2026-11-07-ris"></script>
   <script src="js/ua.report_v2.js?v=2026-11-07-ris"></script>
   <script src="js/ua.tour.js?v=2026-11-07"></script>
-  <script src="js/ua.app_v2.js?v=2026-07-19"></script>
+  <script src="js/ua.area_name_control.js?v=2026-11-08"></script>
+  <script src="js/ua.app_v2.js?v=2026-11-08-area-name"></script>
   <script src="js/ua.video-export-contract.js?v=2026-07-19"></script>
   <script src="js/ua.video-export.js?v=2026-07-19"></script>
   <script src="js/ua.political-context.js?v=2026-11-08-scalable-catalogue"></script>

@@ -5,13 +5,8 @@
   // Export templates (optional)
   // --------------------
   const TEMPLATE_DIR = "templates";
-  const DEFAULT_TEMPLATES = {
-    intro: `Bezirksratsantrag (Entwurf) – Unfallwerkbank\n\nBetreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im markierten Bereich\n`,
-    sachverhalt: `Sachverhalt:\nIm markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.\n\nVerletzungsschwere (Ausschnitt):\n{{severity_summary}}`,
-    beschluss: `Beschlussvorschlag:\nDer Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins, innerhalb von 3 Monaten umzusetzen): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung – mit verbindlichem Umsetzungszeitplan.\n3) Evaluation: Wirksamkeit nach 12 Monaten anhand der Unfallatlas-Daten überprüfen und der Bezirksvertretung berichten.\n`,
-    hinweis: ``,
-    lizenz: `Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).\n`
-  };
+  // Canonical text source: templates/*.txt; generated offline defaults.
+  const DEFAULT_TEMPLATES = UA.exportTemplateDefaults || {};
 
   async function loadTemplate(name, stadtSlug) {
     // Fallback chain:
@@ -1627,7 +1622,10 @@
       console.warn("Gremien matching failed:", e);
     }
 
-    const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
+    // A confirmed name is user evidence for the whole selection, unlike a
+    // reverse-geocoded midpoint. Resolve before HTML escaping/rendering.
+    const explicitAreaName = String(ctx.areaNameOverride || ctx.confirmedAreaName || new URL(window.location.href).searchParams.get('areaName') || '').trim();
+    const areaName = explicitAreaName || `Markierter Untersuchungsbereich in ${CITY_RAW} (${bStr})`;
     const visualContextHints = buildVisualContextHints(ctx);
 
     // ---- Yearly trend (#C2): linear regression over per-year counts ----
@@ -1833,6 +1831,7 @@
       location_details: loc ? loc.details : "",
       location_osm: loc ? loc.osmUrl : "",
       GREMIUM_NAME: gremiumMatch.gremium || "—",
+      GREMIUM_QUALIFIER: gremiumMatch.gremium ? ` (${gremiumMatch.gremium})` : " (Zuständigkeit vor Einreichung prüfen)",
       GREMIUM_TYP: gremiumMatch.typ || "—",
       GREMIUM_HINWEIS: gremiumMatch.hinweis || "Zuständigkeit vor Einreichung bitte prüfen.",
       GREMIUM_KONTAKT: gremiumMatch.kontakt || ""

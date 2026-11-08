@@ -6,7 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const { readRisSnapshot, writeRisSnapshot: writeSnapshot } = require('../../server/political-context/services/risSnapshot');
-const { refreshRisCatalogues, validateRisDirectory } = require('../../scripts/refresh-ris-catalogues');
+const { refreshRisCatalogues, validateRisDirectory, collectOfficial } = require('../../scripts/refresh-ris-catalogues');
+const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
 
 const NOW = new Date('2026-11-07T10:00:00.000Z');
 const OLD = new Date('2026-10-20T09:00:00.000Z');
@@ -81,6 +82,74 @@ function fetchPages({ decoded = false, tamper } = {}) {
 function refresh(options) {
   return refreshRisCatalogues({ directory, now: NOW, fetchPublished: fetchPages(), ...options });
 }
+
+const checkpointRetry = { city: 'hannover', sourceCacheKey: 'ris-sources-v1-Linux-42502618892-1', minimumRecords: 3 };
+
+test('explicit checkpoint recovery bypasses only source retry backoff and forces zero source work', async () => {
+  const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  prior.refreshFailure = { attemptedAt: NOW.toISOString(), reason: 'Amtlicher Abruf fehlgeschlagen.', expiresAt: EXPIRY.toISOString() };
+  await fs.writeFile(path.join(published, 'hannover.json'), JSON.stringify(prior));
+  const collect = jest.fn((city, now, options) => {
+    expect(options).toMatchObject({ workBudget: 0, checkpointOnly: true });
+    return { ...catalogue(city, { count: 3 }), history: { pending: true, interrupted: true } };
+  });
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect })).resolves.toMatchObject([
+    { status: 'published', records: 3 },
+  ]);
+  expect(collect).toHaveBeenCalledTimes(1);
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, workBudget: 1, collect })).rejects.toThrow(/zero|0/);
+});
+
+test.each(['too-small', 'failed', 'expired', 'narrower'])('checkpoint recovery fails closed for a %s candidate instead of accepting retention', async problem => {
+  await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  const collect = () => {
+    if (problem === 'failed') throw new Error('Missing Hannover checkpoint');
+    const next = catalogue('hannover', { count: problem === 'too-small' ? 2 : 3,
+      ...(problem === 'narrower' ? { from: '2020-01-01' } : {}) });
+    if (problem === 'expired') next.generatedAt = OLD.toISOString();
+    return next;
+  };
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect })).rejects.toThrow(/recovery/i);
+  await expect(fs.readFile(path.join(directory, 'hannover.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('checkpoint recovery restores Bonn without collecting it', async () => {
+  await writeRisSnapshot(published, 'bonn', catalogue('bonn'), { now: FRESH });
+  await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  const collect = jest.fn(city => {
+    expect(city).toBe('hannover');
+    return catalogue(city, { count: 3 });
+  });
+  await expect(refresh({ checkpointRetry, collect })).resolves.toMatchObject([
+    { city: 'bonn', status: 'restored' }, { city: 'hannover', status: 'published', records: 3 },
+  ]);
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test('checkpoint-only collection requires every historical year and never queries official sources', async () => {
+  const sourceDirectory = path.join(root, 'source-cache');
+  const options = { sourceDirectory, checkpointOnly: true, workBudget: 0 };
+  await expect(collectOfficial('hannover', NOW, options)).rejects.toThrow(/checkpoint/i);
+  const checkpoint = createRisSourceCheckpoint({ directory: sourceDirectory });
+  for (let year = 2014; year < NOW.getUTCFullYear(); year++) {
+    const data = catalogue('hannover', { count: 3 });
+    data.records.forEach(record => { record.detailVerifiedAt = FRESH.toISOString(); });
+    await checkpoint.write('hannover-sim', 'public-year-search:true', year, 'sim-history-v1', { catalogue: data });
+  }
+  await expect(collectOfficial('hannover', NOW, options)).rejects.toThrow(/checkpoint.*2026/i);
+  const latest = catalogue('hannover', { count: 3 });
+  latest.records.forEach(record => { record.detailVerifiedAt = FRESH.toISOString(); });
+  await checkpoint.write('hannover-sim', 'public-year-search:true', 2026, 'sim-history-v1', { catalogue: latest });
+  const externalFetch = jest.spyOn(globalThis, 'fetch').mockImplementation(() => { throw new Error('Unexpected source fetch'); });
+  const externalHttps = jest.spyOn(require('node:https'), 'get').mockImplementation(() => { throw new Error('Unexpected source HTTPS'); });
+  try {
+    const next = await collectOfficial('hannover', NOW, options);
+    expect(next.records).toHaveLength(3);
+    expect(next.history.pending).toBe(true);
+    expect(externalFetch).not.toHaveBeenCalled();
+    expect(externalHttps).not.toHaveBeenCalled();
+  } finally { externalFetch.mockRestore(); externalHttps.mockRestore(); }
+});
 
 async function seedFallback(target) {
   const manifest = await writeRisSnapshot(target, 'bonn', catalogue('bonn'), { now: FALLBACK });
@@ -573,6 +642,52 @@ test.each([false, true])('keeps verified detail evidence, geometry and relations
   expect(after.manifest.generatedAt).toBe(FALLBACK.toISOString());
   expect(after.manifest.coverage.complete).toBe(false);
   expect(after.manifest.coverage.warnings.join(' ')).toMatch(/Detail.*verifiziert|verifiziert.*Detail/i);
+});
+
+test.each(['official', 'derived', 'relation'])('assesses retained legacy %s evidence before publishing new historical records', async evidenceKind => {
+  const priorData = legacyCatalogue('hannover');
+  const priorRecord = priorData.records[0];
+  priorRecord.relatedTo = priorData.records[1].id;
+  priorRecord.title = 'Radverkehr in der Limmerstraße';
+  if (evidenceKind !== 'official') {
+    delete priorRecord.geometry;
+    delete priorRecord.locationSource;
+  }
+  if (evidenceKind === 'derived') priorRecord.locations = [{
+    kind: 'street', label: 'Limmerstraße', extent: 'part', attribution: 'LGLN, dl-de/by-2-0',
+    evidence: { source: 'document', text: 'Der Radweg in der Limmerstraße wird erneuert.' },
+    geometry: { type: 'LineString', coordinates: [[9.71, 52.37], [9.72, 52.37]] },
+  }];
+  const prior = await writeRisSnapshot(directory, 'hannover', priorData, { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  expect(before.records.every(record => !record.locationAssessment)).toBe(true);
+
+  const next = catalogue('hannover', { count: 3 });
+  next.records = [{ id: priorRecord.id, title: 'Aktualisierter amtlicher Listentitel ohne Ortsbezug',
+    number: '1/2026', type: 'Anfrage', date: '2026-11-06', gremium: null,
+    url: priorRecord.url, source: 'hannover', locationEvidence: [], locationEvidenceUnavailable: true }, next.records[2]];
+  next.history = { pending: true, interrupted: false };
+  const outcome = await refresh({ cities: ['hannover'], collect: () => next });
+  expect(outcome[0].reason).toBeUndefined();
+  expect(outcome).toMatchObject([{ status: 'published', records: 3, generatedAt: prior.generatedAt }]);
+
+  const after = await readRisSnapshot(directory, 'hannover');
+  const retained = after.records.find(record => record.id === priorRecord.id);
+  expect(after.manifest.locationAssessment.attempted).toBe(3);
+  expect(after.records.every(record => record.locationAssessment)).toBe(true);
+  expect(after.manifest.coverage.complete).toBe(false);
+  expect(after.manifest.refreshFailure).toBeUndefined();
+  expect(retained).toMatchObject({ title: next.records[0].title, relatedTo: priorRecord.relatedTo,
+    locationAssessment: {
+      status: evidenceKind === 'relation' ? 'unresolved' : 'partial',
+      reasons: expect.arrayContaining(['document_text_unavailable']),
+    } });
+  expect(retained.locations).toEqual(before.records[0].locations || []);
+  expect(retained.locationAssessment.truncated).toBe(evidenceKind === 'derived');
+  expect(retained.locationAssessment.sources.includes('official')).toBe(evidenceKind === 'official');
+  expect(retained.locationAssessment.sources.includes('document')).toBe(evidenceKind === 'derived');
+  expect(after.features.features.filter(feature => feature.properties.recordId === priorRecord.id))
+    .toEqual(before.features.features.filter(feature => feature.properties.recordId === priorRecord.id));
 });
 
 test('keeps complete title-derived feature labels when newly unavailable detail evidence retains prior locations', async () => {

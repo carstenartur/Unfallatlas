@@ -143,6 +143,45 @@ fest. Zeit- oder Arbeitslimits beenden einen fortsetzbaren Durchlauf. Bereits be
 ältere Jahrgänge bleiben erhalten, auch wenn ein späterer Aufruf einen neueren Beginn
 anfordert. Die bestehenden CI-Cachepfade sichern diese Arbeitsstände mit.
 
+### Explizite Wiederherstellung aus Hannover-Checkpoints
+
+Wenn die amtlichen Abrufe bereits gesichert sind, aber ein nachgelagerter
+Validierungsfehler ihre Veröffentlichung verhindert hat, kann der manuelle
+Workflow **„04 · Aktuelle Daten veröffentlichen“** diese Arbeitsstände erneut
+durch den kanonischen Maven- und Pages-Pfad prüfen. Dafür werden drei Eingaben
+gesetzt:
+
+- `hannover_checkpoint_retry=true`
+- `ris_source_cache_key`: der **exakte** zuvor erfolgreich gespeicherte Cache-Key,
+  beispielsweise `ris-sources-v1-Linux-42502618892-1`
+- `ris_min_records`: die für diese Wiederherstellung erforderliche Mindestzahl
+  veröffentlichter Hannover-Datensätze, beispielsweise `674`
+
+Dieser Modus verwendet keinen Cache-Prefix als Ersatz. Ein fehlender exakter
+Cache-Treffer lässt den Lauf scheitern. Die Eingaben werden als Umgebungswerte
+validiert, nicht in Shell-Kommandos interpoliert. Der entsprechende CLI-Aufruf
+nach Wiederherstellung des benannten Caches lautet:
+
+```sh
+node scripts/refresh-ris-catalogues.js --checkpoint-retry hannover --source-cache-key ris-sources-v1-Linux-42502618892-1 --min-records 674
+```
+
+Nur dieser ausdrückliche Modus darf die sechsstündige Sperre nach einem
+Quellenfehler übergehen. Er erzwingt Arbeitsbudget **0**, verlangt passende
+SIM-Jahrescheckpoints für den angeforderten Zeitraum und sperrt den amtlichen
+Quelltransport zusätzlich. Er verwendet vorhandene Fakten, ohne fehlende
+Dokumente oder weitere amtliche Quellen neu abzufragen. Bonn wird dabei nur aus
+dem veröffentlichten Bestand wiederhergestellt. Die Prüfungen für Quellalter,
+Ortsbewertungen, Abdeckung und Herkunft bleiben unverändert.
+
+Der Hannover-Ausgang muss `published` sein und die eingegebene Mindestzahl
+erreichen. Ein erneuter Fehler, `retained` oder ein zu kleiner Kandidat macht den
+Wiederherstellungslauf rot; ein grüner Erhalt des alten kleinen Bestands reicht
+nicht. Der Modus erneuert keine Quellzeit und behauptet keine Archivvollständigkeit.
+Normaler Push, Wochenlauf und regulärer CLI-Aufruf behalten ihren bisherigen
+Retry-Vertrag. Nach der tatsächlichen Veröffentlichung werden Manifest,
+Datensatzanzahl und öffentlicher Build-Fingerprint gegen das CI-Artefakt geprüft.
+
 Hannover vergleicht jeden Jahrgang mit der von der amtlichen Suche angegebenen
 Tabellenzeilenzahl. Nicht verfügbare Detailseiten behalten die unabhängig geprüften
 Listendaten und eine sichtbare Einschränkung. Die stadtweite Suche verwendet
