@@ -227,6 +227,40 @@ test.each([[false, false], [true, false], [false, true]])('cross-year assembly p
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });
 
+test.each([null, undefined, 'updated'])('cross-year assembly preserves verified metadata when newer auxiliary fields are %s', async newerFields => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-cross-year-metadata-'));
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const key = '0054-2025', id = 'hannover-sim:' + key;
+    const oldClock = '2026-11-06T11:00:00.000Z', newClock = '2026-11-07T11:00:00.000Z';
+    for (const year of [2024, 2025]) {
+      const auxiliary = year === 2024;
+      const clock = auxiliary ? newClock : oldClock;
+      const record = { id, title: auxiliary ? 'Aktueller verifizierter Titel' : 'Alter Jahrestitel', number: '0054/2025',
+        type: auxiliary ? 'Sonstige' : 'Beschluss', source: 'hannover-sim', url: ROOT + 'DS/' + key,
+        date: auxiliary ? (newerFields === 'updated' ? '2025-01-17' : newerFields) : '2025-01-16',
+        gremium: auxiliary ? (newerFields === 'updated' ? 'Stadtentwicklungs- und Bauausschuss' : newerFields) : 'Rat',
+        locationEvidence: [auxiliary ? 'Aktueller Maßnahmenort.' : 'Alter Maßnahmenort.'], detailVerifiedAt: clock };
+      await checkpoint.write('hannover-sim', 'public-year-search:true', year, 'sim-history-v1', {
+        documents: auxiliary ? [] : [{ key, searchType: 'Beschlussdrucksache' }],
+        details: { [key]: { checkedAt: clock, result: { rawType: 'Drucksache', title: record.title, locationEvidence: record.locationEvidence } } },
+        catalogue: { records: [record], sources: [SEARCH], coverage: { from: `${year}-01-01`, to: `${year}-12-31`, bodies: ['Rat'], complete: false, warnings: [], scope: 'citywide' } },
+      });
+    }
+    const requestText = jest.fn(() => { throw new Error('Checkpoint projection must not fetch'); });
+    const result = await collectHannoverCatalogue({ ...options, from: '2026-01-01', to: '2026-12-31', checkpoint, workBudget: 0, requestText });
+    expect(result.records).toEqual([expect.objectContaining({ id, type: 'Beschluss', number: '0054/2025', title: 'Aktueller verifizierter Titel',
+      date: newerFields === 'updated' ? '2025-01-17' : '2025-01-16',
+      gremium: newerFields === 'updated' ? 'Stadtentwicklungs- und Bauausschuss' : 'Rat',
+      locationEvidence: ['Aktueller Maßnahmenort.'], detailVerifiedAt: newClock })]);
+    expect(requestText).not.toHaveBeenCalled();
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
 test.each(['source cache', 'checkpoint details', 'checkpoint catalogue'])('normalizes legacy empty evidence and list types from %s without rereading details', async storage => {
   const fs = require('node:fs/promises');
   const os = require('node:os');

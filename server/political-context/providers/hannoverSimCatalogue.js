@@ -349,6 +349,9 @@ function mergeYearRecord(previous, incoming) {
   if (older.record.type === 'Verwaltungsantwort' || type === 'Sonstige'
       || type === 'Antrag' && older.record.type === 'Änderungsantrag') type = older.record.type;
   const record = { ...newer.record, type };
+  for (const field of ['date', 'gremium']) {
+    if (!record[field] && older.record[field]) record[field] = older.record[field];
+  }
   if (!record.relatedTo && older.record.relatedTo) record.relatedTo = older.record.relatedTo;
   if (record.locationEvidenceUnavailable && !record.locationEvidence?.length && older.record.locationEvidence?.length) {
     record.locationEvidence = older.record.locationEvidence;
