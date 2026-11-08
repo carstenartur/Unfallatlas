@@ -45,12 +45,12 @@
         <div class="panelSub" id="panelSub">(Viewport + Analyse/Export)</div>
       </div>
       <div class="headerBtns">
-        <div class="legendBtn" id="legendBtn" title="Legende ein-/ausblenden">i</div>
-        <div class="collapseBtn" id="collapseBtn" title="Ein-/Ausklappen">v</div>
+        <button type="button" class="legendBtn" id="legendBtn" aria-label="Legende einblenden" aria-expanded="false" aria-controls="legendBox" title="Legende einblenden">i</button>
+        <button type="button" class="collapseBtn" id="collapseBtn" aria-label="Bedienfeld einklappen" aria-expanded="true" aria-controls="panelBody" title="Bedienfeld einklappen">v</button>
       </div>
     </div>
 
-    <div class="panelBody">
+    <div class="panelBody" id="panelBody">
       <div class="row">
         <label for="citySel">Stadt</label>
         <select id="citySel"><option value="">Lade…</option></select>
