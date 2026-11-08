@@ -2,6 +2,19 @@ name: "04 · Aktuelle Daten veröffentlichen"
 
 on:
   workflow_dispatch:
+    inputs:
+      hannover_checkpoint_retry:
+        description: Revalidate retained Hannover checkpoints without any official source requests
+        type: boolean
+        default: false
+      ris_source_cache_key:
+        description: Exact existing ris-sources-v1-Linux-RUN-ATTEMPT cache key (required for checkpoint retry)
+        type: string
+        default: ''
+      ris_min_records:
+        description: Minimum published Hannover record count required by this recovery
+        type: number
+        default: 674
   schedule:
     # Continue bounded RIS detail acquisition and renewal daily. Sunday's
     # existing full data workflow supplies the remaining weekly run.
@@ -54,7 +67,45 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Validate manual Hannover checkpoint retry
+        id: ris-checkpoint-retry
+        env:
+          RIS_RETRY_ENABLED: ${{ inputs.hannover_checkpoint_retry || false }}
+          RIS_RETRY_EVENT: ${{ github.event_name }}
+          RIS_RETRY_CACHE_KEY: ${{ inputs.ris_source_cache_key }}
+          RIS_RETRY_MIN_RECORDS: ${{ inputs.ris_min_records }}
+        shell: bash
+        run: |
+          case "$RIS_RETRY_ENABLED" in
+            false|'') printf 'enabled=false\n' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            true) ;;
+            *) echo 'Invalid checkpoint retry mode' >&2; exit 1 ;;
+          esac
+          if [[ "$RIS_RETRY_EVENT" != workflow_dispatch ||
+                ! "$RIS_RETRY_CACHE_KEY" =~ ^ris-sources-v1-Linux-[1-9][0-9]*-[1-9][0-9]*$ ||
+                ${#RIS_RETRY_CACHE_KEY} -gt 128 ||
+                ! "$RIS_RETRY_MIN_RECORDS" =~ ^[1-9][0-9]*$ ||
+                ${#RIS_RETRY_MIN_RECORDS} -gt 16 ]]; then
+            echo 'Checkpoint retry requires a manual event, exact cache key and positive minimum record count' >&2
+            exit 1
+          fi
+          if [[ ${#RIS_RETRY_MIN_RECORDS} -eq 16 && "$RIS_RETRY_MIN_RECORDS" > 9007199254740991 ]]; then
+            echo 'Checkpoint retry minimum exceeds the safe integer range' >&2
+            exit 1
+          fi
+          printf 'enabled=true\ncache-key=%s\nmin-records=%s\n' "$RIS_RETRY_CACHE_KEY" "$RIS_RETRY_MIN_RECORDS" >> "$GITHUB_OUTPUT"
+
+      - name: Restore exact Hannover checkpoint source cache
+        if: steps.ris-checkpoint-retry.outputs.enabled == 'true'
+        id: ris-checkpoint-source-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ris-sources
+          key: ${{ steps.ris-checkpoint-retry.outputs.cache-key }}
+          fail-on-cache-miss: true
+
       - name: Restore RIS source cache
+        if: steps.ris-checkpoint-retry.outputs.enabled != 'true'
         id: ris-source-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -66,11 +117,15 @@ jobs:
       - name: Run the checkout-reproducible Maven build
         env:
           PAGES_REFRESH_RIS: '1'
+          PAGES_RIS_CHECKPOINT_RETRY: ${{ steps.ris-checkpoint-retry.outputs.enabled }}
+          PAGES_RIS_SOURCE_CACHE_KEY: ${{ steps.ris-checkpoint-retry.outputs.cache-key }}
+          PAGES_RIS_MIN_RECORDS: ${{ steps.ris-checkpoint-retry.outputs.min-records }}
+          PAGES_RIS_CACHE_HIT: ${{ steps.ris-checkpoint-source-cache.outputs.cache-hit }}
         run: mvn -B -ntp clean verify -Ppages
 
       # Preserve completed source downloads when an import or later QA fails.
       - name: Save RIS source cache
-        if: always() && steps.ris-source-cache.outputs.cache-hit != 'true'
+        if: always() && steps.ris-source-cache.outputs.cache-hit != 'true' && steps.ris-checkpoint-retry.outputs.enabled == 'false'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/ris-sources

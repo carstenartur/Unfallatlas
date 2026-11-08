@@ -11,7 +11,6 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'js/ua.utils.js',
     'js/ua.lifecycle.js',
-    'js/ua.app_v2.js',
     'js/ua.priorities.js',
   ])('%s uses the current cache buster', (asset) => {
     expect(html).toContain(`${asset}?v=${version}`);
@@ -36,17 +35,29 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each([
-    'js/ua.data_paths.js',
     'js/ua.ai_proposal.js',
-    'js/ua.export_v2.js', 'js/ua.report_v2.js',
+    'js/ua.report_v2.js',
   ])('%s uses the verified RIS rollout version', asset => {
     expect(html).toContain(`${asset}?v=2026-11-07-ris`);
   });
 
-  test.each([
-    'js/ua.political-context.js',
-  ])('%s invalidates the cache for the common location assessment contract', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-scalable-catalogue"`);
+  test.each(['js/ua.state.js', 'js/ua.app_v2.js'])('%s refreshes confirmed area scope', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-area-name"`);
+  });
+
+  test('both canonical template and export assets load the current defaults', () => {
+    expect(html).toContain('js/ua.export_template_defaults.js?v=2026-11-08-method-limits"');
+    expect(html).toContain('js/ua.export_v2.js?v=2026-11-08-method-limits"');
+  });
+
+  test.each(['js/ua.political-context.js', 'js/ua.area_name_control.js', 'js/ua.data_paths.js'])('%s refreshes confirmed research scope', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-area-research"`);
+  });
+
+  test('lazy AI political evidence refreshes the confirmed research context', () => {
+    const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
+    expect(paths).toContain('js/ua.ai_political_evidence.js?v=2026-11-08-area-research');
+    expect(paths).toContain('js/ua.ai_political_reference_bridge.js?v=2026-11-08-method-limits');
   });
 
   test.each(['js/ua.ris-partitions.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-layer.js'])('%s refreshes paged consultation history', asset => {

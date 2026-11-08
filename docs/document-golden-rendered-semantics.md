@@ -71,3 +71,11 @@ LibreOffice und Poppler können keinen aktuellen Microsoft-Word-Build ersetzen.
 Der externe Word-Beleg muss separat mit Dateihash, Word-Build, Betriebssystem,
 Seitenzahl, Seitenbildern und Prüfergebnis eingereicht und anschließend durch
 den bestehenden Receipt-Validator gebunden werden.
+
+## Zusätzlicher Release-Vertrag für nummerierte Beweisanlagen
+
+Die fünf Layoutfälle werden durch den strengeren, quellengebundenen
+111-Fälle-Referenzlauf ergänzt. Er prüft echte nummerierte Tabellenzeilen,
+Kartenpixel und CSV-/GeoJSON-Identität in nativer PDF und DOCX-Konvertierung.
+Die synthetische Testkarte wird ausdrücklich von Live-Kacheln unterschieden.
+Der konkrete Vertrag steht in [document-release-qa.md](document-release-qa.md).

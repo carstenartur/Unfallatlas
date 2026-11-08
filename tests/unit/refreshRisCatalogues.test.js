@@ -6,7 +6,11 @@ const os = require('node:os');
 const path = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const { readRisSnapshot, writeRisSnapshot: writeSnapshot } = require('../../server/political-context/services/risSnapshot');
-const { refreshRisCatalogues, validateRisDirectory } = require('../../scripts/refresh-ris-catalogues');
+const { refreshRisCatalogues, validateRisDirectory, collectOfficial } = require('../../scripts/refresh-ris-catalogues');
+const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+const { composeHannoverCatalogue } = require('../../server/political-context/providers/hannoverCatalogueComposition');
+const { combineHannoverCatalogues } = require('../../server/political-context/providers/hannoverCatalogue');
+const { parseProposalHtml } = require('../../server/political-context/providers/regionHannoverCatalogue');
 
 const NOW = new Date('2026-11-07T10:00:00.000Z');
 const OLD = new Date('2026-10-20T09:00:00.000Z');
@@ -94,6 +98,125 @@ function fetchPages({ decoded = false, tamper } = {}) {
 function refresh(options) {
   return refreshRisCatalogues({ directory, now: NOW, fetchPublished: fetchPages(), ...options });
 }
+
+const checkpointRetry = { city: 'hannover', sourceCacheKey: 'ris-sources-v1-Linux-42502618892-1', minimumRecords: 3 };
+
+function unknownSimComposition(withSupplement) {
+  const city = catalogue('hannover', { count: 3 });
+  const url = 'https://www.landtag-niedersachsen.de/dokumentensuche/';
+  const additional = { records: withSupplement ? [{ ...city.records[1], id: 'landtag:19-8980',
+    source: 'niedersachsen-landtag', url }] : [], sourceStatuses: withSupplement ? [{ source: 'landtag-catalogue',
+    status: 'partial', url, retrievedAt: FRESH.toISOString(), from: null, to: null, recordCount: 1, message: 'Partial source' }] : [] };
+  return composeHannoverCatalogue(city, additional, { now: NOW });
+}
+
+test.each([false, true])('unknown SIM clocks cannot publish using now or supplementary freshness (supplement=%s)', async withSupplement => {
+  const incoming = unknownSimComposition(withSupplement);
+  expect(incoming.sourceStatuses[0].retrievedAt).toBeNull();
+  await expect(refresh({ cities: ['hannover'], collect: async () => incoming }))
+    .resolves.toMatchObject([{ status: 'unavailable', reason: expect.stringMatching(/SIM.*verified.*timestamp/i) }]);
+  await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test.each([false, true])('unknown SIM clocks retain the valid previous snapshot and its age (supplement=%s)', async withSupplement => {
+  const prior = await writeRisSnapshot(directory, 'hannover', catalogue('hannover', { count: 3 }), { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  await expect(refresh({ cities: ['hannover'], collect: async () => unknownSimComposition(withSupplement) }))
+    .resolves.toMatchObject([{ status: 'retained', generatedAt: prior.generatedAt,
+      reason: expect.stringMatching(/SIM.*verified.*timestamp/i) }]);
+  const after = await readRisSnapshot(directory, 'hannover');
+  expect(after.manifest).toEqual({ ...prior,
+    sources: [...prior.sources, 'https://ris.hannit.de/public/vo040'],
+    sourceStatuses: [expect.objectContaining({ source: 'region-hannover-ris', status: 'failed', retrievedAt: null, recordCount: 0 })],
+    refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString(), reason: expect.any(String) },
+  });
+  expect(after.records).toEqual(before.records);
+});
+
+test('checkpoint recovery with unknown SIM time fails instead of reporting a retained snapshot as recovered', async () => {
+  const prior = await writeRisSnapshot(directory, 'hannover', catalogue('hannover', { count: 3 }), { now: FALLBACK });
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect: async () => unknownSimComposition(true) }))
+    .rejects.toThrow(/recovery.*SIM.*verified.*timestamp/i);
+  expect((await readRisSnapshot(directory, 'hannover')).manifest).toEqual(prior);
+});
+
+test('explicit checkpoint recovery bypasses only source retry backoff and forces zero source work', async () => {
+  const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  prior.refreshFailure = { attemptedAt: NOW.toISOString(), reason: 'Amtlicher Abruf fehlgeschlagen.', expiresAt: EXPIRY.toISOString() };
+  await fs.writeFile(path.join(published, 'hannover.json'), JSON.stringify(prior));
+  const collect = jest.fn((city, now, options) => {
+    expect(options).toMatchObject({ workBudget: 0, checkpointOnly: true });
+    return { ...catalogue(city, { count: 3 }), history: { pending: true, interrupted: true } };
+  });
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect })).resolves.toMatchObject([
+    { status: 'published', records: 3 },
+  ]);
+  expect(collect).toHaveBeenCalledTimes(1);
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, workBudget: 1, collect })).rejects.toThrow(/zero|0/);
+});
+
+test.each(['too-small', 'failed', 'expired', 'narrower'])('checkpoint recovery fails closed for a %s candidate instead of accepting retention', async problem => {
+  await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  const collect = () => {
+    if (problem === 'failed') throw new Error('Missing Hannover checkpoint');
+    const next = catalogue('hannover', { count: problem === 'too-small' ? 2 : 3,
+      ...(problem === 'narrower' ? { from: '2020-01-01' } : {}) });
+    if (problem === 'expired') next.generatedAt = OLD.toISOString();
+    return next;
+  };
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect })).rejects.toThrow(/recovery/i);
+  await expect(fs.readFile(path.join(directory, 'hannover.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('checkpoint recovery restores Bonn without collecting it', async () => {
+  await writeRisSnapshot(published, 'bonn', catalogue('bonn'), { now: FRESH });
+  await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+  const collect = jest.fn(city => {
+    expect(city).toBe('hannover');
+    return catalogue(city, { count: 3 });
+  });
+  await expect(refresh({ checkpointRetry, collect })).resolves.toMatchObject([
+    { city: 'bonn', status: 'restored' }, { city: 'hannover', status: 'published', records: 3 },
+  ]);
+  expect(collect).toHaveBeenCalledTimes(1);
+});
+
+test('checkpoint-only collection requires every historical year and never queries official sources', async () => {
+  const sourceDirectory = path.join(root, 'source-cache');
+  const options = { sourceDirectory, checkpointOnly: true, workBudget: 0 };
+  await expect(collectOfficial('hannover', NOW, options)).rejects.toThrow(/checkpoint/i);
+  const checkpoint = createRisSourceCheckpoint({ directory: sourceDirectory });
+  for (let year = 2014; year < NOW.getUTCFullYear(); year++) {
+    const data = catalogue('hannover', { count: 3 });
+    data.records.forEach(record => { record.detailVerifiedAt = FRESH.toISOString(); });
+    await checkpoint.write('hannover-sim', 'public-year-search:true', year, 'sim-history-v1', { catalogue: data });
+  }
+  await expect(collectOfficial('hannover', NOW, options)).rejects.toThrow(/checkpoint.*2026/i);
+  const latest = catalogue('hannover', { count: 3 });
+  latest.records.forEach(record => { record.detailVerifiedAt = FRESH.toISOString(); });
+  await checkpoint.write('hannover-sim', 'public-year-search:true', 2026, 'sim-history-v1', { catalogue: latest });
+  const externalFetch = jest.spyOn(globalThis, 'fetch').mockImplementation(() => { throw new Error('Unexpected source fetch'); });
+  const externalHttps = jest.spyOn(require('node:https'), 'get').mockImplementation(() => { throw new Error('Unexpected source HTTPS'); });
+  try {
+    // A SIM-only recovery must not silently drop the now-required region.
+    await expect(collectOfficial('hannover', NOW, options)).rejects.toThrow(/Region Hannover.*usable/);
+    const html = await fs.readFile(path.join(__dirname, '../fixtures/region-hannover/proposal-answer.html'), 'utf8');
+    const detail = parseProposalHtml(html, 'https://ris.hannit.de/public/vo020?VOLFDNR=2007454&refresh=false');
+    await checkpoint.write('region-hannover-ris', 'public-proposals', 2026, 'region-hannover-public-v1', { records: [{
+      metadata: { ...detail, date: '2026-11-06', sourceContext: { ...detail.sourceContext, publicationDate: '2026-11-06' } },
+      metadataVerifiedAt: NOW.toISOString(), detail, detailVerifiedAt: NOW.toISOString(),
+    }] });
+    const next = await collectOfficial('hannover', NOW, { ...options, previousCoverage: { from: '2004-01-01' },
+      previousSourceStatuses: [{ source: 'hannover-sim', from: '2014-01-01' },
+        { source: 'region-hannover-ris', from: '2004-01-01', recordCount: 1 }] });
+    expect(next.records).toHaveLength(4);
+    expect(next.history.pending).toBe(true);
+    expect(next.sourceStatuses.find(status => status.source === 'hannover-sim').retrievedAt).toBe(FRESH.toISOString());
+    expect(next.generatedAt).toBe(FRESH.toISOString());
+    expect(externalFetch).not.toHaveBeenCalled();
+    expect(externalHttps).not.toHaveBeenCalled();
+  } finally { externalFetch.mockRestore(); externalHttps.mockRestore(); }
+});
 
 async function seedFallback(target) {
   const manifest = await writeRisSnapshot(target, 'bonn', catalogue('bonn'), { now: FALLBACK });
@@ -827,6 +950,52 @@ test.each([false, true])('keeps verified detail evidence, geometry and relations
   expect(after.manifest.coverage.warnings.join(' ')).toMatch(/Detail.*verifiziert|verifiziert.*Detail/i);
 });
 
+test.each(['official', 'derived', 'relation'])('assesses retained legacy %s evidence before publishing new historical records', async evidenceKind => {
+  const priorData = legacyCatalogue('hannover');
+  const priorRecord = priorData.records[0];
+  priorRecord.relatedTo = priorData.records[1].id;
+  priorRecord.title = 'Radverkehr in der Limmerstraße';
+  if (evidenceKind !== 'official') {
+    delete priorRecord.geometry;
+    delete priorRecord.locationSource;
+  }
+  if (evidenceKind === 'derived') priorRecord.locations = [{
+    kind: 'street', label: 'Limmerstraße', extent: 'part', attribution: 'LGLN, dl-de/by-2-0',
+    evidence: { source: 'document', text: 'Der Radweg in der Limmerstraße wird erneuert.' },
+    geometry: { type: 'LineString', coordinates: [[9.71, 52.37], [9.72, 52.37]] },
+  }];
+  const prior = await writeRisSnapshot(directory, 'hannover', priorData, { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  expect(before.records.every(record => !record.locationAssessment)).toBe(true);
+
+  const next = catalogue('hannover', { count: 3 });
+  next.records = [{ id: priorRecord.id, title: 'Aktualisierter amtlicher Listentitel ohne Ortsbezug',
+    number: '1/2026', type: 'Anfrage', date: '2026-11-06', gremium: null,
+    url: priorRecord.url, source: 'hannover', locationEvidence: [], locationEvidenceUnavailable: true }, next.records[2]];
+  next.history = { pending: true, interrupted: false };
+  const outcome = await refresh({ cities: ['hannover'], collect: () => next });
+  expect(outcome[0].reason).toBeUndefined();
+  expect(outcome).toMatchObject([{ status: 'published', records: 3, generatedAt: prior.generatedAt }]);
+
+  const after = await readRisSnapshot(directory, 'hannover');
+  const retained = after.records.find(record => record.id === priorRecord.id);
+  expect(after.manifest.locationAssessment.attempted).toBe(3);
+  expect(after.records.every(record => record.locationAssessment)).toBe(true);
+  expect(after.manifest.coverage.complete).toBe(false);
+  expect(after.manifest.refreshFailure).toBeUndefined();
+  expect(retained).toMatchObject({ title: next.records[0].title, relatedTo: priorRecord.relatedTo,
+    locationAssessment: {
+      status: evidenceKind === 'relation' ? 'unresolved' : 'partial',
+      reasons: expect.arrayContaining(['document_text_unavailable']),
+    } });
+  expect(retained.locations).toEqual(before.records[0].locations || []);
+  expect(retained.locationAssessment.truncated).toBe(evidenceKind === 'derived');
+  expect(retained.locationAssessment.sources.includes('official')).toBe(evidenceKind === 'official');
+  expect(retained.locationAssessment.sources.includes('document')).toBe(evidenceKind === 'derived');
+  expect(after.features.features.filter(feature => feature.properties.recordId === priorRecord.id))
+    .toEqual(before.features.features.filter(feature => feature.properties.recordId === priorRecord.id));
+});
+
 test('keeps complete title-derived feature labels when newly unavailable detail evidence retains prior locations', async () => {
   const priorData = catalogue('hannover');
   const priorRecord = priorData.records[0];
@@ -977,4 +1146,98 @@ test('historical supplementary records omitted by a fresh rolling window retain 
   expect(result.records.map(r => r.id)).toContain('landtag:historic');
   expect(result.manifest.generatedAt).toBe(STALE.toISOString());
   expect(result.manifest.coverage.warnings.join(' ')).toMatch(/ältere Datensätze.*verifizierten Stand/i);
+});
+
+
+function unknownSimWithRegion() {
+  const city = catalogue('hannover');
+  city.records[0].detailVerifiedAt = FRESH.toISOString();
+  const combined = regionalCatalogue();
+  const region = { records: combined.records.filter(record => record.source === 'region-hannover-ris'),
+    sources: ['https://ris.hannit.de/public/vo040'], generatedAt: NOW.toISOString(),
+    sourceStatus: combined.sourceStatuses[0], coverage: { ...combined.coverage, scope: undefined } };
+  return combineHannoverCatalogues(city, region, { now: NOW });
+}
+
+test('fresh ALLRIS evidence cannot publish SIM records with a partly unknown acquisition clock', async () => {
+  const next = unknownSimWithRegion();
+  expect(next.sourceStatuses.find(source => source.source === 'hannover-sim').retrievedAt).toBeNull();
+  await expect(refresh({ cities: ['hannover'], collect: async () => next }))
+    .resolves.toMatchObject([{ status: 'unavailable', reason: expect.stringMatching(/SIM.*timestamp/i) }]);
+  await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('confirmed ALLRIS withdrawal survives the unknown SIM publication gate without renewing fallback expiry', async () => {
+  const prior = regionalCatalogue();
+  prior.sourceStatuses[0].retrievedAt = FALLBACK.toISOString();
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const next = unknownSimWithRegion();
+  next.exclusions = [{ id: prior.records[2].id, url: prior.records[2].url,
+    verifiedAt: NOW.toISOString(), reason: 'not-public' }];
+  await expect(refresh({ cities: ['hannover'], collect: async () => next }))
+    .resolves.toMatchObject([{ status: 'retained', records: 2, generatedAt: FALLBACK.toISOString(),
+      reason: expect.stringMatching(/SIM.*timestamp/i) }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.records.some(record => record.id === prior.records[2].id)).toBe(false);
+  expect(result.manifest).toMatchObject({ generatedAt: FALLBACK.toISOString(), withdrawalsRecordedAt: NOW.toISOString(),
+    refreshFailure: { expiresAt: EXPIRY.toISOString() } });
+  expect(result.manifest.sourceStatuses[0]).toMatchObject({ retrievedAt: FALLBACK.toISOString(), recordCount: 0 });
+});
+
+test('offline recovery preserves existing withdrawal ordering and oldest source verification', async () => {
+  const prior = regionalCatalogue();
+  prior.withdrawalsRecordedAt = FRESH.toISOString();
+  prior.sourceStatuses[0].retrievedAt = FALLBACK.toISOString();
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const next = regionalCatalogue();
+  next.generatedAt = FALLBACK.toISOString();
+  next.sourceStatuses[0].retrievedAt = FALLBACK.toISOString();
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect: async () => next }))
+    .resolves.toMatchObject([{ status: 'published', generatedAt: FALLBACK.toISOString() }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.manifest.withdrawalsRecordedAt).toBe(FRESH.toISOString());
+  expect(result.manifest.generatedAt).toBe(FALLBACK.toISOString());
+  expect(result.manifest.sourceStatuses[0].retrievedAt).toBe(FALLBACK.toISOString());
+});
+
+
+function unknownRegionWithSim(explicitStatus = false) {
+  const city = { ...catalogue('hannover'), generatedAt: FRESH.toISOString() };
+  const base = regionalCatalogue();
+  const region = { records: base.records.filter(record => record.source === 'region-hannover-ris'),
+    sources: ['https://ris.hannit.de/public/vo040'], coverage: { ...base.coverage, scope: undefined },
+    ...(explicitStatus ? { sourceStatus: { ...base.sourceStatuses[0], retrievedAt: null } } : {}) };
+  return combineHannoverCatalogues(city, region, { now: NOW });
+}
+
+test.each([false, true])('known SIM cannot publish an unverified Region contribution (explicit status=%s)', async explicit => {
+  await expect(refresh({ cities: ['hannover'], collect: async () => unknownRegionWithSim(explicit) }))
+    .resolves.toMatchObject([{ status: 'unavailable', reason: expect.stringMatching(/Region.*verified.*timestamp/i) }]);
+  await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('unknown Region time retains original fallback age and still removes confirmed withdrawals', async () => {
+  const prior = regionalCatalogue();
+  prior.sourceStatuses[0].retrievedAt = FALLBACK.toISOString();
+  await writeRisSnapshot(published, 'hannover', prior, { now: FALLBACK });
+  const next = unknownRegionWithSim();
+  const regional = next.records.find(record => record.source === 'region-hannover-ris');
+  next.records.push({ ...regional, id: 'region-hannover-ris:vo:2003038', url: 'https://ris.hannit.de/public/vo020?VOLFDNR=2003038' });
+  next.sourceStatuses.find(source => source.source === 'region-hannover-ris').recordCount = 2;
+  next.exclusions = [{ id: prior.records[2].id, url: prior.records[2].url, verifiedAt: NOW.toISOString(), reason: 'not-public' }];
+  await expect(refresh({ cities: ['hannover'], collect: async () => next }))
+    .resolves.toMatchObject([{ status: 'retained', records: 2, generatedAt: FALLBACK.toISOString(),
+      reason: expect.stringMatching(/Region.*verified.*timestamp/i) }]);
+  const result = await readRisSnapshot(directory, 'hannover');
+  expect(result.records.some(record => record.source === 'region-hannover-ris')).toBe(false);
+  expect(result.manifest).toMatchObject({ generatedAt: FALLBACK.toISOString(), withdrawalsRecordedAt: NOW.toISOString(),
+    refreshFailure: { expiresAt: EXPIRY.toISOString() } });
+  expect(result.manifest.sourceStatuses[0]).toMatchObject({ retrievedAt: FALLBACK.toISOString(), recordCount: 0 });
+});
+
+test('manual recovery cannot accept an unverified Region contribution as a successful publication', async () => {
+  const prior = await writeRisSnapshot(directory, 'hannover', regionalCatalogue(), { now: FALLBACK });
+  await expect(refresh({ cities: ['hannover'], checkpointRetry, collect: async () => unknownRegionWithSim() }))
+    .rejects.toThrow(/recovery.*Region.*verified.*timestamp/i);
+  expect((await readRisSnapshot(directory, 'hannover')).manifest).toEqual(prior);
 });

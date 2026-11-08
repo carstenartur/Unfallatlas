@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "unfallwerkbank.release-document-candidate/v1",
+  "status": "awaiting-external-acceptance",
+  "renderSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
+  "integratedReviewedSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
+  "wordInputFingerprint": "a6b6865ec58ff59265f400b8f49575d363f877090d0ae11a2435488bae4291bc",
+  "sourceManifestHash": "39e381935a077e703825f259eb95c30dc5b89bf6974a993bed9b57743e022e8f",
+  "sourceGeoJsonSha256": "23afbd7bc25ad170e849734db9499ce60dbf15f792a79a41cc1f357413755cce",
+  "sourceAcquisition": {
+    "kind": "local-file-read",
+    "acquiredAt": "2026-11-08T18:40:04.441Z",
+    "upstreamRetrievedAt": null
+  },
+  "tools": {
+    "node": "v24.22.1",
+    "npm": "11.9.0",
+    "pdfmake": "0.3.14",
+    "docx": "9.15.3",
+    "libreOffice": "LibreOfficeDev 26.8.0.0.alpha0",
+    "poppler": "26.05.0",
+    "mavenAvailable": false
+  },
+  "artifacts": [
+    {
+      "path": "out/ci-render-gate.docx",
+      "bytes": 83350,
+      "sha256": "66cfd053a96f7fb370bda203c5da4722febcc81f442dbe9cdb58299e0b01ca2a"
+    },
+    {
+      "path": "out/ci-render-gate.pdf",
+      "bytes": 187090,
+      "sha256": "b55de2e4f2df9d2d48d648b67ae782b5077b66b3c8bf92667d7ca6ec1b1fedeb"
+    },
+    {
+      "path": "out/qa/rendered-document/docx/converted.pdf",
+      "bytes": 249402,
+      "sha256": "ff5caf97dc2b8c52d860cd1c8898ec1b7b44cd81e7d160490b57a18e08aa6f26"
+    },
+    {
+      "path": "out/qa/release-document/appendix.docx",
+      "bytes": 188442,
+      "sha256": "7ae124bf1ab26a17dd7ccb66fd9a5a96c1e49668d51fc8cd247e500386c0c46c"
+    },
+    {
+      "path": "out/qa/release-document/appendix.pdf",
+      "bytes": 420353,
+      "sha256": "b5085223b2684540ece10a005d37e3b2fe292ec9aa434af56aeedaee95080f4a"
+    },
+    {
+      "path": "out/qa/release-document/docx/converted.pdf",
+      "bytes": 714803,
+      "sha256": "6419ffe4ba7cee3be18c95446cac664ea10d074d183853b4c6d4b0a49b759450"
+    }
+  ],
+  "automatedEvidence": {
+    "fullDocumentRunner": true,
+    "unitSuites": 18,
+    "unitTests": 110,
+    "layoutScenarios": 5,
+    "numberedAccidents": 111,
+    "numberedMaps": 9,
+    "ordinaryDocxPages": 5,
+    "numberedPdfPages": 14,
+    "numberedDocxPages": 13,
+    "nativeRepeatedHeaders": 4,
+    "docxRepeatedHeaders": 3,
+    "finalNumberedRenderPassed": true,
+    "detailHeadingsBoundToMapPagesPerFormat": 8,
+    "finalWordContractSuites": 3,
+    "finalWordContractTests": 26,
+    "visualPagesReviewed": {
+      "nativeNumberedPdf": 14,
+      "convertedNumberedDocx": 13,
+      "ordinaryDocx": 5
+    }
+  },
+  "externalAcceptance": {
+    "microsoftWordVerified": false,
+    "realAiProposalApproved": false,
+    "scientificProposalApproved": false,
+    "canonicalMavenNode26ExactHeadVerified": false,
+    "releasePublished": false
+  },
+  "ordinarySampleRenderSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
+  "productionMethodWarningEvidence": {
+    "sourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
+    "wordInputFingerprint": "a6b6865ec58ff59265f400b8f49575d363f877090d0ae11a2435488bae4291bc",
+    "generatedAt": "2026-11-08T18:43:29.450Z",
+    "productionWrapper": true,
+    "accidents": 37,
+    "methodNote": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
+    "checks": {
+      "structured": true,
+      "text": true,
+      "html": true,
+      "visibleHtml": true,
+      "serverAssessmentPrompt": true,
+      "serverProposalPrompt": true
+    },
+    "externalRequests": "blocked; no live tiles or political/model execution",
+    "mapExport": false,
+    "microsoftWordEvidenceVerified": false,
+    "evidenceDirectory": "out/qa/production-method-warning",
+    "role": "method-warning-only; not a Microsoft Word or proposal acceptance",
+    "docxXmlContainsExactNote": true,
+    "actualPdfTextContainsExactNote": true,
+    "convertedDocxTextContainsExactNote": true,
+    "visuallyReviewedNotePages": {
+      "nativePdf": [
+        2
+      ],
+      "convertedDocx": [
+        1
+      ]
+    },
+    "generatedPages": {
+      "nativePdf": 20,
+      "convertedDocx": 18
+    },
+    "localPublicLinkAudit": {
+      "passed": false,
+      "reason": "Actual browser export retains its localhost HTTP development URL; the separate public-HTTPS audit rejects it. No link gate was disabled."
+    },
+    "artifacts": [
+      {
+        "path": "out/qa/production-method-warning/production-report.json",
+        "bytes": 3457556,
+        "sha256": "8021ddfd66e56e29eedb1ff697d4b2414cf0c3c9bb1aa659a7bc501b9846d5a3"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.html",
+        "bytes": 342508,
+        "sha256": "7f139a4436b60900c1fea2eec353c431b55dc7a7f27909ec74a29dc23ec2be0d"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-model-prompts.json",
+        "bytes": 23094,
+        "sha256": "5f4ed14cb2991a211267795ea681441342c84726e127decb6d00755d3e5789ca"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.docx",
+        "bytes": 29003,
+        "sha256": "199c539bdb9bc958540529862edcfbcadb2a1d26aab982e7fd042c469905edb0"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.pdf",
+        "bytes": 170971,
+        "sha256": "d382fd355c3c4fe76c61b577ac9ee6e6250355bf5f3af0675c56e4e2e7e24af5"
+      },
+      {
+        "path": "out/qa/production-method-warning/docx-render/production-report.pdf",
+        "bytes": 352712,
+        "sha256": "74fd21324e95d61a2b641e86489377b6e708525beb482a41d4d6d83c2fc8538f"
+      }
+    ]
+  }
+}

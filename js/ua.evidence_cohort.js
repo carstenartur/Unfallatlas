@@ -1082,7 +1082,7 @@
     ];
     maps.slice(1).forEach((map, index) => {
       content.push(
-        { text: map.title, style: 'heading', pageBreak: index % 2 === 0 ? 'before' : undefined },
+        { text: map.title, style: 'heading', pageBreak: 'before' },
         { image: map.image, fit: [515, 350], alignment: 'center' },
         { text: `Abbildung ${index + 2}: ${map.mapRef}; Unfall-IDs: ${map.accidentIds.join(', ')}.`, style: 'caption' },
       );
@@ -1093,11 +1093,11 @@
         table: {
           headerRows: 1,
           dontBreakRows: true,
-          widths: [32, 28, 58, 92, 35, 55, 78, 30],
+          widths: [34, 30, 76, 130, 40, 98, 100, 30],
           body: pdfEvidenceTableRows(cohorts),
         },
         layout: 'lightHorizontalLines',
-        fontSize: 7,
+        fontSize: 9,
       },
       { text: 'Daten- und Beweisgrenzen', style: 'heading', margin: [0, 12, 0, 4] },
       { ul: [
@@ -1106,7 +1106,7 @@
         'Die veröffentlichte Lage darf nicht genauer interpretiert werden als die Quelldaten.',
         'Die vollständige Anlage bestätigt Ereignisse und veröffentlichte Attribute, nicht automatisch eine gemeinsame Ursache.',
       ] },
-      { text: `Nummerierte interaktive Karte: ${cohorts.numberedMapUrl || 'nicht verfügbar'}`, link: cohorts.numberedMapUrl || undefined, fontSize: 8, margin: [0, 8, 0, 0] },
+      { text: cohorts.numberedMapUrl ? 'Nummerierte interaktive Karte öffnen' : 'Nummerierte interaktive Karte nicht verfügbar', link: cohorts.numberedMapUrl || undefined, fontSize: 8, margin: [0, 8, 0, 0] },
     );
     const definition = {
       pageSize: 'A4',
@@ -1162,7 +1162,7 @@
     const maps = await captureEvidenceMaps(UA, rootValue, ctx, cohorts);
     const {
       Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun,
-      Table, TableRow, TableCell, WidthType, BorderStyle, PageOrientation,
+      Table, TableRow, TableCell, WidthType, BorderStyle, PageOrientation, ExternalHyperlink,
     } = rootValue.docx;
     const borders = {
       top: { style: BorderStyle.SINGLE, size: 1, color: 'B0B0B0' },
@@ -1170,16 +1170,18 @@
       left: { style: BorderStyle.SINGLE, size: 1, color: 'B0B0B0' },
       right: { style: BorderStyle.SINGLE, size: 1, color: 'B0B0B0' },
     };
-    const cell = (text, bold, shading) => new TableCell({
+    const columnWidths = [850, 900, 2000, 3600, 1000, 2600, 3000, 900];
+    const cell = (text, bold, shading, column) => new TableCell({
       borders,
+      width: { size: columnWidths[column], type: WidthType.DXA },
       shading: shading ? { fill: shading } : undefined,
-      children: [new Paragraph({ children: [new TextRun({ text: String(text ?? '—'), bold: !!bold, size: 14 })] })],
+      children: [new Paragraph({ children: [new TextRun({ text: String(text ?? '—'), bold: !!bold, size: 18 })] })],
     });
     const rows = list(cohorts.completeEvidenceCohort.rows);
     const tableRows = [
       new TableRow({
         tableHeader: true, cantSplit: true,
-        children: ['ID', 'Jahr', 'Schwere', 'Beteiligte', 'Zeit', 'Zustand', 'Rolle', 'Karte'].map(value => cell(value, true, 'E6E6E6')),
+        children: ['ID', 'Jahr', 'Schwere', 'Beteiligte', 'Zeit', 'Zustand', 'Rolle', 'Karte'].map((value, index) => cell(value, true, 'E6E6E6', index)),
       }),
       ...rows.map(row => new TableRow({
         cantSplit: true,
@@ -1187,7 +1189,7 @@
           row.displayId, row.year ?? '—', row.severityLabel, row.involvementLabel,
           row.hour == null ? '—' : `${String(row.hour).padStart(2, '0')}:00`, row.roadConditionLabel,
           row.discoveryMatch ? 'Suchmuster' : 'weitere Gebietsevidenz', row.mapRef || '—',
-        ].map((value, index) => cell(value, index === 0 && row.discoveryMatch, row.discoveryMatch ? 'FFF2A8' : undefined)),
+        ].map((value, index) => cell(value, index === 0 && row.discoveryMatch, row.discoveryMatch ? 'FFF2A8' : undefined, index)),
       })),
     ];
     const children = [
@@ -1203,12 +1205,13 @@
     });
     children.push(
       new Paragraph({ text: 'Vollständige Unfallliste', heading: HeadingLevel.HEADING_2, pageBreakBefore: true }),
-      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: tableRows }),
+      new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, columnWidths, rows: tableRows }),
       new Paragraph({ text: 'Daten- und Beweisgrenzen', heading: HeadingLevel.HEADING_2 }),
       new Paragraph({ text: 'Amtliche Straßenverkehrsunfallstatistik auf Grundlage polizeilicher Meldungen; veröffentlicht sind Unfälle mit Personenschaden. Reine Sachschäden, Beinaheereignisse und nicht gemeldete Unfälle sind nicht enthalten. Die veröffentlichte Lage darf nicht genauer interpretiert werden als die Quelldaten.' }),
-      new Paragraph({ text: `Nummerierte interaktive Karte: ${cohorts.numberedMapUrl || 'nicht verfügbar'}` }),
+      new Paragraph({ children: cohorts.numberedMapUrl ? [new ExternalHyperlink({ link: cohorts.numberedMapUrl, children: [new TextRun({ text: 'Nummerierte interaktive Karte öffnen', style: 'Hyperlink' })] })] : [new TextRun({ text: 'Nummerierte interaktive Karte nicht verfügbar' })] }),
     );
     const documentValue = new Document({
+      styles: { default: { document: { run: { size: 18 } } } },
       sections: [{
         properties: {
           page: { size: { orientation: PageOrientation?.LANDSCAPE || 'landscape' }, margin: { top: 720, right: 540, bottom: 720, left: 540 } },

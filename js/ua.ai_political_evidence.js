@@ -89,6 +89,8 @@
   }
 
   function currentLocationContext(ctx) {
+    const confirmed = UA.AreaNameControl?.researchContext?.(ctx);
+    if (confirmed) return { ...confirmed, gremium: currentGremium(ctx) };
     const hint = ctx?.locationHint || {};
     return {
       location: cleanText(hint.label || hint.displayName || hint.street || hint.district || hint.suburb),

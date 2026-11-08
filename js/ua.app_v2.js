@@ -127,6 +127,8 @@
       }
     }
 
+    UA.AreaNameControl?.bind(ctx, rerenderExportReport);
+
     // Bind the accident-view selector: switching the strategy re-renders the report
     // (HTML preview + text-to-copy) and persists the choice as a URL param.
     if (ui.accidentViewSel) {

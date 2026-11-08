@@ -245,4 +245,5 @@ module.exports = {
   createAccidentMarkers,
   createDeterministicMapPng,
   toDataUrl,
+  drawing: { createSurface, fillRect, drawLine, drawCircle, drawDashedRect, drawRoad, encodePng },
 };

@@ -151,16 +151,24 @@ const observations = await registry.collect({
 oder nicht mehr reproduzierbarer Provider darf nicht stillschweigend den
 qualitativen Fallback verdecken.
 
-## Noch offene Produktionsintegration
+## Nachgewiesene optionale Integration und verbleibende Abnahme
 
-Für die vollständige Umsetzung von #413 fehlen weiterhin:
+Der Kölner Link-CSV-Pilot wurde am 8. November 2026 mit den tatsächlichen
+amtlichen CSV-/Shapefile-Distributionen und einem separat gepinnten OSM-Abruf
+geprüft. Alle 5.197 Beobachtungen besitzen eine exakte Verbindung zur amtlichen
+Geometrie; die anschließende OSM-Zuordnung akzeptiert 2.743 Beobachtungen,
+kennzeichnet 213 als mehrdeutig und lässt 2.241 ohne Zuordnung. Niedrige Qualität,
+Richtung und Messjahre 2016–2019 bleiben erhalten. Diese Zahlen bezeichnen
+verschiedene Prüfschritte und sind keine Behauptung einer vollständigen
+OSM-Zuordnung oder eines aktuellen Messjahres.
 
-- WFS/GML- und XLSX-Parser mit Originalzeilen-/Feature-IDs und Goldwerten;
-- Geometrie- und richtungsbewusstes Matching der Kölner Link-Werte;
-- Coverage-Bericht, Frischeprüfung und sichtbare Warnung bei alten Messständen;
-- Übernahme der ausgewählten Evidenz in Unfall-GeoJSON, Way-Tiles, Sidecar,
-  Popups und Exporte;
-- manuell gegen die Originalquellen geprüfte Goldfälle.
+Die optionale Übernahme in Unfall-GeoJSON und Way-Tiles prüft Originalbytes,
+normalisiertes Artefakt und die tatsächlich verwendeten geordneten Zielgeometrien
+vor jedem Schreiben. Typisierte Quelle, Datentyp, Alter, Qualität und ausgewählte
+Straßenevidenz werden in Popups und Exporten erhalten. Der reale, isolierte
+Kölner Probelauf und seine Grenzen sind in
+[koeln-kfz-link-csv-provider.md](koeln-kfz-link-csv-provider.md) dokumentiert.
+Der veröffentlichte Standardbestand wurde damit nicht auf Zählwerte umgestellt.
 
 Ein weiterer optionaler, tatsächlich gegen Originalbytes geprüfter Provider
 importiert die überregionalen BASt-Jahres-DTV 2023 einschließlich amtlicher
@@ -176,4 +184,14 @@ zweite gegen Originaldaten geprüfte kommunale Quelle. Jahres-DTV und
 Fahrrad-Stundenwerte bleiben unterschiedliche Messgrößen; dieser Quellenbaustein
 behauptet keine Straßenpassung oder vollständige Abnahme von #413.
 
+Für die vollständige Abnahme von #413 fehlen weiterhin:
+
+- die fachliche Abnahme schwacher oder gemeinsam zugeordneter Straßensegmente;
+- Coverage-Bericht, Frischeprüfung und sichtbare Warnung bei alten Messständen;
+- die Übernahme ausgewählter Evidenz in Unfall-GeoJSON, Way-Tiles, Sidecar,
+  Popups und Exporte;
+- manuell gegen die Originalquellen geprüfte Goldfälle.
+
+Die generischen Berliner Source-Descriptoren oben ersetzen keine geprüften
+WFS/GML-/XLSX-Importe und zählen nicht als real aktivierte Quellen.
 Die Provider bleiben opt-in; der ausgelieferte Standardbestand bleibt qualitativ.

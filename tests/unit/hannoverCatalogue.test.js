@@ -3,6 +3,17 @@
 
 const { combineHannoverCatalogues, collectCombinedHannoverCatalogue, historicalCityStart } = require('../../server/political-context/providers/hannoverCatalogue');
 
+// These composition/recovery tests are hermetic even if a mock is omitted.
+const networkSpies = [];
+beforeEach(() => {
+  const deny = () => { throw new Error('Unexpected network in Hannover composition test'); };
+  for (const protocol of ['node:http', 'node:https']) {
+    for (const method of ['get', 'request']) networkSpies.push(jest.spyOn(require(protocol), method).mockImplementation(deny));
+  }
+  networkSpies.push(jest.spyOn(globalThis, 'fetch').mockImplementation(deny));
+});
+afterEach(() => { while (networkSpies.length) networkSpies.pop().mockRestore(); });
+
 const NOW = new Date('2026-11-08T12:00:00.000Z');
 const noAdditional = async () => ({ records: [], sources: [], sourceStatuses: [] });
 function catalogue(source, generatedAt = NOW.toISOString()) {
@@ -135,4 +146,50 @@ test('the city source status keeps the original verification time of cached city
   const result = combineHannoverCatalogues(city, catalogue('region-hannover-ris'), { now: NOW });
   expect(result.sourceStatuses.find(status => status.source === 'hannover-sim').retrievedAt).toBe(city.records[0].detailVerifiedAt);
   expect(result.generatedAt).toBe(city.records[0].detailVerifiedAt);
+});
+
+test('combined regional freshness cannot establish a missing contributing SIM clock', () => {
+  const city = catalogue('hannover-sim');
+  delete city.generatedAt;
+  city.records[0].detailVerifiedAt = '2026-11-05T10:00:00.000Z';
+  city.records.push({ ...city.records[0], id: 'hannover-sim:unknown', detailVerifiedAt: undefined });
+  const result = combineHannoverCatalogues(city, catalogue('region-hannover-ris'), { now: NOW });
+  expect(result.sourceStatuses.find(status => status.source === 'hannover-sim').retrievedAt).toBeNull();
+});
+
+test.each(['city', 'region', 'additional'])('checkpoint recovery rejects a swallowed %s transport attempt', async target => {
+  const calls = [];
+  const attempt = (kind, options, hook) => {
+    calls.push(kind);
+    expect(options.workBudget).toBe(0);
+    if (kind === target && typeof options[hook] === 'function') {
+      // Collectors may retain cache data after catching a transport failure.
+      try { options[hook]('https://example.invalid/never-request'); } catch (_) {}
+    }
+  };
+  await expect(collectCombinedHannoverCatalogue({ now: NOW, checkpointOnly: true, workBudget: 0,
+    collectCity: async options => { attempt('city', options, 'requestText'); return catalogue('hannover-sim'); },
+    collectRegion: async options => { attempt('region', options, 'fetchHtmlImpl'); return catalogue('region-hannover-ris'); },
+    collectAdditional: async options => { attempt('additional', options, 'request'); return noAdditional(); },
+  })).rejects.toThrow(/checkpoint recovery.*source request/i);
+  expect(calls.sort()).toEqual(['additional', 'city', 'region']);
+});
+
+test('checkpoint-only combined collection rejects a nonzero source budget before any collector', async () => {
+  const collectCity = jest.fn(async () => catalogue('hannover-sim'));
+  const collectRegion = jest.fn(async () => catalogue('region-hannover-ris'));
+  const collectAdditional = jest.fn(noAdditional);
+  await expect(collectCombinedHannoverCatalogue({ checkpointOnly: true, workBudget: 1, collectCity, collectRegion, collectAdditional }))
+    .rejects.toThrow(/zero source work/i);
+  expect(collectCity).not.toHaveBeenCalled();
+  expect(collectRegion).not.toHaveBeenCalled();
+  expect(collectAdditional).not.toHaveBeenCalled();
+});
+
+
+test('known SIM freshness does not invent a missing contributing Region source clock', () => {
+  const region = catalogue('region-hannover-ris');
+  delete region.generatedAt;
+  const result = combineHannoverCatalogues(catalogue('hannover-sim'), region, { now: NOW });
+  expect(result.sourceStatuses.find(status => status.source === 'region-hannover-ris').retrievedAt).toBeNull();
 });

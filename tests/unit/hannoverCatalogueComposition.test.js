@@ -48,6 +48,34 @@ test('a failed empty supplementary checkpoint cannot expire a fresh city catalog
   expect(result.coverage.complete).toBe(false);
 });
 
+test('cached SIM composition uses the oldest verified detail instead of the composition time', () => {
+  const city = sim();
+  delete city.generatedAt;
+  city.records[0].detailVerifiedAt = '2026-11-07T10:00:00.000Z';
+  city.records.push({ ...city.records[0], id: 'sim2', detailVerifiedAt: '2026-11-08T10:00:00.000Z' });
+  const result = composeHannoverCatalogue(city, { records: [], sourceStatuses: [] }, { now: NOW });
+  expect(result.sourceStatuses[0].retrievedAt).toBe('2026-11-07T10:00:00.000Z');
+  expect(result.generatedAt).toBe('2026-11-07T10:00:00.000Z');
+  expect(result.records.map(record => record.detailVerifiedAt)).toEqual(city.records.map(record => record.detailVerifiedAt));
+});
+
+test.each([undefined, 'invalid', '2026-11-09T10:00:00.000Z'])('an unverified SIM detail clock (%s) stays unknown instead of becoming the composition time', detailVerifiedAt => {
+  const city = sim();
+  delete city.generatedAt;
+  city.records[0].detailVerifiedAt = detailVerifiedAt;
+  const result = composeHannoverCatalogue(city, { records: [], sourceStatuses: [] }, { now: NOW });
+  expect(result.sourceStatuses[0].retrievedAt).toBeNull();
+  expect(result.generatedAt).toBeUndefined();
+});
+
+test('an unknown retained SIM detail prevents a partially known source clock from implying full verification', () => {
+  const city = sim();
+  delete city.generatedAt;
+  city.records.push({ ...city.records[0], id: 'sim2', detailVerifiedAt: '2026-11-07T10:00:00.000Z' });
+  const result = composeHannoverCatalogue(city, { records: [], sourceStatuses: [] }, { now: NOW });
+  expect(result.sourceStatuses[0].retrievedAt).toBeNull();
+});
+
 
 test('public event and relationship evidence participates in the source projection', () => {
   const first = local();

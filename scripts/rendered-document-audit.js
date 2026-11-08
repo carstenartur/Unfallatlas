@@ -227,6 +227,8 @@ function normalizeDocument(value) {
       document.requiredImageKinds || [], 'document.requiredImageKinds', true
     )),
     expectedCounts: Object.freeze((document.expectedCounts || []).map(normalizeExpectedCount)),
+    requireSourceManifestHash: document.requireSourceManifestHash === true,
+    expectedSourceManifestHash: document.expectedSourceManifestHash || null,
     ...(document.sourceManifestHash == null ? {} : {
       sourceManifestHash: requiredString(document.sourceManifestHash, 'document.sourceManifestHash'),
     }),
@@ -563,6 +565,13 @@ function auditRenderedDocument(documentValue, optionValue) {
   const document = normalizeDocument(documentValue);
   const options = normalizeOptions(optionValue);
   const issues = [];
+  if (document.requireSourceManifestHash) {
+    if (!/^[a-f0-9]{64}$/.test(document.sourceManifestHash || '')) {
+      issues.push({ code: 'source_manifest_missing', severity: 'error', path: 'sourceManifestHash', message: 'Release evidence requires an independently verified source manifest hash.' });
+    } else if (document.sourceManifestHash !== document.expectedSourceManifestHash) {
+      issues.push({ code: 'source_manifest_mismatch', severity: 'error', path: 'sourceManifestHash', message: 'Observed source manifest differs from the release snapshot.' });
+    }
+  }
   for (const page of document.pages) {
     auditEmptyPage(page, options, issues);
     auditSparsePage(page, options, issues);

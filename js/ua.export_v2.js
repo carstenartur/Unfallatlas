@@ -5,13 +5,10 @@
   // Export templates (optional)
   // --------------------
   const TEMPLATE_DIR = "templates";
-  const DEFAULT_TEMPLATES = {
-    intro: `Bezirksratsantrag (Entwurf) – Unfallwerkbank\n\nBetreff: Verbesserung der Verkehrssicherheit – Auffälliger Unfallschwerpunkt im markierten Bereich\n`,
-    sachverhalt: `Sachverhalt:\nIm markierten Kartenausschnitt wurden {{local_total}} Unfälle ausgewertet. Im Vergleich zum Stadtdurchschnitt ({{baseline_total}} Unfälle, gleiche Filter für Schwere/Zeit/Zustand) zeigen sich Abweichungen in den Beteiligungskombinationen.\n\nVerletzungsschwere (Ausschnitt):\n{{severity_summary}}`,
-    beschluss: `Beschlussvorschlag:\nDer Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen.\n\n1) Sofortmaßnahmen (Quick Wins, innerhalb von 3 Monaten umzusetzen): Markierungen/Warnhinweise, Sichtbeziehungen herstellen, konfliktärmere Führung, Signalisierung prüfen, ggf. Tempoanpassung.\n2) Infrastrukturmaßnahmen: sichere Rad- und Fußführung, sichere Querungen, Oberflächen-/Kantenprüfung, Knotenpunktgestaltung – mit verbindlichem Umsetzungszeitplan.\n3) Evaluation: Wirksamkeit nach 12 Monaten anhand der Unfallatlas-Daten überprüfen und der Bezirksvertretung berichten.\n`,
-    hinweis: ``,
-    lizenz: `Datenquelle/Lizenzhinweis: Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).\n`
-  };
+  // Canonical text source: templates/*.txt; generated offline defaults.
+  const DEFAULT_TEMPLATES = UA.exportTemplateDefaults || {};
+  const PATTERN_COMPARISON_LIMITATIONS = Object.freeze({"inference": "exploratory", "multiplicityAdjustment": "none", "referenceIncludesLocal": true, "localIntervalOnly": true, "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."});
+  UA.patternComparisonLimitations = PATTERN_COMPARISON_LIMITATIONS;
 
   async function loadTemplate(name, stadtSlug) {
     // Fallback chain:
@@ -1627,7 +1624,10 @@
       console.warn("Gremien matching failed:", e);
     }
 
-    const areaName = (loc && (loc.details || loc.label)) ? (loc.details || loc.label) : bStr;
+    // A confirmed name is user evidence for the whole selection, unlike a
+    // reverse-geocoded midpoint. Resolve before HTML escaping/rendering.
+    const explicitAreaName = String(ctx.areaNameOverride || ctx.confirmedAreaName || new URL(window.location.href).searchParams.get('areaName') || '').trim();
+    const areaName = explicitAreaName || `Markierter Untersuchungsbereich in ${CITY_RAW} (${bStr})`;
     const visualContextHints = buildVisualContextHints(ctx);
 
     // ---- Yearly trend (#C2): linear regression over per-year counts ----
@@ -1833,6 +1833,7 @@
       location_details: loc ? loc.details : "",
       location_osm: loc ? loc.osmUrl : "",
       GREMIUM_NAME: gremiumMatch.gremium || "—",
+      GREMIUM_QUALIFIER: gremiumMatch.gremium ? ` (${gremiumMatch.gremium})` : " (Zuständigkeit vor Einreichung prüfen)",
       GREMIUM_TYP: gremiumMatch.typ || "—",
       GREMIUM_HINWEIS: gremiumMatch.hinweis || "Zuständigkeit vor Einreichung bitte prüfen.",
       GREMIUM_KONTAKT: gremiumMatch.kontakt || ""
@@ -1992,6 +1993,10 @@
     if (tMethod) {
       lines.push(tpl(tMethod, vars).trim());
       lines.push("");
+    }
+
+    if (!String(tMethod || "").includes(PATTERN_COMPARISON_LIMITATIONS.note)) {
+      lines.push(PATTERN_COMPARISON_LIMITATIONS.note, "");
     }
 
     // Mehrjahres-Trend (#C2): kompakte Tabelle + Klassifikation.
@@ -2872,6 +2877,7 @@
 
         <div style="margin-top:10px; color:#555; font-size:12px;">
           <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
+          <div><strong>Grenzen des Mustervergleichs:</strong> ${UA.escHtml(PATTERN_COMPARISON_LIMITATIONS.note)}</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
         </div>
       </div>
@@ -3018,7 +3024,7 @@
       structured.mapReferences = mapRefs;
     }
 
-    // Methodik-Scope-Block (PR 2 / Spec-Item 6): drei Sätze, die die in
+    // Methodik-Scope-Block: Zählbereiche und Einschränkungen übersetzen die in
     // structured.meta.* hinterlegten Scopes in eine renderfertige, für
     // Verwaltungspublikum verständliche Sprache übersetzen. DOCX/PDF
     // rendern dieses Block 1:1 unterhalb der „Hinweis zur Zählweise"-Box;
@@ -3027,12 +3033,14 @@
     // bereits über das Methodik-HTML-Snippet abdeckt).
     structured.methodikScope = {
       title: "Methodik – Auswertungsbereich",
+      limitations: PATTERN_COMPARISON_LIMITATIONS,
       lines: [
         `Auswertungsbereich: Auswertung umfasst Unfälle innerhalb des markierten Bereichs (${bStr})${
           areaName ? ` – „${areaName}"` : ""
         } unter den oben aufgeführten Filtern.`,
         "Analyse auffälliger Unfallmuster: Auffälligkeiten und Top-Abweichungen werden auf der gefilterten Population im Ausschnitt (Unfälle mit erfasster Beteiligung) berechnet.",
-        `Vergleich mit dem Stadtgebiet: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`
+        `Vergleich mit dem Stadtgebiet: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`,
+        PATTERN_COMPARISON_LIMITATIONS.note
       ]
     };
 
