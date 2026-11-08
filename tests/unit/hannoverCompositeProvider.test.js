@@ -38,9 +38,26 @@ test('a failed supplementary collector cannot discard SIM results or look like a
   expect(result.references).toHaveLength(1);
   expect(result.meta.sourceStatuses).toEqual(expect.arrayContaining([
     expect.objectContaining({ source: 'hannover-additional', status: 'failed' }),
-    expect.objectContaining({ source: 'region-hannover-ris', status: 'blocked' })
+    expect.objectContaining({ source: 'region-hannover-ris', status: 'partial', retrievedAt: null, recordCount: 0,
+      message: expect.stringMatching(/nicht Bestandteil dieser Live-Suche.*Dokumentenindex/) })
   ]));
+  expect(result.meta.attempts.some(attempt => attempt.source === 'region-hannover-ris')).toBe(false);
   expect(result.meta.searchStatus).toBe('partial-results');
+});
+
+test('an empty live query reports the separate Region index without querying any source', async () => {
+  let requests = 0;
+  const provider = createHannoverCompositeProvider({
+    simProvider: { supportsCity: () => true, search: async () => { requests++; return []; } },
+    collectAdditional: async () => { requests++; return { records: [], sourceStatuses: [] }; },
+  });
+  const result = await provider.search({ searchTerms: [' ', null] });
+  expect(requests).toBe(0);
+  expect(result.results).toEqual([]);
+  expect(result.meta.sourceStatuses).toEqual([expect.objectContaining({ source: 'region-hannover-ris',
+    status: 'partial', retrievedAt: null, recordCount: 0,
+    message: expect.stringMatching(/nicht Bestandteil dieser Live-Suche.*Dokumentenindex/) })]);
+  expect(result.meta.status).toBe('incomplete');
 });
 
 test('explicit Landtag filters select only the bounded catalogue and never invoke city or other source searches', async () => {

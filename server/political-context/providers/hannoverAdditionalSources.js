@@ -15,9 +15,9 @@ const FEEDS = [
   { source: 'landtag-rss-drucksachen', url: `${LANDTAG}/rss/drucksachen.xml` },
   { source: 'landtag-rss-steno', url: `${LANDTAG}/rss/stenoberichte.xml` },
 ];
-const BLOCKED = Object.freeze({ source: 'region-hannover-ris', status: 'blocked', url: 'https://ris.hannit.de/public/',
+const REGION_CATALOGUE_STATUS = Object.freeze({ source: 'region-hannover-ris', status: 'partial', url: 'https://ris.hannit.de/public/',
   retrievedAt: null, from: null, to: null, recordCount: 0,
-  message: 'Automatisierter Zugriff geschützt; amtliches RIS nur über den manuellen Link. Kein bestätigter öffentlicher Export.' });
+  message: 'Regionale ALLRIS-Vorlagen sind nicht Bestandteil dieser Live-Suche; sie werden über den Dokumentenindex recherchiert.' });
 
 function validateBound(value, maximum, name) {
   if (!Number.isSafeInteger(value) || value < 0 || value > maximum) throw new TypeError(`Invalid ${name} bound`);
@@ -208,7 +208,7 @@ async function collectHannoverAdditionalSources(options = {}) {
     records: [], sourceStatus: status(FEEDS[i]?.source || (i === 2 ? 'region-hannover-bekanntmachungen' : 'landtag-catalogue'),
       FEEDS[i]?.url || (i === 2 ? REGION_INDEX : buildCatalogueUrl(params.filters)), [], null, 'failed', 'Quelle derzeit nicht verfügbar.') });
   const records = [...new Map(collected.flatMap(outcome => outcome.records).map(r => [r.id, r])).values()];
-  const sourceStatuses = [...collected.map(c => c.sourceStatus), { ...BLOCKED }];
+  const sourceStatuses = [...collected.map(c => c.sourceStatus), { ...REGION_CATALOGUE_STATUS }];
   const range = bounds(records);
   return { records, sources: [...new Set(sourceStatuses.map(s => s.url))], sourceStatuses,
     generatedAt: oldest(sourceStatuses.map(s => s.retrievedAt)) || now.toISOString(),
@@ -217,4 +217,4 @@ async function collectHannoverAdditionalSources(options = {}) {
 }
 
 module.exports = { collectHannoverAdditionalSources, collectLandtagCatalogue, collectRegionNotices,
-  buildCatalogueUrl, requestOfficial, BLOCKED };
+  buildCatalogueUrl, requestOfficial, REGION_CATALOGUE_STATUS };

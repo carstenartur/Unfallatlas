@@ -58,13 +58,13 @@ test('catalogue failure preserves prior verified records and source clock withou
   expect(failed.continuation).toBe(next);
 });
 
-test('independent collectors cache real responses, retain useful data despite a failed feed, and never request protected RIS', async () => {
+test('independent collectors cache real responses and leave Region proposal retrieval to the document index', async () => {
   const [catalogue, rss, notice] = await Promise.all([fixture('landtag-catalogue.html'), fixture('landtag-rss.xml'), fixture('region-notice.html')]);
   const index = '<h1>Regionsversammlung und Ausschüsse</h1><a href="/Regionsversammlung-und-Aussch%C3%BCsse/21.04.2026-Regionsversammlung">lesen</a>';
   const requested = [];
   const request = async url => {
     requested.push(url);
-    if (url.includes('ris.hannit.de')) throw new Error('Protected source must never be requested');
+    if (url.includes('ris.hannit.de')) throw new Error('Region proposals belong to the document index');
     if (url.includes('drucksachen.xml')) throw new Error('feed unavailable');
     if (url.includes('stenoberichte.xml')) return rss;
     if (url.includes('/dokumentensuche/')) return catalogue;
@@ -78,7 +78,8 @@ test('independent collectors cache real responses, retain useful data despite a 
     'Bestellung einer zusätzlichen Linie während der Qualitätsoffensive Hamburg-Hannover zwischen Celle und Hannover.'
   ]));
   expect(first.sourceStatuses).toEqual(expect.arrayContaining([
-    expect.objectContaining({ source: 'region-hannover-ris', status: 'blocked', retrievedAt: null }),
+    expect.objectContaining({ source: 'region-hannover-ris', status: 'partial', retrievedAt: null, recordCount: 0,
+      message: expect.stringMatching(/nicht Bestandteil dieser Live-Suche.*Dokumentenindex/) }),
     expect.objectContaining({ source: 'landtag-rss-drucksachen', status: 'failed' }),
     expect.objectContaining({ source: 'region-hannover-bekanntmachungen', status: 'partial' })
   ]));
@@ -86,6 +87,7 @@ test('independent collectors cache real responses, retain useful data despite a 
   const second = await collectHannoverAdditionalSources(opts);
   expect(second.records).toEqual(first.records);
   expect(requested.slice(before)).toEqual(['https://www.landtag-niedersachsen.de/rss/drucksachen.xml']);
+  expect(requested.some(url => new URL(url).hostname === 'ris.hannit.de')).toBe(false);
   expect(first.coverage.complete).toBe(false);
   expect(first.sourceStatuses.every(s => Object.keys(s).sort().join(',') === 'from,message,recordCount,retrievedAt,source,status,to,url')).toBe(true);
 });
@@ -102,7 +104,7 @@ test('zero additional-source work budget performs no network request and reports
   const result = await collectHannoverAdditionalSources({ now: NOW, sourceCache, checkpoint, workBudget: 0,
     request: async () => { requests++; throw new Error('must not fetch'); } });
   expect(requests).toBe(0);
-  expect(result.sourceStatuses.map(s => s.status)).toEqual(['partial','partial','partial','partial','blocked']);
+  expect(result.sourceStatuses.map(s => s.status)).toEqual(['partial','partial','partial','partial','partial']);
 });
 
 test('successful responses verified after acquisition starts are not mistaken for future cache corruption', async () => {

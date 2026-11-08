@@ -125,14 +125,17 @@ test.describe('URL-State-Hydration – Bonn', () => {
     const hint = page.locator('#noSelectionHint');
     await expect(hint).toBeHidden();
 
-    // Der Export-Report-Text bezieht sich auf die Markierung – wir
-    // prüfen, dass die Textarea einen erkennbaren Bezug zur Markierung
-    // bzw. zur Bonner Auswahl enthält (Stadt-Name + Bbox-Hinweis).
+    // A negative placeholder check does not establish report readiness.
+    // Poll the expected city and selected count in one report value instead
+    // of taking a separate snapshot that can race the asynchronous renderer.
+    const selectedCount = await markedAccidentCount(page);
     const ta = page.locator('#exportBoxTa');
-    await expect(ta).not.toHaveValue('…', { timeout: 15000 });
-    const txt = (await ta.inputValue()) || '';
-    expect(txt.length).toBeGreaterThan(0);
-    expect(txt).toMatch(/Bonn/i);
+    await expect.poll(async () => {
+      const text = await ta.inputValue();
+      const selected = text.match(/Aktive Auswahl im markierten Bereich:\s*([\d.\u00a0\s]+)/i);
+      return { city: /Stadt:\s*Bonn\b/i.test(text),
+        selectedCount: selected ? Number(selected[1].replace(/[^0-9]/g, '')) : null };
+    }, { timeout: 15000 }).toEqual({ city: true, selectedCount });
   });
 
   test('"Markierung löschen" entfernt sel*-Parameter aus der URL', async ({ page }) => {

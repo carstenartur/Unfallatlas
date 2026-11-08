@@ -466,3 +466,95 @@ test.each([
   expect(record.locations).toEqual([]);
   expect(record.locationAssessment.status).toBe('unresolved');
 });
+
+test.each([
+  'Radweg in der Hauptstraße in Garbsen',
+  'Region Hannover: Radweg in der Hauptstraße',
+  'Radweg in der Hauptstraße außerhalb der Landeshauptstadt Hannover',
+  'Radweg in der Hauptstraße nicht in Hannover',
+  'In Hannover wird über den Radweg in der Hauptstraße in Garbsen beraten',
+  'In Hannover beschlossen: Sanierung der Hauptstraße',
+  'Anders als in Hannover wird die Fahrbahn in der Hauptstraße saniert',
+  'In Hannover wird beraten; Fahrradbügel in der Hauptstraße 12 werden beantragt',
+  'Die Fahrbahn in der Hauptstraße in Hannover-Land wird saniert',
+  'Radweg in der Hauptstraße in Hannover und in Lehrte',
+  'Antragsteller in Hannover fordert einen Radweg in der Hauptstraße',
+])('does not use Hannover city geometry for a Region title without reliable city scope: %s', title => {
+  const paper = { source: 'region-hannover-ris', title, gremium: 'Regionsversammlung in Hannover',
+    geometry: { type: 'Point', coordinates: [9.715, 52.37] }, locationSource: 'derived', locationLabel: 'Alter abgeleiteter Punkt' };
+  const [record] = enrich([paper], [street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]])]);
+  expect(record.locations).toEqual([]);
+  expect(record.geometry).toBeUndefined();
+  expect(record.locationSource).toBeUndefined();
+  expect(record.locationLabel).toBeUndefined();
+  expect(record.locationAssessment).toEqual({
+    status: 'unavailable', sources: ['title'], reasons: ['gazetteer_unavailable'], truncated: false,
+  });
+  expect(record.title).toBe(title);
+  expect(paper.locationSource).toBe('derived');
+});
+
+test.each(['in Hannover', 'in der Stadt Hannover', 'in der Landeshauptstadt Hannover'])('maps a Region street explicitly scoped to the city %s', scope => {
+  const main = street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]]);
+  const title = `Radweg in der Hauptstraße ${scope}`;
+  const [record] = enrich([{ source: 'region-hannover-ris', title }], [main]);
+  expect(record.locations).toEqual([{ kind: 'street', label: 'Hauptstraße', geometry: main.geometry,
+    attribution: 'LGLN', evidence: { source: 'title', text: title } }]);
+});
+
+test('requires city scope separately for every Region title and document sentence', () => {
+  const main = street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]]);
+  const evidence = 'Die Fahrbahn in der Hauptstraße in Hannover wird saniert.';
+  const paper = { source: 'region-hannover-ris', title: 'Radweg in der Nordstraße in Garbsen', locationEvidence: [
+    evidence,
+    'In Hannover wurde das Bauprogramm vorgestellt. Die Fahrbahn in der Nordstraße in Garbsen wird saniert.',
+    'Die Fahrbahn in der Südstraße wird saniert.',
+  ] };
+  const [record] = enrich([paper], [main,
+    street('Nordstraße', [[9.71, 52.38], [9.72, 52.38]]), street('Südstraße', [[9.71, 52.36], [9.72, 52.36]]),
+  ]);
+  expect(record.locations).toEqual([{ kind: 'street', label: 'Hauptstraße', geometry: main.geometry,
+    attribution: 'LGLN', evidence: { source: 'document', text: evidence } }]);
+  expect(record.locationEvidence).toEqual(paper.locationEvidence);
+  expect(record.title).toBe(paper.title);
+  expect(record.locationAssessment.sources).toEqual(['title', 'document']);
+});
+
+test('does not propagate a Region title city scope to an unscoped document paragraph', () => {
+  const [record] = enrich([{ source: 'region-hannover-ris', title: 'Sanierungsprogramm in Hannover',
+    locationEvidence: ['Die Fahrbahn in der Hauptstraße wird saniert.'],
+  }], [street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]])]);
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment.sources).toEqual(['title', 'document']);
+});
+
+test.each([
+  'Kontakt für Radverkehr in Hannover: Hauptstraße 12.',
+  'Kontakt für Radverkehr: Hauptstraße 12 in Hannover.',
+  'Die Radverkehrsunterlagen liegen im Regionshaus in Hannover, Hauptstraße 12.',
+  'Sitzung des Verkehrsausschusses in Hannover, Hauptstraße 12.',
+])('does not map a Region administrative address as a traffic measure: %s', evidence => {
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title: 'Radverkehrsprogramm', locationEvidence: [evidence] }], {
+    city: 'hannover', gazetteer: { city: 'hannover',
+      entries: [{ ...street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]]), streetKey: 'main' }],
+      addresses: { main: { '12': [9.715, 52.37] } },
+    },
+  });
+  expect(record.locations).toEqual([]);
+});
+
+test('preserves official Region geometry and incomplete evidence flags without deriving a city street', () => {
+  const geometry = { type: 'Point', coordinates: [9.6, 52.42] };
+  const [record] = enrich([{ source: 'region-hannover-ris', title: 'Radweg in der Hauptstraße in Garbsen',
+    geometry, locationSource: 'official', locationLabel: 'Amtlicher Lageplan',
+    locationEvidence: ['Die Fahrbahn in der Hauptstraße in Garbsen wird saniert.'],
+    locationEvidenceTruncated: true, locationEvidenceUnavailable: true,
+  }], [street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]])]);
+  expect(record).toMatchObject({ geometry, locationSource: 'official', locationLabel: 'Amtlicher Lageplan',
+    locationEvidenceTruncated: true, locationEvidenceUnavailable: true });
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment).toEqual({
+    status: 'partial', sources: ['title', 'document', 'official'],
+    reasons: ['gazetteer_unavailable', 'document_text_unavailable', 'evidence_truncated'], truncated: true,
+  });
+});

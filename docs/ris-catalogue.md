@@ -6,6 +6,44 @@ Speicherformat, Recherche, Kartenanzeige und Berichtszitate sind gemeinsam.
 Eine weitere Stadt benötigt keinen eigenen Karten- oder Dateileser. Ein Berlin-Adapter
 ist nicht Bestandteil dieses Ausbaus.
 
+## Stadt und Region Hannover
+
+Der Hannover-Katalog führt die öffentlichen Vorlagen der Landeshauptstadt und der
+Region im selben Index. Die Herkunft ist ein eigenes Feld; sie wird nicht aus der
+Drucksachennummer oder dem Link erraten.
+
+| Quelle | `source` | Stabile Dokumentidentität |
+|---|---|---|
+| Landeshauptstadt Hannover · SIM | `hannover-sim` | Bestehende SIM-ID |
+| Region Hannover · ALLRIS | `region-hannover-ris` | `region-hannover-ris:vo:<VOLFDNR>` |
+
+Gleiche Drucksachennummern verschiedener Quellen bleiben getrennte Vorgänge. Treffer
+und Kartenangaben zeigen die Quelle und den amtlichen Original-Link. Der bereits
+vorhandene Zusatzimport von regionalen Bekanntmachungen und Landtagsdokumenten bleibt
+erhalten. Sein begrenzter Umfang ist je Quelle in `sourceStatuses` ausgewiesen.
+
+Die Regionsquelle wird über das [öffentliche Vorlagenverzeichnis](https://ris.hannit.de/public/vo040)
+erschlossen. Der Import verwendet den gemeinsamen ALLRIS-Sitzungsclient und die von
+der Quelle angebotene Seitennavigation. Sitzungscookies, Prüfantworten und kurzlebige
+Navigationslinks bleiben im Arbeitsspeicher. Der fortsetzbare Arbeitsstand speichert
+die beobachteten Vorlagen und bereits geprüfte Details nach Jahrgang.
+
+Zuerst werden die Listeneinträge aufgenommen. Die begrenzten Detailabrufe priorisieren
+Verkehrsthemen und liefern öffentliche Textbelege, Beratungsereignisse und Original-PDF-
+Links, soweit die jeweilige Vorlage sie tatsächlich enthält. Ein Freigabedatum wird
+als `sourceContext.publicationDate` geführt; ein Sitzungstermin wird nicht als
+Dokumentdatum ausgegeben. Eine Beschlussvorlage allein gilt nicht als gefasster Beschluss.
+Fehlende Details bleiben gekennzeichnet, und es wird kein vollständiges PDF-Archiv kopiert.
+
+Das Hannoveraner Straßenverzeichnis deckt die Landeshauptstadt ab. Bei einer regionalen
+Vorlage muss deshalb der konkrete Straßen- oder Ortsbeleg unmittelbar mit „in Hannover“,
+„in der Stadt Hannover“ oder „in der Landeshauptstadt Hannover“ qualifiziert sein, bevor
+dieses Verzeichnis eine Lage ableitet. Ein Herausgeber „Region Hannover“, eine
+Verwaltungsadresse oder eine Stadtangabe in einem anderen Absatz reichen nicht aus.
+Diese konservative Prüfung lässt auch manche tatsächlich lokalen Vorgänge unkartiert;
+sie bleiben vollständig im durchsuchbaren Dokumentenbestand. Amtliche Geometrien werden
+unabhängig davon erhalten.
+
 ## Dokumentenbestand und Karte
 
 Der vollständige importierte Bestand enthält auch Vorgänge ohne sicher zuordenbaren Ort.
@@ -133,8 +171,11 @@ node scripts/refresh-ris-catalogues.js --city hannover --history-start-year 2014
 ```
 
 Für Bonn gilt derselbe Einstiegspunkt mit `--city bonn`. Dort zählt das Arbeitsbudget
-Quellseiten, bei Hannover neu versuchte Dokumentdetails. Ohne `--city` werden beide
-konfigurierten Städte bearbeitet.
+Quellseiten. Hannover teilt ein gesetztes Budget zwischen SIM und ALLRIS: SIM zählt neu
+versuchte Dokumentdetails, ALLRIS die öffentlichen Seiten- und Detailabrufe. Die bestehende
+ergänzende Landtags-/Bekanntmachungssuche hat eigene Grenzen von zwei Katalogseiten und
+vier Bekanntmachungen zuzüglich der RSS-Ausschnitte. `--work-budget 0` ruft auch dort keine
+neuen Quellen ab. Ohne `--city` werden beide konfigurierten Städte bearbeitet.
 
 Erfolgreiche öffentliche Antworten werden mit Quell- und Parserrevision im vorhandenen
 Cache gespeichert. Zusätzliche Arbeitsstände unter `.cache/ris-sources/checkpoints/`
@@ -189,13 +230,31 @@ Listendaten und eine sichtbare Einschränkung. Die stadtweite Suche verwendet
 Archivs, deshalb bleibt `coverage.complete: false`.
 
 Die Höchstdauer eines Hannover-Quelldurchlaufs beträgt regulär 58 Minuten mit einer
-harten Worker-Grenze von 60 Minuten. Bonn verwendet 18 beziehungsweise 20 Minuten.
+harten Worker-Grenze von 60 Minuten. SIM und ALLRIS laufen unabhängig parallel; ALLRIS
+hat innerhalb dieses Rahmens höchstens 15 Minuten und 2.000 neue Detailabrufe pro Lauf.
+Der bestehende Pages-Workflow setzt die Quellenarbeit montags bis samstags um
+04:17 UTC fort; sonntags übernimmt der vorhandene vollständige Datenlauf.
+Damit stehen täglich begrenzte Abrufe für noch fehlende Details und die Erneuerung
+älterer Belege bereit. Die tatsächlichen Prüfzeiten bleiben erhalten; fehlgeschlagene
+oder lediglich aus dem Cache gelesene Belege bekommen keine neue Quellenzeit.
+Ein Listenlauf gilt erst mit der amtlichen Anzahl eindeutiger IDs dieses Durchlaufs
+als abgeschlossen. Überlappungen werden erneut geprüft; historische Einträge
+gleichen keine fehlenden aktuellen IDs aus.
+Bonn verwendet 18 beziehungsweise 20 Minuten.
 Ortsabgleich, Aufbau und Validierung der Veröffentlichung folgen anschließend.
 Die Grenzen der amtlichen Quellen bleiben bestehen: Drosselung, fehlende Dokumenttexte,
 geänderte Suchformulare und nichtöffentliche Inhalte werden nicht durch die Aufteilung
 des lokalen Index beseitigt. Ein vollständiges PDF-Archiv wird nicht gespiegelt.
 
 ## Migration und Gültigkeit
+
+Bestätigte Rücknahmen erhalten im Manifest einen optionalen Importzeitpunkt
+`withdrawalsRecordedAt`. Er enthält keine Dokumentidentitäten oder Inhalte und
+erneuert weder `generatedAt` noch den Ablaufzeitpunkt. Dieser getrennte Wert
+verhindert, dass ein älterer lokaler oder veröffentlichter Bestand entfernte
+Dokumente wieder einführt; auch eine teilweise Rücknahme bleibt so wirksam.
+Eine tatsächlich spätere Quellenprüfung kann die öffentliche Verfügbarkeit erneut
+feststellen. Formatmigrationen und reine Ortsprüfungen bewahren den Wert unverändert.
 
 Der Browser und der gemeinsame Offline-Leser unterstützen Version 1 und frühere
 Version-2-Bestände mit festem Kachelindex weiterhin. Das Manifest kennzeichnet den
@@ -208,6 +267,10 @@ Schritt: Sie bewertet vorhandene Titel, gespeicherte Belege und amtliche Lagen g
 das aktuelle geprüfte Ortsverzeichnis. Begrenzte Belege werden entsprechend bezeichnet.
 
 Ein Quellenfehler oder eine lokale Formatänderung erzeugt keine neue Quellenzeit.
+Auch beibehaltene Vorgänge, die im nächsten Abruf fehlen, behalten ihre ursprüngliche
+Verifikationszeit. Ein frisch aktualisierter Stadtteil des Katalogs erneuert keine
+älteren Regionsbelege. Ein früherer Regionslink ohne importierte Datensätze löst den
+ersten echten Regionsimport aus, selbst wenn der Stadtkatalog noch frisch ist.
 Der Datenstand gilt nach acht Tagen als veraltet und läuft nach vierzehn Tagen ab.
 Ein tatsächlich unterbrochener historischer Ausbau darf die Gültigkeit des alten
 Bestands nicht verlängern. Der dokumentierte Wiederholungsabstand nach Quellenfehlern

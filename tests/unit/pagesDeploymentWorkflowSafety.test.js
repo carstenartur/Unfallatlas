@@ -48,6 +48,29 @@ function refreshInvocation(env = {}) {
 }
 
 describe('Pages deployment workflow safety', () => {
+  test('scheduled source continuation covers every weekday through the shared publication path', () => {
+    const runs = Array(7).fill(0);
+    for (const workflowPath of PAGE_WORKFLOWS) {
+      const workflow = readWorkflow(workflowPath);
+      expect(workflow.concurrency).toMatchObject({ group: 'pages-data', 'cancel-in-progress': false });
+      for (const { cron } of workflow.on.schedule || []) {
+        const fields = cron.split(/\s+/);
+        expect(fields).toHaveLength(5);
+        expect(fields.slice(2, 4)).toEqual(['*', '*']);
+        const days = fields[4] === '*' ? ['0-6'] : fields[4].split(',');
+        for (const range of days) {
+          const [first, last = first] = range.split('-').map(Number);
+          expect(first).toBeGreaterThanOrEqual(0);
+          expect(last).toBeLessThanOrEqual(6);
+          for (let day = first; day <= last; day++) runs[day]++;
+        }
+      }
+    }
+    // One bounded run per day advances detail renewals within the fourteen-day
+    // evidence lifetime. The weekly full data regeneration supplies Sunday.
+    expect(runs).toEqual(Array(7).fill(1));
+  });
+
   test.each(PAGE_WORKFLOWS)('%s publishes artifacts without mutating repository settings', workflowPath => {
     const workflow = fs.readFileSync(path.join(ROOT, workflowPath), 'utf8');
 
