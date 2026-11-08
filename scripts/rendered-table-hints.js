@@ -250,7 +250,12 @@ function reconstructTable(words, hint) {
   const tolerance = Number(hint.lineTolerance ?? 3);
   const lines = clusterWordsIntoLines(words, tolerance);
   const header = locateHeader(lines, hint.headers, tableId);
-  const boundaries = columnBoundaries(header.centres);
+  if (hint.headerAlignment != null && hint.headerAlignment !== 'left') {
+    fail('invalid_table_hint', 'headerAlignment only supports explicit left-aligned columns');
+  }
+  const boundaries = hint.headerAlignment === 'left'
+    ? [-Infinity, ...header.boxes.slice(1).map(box => box.xMin - 1), Infinity]
+    : columnBoundaries(header.centres);
   const headerLineCount = positiveInteger(hint.headerLines, `${tableId}.headerLines`, 1);
   const headerLines = lines.slice(header.lineIndex, header.lineIndex + headerLineCount);
   if (headerLines.length !== headerLineCount) {

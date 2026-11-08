@@ -52,6 +52,9 @@ function runFocusedDocxTests() {
     'tests/unit/renderDocumentGoldenMatrix.test.js',
     'tests/unit/renderedTableHints.test.js',
     'tests/unit/runtimeExportProvenanceLoader.test.js',
+    'tests/unit/releaseMapFixture.test.js',
+    'tests/unit/releaseDocumentContract.test.js',
+    'tests/unit/numberedReleaseEvidence.test.js',
   ];
   const result = spawnSync(process.execPath, [jest, '--runInBand', ...tests], {
     cwd: ROOT,
@@ -84,6 +87,7 @@ function runDocx() {
   runNode('scripts/generate-document-golden-matrix.js');
   runNode('scripts/render-document-golden-matrix.js');
   runNode('scripts/verify-document-golden-rendered-semantics.js');
+  runNode('scripts/qa-numbered-appendix-rendered.js');
 }
 
 if (MODE === 'all' || MODE === 'native-pdf') runNativePdf();

@@ -1,182 +1,78 @@
 #!/usr/bin/env node
-/**
- * scripts/generate-sample-pdf.js — CI render-gate helper
- *
- * Erzeugt eine Beispiel-PDF mit der realen ua.report_v2-Export-Pipeline
- * und schreibt sie nach `out/ci-render-gate.pdf`. Das so erzeugte PDF
- * wird anschließend vom `npm run test:render-gate`-Skript
- * (scripts/check-pdf-render.js) geprüft.
- *
- * Verwendung:
- *   node scripts/generate-sample-pdf.js
- *   node scripts/generate-sample-pdf.js --out out/my-test.pdf
- *
- * Exit-Codes:
- *   0  PDF erfolgreich geschrieben
- *   1  Fehler beim Erzeugen
- */
-
 'use strict';
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-
-// ---------------------------------------------------------------------------
-// CLI-Argument: --out <path>
-// ---------------------------------------------------------------------------
-const args  = process.argv.slice(2);
-const outIdx = args.indexOf('--out');
-const outPath = outIdx >= 0 && args[outIdx + 1]
-  ? path.resolve(args[outIdx + 1])
-  : path.resolve(__dirname, '..', 'out', 'ci-render-gate.pdf');
-
-// Ensure output directory exists.
-fs.mkdirSync(path.dirname(outPath), { recursive: true });
-
-// ---------------------------------------------------------------------------
-// Minimal browser-like globals needed by ua.report_v2's IIFE
-// ---------------------------------------------------------------------------
-const pdfMakeLib = require('./pdfmake-node');
-
-const mockWindow = {
-  UA: {},
-  location: {
-    href: 'https://carstenartur.github.io/Unfallatlas/werkbank_v2.html',
-    pathname: '/Unfallatlas/werkbank_v2.html',
-    search: '',
-    hash: '',
-    origin: 'https://carstenartur.github.io',
-    protocol: 'https:',
-    host: 'carstenartur.github.io',
-  },
-  pdfMake: pdfMakeLib,
-  docx: require('docx'),
-  saveAs: () => {},
-  // leafletImage stub: returns a 1×1 transparent PNG so the map path runs
-  // through without a real Leaflet instance.
-  leafletImage: (_map, cb) => setTimeout(() => cb(null, {
-    toDataURL: () =>
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-  }), 0),
-};
-
-// Load ua.utils.js first (ua.report_v2 depends on UA.normKey etc.)
-const utilsSrc  = fs.readFileSync(path.resolve(__dirname, '..', 'js', 'ua.utils.js'), 'utf8');
-const reportSrc = fs.readFileSync(path.resolve(__dirname, '..', 'js', 'ua.report_v2.js'), 'utf8');
-
-// eslint-disable-next-line no-new-func
-(new Function('window', utilsSrc))(mockWindow);
-// eslint-disable-next-line no-new-func
-(new Function('window', reportSrc))(mockWindow);
-
-const UA = mockWindow.UA;
-
-// ---------------------------------------------------------------------------
-// Stub map-capture helpers directly on UA so the image path runs end-to-end
-// through the PDF rendering pipeline (fitImageToMax, image nodes, etc.)
-// without needing a real Leaflet instance or a browser URL context.
-//
-// A synthetic 1×1 PNG is used — the render gate exercises whether pdfmake
-// can serialise and poppler/gs can render the resulting PDF pages, not
-// whether the pixel content is accurate.
-// ---------------------------------------------------------------------------
-const STUB_PNG =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-
-UA.captureExportMapImage = async () => STUB_PNG;
-UA._captureExportMapImage = UA.captureExportMapImage;
-UA._captureDetailMap = async () => STUB_PNG;
-UA._captureClusterMaps = async () => [{
-  image: STUB_PNG,
-  bounds: { south: 50.69, west: 7.13, north: 50.74, east: 7.18 },
-  total: 3,
-  points: [],
-  label: 'Cluster Bonn-Zentrum',
-  zoom: 16,
-  lat: 50.7326,
-  lon: 7.0963,
-}];
-
-// ---------------------------------------------------------------------------
-// Capture the real PDF document and skip the browser download.
-// ---------------------------------------------------------------------------
-let capturedDoc;
-const origCreatePdf = pdfMakeLib.createPdf.bind(pdfMakeLib);
-mockWindow.pdfMake.createPdf = (def) => {
-  capturedDoc = origCreatePdf(def);
-  capturedDoc.download = () => {};
-  return capturedDoc;
-};
-
-// ---------------------------------------------------------------------------
-// Fixture context + report data (minimal but representative)
-// ---------------------------------------------------------------------------
-const ctx = {
-  CITY_RAW: 'Bonn',
-  map: {
-    getCenter: () => ({ lat: 50.7326, lng: 7.0963 }),
-    getZoom:   () => 14,
-    eachLayer:  () => {},
-    fitBounds:  () => {},
-    setView:    () => {},
-    getBounds:  () => ({
-      getSouth: () => 50.69,
-      getNorth: () => 50.74,
-      getWest:  () => 7.13,
-      getEast:  () => 7.18,
-    }),
-  },
-  selectionBounds: {
-    south:      50.69,
-    west:       7.13,
-    north:      50.74,
-    east:       7.18,
-    getSouth:   () => 50.69,
-    getWest:    () => 7.13,
-    getNorth:   () => 50.74,
-    getEast:    () => 7.18,
-    contains:   () => true,
-  },
-  viewportPts: [],
-};
-
-const reportData = {
-  text: [
-    'Sachverhalt:',
-    'Im markierten Kartenausschnitt Bonn-Bad Godesberg wurden 20 Unfälle ausgewertet.',
-    'Davon waren 8 Radunfälle, 5 Fußgängerunfälle und 7 PKW-Unfälle.',
-    '',
-    'Beschlussvorschlag:',
-    'Der Bezirksrat bittet die Verwaltung, den markierten Bereich auf Sicherheitspotenzial zu prüfen.',
-  ].join('\n'),
-  structured: {
-    meta: {
-      city: 'Bonn',
-      date: new Date().toLocaleDateString('de-DE'),
-      gremium: { typ: 'Bezirksrat' },
+const samples = require('./generate-sample-docx');
+const {
+  toDataUrl
+} = require('./deterministic-map-fixture');
+async function generateSamplePdf(options = {}) {
+  const scenario = samples.resolveScenario(options.scenario);
+  const ctx = samples.createContext(scenario),
+    report = samples.createReportData(scenario);
+  const maps = samples.createScenarioMaps(ctx, scenario);
+  const pdfMake = require('./pdfmake-node');
+  let captured;
+  const root = {
+    UA: {},
+    location: {
+      href: 'https://carstenartur.github.io/Unfallatlas/werkbank_v2.html',
+      pathname: '/Unfallatlas/werkbank_v2.html',
+      origin: 'https://carstenartur.github.io',
+      protocol: 'https:',
+      host: 'carstenartur.github.io',
+      search: '',
+      hash: ''
     },
-    severity: { total: 20, bySev: { '3': 16, '2': 3, '1': 1 } },
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Run the export, then write the PDF buffer to disk.
-// ---------------------------------------------------------------------------
-(async () => {
-  await UA.exportToPDF(ctx, reportData, {
-    includeMap: true,
-    includePOIs: false,
-    includeReferences: false,
-    _skipQAGate: true,
+    pdfMake: {
+      createPdf(definition) {
+        captured = pdfMake.createPdf(definition);
+        captured.download = () => {};
+        return captured;
+      }
+    }
+  };
+  for (const file of ['ua.utils.js', 'ua.report_v2.js']) new Function('window', fs.readFileSync(path.join(__dirname, '..', 'js', file), 'utf8'))(root);
+  root.UA.captureExportMapImage = async (_ctx, opts = {}) => toDataUrl((opts.exportPoints ? maps.overview : maps.selection).png);
+  root.UA._captureDetailMap = async () => toDataUrl(maps.detail.png);
+  root.UA._captureClusterMaps = async () => [{
+    image: toDataUrl(maps.cluster.png),
+    bounds: maps.cluster.receipt.bounds,
+    total: maps.cluster.receipt.markerCount,
+    points: ctx.allPts.slice(0, scenario.clusterCount),
+    label: samples.clusterLabel(scenario),
+    zoom: scenario.zoom + 1,
+    lat: scenario.center.lat,
+    lon: scenario.center.lon
+  }];
+  await root.UA.exportToPDF(ctx, report, {
+    ...scenario.exportOptions,
+    _skipQAGate: true
   });
-  if (!capturedDoc) {
-    throw new Error('Export did not call pdfMake.createPdf');
-  }
-
-  const buffer = await capturedDoc.getBuffer();
+  if (!captured) throw new Error('PDF exporter did not create a document');
+  const buffer = await captured.getBuffer(),
+    outPath = path.resolve(options.outPath || path.join(__dirname, '..', 'out', 'ci-render-gate.pdf'));
+  fs.mkdirSync(path.dirname(outPath), {
+    recursive: true
+  });
   fs.writeFileSync(outPath, buffer);
-  process.stdout.write('generate-sample-pdf: wrote ' + buffer.length + ' bytes to ' + outPath + '\n');
-})().catch(err => {
-  process.stderr.write('generate-sample-pdf: ' + err.message + '\n');
-  process.exitCode = 1;
-});
+  fs.writeFileSync(`${outPath}.maps.json`, JSON.stringify(Object.values(maps).map(m => m.receipt), null, 2));
+  return {
+    outPath,
+    bytes: buffer.length,
+    maps: Object.values(maps).map(m => m.receipt)
+  };
+}
+if (require.main === module) {
+  const i = process.argv.indexOf('--out');
+  generateSamplePdf({
+    outPath: i >= 0 ? process.argv[i + 1] : undefined
+  }).then(r => console.log(`[generate-sample-pdf] ${r.bytes} bytes; four snapshot-bound maps → ${r.outPath}`)).catch(e => {
+    console.error(e.stack);
+    process.exitCode = 1;
+  });
+}
+module.exports = {
+  generateSamplePdf
+};

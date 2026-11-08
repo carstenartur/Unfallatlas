@@ -6,15 +6,26 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/rendered-document-poppler.yml'
+      - 'config/word-compatibility-inputs.json'
       - 'pom.xml'
       - 'package.json'
       - 'package-lock.json'
       - 'js/ua.core.js'
+      - 'js/ua.evidence_cohort.js'
+      - 'js/ua.document_export_provenance.js'
+      - 'js/ua.export_provenance.js'
+      - 'js/ua.source_manifest.js'
+      - 'js/ua.artifact_provenance.js'
       - 'js/ua.docx_pagination.js'
       - 'js/ua.docx_source_links.js'
       - 'js/ua.report_v2.js'
       - 'js/ua.utils.js'
       - 'scripts/deterministic-map-fixture.js'
+      - 'scripts/release-map-fixture.js'
+      - 'scripts/qa-numbered-appendix-rendered.js'
+      - 'tests/unit/numberedReleaseEvidence.test.js'
+      - 'tests/unit/releaseDocumentContract.test.js'
+      - 'tests/unit/releaseMapFixture.test.js'
       - 'scripts/document-golden-scenarios.js'
       - 'scripts/enrich-rendered-document-tables.js'
       - 'scripts/generate-document-golden-matrix.js'
@@ -136,6 +147,7 @@ jobs:
             out/qa/rendered-document/poppler/
             out/qa/rendered-document/docx/
             out/qa/document-golden-matrix/
+            out/qa/release-document/
             analysis-service/target/surefire-reports/
           if-no-files-found: error
           retention-days: 14
