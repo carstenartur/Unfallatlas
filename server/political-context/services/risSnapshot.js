@@ -206,12 +206,13 @@ function collectSourceLocations(record, id, features, maximum = MAX_LOCATIONS_PE
     const label = requiredText(value.label, 'location label');
     const evidence = { source: value.evidence.source, text: requiredText(value.evidence.text, 'location evidence') };
     const attribution = value.attribution === undefined ? '' : requiredText(value.attribution, 'location attribution');
+    const suppliedMapLabel = value.mapLabel === undefined ? '' : requiredText(value.mapLabel, 'location map label');
     const mapped = validLocationGeometry(value.geometry, value.kind);
     if (mapped) {
       const scope = value.kind === 'street'
         ? `${value.extent === 'part' ? 'kartierter Teil des Straßenverlaufs' : 'Straßenverlauf'} als Orientierung` : '';
       const detail = [scope, attribution].filter(Boolean).join(' · ');
-      const mapLabel = detail ? requiredText(`${label} — ${detail}`, 'location map label') : label;
+      const mapLabel = suppliedMapLabel || (detail ? requiredText(`${label} — ${detail}`, 'location map label') : label);
       features.push(mapFeature(id, value.geometry, 'derived', mapLabel, locationIndex));
     }
     return { label, kind: value.kind, evidence, mapped };

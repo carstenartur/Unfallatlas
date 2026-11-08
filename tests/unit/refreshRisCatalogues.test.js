@@ -575,6 +575,42 @@ test.each([false, true])('keeps verified detail evidence, geometry and relations
   expect(after.manifest.coverage.warnings.join(' ')).toMatch(/Detail.*verifiziert|verifiziert.*Detail/i);
 });
 
+test('keeps complete title-derived feature labels when newly unavailable detail evidence retains prior locations', async () => {
+  const priorData = catalogue('hannover');
+  const priorRecord = priorData.records[0];
+  priorRecord.title = 'Radverkehr in der Limmerstraße und am Küchengarten';
+  delete priorRecord.geometry;
+  delete priorRecord.locationSource;
+  const evidence = { source: 'title', text: priorRecord.title };
+  priorRecord.locations = [
+    { kind: 'street', label: 'Limmerstraße', extent: 'part', attribution: 'LGLN, dl-de/by-2-0', evidence,
+      geometry: { type: 'LineString', coordinates: [[9.71, 52.37], [9.72, 52.37]] } },
+    { kind: 'place', label: 'Am Küchengarten', attribution: 'Landeshauptstadt Hannover', evidence,
+      geometry: { type: 'Point', coordinates: [9.717, 52.372] } },
+  ];
+  priorRecord.locationAssessment = { status: 'mapped', sources: ['title'], reasons: [], truncated: false };
+  await writeRisSnapshot(directory, 'hannover', priorData, { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  expect(before.features.features.map(feature => feature.properties.label)).toEqual([
+    'Limmerstraße — kartierter Teil des Straßenverlaufs als Orientierung · LGLN, dl-de/by-2-0',
+    'Am Küchengarten — Landeshauptstadt Hannover',
+  ]);
+  const next = catalogue('hannover');
+  next.records[0] = { ...next.records[0], geometry: undefined, locationSource: undefined,
+    title: 'Aktualisierter amtlicher Listentitel', locationEvidence: [], locationEvidenceUnavailable: true,
+    detailVerifiedAt: FALLBACK.toISOString() };
+  next.history = { pending: false, interrupted: false };
+  await expect(refresh({ cities: ['hannover'], collect: () => next }))
+    .resolves.toMatchObject([{ status: 'published', generatedAt: FALLBACK.toISOString(), records: 2 }]);
+  const after = await readRisSnapshot(directory, 'hannover');
+  expect(after.features).toEqual(before.features);
+  expect(after.records.find(record => record.id === priorRecord.id)).toMatchObject({
+    title: 'Aktualisierter amtlicher Listentitel', locations: before.records[0].locations,
+    locationAssessment: { status: 'partial', sources: ['title'], reasons: ['document_text_unavailable'] },
+  });
+  expect(after.manifest.generatedAt).toBe(before.manifest.generatedAt);
+});
+
 test('successful changed detail replaces previous evidence and geometry', async () => {
   await writeRisSnapshot(directory, 'hannover', catalogue('hannover'), { now: FALLBACK });
   const next = catalogue('hannover');

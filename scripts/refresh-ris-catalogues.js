@@ -274,7 +274,9 @@ function snapshotInputs({ records, features }) {
       ...(document.length ? { locationEvidence: document, locationEvidenceTruncated: true } : {}),
       locations: (record.locations || []).map((location, index) => {
         const feature = own.find(item => item.properties.locationIndex === index);
-        return feature ? { ...location, geometry: feature.geometry } : location;
+        // Published records omit attribution and extent; the verified feature
+        // label retains both without having to reverse-parse display text.
+        return feature ? { ...location, geometry: feature.geometry, mapLabel: feature.properties.label } : location;
       }),
       ...(official ? { geometry: official.geometry, locationSource: 'official', locationLabel: official.properties.label } : {}),
     };

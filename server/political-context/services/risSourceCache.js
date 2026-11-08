@@ -8,6 +8,11 @@ const path = require('node:path');
 const SCHEMA_VERSION = 1;
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
+function matchesEntry(entry, key, revision, checkedAt) {
+  return entry && entry.schemaVersion === SCHEMA_VERSION && entry.key === key && entry.revision === revision &&
+    Number.isFinite(entry.cachedAt) && entry.cachedAt >= 0 && entry.cachedAt <= checkedAt && Object.hasOwn(entry, 'payload');
+}
+
 async function readEntry(filename, maxBytes) {
   if (!constants.O_NOFOLLOW && (await fs.lstat(filename)).isSymbolicLink()) return null;
   const file = await fs.open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0));
@@ -33,6 +38,8 @@ async function readEntry(filename, maxBytes) {
  * The loader validates its source payload; this cache validates its envelope and age.
  * getOrLoadWithMetadata also returns the original cachedAt for source provenance;
  * getOrLoad retains its payload-only contract for existing consumers.
+ * getMetadata reads only provenance, including expired envelopes, without loading
+ * or renewing their payloads. It does not count as a payload-cache hit.
  * Stats count actual cache operations, with concurrent identical requests counted once.
  */
 function createRisSourceCache({ directory, now = () => Date.now(),
@@ -56,9 +63,7 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     let entry;
     try { entry = await readEntry(filename, maxEntryBytes); }
     catch (_) { /* Missing, unreadable or damaged cache entries are misses. */ }
-    if (entry && entry.schemaVersion === SCHEMA_VERSION && entry.key === key && entry.revision === revision &&
-        Number.isFinite(entry.cachedAt) && entry.cachedAt >= 0 && entry.cachedAt <= checkedAt &&
-        checkedAt - entry.cachedAt < maxAgeMs && Object.hasOwn(entry, 'payload')) {
+    if (matchesEntry(entry, key, revision, checkedAt) && checkedAt - entry.cachedAt < maxAgeMs) {
       stats.hits += 1;
       return { payload: entry.payload, cachedAt: entry.cachedAt };
     }
@@ -106,7 +111,20 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     return (await getOrLoadWithMetadata(key, revision, loader)).payload;
   }
 
-  return { getOrLoad, getOrLoadWithMetadata, stats };
+  async function getMetadata(key, revision) {
+    if (typeof key !== 'string' || !key ||
+        !(revision === null || typeof revision === 'string' || (typeof revision === 'number' && Number.isFinite(revision)))) {
+      throw new TypeError('Invalid RIS source cache key or revision');
+    }
+    const checkedAt = timestamp();
+    const digest = createHash('sha256').update(JSON.stringify([key, revision])).digest('hex');
+    let entry;
+    try { entry = await readEntry(path.join(folder, `${digest}.json`), maxEntryBytes); }
+    catch (_) { return null; }
+    return matchesEntry(entry, key, revision, checkedAt) ? { cachedAt: entry.cachedAt } : null;
+  }
+
+  return { getOrLoad, getOrLoadWithMetadata, getMetadata, stats };
 }
 
 module.exports = { createRisSourceCache };

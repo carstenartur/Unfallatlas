@@ -145,6 +145,7 @@ test('revalidates a legacy payload-only cache hit whose source time is unknown',
 
 test.each([
   ['Anfrage', 'Drucksache', 'Radweg an der Limmerstraße', 'Anfrage'],
+  ['Haushaltsantrag', 'Änderungsantrag zum Haushalt', 'Radweg an der Limmerstraße', 'Änderungsantrag'],
   ['Änderungsantrag', 'Drucksache', 'Radweg an der Limmerstraße', 'Änderungsantrag'],
   ['Anfrage', 'Antrag', 'Radweg an der Limmerstraße', 'Anfrage'],
   ['Anfrage', 'Drucksache', 'Antwort zur Limmerstraße', 'Verwaltungsantwort'],
@@ -156,6 +157,74 @@ test.each([
     documents: { 'DS/0001-2021': document('0001-2021', title).replace('Drucksache Nr.', `${detailType} Nr.`) } });
   const { records } = await collectHannoverCatalogue({ ...options, to: '2021-12-31', requestText });
   expect(records[0].type).toBe(expected);
+});
+
+test.each(['source cache', 'checkpoint catalogue'])('keeps specific household amendments from %s despite a generic annual motion type', async storage => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCache } = require('../../server/political-context/services/risSourceCache');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-specific-type-'));
+  try {
+    const key = 'H-0001-2021';
+    const firstCheckedAt = new Date(NOW.getTime() - 86400000);
+    let cacheTime = firstCheckedAt.getTime();
+    const sourceCache = storage === 'source cache' ? createRisSourceCache({ directory: folder, now: () => cacheTime }) : undefined;
+    const checkpoint = storage === 'checkpoint catalogue' ? createRisSourceCheckpoint({ directory: folder }) : undefined;
+    const { requestText, calls } = fixture({ years: { 2021: results([row(key, 'Haushaltsmittel für Radwege', '01.02.2021', 'Haushaltsantrag')]) },
+      documents: { ['DS/' + key]: document(key, 'Haushaltsmittel für Radwege').replace('Drucksache Nr.', 'Änderungsantrag zum Haushalt Nr.') } });
+    const collectOptions = { ...options, to: '2021-12-31', requestText, sourceCache, checkpoint };
+    await collectHannoverCatalogue({ ...collectOptions, now: firstCheckedAt });
+    if (checkpoint) {
+      const state = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
+      state.catalogue.records[0].type = 'Antrag'; // Frozen projection from the old precedence rule.
+      await checkpoint.write('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1', state);
+    }
+    cacheTime = NOW.getTime();
+    const result = await collectHannoverCatalogue({ ...collectOptions,
+      ...(checkpoint ? { from: '2022-01-01', to: '2022-12-31', workBudget: 0 } : {}) });
+    expect(result.records[0].type).toBe('Änderungsantrag');
+    expect(result.records[0].locationEvidence).toEqual(['Der Radweg an der Limmerstraße wird saniert.']);
+    expect(calls.filter(call => call.url.includes('/DS/'))).toHaveLength(1);
+    if (sourceCache) expect(result.records[0].detailVerifiedAt).toBe(firstCheckedAt.toISOString());
+    if (checkpoint) expect((await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1')).details[key].checkedAt)
+      .toBe(firstCheckedAt.toISOString());
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test.each([[false, false], [true, false], [false, true]])('cross-year assembly preserves annual types and newest details independently of year order (annual newer=%s, new evidence missing=%s)', async (annualNewer, missingEvidence) => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-cross-year-type-'));
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const key = '0001-2021N1', id = 'hannover-sim:' + key;
+    const oldClock = '2026-11-06T11:00:00.000Z', newClock = '2026-11-07T11:00:00.000Z';
+    for (const year of [2021, 2022]) {
+      const newest = (year === 2021) === annualNewer;
+      const clock = newest ? newClock : oldClock;
+      const record = { id, title: newest ? 'Aktueller amtlicher Titel' : 'Älterer Titel', number: '0001/2021 N1',
+        type: year === 2021 ? 'Beschluss' : 'Sonstige', date: newest ? '2021-02-02' : '2021-02-01', gremium: 'Rat', source: 'hannover-sim', url: ROOT + 'DS/' + key,
+        locationEvidence: newest && missingEvidence ? [] : [newest ? 'Neuester geprüfter Maßnahmenort.' : 'Älterer Maßnahmenort.'], detailVerifiedAt: clock,
+        ...(newest && missingEvidence ? { locationEvidenceUnavailable: true } : {}),
+        ...(!newest ? { relatedTo: 'hannover-sim:0001-2021' } : {}) };
+      await checkpoint.write('hannover-sim', 'public-year-search:true', year, 'sim-history-v1', {
+        documents: year === 2021 ? [{ key, searchType: 'Beschlussdrucksache' }] : [{ key, url: ROOT + 'DS/' + key }],
+        details: { [key]: { checkedAt: clock, result: { rawType: 'Drucksache', title: record.title, related: [], locationEvidence: record.locationEvidence } } },
+        catalogue: { records: [record], sources: [SEARCH], coverage: { from: `${year}-01-01`, to: `${year}-12-31`, bodies: ['Rat'], complete: false, warnings: [], scope: 'citywide' } },
+      });
+    }
+    const requestText = jest.fn(() => { throw new Error('Checkpoint projection must not fetch'); });
+    const result = await collectHannoverCatalogue({ ...options, from: '2023-01-01', to: '2023-12-31', checkpoint, workBudget: 0, requestText });
+    expect(result.records).toEqual([expect.objectContaining({ id, type: 'Beschluss', title: 'Aktueller amtlicher Titel', date: '2021-02-02',
+      locationEvidence: [missingEvidence ? 'Älterer Maßnahmenort.' : 'Neuester geprüfter Maßnahmenort.'],
+      relatedTo: 'hannover-sim:0001-2021', detailVerifiedAt: missingEvidence ? oldClock : newClock })]);
+    if (missingEvidence) expect(result.records[0].locationEvidenceUnavailable).toBe(true);
+    expect(requestText).not.toHaveBeenCalled();
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });
 
 test.each(['source cache', 'checkpoint details', 'checkpoint catalogue'])('normalizes legacy empty evidence and list types from %s without rereading details', async storage => {
@@ -251,6 +320,78 @@ test('an old checkpoint catalogue cannot become a freshly verified snapshot when
       fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => catalogue }))
       .resolves.toMatchObject([{ status: 'unavailable' }]);
     await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test.each(['fresh retained details', 'historical catalogue'])('repairs a legacy checkpoint clock from cache metadata through %s without source reads', async mode => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCache } = require('../../server/political-context/services/risSourceCache');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const { refreshRisCatalogues } = require('../../scripts/refresh-ris-catalogues');
+  const { readRisSnapshot } = require('../../server/political-context/services/risSnapshot');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-old-checkpoint-clock-'));
+  const verifiedAt = new Date('2026-11-01T11:00:00Z');
+  const inflatedAt = new Date('2026-11-07T11:00:00Z');
+  const later = new Date('2026-11-20T11:00:00Z');
+  let cacheTime = verifiedAt.getTime();
+  try {
+    const key = '0001-2021';
+    const usefulKey = '0002-2021';
+    const sourceDirectory = path.join(folder, 'cache');
+    const sourceCache = createRisSourceCache({ directory: sourceDirectory, now: () => cacheTime });
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const { requestText, calls } = fixture({ years: { 2021: results([row(key), row(usefulKey)]) }, documents: {
+      ['DS/' + key]: document(key).replace('<h4>Antrag</h4>', '<h4>Sachverhalt</h4>'),
+      ['DS/' + usefulKey]: document(usefulKey),
+    } });
+    const collectOptions = { ...options, to: '2021-12-31', checkpoint, sourceCache, requestText };
+    await collectHannoverCatalogue({ ...collectOptions, now: verifiedAt });
+    const metadataReads = jest.spyOn(sourceCache, 'getMetadata');
+    const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
+    for (const detail of Object.values(work.details)) {
+      detail.checkedAt = inflatedAt.toISOString();
+      delete detail.result.detailVerifiedAt;
+      delete detail.result.locationEvidenceUnavailable;
+      delete detail.cacheClockVersion;
+    }
+    for (const record of work.catalogue.records) {
+      record.detailVerifiedAt = inflatedAt.toISOString();
+      delete record.locationEvidenceUnavailable;
+    }
+    // A retained failed detail may still have useful evidence, which must survive.
+    work.catalogue.records.find(record => record.id.endsWith(usefulKey)).locationEvidenceUnavailable = true;
+    const earlierKnownClock = new Date(verifiedAt.getTime() - 60000).toISOString();
+    work.details[usefulKey].result.detailVerifiedAt = earlierKnownClock;
+    await checkpoint.write('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1', work);
+    const cacheNames = (await fs.readdir(sourceDirectory)).sort();
+    const originalCache = await Promise.all(cacheNames.map(name => fs.readFile(path.join(sourceDirectory, name), 'utf8')));
+    const readsBefore = calls.length;
+    cacheTime = (mode === 'historical catalogue' ? later : inflatedAt).getTime();
+    const collected = await collectHannoverCatalogue({ ...collectOptions, now: new Date(cacheTime),
+      ...(mode === 'historical catalogue' ? { from: '2022-01-01', to: '2022-12-31', workBudget: 0 } : {}) });
+    expect(collected.records.find(record => record.id.endsWith(key)))
+      .toMatchObject({ locationEvidenceUnavailable: true, detailVerifiedAt: verifiedAt.toISOString() });
+    expect(collected.records.find(record => record.id.endsWith(usefulKey)).locationEvidence)
+      .toEqual(['Der Radweg an der Limmerstraße wird saniert.']);
+    expect(calls.slice(readsBefore).some(call => call.url.includes('/DS/'))).toBe(false);
+    if (mode === 'historical catalogue') expect(calls).toHaveLength(readsBefore);
+    const corrected = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
+    expect(corrected.details[key].checkedAt).toBe(verifiedAt.toISOString());
+    expect(corrected.details[usefulKey].checkedAt).toBe(earlierKnownClock);
+    expect(corrected.details[usefulKey].result.locationEvidence).toEqual(work.details[usefulKey].result.locationEvidence);
+    cacheTime = later.getTime();
+    const expired = await collectHannoverCatalogue({ ...collectOptions, now: later, from: '2022-01-01', to: '2022-12-31', workBudget: 0 });
+    expect(expired.records.find(record => record.id.endsWith(key)).detailVerifiedAt).toBe(verifiedAt.toISOString());
+    const directory = path.join(folder, 'published');
+    await expect(refreshRisCatalogues({ directory, cities: ['hannover'], now: later,
+      fetchPublished: async () => new Response(null, { status: 404 }), collect: async () => expired }))
+      .resolves.toMatchObject([{ status: 'unavailable' }]);
+    await expect(readRisSnapshot(directory, 'hannover')).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(sourceCache.stats).toEqual({ hits: 0, misses: 2, writes: 2 });
+    expect(metadataReads).toHaveBeenCalledTimes(2);
+    expect(await Promise.all(cacheNames.map(name => fs.readFile(path.join(sourceDirectory, name), 'utf8')))).toEqual(originalCache);
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });
 

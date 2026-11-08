@@ -333,8 +333,31 @@ function documentType(doc, result, answer = false) {
   const detailType = inferType('', result.rawType || result.type);
   if (answer || /^antwort\b/i.test(result.title) || detailType === 'Verwaltungsantwort') return 'Verwaltungsantwort';
   const listType = inferType('', doc?.searchType);
+  // A household list groups amendments under Haushaltsantrag. Preserve the
+  // more specific verified detail instead of flattening it to a generic motion.
+  if (detailType === 'Änderungsantrag' && (listType === 'Antrag' || listType === 'Sonstige')) return detailType;
   if (listType !== 'Sonstige') return listType;
   return detailType === 'Sonstige' ? inferType(result.title, '') : detailType;
+}
+
+function mergeYearRecord(previous, incoming) {
+  if (!previous) return incoming;
+  // Year order is not a source revision: an auxiliary link in a later year's
+  // catalogue can be older than the record's own annual discovery/detail.
+  const [newer, older] = incoming.checkedAt >= previous.checkedAt ? [incoming, previous] : [previous, incoming];
+  let type = newer.record.type;
+  if (older.record.type === 'Verwaltungsantwort' || type === 'Sonstige'
+      || type === 'Antrag' && older.record.type === 'Änderungsantrag') type = older.record.type;
+  const record = { ...newer.record, type };
+  if (!record.relatedTo && older.record.relatedTo) record.relatedTo = older.record.relatedTo;
+  if (record.locationEvidenceUnavailable && !record.locationEvidence?.length && older.record.locationEvidence?.length) {
+    record.locationEvidence = older.record.locationEvidence;
+    if (older.record.locationEvidenceTruncated) record.locationEvidenceTruncated = true;
+    const evidenceClock = older.record.detailVerifiedAt || (Number.isFinite(older.checkedAt) ? new Date(older.checkedAt).toISOString() : null);
+    if (evidenceClock) record.detailVerifiedAt = evidenceClock;
+    else delete record.detailVerifiedAt;
+  }
+  return { record, checkedAt: newer.checkedAt };
 }
 
 function evidenceQualification(result, includeLocationEvidence, checkedAt) {
@@ -343,6 +366,35 @@ function evidenceQualification(result, includeLocationEvidence, checkedAt) {
   if (!result.locationEvidenceUnavailable && (!includeLocationEvidence || result.locationEvidence?.length)) return {};
   const detailVerifiedAt = result.detailVerifiedAt || checkedAt;
   return { locationEvidenceUnavailable: true, ...(detailVerifiedAt ? { detailVerifiedAt } : {}) };
+}
+
+async function restoreCheckpointClocks(state, options) {
+  if (typeof options.sourceCache?.getMetadata !== 'function') return false;
+  const records = new Map((state.catalogue?.records || []).map(record => [record.id, record]));
+  const entries = Object.entries(state.details || {}).filter(([key, detail]) => detail.result && detail.cacheClockVersion !== 1 &&
+    (evidenceQualification(detail.result, options.includeLocationEvidence).locationEvidenceUnavailable ||
+      records.get(`${SOURCE}:${key}`)?.locationEvidenceUnavailable));
+  let next = 0;
+  let changed = false;
+  await Promise.all(Array.from({ length: Math.min(boundedOption(options.concurrency, 6, 8), entries.length) }, async () => {
+    while (next < entries.length) {
+      const [key, detail] = entries[next++];
+      if (!detail.doc?.url || !detail.revision) continue;
+      const metadata = await options.sourceCache.getMetadata(detail.doc.url, detail.revision);
+      if (!Number.isFinite(metadata?.cachedAt)) continue;
+      const record = records.get(`${SOURCE}:${key}`);
+      const times = [detail.checkedAt, detail.result.detailVerifiedAt, record?.detailVerifiedAt]
+        .map(value => Date.parse(value)).filter(Number.isFinite);
+      const verifiedAt = new Date(Math.min(metadata.cachedAt, ...times)).toISOString();
+      detail.checkedAt = verifiedAt;
+      detail.result = { ...detail.result, detailVerifiedAt: verifiedAt };
+      // This migration records a provenance comparison, not a new source read.
+      detail.cacheClockVersion = 1;
+      if (record) record.detailVerifiedAt = verifiedAt;
+      changed = true;
+    }
+  }));
+  return changed;
 }
 
 function parseDocument(text, doc, includeLocationEvidence) {
@@ -776,10 +828,15 @@ async function collectHannoverCatalogue(options = {}) {
   const work = { remaining: options.workBudget ?? Infinity };
   const deadline = performance.now() + (options.maxDurationMs ?? 58 * 60_000);
   const catalogues = [];
+  const annualDocuments = new Map();
+  const mergedRecords = new Map();
   const pendingYears = [];
   let interrupted = false;
   for (const year of years) {
     const state = await options.checkpoint.read(SOURCE, scope, year, revision) || {};
+    if (await restoreCheckpointClocks(state, options)) {
+      await options.checkpoint.write(SOURCE, scope, year, revision, state);
+    }
     const requestedYear = requested.includes(year);
     if (requestedYear && work.remaining > 0 && performance.now() < deadline) {
       await collectHannoverYear({ ...options, yearWork: state, work,
@@ -794,15 +851,26 @@ async function collectHannoverCatalogue(options = {}) {
       const documents = new Map((state.documents || []).map(doc => [`${SOURCE}:${doc.key}`, doc]));
       // A retained year need not be fetched again to correct its existing evidence
       // qualification or reapply the type from its verified annual discovery list.
-      catalogues.push({ ...state.catalogue, records: state.catalogue.records.map(record => ({
-        ...record,
-        type: documentType(documents.get(record.id), record),
-        ...evidenceQualification(record, options.includeLocationEvidence, state.details?.[record.id.slice(SOURCE.length + 1)]?.checkedAt),
-      })) });
+      catalogues.push(state.catalogue);
+      for (const record of state.catalogue.records) {
+        const doc = documents.get(record.id);
+        if (doc?.searchType || doc?.searchTitle) annualDocuments.set(record.id, doc);
+        const detail = state.details?.[record.id.slice(SOURCE.length + 1)];
+        const checkedAt = Date.parse(record.detailVerifiedAt || detail?.checkedAt);
+        const projected = { ...record,
+          type: documentType(doc, { ...record, rawType: detail?.result.rawType }, record.type === 'Verwaltungsantwort'),
+          ...evidenceQualification(record, options.includeLocationEvidence, detail?.checkedAt),
+        };
+        mergedRecords.set(record.id, mergeYearRecord(mergedRecords.get(record.id), {
+          record: projected, checkedAt: Number.isFinite(checkedAt) ? checkedAt : -Infinity,
+        }));
+      }
     }
     if (state.pending && !pendingYears.includes(year)) pendingYears.push(year);
   }
-  const records = [...new Map(catalogues.flatMap(item => item.records).map(record => [record.id, record])).values()].sort((a, b) => a.id.localeCompare(b.id));
+  const records = [...mergedRecords.values()].map(({record}) => ({ ...record,
+    type: documentType(annualDocuments.get(record.id), record),
+  })).sort((a, b) => a.id.localeCompare(b.id));
   const coverage = catalogues.map(item => item.coverage);
   return { records, sources: [...new Set(catalogues.flatMap(item => item.sources))],
     history: { pending: pendingYears.length > 0, interrupted, pendingYears, requestedFrom: from, requestedTo: to },

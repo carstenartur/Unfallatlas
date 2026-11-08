@@ -161,3 +161,23 @@ implemented and independently reviewed:
 - [ ] Verify the corrected actual export, final-head CI, resolved conversations
   and authorized integration. Existing packed-format evidence remains valid;
   corrected metadata deliberately changes canonical records.
+
+The full before/after data comparison additionally identified preservation cases
+that are now implemented and independently reviewed:
+
+- [x] Retain complete feature labels, including attribution and partial-street
+  scope, when existing locations are preserved after unavailable detail text.
+- [x] Preserve specific household amendments against generic annual motion
+  categories, and keep verified annual classifications across linked duplicates.
+- [x] Preserve old verified evidence and its clock when a newer duplicate has
+  unavailable detail text, while retaining its newer title/date metadata.
+- [x] Incorporate the concurrent source-cache metadata commit 9101604 without
+  overwriting it, and repair legacy checkpoint clocks using existing envelope
+  metadata through a bounded read-only pass. Payload TTL remains enforced.
+
+The final combined provider, cache, checkpoint, location, refresh and snapshot
+verification passes seven suites / 252 tests. Independent scoped reviews accept
+the label, type and legacy-clock corrections. Final actual-data verification
+checks all frozen IDs and evidence, 149 feature labels, 5,656 annual type
+expectations, 3,323 specific amendments, 4,659 original cache clocks and the
+unchanged hashes of 11,466 source-cache files before producing the export.

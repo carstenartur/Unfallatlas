@@ -249,6 +249,21 @@ verwertbarer spezifischer Listentyp nachgewiesen. Die Quellbezeichnung
 „Entscheidung“ bleibt bei fehlender zusätzlicher Typinformation „Sonstige“;
 sie wird nicht pauschal als Verwaltungsantwort ausgegeben.
 
+Spezifische Änderungsanträge bleiben auch dann Änderungsanträge, wenn die
+Jahresliste sie unter der allgemeineren Bezeichnung „Haushaltsantrag“ aufführt.
+Beim Zusammenführen mehrerer Jahre bleiben amtliche Jahreslistenangaben von
+generischen verknüpften Einträgen unterscheidbar. Neuere, nicht auswertbare
+Details verdrängen weder bereits geprüfte Belege noch deren ursprüngliche Uhr.
+Bei erhaltenen Ortszuordnungen werden vollständige Kartenbeschriftungen samt
+Quellenangabe und Hinweis auf einen kartierten Teilabschnitt übernommen.
+
+Alte Checkpoints können einen späteren Arbeitszeitpunkt als ihr ursprünglicher
+Quellencache enthalten. Ein begrenzter, ausschließlich lesender Metadatenabgleich
+übernimmt dafür den frühesten bekannten Zeitpunkt. Auch eine abgelaufene
+Cachehülle kann diesen früheren Zeitpunkt belegen; dadurch wird ihr Inhalt
+nicht wieder als aktuell freigegeben. Die Korrektur wird im Checkpoint gespeichert
+und erneuert weder Quelldateien noch deren Ablaufdatum.
+
 Die Migration verlor keine bereits vorhandene ID, Beziehung oder einen der 3.497
 gespeicherten Hannover-Dokumentbelege. Alle 1.829 ursprünglichen amtlichen Bonn-
 Geometrien blieben erhalten. Bonn behielt seinen verifizierten Quellenstand vom

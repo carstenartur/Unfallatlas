@@ -66,6 +66,40 @@ test('exposes original verification metadata from existing envelopes without cha
   expect(resumed.stats).toEqual({ hits: 2, misses: 0, writes: 0 });
 });
 
+test('reads an expired envelope clock without renewing or exposing its payload', async () => {
+  const verifiedAt = time;
+  await cache().getOrLoad(KEY, REVISION, () => PAYLOAD);
+  const filename = await cacheFile();
+  const before = await fs.readFile(filename, 'utf8');
+  time += 19 * 86400000;
+  const source = cache();
+  await expect(source.getMetadata(KEY, REVISION)).resolves.toEqual({ cachedAt: verifiedAt });
+  expect(source.stats).toEqual({ hits: 0, misses: 0, writes: 0 });
+  expect(await fs.readFile(filename, 'utf8')).toBe(before);
+  await expect(source.getOrLoad(KEY, REVISION, () => { throw new Error('Expired payload requires a source read'); }))
+    .rejects.toThrow('Expired payload requires a source read');
+  expect(await fs.readFile(filename, 'utf8')).toBe(before);
+});
+
+test.each(['key', 'revision', 'schema', 'future', 'oversized', 'symlink'])('rejects unsafe or mismatched metadata: %s', async fault => {
+  await cache().getOrLoad(KEY, REVISION, () => PAYLOAD);
+  const filename = await cacheFile();
+  const entry = JSON.parse(await fs.readFile(filename, 'utf8'));
+  if (fault === 'key') entry.key += '/other';
+  if (fault === 'revision') entry.revision = 'other';
+  if (fault === 'schema') entry.schemaVersion = 2;
+  if (fault === 'future') entry.cachedAt = time + 1;
+  await fs.writeFile(filename, JSON.stringify(entry));
+  if (fault === 'symlink') {
+    const target = path.join(root, 'public-response.json');
+    await fs.rename(filename, target);
+    await fs.symlink(target, filename);
+  }
+  const source = cache(fault === 'oversized' ? { maxEntryBytes: 10 } : {});
+  await expect(source.getMetadata(KEY, REVISION)).resolves.toBeNull();
+  expect(source.stats).toEqual({ hits: 0, misses: 0, writes: 0 });
+});
+
 test('reloads a changed source revision and resumes its new response', async () => {
   const source = cache();
   await source.getOrLoad(KEY, REVISION, () => PAYLOAD);

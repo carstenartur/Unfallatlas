@@ -64,6 +64,31 @@ test('stores only citation metadata in the records and puts geospatial evidence 
   await expect(readRisSnapshot(directory, 'bonn')).resolves.toEqual({ manifest, records, features });
 });
 
+test.each([1, 2])('preserves a supplied map label and derives new labels normally in snapshot v%s', async schemaVersion => {
+  const locations = [
+    { kind: 'junction', label: 'Adenauerallee / Zweite Fährgasse',
+      mapLabel: 'Adenauerallee / Zweite Fährgasse — Amtlicher Lagebeleg',
+      geometry: { type: 'Point', coordinates: [7.108, 50.727] },
+      evidence: { source: 'title', text: original.title } },
+    { kind: 'street', label: 'Adenauerallee', extent: 'part', attribution: 'LGLN',
+      geometry: { type: 'LineString', coordinates: [[7.108, 50.727], [7.109, 50.728]] },
+      evidence: { source: 'title', text: original.title } },
+  ];
+  await writeRisSnapshot(directory, 'bonn', catalogue([{ ...original, locations }]), { schemaVersion });
+  const snapshot = await readRisSnapshot(directory, 'bonn');
+  expect(snapshot.features.features.map(feature => feature.properties.label)).toEqual([
+    locations[0].mapLabel, 'Adenauerallee — kartierter Teil des Straßenverlaufs als Orientierung · LGLN',
+  ]);
+  expect(snapshot.records[0].locations).toEqual(locations.map(({ label, kind, evidence }) => ({ label, kind, evidence, mapped: true })));
+});
+
+test.each([null, '', 'x'.repeat(4097)])('rejects an invalid supplied map label %#', async mapLabel => {
+  await expect(writeRisSnapshot(directory, 'bonn', catalogue([{ ...original, locations: [{
+    kind: 'place', label: 'Öffentlicher Ort', mapLabel, geometry: { type: 'Point', coordinates: [7.108, 50.727] },
+    evidence: { source: 'title', text: original.title },
+  }] }]))).rejects.toThrow('Invalid RIS location map label');
+});
+
 test('retains records with untrusted or malformed geometry and maps only supported WGS84 evidence', async () => {
   const rows = [
     { id: 'outside-range', geometry: { type: 'Point', coordinates: [7.108, 950] } },
@@ -100,9 +125,9 @@ test('keeps location mentions in the record and publishes each supported geometr
   const manifest = await writeRisSnapshot(directory, 'bonn', catalogue([{
     ...original, locations: [
       { ...locations[0], geometry: point, attribution: '© OpenStreetMap-Mitwirkende' },
-      { ...locations[1], geometry: { type: 'Point', coordinates: [7, 150] } },
+      { ...locations[1], geometry: { type: 'Point', coordinates: [7, 150] }, mapLabel: 'Geprüfte Beschriftung ohne gültige Geometrie' },
       { ...locations[2], geometry: line },
-      { ...locations[3], geometry: point },
+      { ...locations[3], geometry: point, mapLabel: 'Geprüfte Beschriftung mit unpassendem Geometrietyp' },
     ],
   }]));
 
