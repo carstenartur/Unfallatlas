@@ -11,7 +11,6 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'js/ua.core.js',
     'js/ua.utils.js',
-    'js/ua.ui.js',
     'js/ua.lifecycle.js',
     'js/ua.popup_context.js',
     'js/ua.app_v2.js',
@@ -20,8 +19,10 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=${version}`);
   });
 
-  test('the map invalidates the cache for the layer status contrast fix', () => {
-    expect(html).toContain('js/ua.map_v2.js?v=2026-11-07-context-contrast"');
+  test.each([
+    'css/ua.css', 'js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.ris-layer.js',
+  ])('%s invalidates the cache for mobile panel disclosure', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-08-mobile-panels"`);
   });
 
   test('the tour invalidates the cache for the political research UI', () => {
@@ -34,12 +35,6 @@ describe('Werkbank deployment asset versions', () => {
     'js/ua.export_v2.js', 'js/ua.report_v2.js',
   ])('%s uses the verified RIS rollout version', asset => {
     expect(html).toContain(`${asset}?v=2026-11-07-ris`);
-  });
-
-  test.each([
-    'css/ua.css', 'js/ua.ris-layer.js',
-  ])('%s invalidates the cache for RIS location evidence', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-07-ris-orte"`);
   });
 
   test.each([

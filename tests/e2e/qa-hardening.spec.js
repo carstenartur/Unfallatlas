@@ -223,6 +223,11 @@ test.describe('QA-Härtung – Mobile Smoke', () => {
 
     // Panel-Header sichtbar.
     await expect(page.locator('.panelTitle')).toBeVisible();
+    // Das mobile Bedienfeld startet eingeklappt; Filter bewusst öffnen.
+    const collapseButton = page.locator('#collapseBtn');
+    await expect(collapseButton).toHaveAttribute('aria-expanded', 'false');
+    await collapseButton.click();
+    await expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
     // Schweregrad-Filter erreichbar (auch wenn Panel kleiner ist).
     await expect(page.locator('#severity')).toBeVisible();
     // Quick-Start-Hinweis ist auch auf Mobile sinnvoll sichtbar.

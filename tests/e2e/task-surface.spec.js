@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { gzipSync } from 'node:zlib';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { writeRisSnapshot } from '../../server/political-context/services/risSnapshot.js';
 import { waitForScreenshotReady } from './helpers.js';
 
 async function waitForTaskSurface(page) {
@@ -6,6 +10,8 @@ async function waitForTaskSurface(page) {
     city: 'Hannover',
     layers: ['cluster', 'heatmap'],
   });
+  const disclosure = page.locator('#collapseBtn');
+  if (await disclosure.getAttribute('aria-expanded') === 'false') await disclosure.click();
   await expect(page.locator('#btnOpenExport')).toBeVisible();
   return ready;
 }
@@ -173,5 +179,282 @@ test.describe('touch task surface', () => {
     expect(exportLayout.modalScrollWidth).toBeLessThanOrEqual(exportLayout.modalClientWidth + 1);
     expect(exportLayout.rangeHeights.length).toBeGreaterThan(0);
     expect(Math.min(...exportLayout.rangeHeights)).toBeGreaterThanOrEqual(44);
+  });
+});
+
+
+// Small real resource responses keep the mobile layout independent of the
+// size and enrichment coverage of the checkout's generated city datasets.
+async function installMobileContextFixture(page) {
+  const accidents = {
+    type: 'FeatureCollection',
+    features: [0, 1, 2].map(index => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [9.73 + index * 0.001, 52.375 + index * 0.001] },
+      properties: {
+        id: `mobile-${index}`, ujahr: '2024', ukategorie: '3', uart: '1', utyp1: '1',
+        ustunde: '8', uwochentag: '2', umonat: '6', ulichtverh: '0', ustrzustand: '0',
+        istrad: '1', istpkw: '1', istfuss: '0', istkrad: '0', istgkfz: '0', istsonstig: '0',
+        matched_way_id: 'mobile-road', slope_class: 'steep', slope_percent: 8,
+      },
+    })),
+  };
+  const resources = new Map([
+    ['/out/output_all_years_hannover.geojson', accidents],
+    ['/out/poi_hannover.geojson', { type: 'FeatureCollection', features: [] }],
+    ['/out/ways_hannover.json', {
+      schemaVersion: 2,
+      ways: { 'mobile-road': { road_slope_class: 'steep', road_slope_percent: 8 } },
+      geometries: { 'mobile-road': [52.374, 9.729, 52.378, 9.733] },
+    }],
+    ['/out/output_all_years_hannover.enrichment.meta.json', { schemaVersion: 2 }],
+  ]);
+  await page.route(/\/out\/(?:output_all_years_hannover\.(?:geojson|enrichment\.meta\.json)|poi_hannover\.geojson|ways_hannover\.json)(?:\.gz)?(?:\?|$)/, async route => {
+    const pathname = new URL(route.request().url()).pathname;
+    const compressed = pathname.endsWith('.gz');
+    const payload = resources.get(pathname.replace(/\.gz$/, ''));
+    await route.fulfill({
+      status: 200,
+      contentType: compressed ? 'application/gzip' : 'application/json',
+      body: compressed ? gzipSync(JSON.stringify(payload)) : JSON.stringify(payload),
+    });
+  });
+}
+
+const MOBILE_CONTEXT_URL = '/werkbank_v2.html?city=Hannover&mapLayer=slope&ctxOnlyMatched=0';
+const MAP_CARDS = ['.context-overlay-control', '.context-overlay-legend', '.layer-legend-control'];
+
+async function waitForMobileMap(page) {
+  // The full-city loader reports completeness for the intercepted response,
+  // so require this fixture's actual rows as well as real layer completion.
+  const ready = await waitForScreenshotReady(page, {
+    city: 'Hannover', layers: ['cluster', 'heatmap'],
+    minLoaded: 3, minFiltered: 3, minViewport: 3,
+  });
+  expect(ready.counts).toEqual({ loaded: 3, filtered: 3, viewport: 3 });
+  expect(ready.coverage).toMatchObject({
+    mode: 'full-city', complete: true, provider: 'static', loadedFeatureCount: 3,
+  });
+  await expect(page.locator('#ctxOverlay_slope')).toBeEnabled();
+  await expect(page.locator('.context-overlay-legend')).toBeVisible();
+}
+
+test.describe('compact mobile map controls', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 320, height: 720 },
+    { width: 844, height: 390 },
+  ]) {
+    test(`${viewport.width}x${viewport.height}: map starts with compact, reachable disclosure buttons`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await installMobileContextFixture(page);
+      await page.goto(MOBILE_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
+      // Do not use waitForTaskSurface: that helper deliberately opens the
+      // analysis panel for the existing analysis/export interaction tests.
+      await waitForMobileMap(page);
+      await expect(page.locator('#collapseBtn')).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.locator('#btnOpenExport')).toBeHidden();
+      for (const selector of MAP_CARDS) {
+        const card = page.locator(selector);
+        const toggle = card.locator('.mapControlToggle');
+        const body = card.locator('.mapControlBody');
+        await expect(toggle).toHaveRole('button');
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        const controlledId = await toggle.getAttribute('aria-controls');
+        expect(controlledId).toBeTruthy();
+        await expect(body).toHaveAttribute('id', controlledId);
+        await expect(body).toBeHidden();
+      }
+
+      const geometry = await page.evaluate((selectors) => {
+        const targets = ['#collapseBtn', ...selectors.map(selector => `${selector} .mapControlToggle`)];
+        return {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          documentWidth: document.documentElement.scrollWidth,
+          panelHeight: document.getElementById('panel').getBoundingClientRect().height,
+          targets: targets.map(selector => {
+            const button = document.querySelector(selector);
+            const rect = button.getBoundingClientRect();
+            const topElement = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+            return {
+              selector, x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom,
+              width: rect.width, height: rect.height,
+              reachable: Boolean(topElement && button.contains(topElement)),
+            };
+          }),
+          cardHeights: selectors.map(selector => document.querySelector(selector).getBoundingClientRect().height),
+        };
+      }, MAP_CARDS);
+      expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.width);
+      expect(geometry.panelHeight).toBeLessThanOrEqual(100);
+      for (const height of geometry.cardHeights) expect(height).toBeLessThanOrEqual(64);
+      for (const target of geometry.targets) {
+        expect(target.width, `${target.selector} touch width`).toBeGreaterThanOrEqual(44);
+        expect(target.height, `${target.selector} touch height`).toBeGreaterThanOrEqual(44);
+        expect(target.x, `${target.selector} left edge`).toBeGreaterThanOrEqual(0);
+        expect(target.y, `${target.selector} top edge`).toBeGreaterThanOrEqual(0);
+        expect(target.right, `${target.selector} right edge`).toBeLessThanOrEqual(geometry.width);
+        expect(target.bottom, `${target.selector} bottom edge`).toBeLessThanOrEqual(geometry.height);
+        expect(target.reachable, `${target.selector} is covered by another panel`).toBe(true);
+      }
+    });
+  }
+
+  test('folding map cards preserves layer choices and survives a context refresh', async ({ page }) => {
+    await installMobileContextFixture(page);
+    await page.goto(MOBILE_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
+    await waitForMobileMap(page);
+
+    const context = page.locator('.context-overlay-control .mapControlToggle');
+    const layers = page.locator('.layer-legend-control .mapControlToggle');
+    const legend = page.locator('.context-overlay-legend .mapControlToggle');
+    const slope = page.locator('#ctxOverlay_slope');
+    const heatmap = page.locator('.layer-legend-control button[data-layer="heatmap"]');
+    await context.tap();
+    await expect(context).toHaveAttribute('aria-expanded', 'true');
+    await expect(slope).toBeVisible();
+    await expect(slope).toBeChecked();
+
+    // Context controls are rebuilt when lazy geometry arrives. A user's
+    // disclosure choice must survive that same real lifecycle entry point.
+    await page.evaluate(() => window.UA.refreshContextOverlays(window.UA.getRuntimeContext()));
+    await expect(context).toHaveAttribute('aria-expanded', 'true');
+    await expect(slope).toBeVisible();
+    await context.tap();
+    await page.evaluate(() => window.UA.refreshContextOverlays(window.UA.getRuntimeContext()));
+    await expect(context).toHaveAttribute('aria-expanded', 'false');
+    await expect(slope).toBeHidden();
+    await expect(slope).toBeChecked();
+
+    await layers.tap();
+    await expect(heatmap).toHaveClass(/active/);
+    await heatmap.tap();
+    await expect(heatmap).not.toHaveClass(/active/);
+    await expect(page.locator('#toggleHeat')).toHaveAttribute('aria-pressed', 'false');
+    await layers.tap();
+    await expect(heatmap).toBeHidden();
+    await layers.tap();
+    await expect(heatmap).not.toHaveClass(/active/);
+    await layers.tap();
+
+    await legend.tap();
+    await expect(page.locator('.context-road-legend--slope')).toBeVisible();
+    await legend.tap();
+    await expect(page.locator('.context-road-legend--slope')).toBeHidden();
+    await expect(slope).toBeChecked();
+    await expect.poll(() => new URL(page.url()).searchParams.get('mapLayer')).toContain('slope');
+
+    await context.tap();
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(context).toHaveAttribute('aria-expanded', 'true');
+    await expect(slope).toBeChecked();
+    await context.tap();
+    await expect(context).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('RIS popup fits the phone and restores folded controls without disabling its layer', async ({ page }, testInfo) => {
+    await installMobileContextFixture(page);
+    const source = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/';
+    const title = 'Querungshilfe und sichere Radwege im Kartenausschnitt';
+    const officialUrl = source + 'DS/mobile-popup-2026';
+    const directory = testInfo.outputPath('ris');
+    const manifest = await writeRisSnapshot(directory, 'hannover', {
+      sources: [source],
+      coverage: { from: '2026-01-01', to: '2026-11-07', bodies: ['Ratsversammlung'], complete: false, warnings: [] },
+      records: [{
+        id: 'hannover-sim:mobile-popup-2026', number: 'TEST/2026', title,
+        type: 'Antrag', date: null, gremium: 'Ratsversammlung', source: 'hannover-sim', url: officialUrl,
+        geometry: { type: 'Point', coordinates: [9.731, 52.376] },
+        locationSource: 'derived', locationLabel: 'Querung im Kartenausschnitt',
+      }],
+    });
+    const assets = new Set(['hannover.json', manifest.records.path, manifest.map.path]);
+    await page.route('**/data/ris/*', async route => {
+      const file = path.posix.basename(new URL(route.request().url()).pathname);
+      if (!assets.has(file)) return route.fulfill({ status: 404 });
+      return route.fulfill({
+        body: await readFile(path.join(directory, file)),
+        contentType: file.endsWith('.gz') ? 'application/gzip' : 'application/json',
+      });
+    });
+    await page.goto(MOBILE_CONTEXT_URL + '&centerLat=52.376&centerLon=9.731&zoom=15', { waitUntil: 'domcontentloaded' });
+    await waitForMobileMap(page);
+
+    const context = page.locator('.context-overlay-control .mapControlToggle');
+    const ris = page.locator('input[data-context-overlay="ris"]');
+    await context.tap();
+    await ris.check();
+    const marker = page.locator('.ua-ris-point');
+    await expect(marker).toBeVisible();
+    await context.tap();
+    await expect(ris).toBeChecked();
+    await expect(marker).toBeVisible();
+    await marker.tap();
+
+    const popup = page.locator('.ua-ris-popup');
+    await expect(popup).toBeVisible();
+    const officialLink = popup.getByRole('link', { name: `Amtliches Dokument: ${title}` });
+    await expect(officialLink).toHaveAttribute('href', officialUrl);
+    await officialLink.click({ trial: true });
+    await expect(popup).toBeInViewport({ ratio: 1 });
+    const geometry = await popup.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return {
+        x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom, width: rect.width,
+        viewportWidth: window.innerWidth, viewportHeight: window.innerHeight,
+      };
+    });
+    expect(geometry.width).toBeGreaterThanOrEqual(280);
+    expect(geometry.x).toBeGreaterThanOrEqual(0);
+    expect(geometry.y).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
+    await expect(page.locator('#panel')).toBeHidden();
+    for (const selector of MAP_CARDS) await expect(page.locator(selector)).toBeHidden();
+
+    await popup.locator('.leaflet-popup-close-button').tap();
+    await expect(popup).toBeHidden();
+    await expect(page.locator('#collapseBtn')).toBeVisible();
+    await expect(context).toBeVisible();
+    await expect(context).toHaveAttribute('aria-expanded', 'false');
+    await expect(marker).toBeVisible();
+    await context.tap();
+    await expect(ris).toBeChecked();
+    await ris.uncheck();
+    await expect(marker).toHaveCount(0);
+  });
+
+  test('analysis panel opens and closes while accident data is pending and after failure', async ({ page }) => {
+    let release;
+    const pending = new Promise(resolve => { release = resolve; });
+    let accidentRequests = 0;
+    await page.route(/\/out\/output_all_years_hannover\.geojson(?:\.gz)?(?:\?|$)/, async route => {
+      accidentRequests += 1;
+      await pending;
+      await route.fulfill({ status: 503, contentType: 'text/plain', body: 'Unavailable for mobile loading regression' });
+    });
+    try {
+      await page.goto('/werkbank_v2.html?city=Hannover', { waitUntil: 'domcontentloaded' });
+      await expect.poll(() => accidentRequests).toBeGreaterThan(0);
+      const disclosure = page.locator('#collapseBtn');
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+      await disclosure.tap();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.locator('#btnOpenExport')).toBeVisible();
+      await disclosure.tap();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+
+      release();
+      await expect(page.locator('#stat')).toContainText('Daten konnten nicht geladen werden');
+      await disclosure.tap();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+      await disclosure.tap();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    } finally {
+      release();
+    }
   });
 });
