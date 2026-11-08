@@ -436,3 +436,36 @@ describe("artifact provenance format adapters", () => {
     ).toHaveLength(2);
   });
 });
+
+describe('display-only quality note projection', () => {
+  test('keeps full query targets and semantic text while labelling links and short proof codes', () => {
+    const url = 'https://example.org/stations(a)?x=a%2Fb&range=1;2';
+    const note = `Separate amtliche Standortdistribution: ${url}; SHA256 ${'e'.repeat(64)}; Lizenz DL-DE-Zero-2.0; Abruf 2026-11-08; ungeprüfte Lage.`;
+    const projected = provenance.projectQualityNote(note);
+    expect(projected.runs.filter(run => run.url)).toEqual([{text:'Amtliche Standortdaten',url}]);
+    expect(projected.text).toBe('Separate amtliche Standortdistribution: Amtliche Standortdaten; SHA256 Prüfcode (gekürzt): eeeeeeeeeeee…; Lizenz DL-DE-Zero-2.0; Abruf 2026-11-08; ungeprüfte Lage.');
+    expect(note).toContain(url);
+    expect(note).toContain('e'.repeat(64));
+  });
+  test('retains balanced URL punctuation and strips only surrounding sentence punctuation', () => {
+    const projected = provenance.projectQualityNote('Beleg (https://example.org/a(b)?a=1&b=2). Einschränkung bleibt.');
+    expect(projected.runs.filter(run => run.url).map(run => run.url)).toEqual(['https://example.org/a(b)?a=1&b=2']);
+    expect(projected.text).toBe('Beleg (Quellenbeleg (example.org)). Einschränkung bleibt.');
+  });
+  test('does not make credential-bearing or non-HTTP references clickable', () => {
+    const note = 'Ungeprüft: https://user:secret@example.org/file; javascript:alert(1)';
+    const projected = provenance.projectQualityNote(note);
+    expect(projected.runs.filter(run => run.url)).toEqual([]);
+    expect(projected.text).toBe(note);
+  });
+  test('preserves full hashes inside actual URL targets and all original notes in sidecars', async () => {
+    const note = `Datei https://example.org/${HASH_A}?sig=${HASH_B}; Originalbeleg.`;
+    const value = manifest(); value.sources[0].qualityNotes=[note];
+    const before = JSON.stringify(value);
+    const projected = provenance.projectQualityNote(note);
+    expect(projected.runs.find(run => run.url).url).toBe(`https://example.org/${HASH_A}?sig=${HASH_B}`);
+    const normalized = await provenance.normalizeAndHash(value);
+    expect(normalized.manifest.sources.find(source=>source.sourceId===value.sources[0].sourceId).qualityNotes).toContain(note);
+    expect(JSON.stringify(value)).toBe(before);
+  });
+});

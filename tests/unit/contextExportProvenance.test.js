@@ -280,3 +280,25 @@ test('visible count notes preserve zero and original18504 as a qualified range w
   expect(text).toContain('Spanne ausgewählter Originalwerte: 0–18.504 Kfz/24 h');
   expect(text).toContain('keine Summe oder Zeitumrechnung');
 });
+
+test('document note deduplicates only exact bound source notes while standalone context preserves them', async()=>{
+  const row=require('../fixtures/typed-hourly-traffic-evidence')();
+  const ctx=context(row);
+  const manifest=await api.createManifest(ctx,environment);
+  const bound=api.bindExportContext({},ctx,manifest);
+  const sourceNote=row.traffic_evidence.observation.source.qualityNotes[0];
+  const observationNote=row.traffic_evidence.observation.qualityNotes[0];
+  const standalone=JSON.stringify(api.buildContextNote({},bound));
+  expect(standalone).toContain(sourceNote);
+  const document=JSON.stringify(api.buildContextNote({},bound,{sourceDetailsIncluded:true}));
+  expect(document).not.toContain(sourceNote);
+  expect(document).toContain(observationNote);
+  expect(document).toContain('Detaillierte Quellenhinweise');
+  expect(manifest.sources.find(s=>s.sourceId===row.traffic_evidence.observation.source.sourceId).qualityNotes).toContain(sourceNote);
+  // A caller lacking the actual bound matching source cannot suppress evidence.
+  expect(JSON.stringify(api.buildContextNote({},ctx,{sourceDetailsIncluded:true}))).toContain(sourceNote);
+  const missing={...bound,exportSourceManifest:{...manifest,sources:manifest.sources.map(s=>({...s,qualityNotes:[]}))}};
+  expect(JSON.stringify(api.buildContextNote({},missing,{sourceDetailsIncluded:true}))).toContain(sourceNote);
+  const different={...bound,exportSourceManifest:{...manifest,sources:manifest.sources.map(s=>({...s,contentHash:'f'.repeat(64)}))}};
+  expect(JSON.stringify(api.buildContextNote({},different,{sourceDetailsIncluded:true}))).toContain(sourceNote);
+});

@@ -554,6 +554,25 @@ describe('Document Export - Integration Tests', () => {
     const urls=JSON.parse(linkProbe.stdout);
     expect(urls).toContain(note.sources[0].url);
     if(trafficSource) {expect(urls).toContain(trafficSource.licenseUrl);expect(urls).toContain(trafficSource.datasetUrl);}
+    if(kind==='hourly') {
+      const stationUrl='https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_2.csv';
+      const stationHash='e436955bd45fc322d62cd96b9cbdcc353d5ea9256a950785fcee8d8cfaed32db';
+      expect(relationships).toContain(stationUrl);
+      expect(urls).toContain(stationUrl);
+      expect(trafficSource.qualityNotes).toEqual(expect.arrayContaining(props.traffic_evidence.observation.source.qualityNotes));
+      const metadata=await archive.file('docProps/custom.xml').async('string');
+      expect(metadata).toContain(stationUrl);
+      expect(metadata).toContain(stationHash);
+      for(const text of [wordText,pdfText]) {
+        expect(text).not.toContain(stationUrl);
+        expect(text).not.toContain(stationHash);
+        expect(text).toContain('Prüfcode (gekürzt)');
+        expect(text).toContain('e436955bd45f');
+        expect(text).toContain('DL-DE-Zero-2.0');
+        expect(text).toContain('2022-03-31');
+        expect(text).toContain('2026-11-08T19:45:55.431954+00:00');
+      }
+    }
     for(const text of [wordText,pdfText]) {
       if(['count','count18504','model','old'].includes(kind)) { expect(text).toContain('Kfz/24 h'); expect(text).toContain('DTVw'); expect(text).toContain('Matching'); expect(text).toContain('Qualität high'); }
       if(kind==='count') expect(text).toContain('Originalwert: 0 Kfz/24 h');

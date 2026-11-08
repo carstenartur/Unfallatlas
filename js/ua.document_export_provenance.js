@@ -7,14 +7,16 @@
  * renderer-neutral source view with real external hyperlinks.
  */
 (function initDocumentExportProvenance(root, factory) {
-  const api = factory();
+  const artifactProvenance = typeof module !== "undefined" && module.exports
+    ? require("./ua.artifact_provenance") : root?.UA?.artifactProvenance;
+  const api = factory(artifactProvenance);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) {
     const UA = (root.UA = root.UA || {});
     UA.documentExportProvenance = api;
     if (UA.exportProvenanceRuntime && UA.artifactProvenance) api.install(UA, root);
   }
-})(typeof window !== "undefined" ? window : null, function createDocumentExportProvenanceApi() {
+})(typeof window !== "undefined" ? window : null, function createDocumentExportProvenanceApi(artifactProvenance) {
   "use strict";
 
   const LEGACY_SOURCE_HEADING = "DATENQUELLE";
@@ -287,7 +289,8 @@
         margin: [0, 0, 0, source.qualityNotes.length ? 2 : 5],
       });
       source.qualityNotes.forEach((note) => nodes.push({
-        text: `Grenzen: ${note}`,
+        text: ["Grenzen: ", ...artifactProvenance.projectQualityNote(note).runs.map(
+          run => run.url ? pdfLink(run.text, run.url) : run.text)],
         margin: [0, 0, 0, 2],
       }));
     });
@@ -404,7 +407,8 @@
         spacing: { after: source.qualityNotes.length ? 40 : 100 },
       }));
       source.qualityNotes.forEach((note) => nodes.push(new docx.Paragraph({
-        text: `Grenzen: ${note}`,
+        children: [docxTextRun(docx, "Grenzen: "), ...artifactProvenance.projectQualityNote(note).runs.map(
+          run => run.url ? docxLink(docx, run.text, run.url) : docxTextRun(docx, run.text))],
         spacing: { after: 40 },
       })));
     });
@@ -607,7 +611,7 @@
       const snapshot = await createSnapshot(ctx, UA, root);
       const bound = UA.exportProvenance?.bindExportContext
         ? UA.exportProvenance.bindExportContext(UA, ctx, snapshot.manifest) : ctx;
-      const note = UA.exportProvenance?.buildContextNote?.(UA, bound);
+      const note = UA.exportProvenance?.buildContextNote?.(UA, bound, { sourceDetailsIncluded: true });
       const rendererArgs = args.map((value, index) => index === 0 && value?.structured && note !== undefined
         ? { ...value, structured: { ...value.structured, enrichmentSourcesNote: note } } : value);
       await ensureLibraries();

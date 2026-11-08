@@ -253,7 +253,7 @@
     return bound;
   }
 
-  function buildContextNote(UA, ctx) {
+  function buildContextNote(UA, ctx, options = {}) {
     if (ctx?.exportContextEvidence === false) return null;
     const boundPoints = boundExportPoints(UA, ctx);
     const points = UA?.AnalysisScope?.getActiveFilteredPoints
@@ -265,7 +265,7 @@
       catch (_) { return null; }
     };
     const add = (label, url) => sources.set(JSON.stringify([label, safeUrl(url)]), { label, url: safeUrl(url) });
-    const sets = () => ({ years: new Set(), periods: new Set(), directions: new Set(), qualities: new Set(), methods: new Set(), notes: new Set(), values: new Set(), distances: [], unknownDistance: false });
+    const sets = () => ({ years: new Set(), periods: new Set(), directions: new Set(), qualities: new Set(), methods: new Set(), notes: new Set(), observationNotes: new Set(), values: new Set(), distances: [], unknownDistance: false });
     const facts = ctx?.exportSourceManifest?.transformations?.find(item => item.transformationId === 'context-evidence')?.parameters?.sources
       || contextSourceFacts(ctx, points.map(point => ({ context: contextProperties(point.props) })));
     for (const point of points) {
@@ -284,6 +284,7 @@
         group.qualities.add(selected.matchQuality || 'unbekannt');
         group.methods.add(selected.matchMethod || 'unbekannt');
         for (const note of [...(source.qualityNotes || []), ...(observation.qualityNotes || [])]) group.notes.add(note);
+        for (const note of observation.qualityNotes || []) group.observationNotes.add(note);
         if (Number.isFinite(selected.distanceMeters)) group.distances.push(selected.distanceMeters);
         else group.unknownDistance = true;
       } else if (['high','medium','low','very_high'].includes(p.traffic_proxy_class) && (!p.traffic_measurement_type || p.traffic_measurement_type === 'proxy')) {
@@ -316,9 +317,29 @@
       const formatValue = value => new Intl.NumberFormat('de-DE', { maximumFractionDigits: 20 }).format(value);
       const valueLabel = values.length === 1 ? `Originalwert: ${formatValue(values[0])} ${group.unit}`
         : `Spanne ausgewählter Originalwerte: ${formatValue(values[0])}–${formatValue(values[values.length-1])} ${group.unit} (keine Summe oder Zeitumrechnung)`;
+      const visibleNotes = [];
+      const detailedSource = options.sourceDetailsIncluded === true
+        ? ctx?.exportSourceManifest?.sources?.find(item => item.sourceId === source.sourceId && item.contentHash === source.contentHash)
+        : null;
+      let hasDetailedNotes = false;
+      for (const note of group.notes) {
+        if (!group.observationNotes.has(note) && (source.qualityNotes || []).includes(note) &&
+            detailedSource?.qualityNotes?.includes(note)) {
+          hasDetailedNotes = true;
+          continue;
+        }
+        const projected = artifactProvenance.projectQualityNote(note);
+        const links = projected.runs.filter(run => run.url);
+        if (links.length) {
+          // A separate qualified source entry uses the existing real-link path
+          // in text/HTML/DOCX/PDF, without repeating a technical URL in the label.
+          for (const link of links) add(projected.text, link.url);
+        } else visibleNotes.push(projected.text);
+      }
       add(`${group.type}: ${source.publisher} – ${source.datasetTitle} [${source.sourceId}]; ${valueLabel}; Verkehrsart ${group.mode}; Einheit ${group.unit}; Zeitraum ${join(group.periods)}; Jahr ${join(group.years)}; Richtung ${join(group.directions)}; Matching ${join(group.methods)}, Qualität ${join(group.qualities)}, Entfernung ${distance}${group.unknownDistance && group.distances.length ? ' (teilweise unbekannt)' : ''}; Abruf ${source.retrievedAt}; Lizenz ${source.licenseId}.` +
         `${group.type === 'Älterer gemessener Verkehrswert' ? ' Veralteter Messstand.' : ''}` +
-        `${group.notes.size ? ` Grenzen: ${join(group.notes)}` : ''}`,
+        `${visibleNotes.length ? ` Grenzen: ${visibleNotes.sort().join('; ')}` : ''}` +
+        `${hasDetailedNotes ? ' Detaillierte Quellenhinweise: siehe Abschnitt Datenquellen, Methodik und Nachvollziehbarkeit.' : ''}`,
         source.distributionUrl || source.datasetUrl);
     }
     if (!sources.size) return null;
