@@ -3051,6 +3051,9 @@
   // Private: get points in export bounds (applies non-involvement filters to match the current UI view)
   // --------------------
   function getPointsInBounds(ctx) {
+    if (ctx.exportSourceManifest && UA.exportProvenance?.boundExportPoints) {
+      return UA.exportProvenance.boundExportPoints(UA, ctx);
+    }
     const bounds = boundsForExport(ctx);
     const points = [];
     for (const p of ctx.allPts || []) {

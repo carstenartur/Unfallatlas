@@ -134,3 +134,90 @@ test('original hourly bicycle value and source survive actual CSV, GeoJSON and K
   expect(xml.querySelector('Data[name="traffic_volume_unit"] value').textContent).toBe('Fahrräder/Stunde');
   expect(JSON.parse(xml.querySelector('Data[name="traffic_evidence"] value').textContent)).toMatchObject({distanceMeters:null,observation:{mode:'bicycle',value:1}});
 });
+
+test.each(['involvement','severity'])('bound note retains the original active population across async %s changes while preview stays live',async change=>{
+  const {UA,ctx}=setup();jest.useFakeTimers();
+  try {
+    involvementScope(UA,ctx);
+    ctx.allPts[0].props.ukategorie=1;ctx.allPts[1].props.ukategorie=3;
+    let entered,release;const started=new Promise(resolve=>entered=resolve);
+    window.fetch=async()=>{entered();await new Promise(resolve=>release=resolve);return {ok:false};};
+    const pending=UA.exportProvenance.createManifest(ctx,{UA,root:window});
+    await started;
+    if(change==='involvement'){ctx.ui.incBikeEl.checked=false;ctx.ui.incCarEl.checked=true;}
+    else ctx.ui.severityEl.value='3';
+    release();const manifest=await pending;
+    const bound=UA.exportProvenance.bindExportContext(UA,ctx,manifest);
+    expect(bound.allPts).toHaveLength(2); // Data export intentionally includes other involvement combinations.
+    const text=JSON.stringify(UA.exportProvenance.buildContextNote(UA,bound));
+    expect(text).toContain('Originalwert: 0 Kfz/24 h');expect(text).not.toContain('Verkehrsmodell');
+    const preview=JSON.stringify(UA.exportProvenance.buildContextNote(UA,ctx));
+    expect(preview).not.toContain('Originalwert: 0 Kfz/24 h');
+    if(change==='involvement')expect(preview).toContain('Verkehrsmodell');
+  } finally {jest.clearAllTimers();jest.useRealTimers();}
+});
+
+test.each(['CSV','GeoJSON','KML'].flatMap(format=>['severity','bounds'].map(change=>[format,change])))('actual %s wrapper keeps original rows when %s changes during manifest hashing',async (format,change)=>{
+  const {UA,ctx}=setup();
+  ctx.allPts[0].props.ukategorie=1;ctx.allPts[1].props.ukategorie=3;
+  window.fetch=async()=>{if(change==='severity')ctx.ui.severityEl.value='3';else ctx.selectionBounds={...ctx.selectionBounds,contains:()=>false};return {ok:false};};
+  const result=await UA['exportTo'+format](ctx);
+  expect(result.manifest.scenario.filters.severity).toBe('all');
+  if(format==='CSV')expect(parseCsv(result.packageEntries.entries.find(x=>x.name.endsWith('.csv')).content).rows).toHaveLength(3);
+  if(format==='GeoJSON')expect(result.geojson.features).toHaveLength(2);
+  if(format==='KML')expect(new DOMParser().parseFromString(result.kml,'text/xml').querySelectorAll('Placemark')).toHaveLength(2);
+});
+
+test('an earlier manifest retains its own active and data snapshot after another export on the same context',async()=>{
+  const {UA,ctx}=setup();jest.useFakeTimers();
+  try{
+    involvementScope(UA,ctx);
+    const first=await UA.exportProvenance.createManifest(ctx,{UA,root:window});
+    ctx.ui.incBikeEl.checked=false;ctx.ui.incCarEl.checked=true;
+    ctx.allPts[0].props={...ctx.allPts[0].props,...typed('count',18504,2024)};
+    const second=await UA.exportProvenance.createManifest(ctx,{UA,root:window});
+    expect(second.dataFingerprint).not.toBe(first.dataFingerprint);
+    const bound=UA.exportProvenance.bindExportContext(UA,ctx,first);
+    const prebound={...ctx,exportSourceManifest:first};
+    const normalized=await UA.exportProvenance.createManifest(prebound,{UA,root:window});
+    expect(UA.exportProvenance.bindExportContext(UA,prebound,normalized).allPts[0].props.traffic_volume_value).toBe(0);
+    expect(bound.allPts[0].props.traffic_volume_value).toBe(0);
+    expect(JSON.stringify(UA.exportProvenance.buildContextNote(UA,bound))).toContain('Originalwert: 0 Kfz/24 h');
+    expect(JSON.stringify(UA.exportProvenance.buildContextNote(UA,bound))).not.toContain('Verkehrsmodell');
+  }finally{jest.clearAllTimers();jest.useRealTimers();}
+});
+
+test('document normalization handoff retains the first snapshot when a second manifest replaces the shared context cache',async()=>{
+  const {UA,ctx}=setup();jest.useFakeTimers();
+  try {
+    involvementScope(UA,ctx);
+    const artifact=require('../../js/ua.artifact_provenance');let firstManifest,normalizedManifest;
+    UA.artifactProvenance={...artifact,normalizeAndHash:async manifest=>{
+      firstManifest=manifest;
+      ctx.ui.incBikeEl.checked=false;ctx.ui.incCarEl.checked=true;
+      ctx.allPts[0].props={...ctx.allPts[0].props,...typed('count',18504,2024)};
+      await UA.exportProvenance.createManifest(ctx,{UA,root:window});
+      const normalized=await artifact.normalizeAndHash(manifest);normalizedManifest=normalized.manifest;return normalized;
+    }};
+    const captured=[];
+    UA.__documentProvenanceOriginals={exportToWord:async(bound,report)=>captured.push({bound,report}),exportToPDF:async()=>{}};
+    UA.ensureExportLibraries=async()=>{};window.docx=require('docx');
+    require('../../js/ua.document_export_provenance').install(UA,window);
+    const result=await UA.exportToWord(ctx,{structured:{}});
+    expect(normalizedManifest).not.toBe(firstManifest);
+    expect(result.manifest).toBe(normalizedManifest);
+    expect(captured[0].bound.allPts[0].props.traffic_volume_value).toBe(0);
+    expect(JSON.stringify(captured[0].report.structured.enrichmentSourcesNote)).toContain('Originalwert: 0 Kfz/24 h');
+    expect(JSON.stringify(captured[0].report.structured.enrichmentSourcesNote)).not.toContain('Verkehrsmodell');
+  }finally{jest.clearAllTimers();jest.useRealTimers();}
+});
+
+test('prebound GeoJSON resolves the original manifest snapshot after another context manifest was created',async()=>{
+  const {UA,ctx}=setup();
+  const first=await UA.exportProvenance.createManifest(ctx,{UA,root:window});
+  ctx.allPts[0].props={...ctx.allPts[0].props,...typed('count',18504,2024)};
+  await UA.exportProvenance.createManifest(ctx,{UA,root:window});
+  const result=await UA.exportToGeoJSON({...ctx,exportSourceManifest:first});
+  expect(result.manifest.dataFingerprint).toBe(first.dataFingerprint);
+  expect(result.geojson.features[0].properties.traffic_volume_value).toBe(0);
+});

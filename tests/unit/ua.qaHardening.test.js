@@ -226,7 +226,7 @@ describe('QA hardening — UI labels say "proxy" / "geschätzt", never "gemessen
     expect(html).not.toMatch(/Verkehrsdichte/);
   });
 
-  test('ENRICHMENT_SOURCES_NOTE body explicitly disclaims measured density and uses "Proxy"', () => {
+  test('ENRICHMENT_SOURCES_NOTE fallback declares unavailable evidence without invented source attribution', () => {
     // Load only what export_v2 needs — re-using the popup loader keeps the test self-contained.
     const win = { UA: {}, location: { href: 'http://localhost/' }, history: { replaceState: () => {} } };
     const load = (rel) => { const p = path.resolve(__dirname, '../../js/' + rel); (function (window) { eval(fs.readFileSync(p, 'utf8')); })(win); };
@@ -237,8 +237,9 @@ describe('QA hardening — UI labels say "proxy" / "geschätzt", never "gemessen
     win.L = { latLngBounds: () => {} };
     load('ua.export_v2.js');
     const note = win.UA.ENRICHMENT_SOURCES_NOTE;
-    expect(note.body).toMatch(/Proxy/);
-    expect(note.body).toMatch(/keine gemessene Verkehrsdichte/i);
+    expect(note.body).toContain("noch nicht verfügbar");
+    expect(note.sources).toEqual([]);
+    expect(note.body).toContain("nicht deren Ursachen");
     // No FGSV/BASt-Heuristik claim.
     const allText = note.body + ' ' + note.sources.map(s => s.label).join(' ');
     expect(allText).not.toMatch(/FGSV/);

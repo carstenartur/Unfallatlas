@@ -52,6 +52,7 @@
     "strzustand",
   ]);
   const manifestCache = new WeakMap();
+  const manifestSnapshots = new WeakMap();
   const buildFingerprintPromises = new WeakMap();
   let fallbackBuildFingerprintPromise = null;
 
@@ -239,25 +240,50 @@
     return context;
   }
 
+  function snapshotFor(ctx, manifest = ctx?.exportSourceManifest) {
+    if (!manifest) return null;
+    const cached = manifestCache.get(ctx);
+    return cached?.dataFingerprint === manifest.dataFingerprint ? cached : manifestSnapshots.get(manifest);
+  }
+
   function boundExportPoints(UA, ctx) {
-    const cached = ctx?.exportSourceManifest && manifestCache.get(ctx);
-    return cached && cached.dataFingerprint === ctx.exportSourceManifest.dataFingerprint
-      ? cached.projectedPoints : exportPoints(UA, ctx);
+    return snapshotFor(ctx)?.projectedPoints || exportPoints(UA, ctx);
+  }
+
+  function captureFilterContext(ctx) {
+    const ui = { ...ctx?.ui };
+    for (const key of ['severityEl','roadConditionEl','dayTypeEl','hFromEl','hToEl',
+      'incBikeEl','incPedEl','incCarEl','incMotoEl','incGkfzEl','incSonEl']) {
+      if (ui[key]) ui[key] = { value: ui[key].value, checked: ui[key].checked };
+    }
+    const contextFilters = { ...ctx?.contextFilters };
+    for (const key of ['slopeClasses','trafficClasses']) {
+      if (contextFilters[key]) contextFilters[key] = new Set(contextFilters[key]);
+    }
+    return { ui, contextFilters, involvementMode: ctx?.involvementMode };
   }
 
   function bindExportContext(UA, ctx, manifest) {
-    const cached = manifestCache.get(ctx);
-    const points = cached && cached.dataFingerprint === manifest.dataFingerprint ? cached.projectedPoints : exportPoints(UA, ctx);
-    const bound = { ...ctx, allPts: points, exportSourceManifest: manifest };
-    manifestCache.set(bound, { dataFingerprint: manifest.dataFingerprint, projectedPoints: points });
+    const cached = snapshotFor(ctx, manifest);
+    const points = cached?.projectedPoints || exportPoints(UA, ctx);
+    const activePoints = cached?.activePoints || (UA?.AnalysisScope?.getActiveFilteredPoints
+      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: points }) : points);
+    const filterContext = cached?.filterContext || captureFilterContext(ctx);
+    const bound = { ...ctx, ...filterContext, allPts: points, exportSourceManifest: manifest };
+    const snapshot = { dataFingerprint: manifest.dataFingerprint, projectedPoints: points, activePoints, filterContext };
+    manifestCache.set(bound, snapshot);
+    manifestSnapshots.set(manifest, snapshot);
     return bound;
   }
 
   function buildContextNote(UA, ctx, options = {}) {
     if (ctx?.exportContextEvidence === false) return null;
-    const boundPoints = boundExportPoints(UA, ctx);
-    const points = UA?.AnalysisScope?.getActiveFilteredPoints
-      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: boundPoints }) : boundPoints;
+    const cached = snapshotFor(ctx);
+    const boundPoints = cached?.projectedPoints || exportPoints(UA, ctx);
+    // Document notes retain the active population captured before hashing;
+    // an ordinary standalone preview intentionally follows current controls.
+    const points = cached?.activePoints || (UA?.AnalysisScope?.getActiveFilteredPoints
+      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: boundPoints }) : boundPoints);
     const groups = new Map();
     const sources = new Map();
     const safeUrl = value => {
@@ -294,7 +320,7 @@
         const presentation = elevation.presentContext(p);
         const usesRoad = typeof p.road_slope_percent === 'number' && Number.isFinite(p.road_slope_percent);
         const meta = usesRoad
-          ? (presentation.sourceId && presentation.sourceId === (facts.roadSlope?.sourceId || facts.roadSlope?.source?.id) ? facts.roadSlope : {})
+          ? (roadSourceMatches(p, facts.roadSlope) ? facts.roadSlope : {})
           : facts.dem || {};
         const descriptor = meta.source && typeof meta.source === 'object' ? meta.source : meta;
         const sourceName = presentation.source === 'Quelle nicht dokumentiert' ? 'Geländequelle nicht dokumentiert' : presentation.source;
@@ -348,6 +374,14 @@
       sources: [...sources.values()].sort((a,b) => a.label.localeCompare(b.label)) };
   }
 
+  function roadSourceMatches(p, source) {
+    if (!source || !p.road_slope_source_id) return false;
+    if ((source.sourceId || source.source?.id) !== p.road_slope_source_id) return false;
+    if (p.road_slope_manifest_sha256 && source.manifestSha256 !== p.road_slope_manifest_sha256) return false;
+    if (p.road_slope_distribution_sha256 && source.distributionSha256 !== p.road_slope_distribution_sha256) return false;
+    return true;
+  }
+
   function contextSourceFacts(ctx, normalizedPoints) {
     const rows = normalizedPoints.filter(point => point.context);
     const available = ctx?.contextLayerState?.meta?.sources || {};
@@ -355,15 +389,7 @@
     if (rows.some(point => Object.keys(point.context).some(key => /^(elevation_m$|slope_)/.test(key)))) {
       if (available.dem) result.dem = available.dem;
     }
-    if (available.roadSlope && rows.some(point => {
-      const p = point.context;
-      if (!Object.keys(p).some(key => key.startsWith('road_slope_') && p[key] !== undefined && p[key] !== null && p[key] !== '')) return false;
-      const id = available.roadSlope.sourceId || available.roadSlope.source?.id;
-      if (id && id !== p.road_slope_source_id) return false;
-      if (p.road_slope_manifest_sha256 && available.roadSlope.manifestSha256 !== p.road_slope_manifest_sha256) return false;
-      if (p.road_slope_distribution_sha256 && available.roadSlope.distributionSha256 !== p.road_slope_distribution_sha256) return false;
-      return true;
-    })) result.roadSlope = available.roadSlope;
+    if (rows.some(point => roadSourceMatches(point.context, available.roadSlope))) result.roadSlope = available.roadSlope;
     if (rows.some(point => point.context.traffic_evidence) && available.trafficMatched) result.trafficMatched = available.trafficMatched;
     if (rows.some(point => point.context.traffic_proxy_class) && available.traffic) result.traffic = available.traffic;
     return result;
@@ -577,10 +603,16 @@
     const UA = environment.UA || environment.root?.UA || {};
     const root = environment.root || (typeof window !== "undefined" ? window : null);
     if (ctx?.exportSourceManifest) {
-      return sourceManifest.normalizeManifest(ctx.exportSourceManifest);
+      const normalized = sourceManifest.normalizeManifest(ctx.exportSourceManifest);
+      const snapshot = snapshotFor(ctx);
+      if (snapshot) manifestSnapshots.set(normalized, snapshot);
+      return normalized;
     }
 
     const points = environment.projectedPoints || exportPoints(UA, ctx);
+    const activePoints = UA?.AnalysisScope?.getActiveFilteredPoints
+      ? UA.AnalysisScope.getActiveFilteredPoints({ ...ctx, allPts: points }) : points;
+    const filterContext = captureFilterContext(ctx);
     const city = String(ctx?.CITY_RAW || "").trim();
     if (!city) fail("missing_city", "A city is required for export provenance");
     const filters = scenarioFilters(ctx);
@@ -619,6 +651,9 @@
       // Population order may change without changing the canonical data hash.
       // Retain the currently selected order for an outer wrapper's bound export.
       cached.projectedPoints = points;
+      cached.activePoints = activePoints;
+      cached.filterContext = filterContext;
+      manifestSnapshots.set(cached.manifest, cached);
       return cached.manifest;
     }
 
@@ -698,7 +733,10 @@
       buildFingerprint: appFingerprint,
       manifest: normalized,
       projectedPoints: points,
+      activePoints,
+      filterContext,
     });
+    manifestSnapshots.set(normalized, manifestCache.get(ctx));
     return normalized;
   }
 
@@ -814,11 +852,9 @@
       return guarded(async () => {
         // Bind one projected snapshot before any async export step; loaded Way
         // rows may change later, but the emitted payload must match its hash.
-        const bound = ctx?.exportSourceManifest && manifestCache.get(ctx);
-        const points = bound && bound.dataFingerprint === ctx?.exportSourceManifest?.dataFingerprint
-          ? bound.projectedPoints : exportPoints(UA, ctx);
+        const points = boundExportPoints(UA, ctx);
         const manifest = await createManifest(ctx, { UA, root, projectedPoints: points });
-        const captured = await captureOriginalExport(root, originals.geojson, ctx);
+        const captured = await captureOriginalExport(root, originals.geojson, bindExportContext(UA, ctx, manifest));
         const parsed = JSON.parse(await readBlobText(captured.blob, root));
         if (ctx?.exportContextEvidence !== false) attachContextProperties(parsed, points);
         const enriched = await artifactProvenance.attachGeoJsonProvenance(parsed, manifest);
@@ -834,7 +870,7 @@
     UA.exportToKML = function exportToKmlWithProvenance(ctx) {
       return guarded(async () => {
         const manifest = await createManifest(ctx, { UA, root });
-        const captured = await captureOriginalExport(root, originals.kml, ctx);
+        const captured = await captureOriginalExport(root, originals.kml, bindExportContext(UA, ctx, manifest));
         const kml = await readBlobText(captured.blob, root);
         const enriched = await artifactProvenance.injectKmlProvenance(kml, manifest);
         download(

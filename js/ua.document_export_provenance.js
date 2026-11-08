@@ -320,11 +320,17 @@
   async function createSnapshot(ctx, UA, root) {
     requireRuntime(UA);
     const manifest = await UA.exportProvenanceRuntime.createManifest(ctx, { UA, root });
+    // Retain the exact snapshot before normalization creates a new manifest
+    // object and another export may replace the original context's cache.
+    const bound = UA.exportProvenance?.bindExportContext
+      ? UA.exportProvenance.bindExportContext(UA, ctx, manifest) : ctx;
     const normalized = await UA.artifactProvenance.normalizeAndHash(manifest);
     const view = buildSourceView(normalized);
     validateSourceView(UA, view);
     return Object.freeze({
       manifest: normalized.manifest,
+      boundContext: UA.exportProvenance?.bindExportContext
+        ? UA.exportProvenance.bindExportContext(UA, bound, normalized.manifest) : bound,
       sourceManifestSha256: normalized.sha256,
       view,
     });
@@ -609,8 +615,7 @@
 
     const run = (format, ctx, original, args) => serialize(async () => {
       const snapshot = await createSnapshot(ctx, UA, root);
-      const bound = UA.exportProvenance?.bindExportContext
-        ? UA.exportProvenance.bindExportContext(UA, ctx, snapshot.manifest) : ctx;
+      const bound = snapshot.boundContext;
       const note = UA.exportProvenance?.buildContextNote?.(UA, bound, { sourceDetailsIncluded: true });
       const rendererArgs = args.map((value, index) => index === 0 && value?.structured && note !== undefined
         ? { ...value, structured: { ...value.structured, enrichmentSourcesNote: note } } : value);

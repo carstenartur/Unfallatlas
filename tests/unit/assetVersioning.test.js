@@ -38,7 +38,7 @@ describe('Werkbank deployment asset versions', () => {
     'js/ua.ai_proposal.js',
     'js/ua.report_v2.js',
   ])('%s uses the verified RIS rollout version', asset => {
-    expect(html).toContain(`${asset}?v=${asset === 'js/ua.report_v2.js' ? '2026-11-08-readable-direction' : '2026-11-07-ris'}`);
+    expect(html).toContain(`${asset}?v=${asset === 'js/ua.report_v2.js' ? '2026-11-08-frozen-export-scope' : '2026-11-07-ris'}`);
   });
 
   test.each(['js/ua.state.js', 'js/ua.app_v2.js'])('%s refreshes confirmed area scope', asset => {
@@ -47,7 +47,7 @@ describe('Werkbank deployment asset versions', () => {
 
   test('both canonical template and export assets load the current defaults', () => {
     expect(html).toContain('js/ua.export_template_defaults.js?v=2026-11-08-method-limits"');
-    expect(html).toContain('js/ua.export_v2.js?v=2026-11-08-typed-context-export"');
+    expect(html).toContain('js/ua.export_v2.js?v=2026-11-08-frozen-export-scope"');
   });
 
   test.each(['js/ua.political-context.js', 'js/ua.area_name_control.js', 'js/ua.data_paths.js'])('%s refreshes confirmed research scope', asset => {
@@ -94,13 +94,13 @@ describe('Werkbank deployment asset versions', () => {
 test.each(['ua.core', 'ua.context_layers', 'ua.context_road_layer', 'ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  const version = name === 'ua.core' ? '2026-11-08-readable-direction' : '2026-11-08-context';
+  const version = name === 'ua.core' ? '2026-11-08-frozen-export-scope' : '2026-11-08-context';
   expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
   const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
   for (const name of ['ua.artifact_provenance', 'ua.export_provenance', 'ua.kml_export_provenance', 'ua.document_export_provenance']) {
-    const version = name === 'ua.export_provenance' ? '2026-11-08-readable-direction' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
+    const version = ['ua.export_provenance', 'ua.document_export_provenance'].includes(name) ? '2026-11-08-frozen-export-scope' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
     expect(core).toContain(`${name}.js?v=${version}`);
   }
 });

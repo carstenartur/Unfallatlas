@@ -330,6 +330,17 @@ describe('Document Export - Integration Tests', () => {
     }
   });
 
+  test.each(['Betreff: Eigene Prüfung 🚲 + 🚗','Betreff:\nEigene Prüfung 🚲 + 🚗'])('explicit subject uses existing prose conversion in both actual formats: %s', async subject => {
+    const report=basicReport({text:subject+'\nSachverhalt:\nTest content'});
+    await UA.exportToWord(makeCtx(),report,{includeMap:false});
+    await UA.exportToPDF(makeCtx(),report,{includeMap:false});
+    for(const text of [await readWordDocument(window.saveAs.mock.calls[0][0]),readPdfText(await window.pdfMake.createPdf.mock.results[0].value.getBuffer())]) {
+      const heading=text.slice(text.indexOf('Betreff:'),text.indexOf('Rahmendaten'));
+      expect(heading).toContain('Eigene Prüfung Radverkehr + PKW');
+      expect(heading).not.toMatch(/🚲|🚗/u);
+    }
+  });
+
   test('should generate Word document with accident data', async () => {
     await UA.exportToWord(makeCtx(), basicReport({
       text: [

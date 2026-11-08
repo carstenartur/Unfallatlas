@@ -302,3 +302,22 @@ test('document note deduplicates only exact bound source notes while standalone 
   const different={...bound,exportSourceManifest:{...manifest,sources:manifest.sources.map(s=>({...s,contentHash:'f'.repeat(64)}))}};
   expect(JSON.stringify(api.buildContextNote({},different,{sourceDetailsIncluded:true}))).toContain(sourceNote);
 });
+
+test.each(['manifest','distribution','missing-meta-pin'])('same source ID cannot lend clock/link to a road profile with %s mismatch',async mismatch=>{
+  const {ctx,env}=selectedDgmContext();
+  const good=ctx.contextLayerState.ways['23101052'];
+  Object.assign(good,{road_slope_manifest_sha256:'a'.repeat(64),road_slope_distribution_sha256:'b'.repeat(64)});
+  const bad={...good,road_slope_resolution_m:2};
+  if(mismatch==='manifest')bad.road_slope_manifest_sha256='c'.repeat(64);
+  else bad.road_slope_distribution_sha256='c'.repeat(64);
+  ctx.contextLayerState.ways.bad=bad;
+  ctx.allPts.push({lat:52.364,lon:9.706,props:{year:2024,matched_way_id:'bad'}});
+  Object.assign(ctx.contextLayerState.meta.sources.roadSlope,{distributionSha256:'b'.repeat(64),datasetUrl:'https://example.org/exact-dgm'});
+  if(mismatch==='missing-meta-pin'){delete good.road_slope_distribution_sha256;delete ctx.contextLayerState.meta.sources.roadSlope.distributionSha256;}
+  const manifest=await api.createManifest(ctx,env);
+  const note=api.buildContextNote(env.UA,api.bindExportContext(env.UA,ctx,manifest));
+  const matching=note.sources.find(s=>s.label.includes('Auflösung 1 m'));
+  const different=note.sources.find(s=>s.label.includes('Auflösung 2 m'));
+  expect(matching.label).toContain('2026-11-08T16:41:39.000Z');expect(matching.url).toBe('https://example.org/exact-dgm');
+  expect(different.label).toContain('Abruf unbekannt');expect(different.url).toBeNull();
+});

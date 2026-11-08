@@ -1609,7 +1609,7 @@
       ["Stadt:", metaCity],
       ["Bereich:", metaArea],
       ["Datum:", metaDate],
-      ["Betreff:", reportSubject(reportData)]
+      ["Betreff:", replaceEmojisForDocx(reportSubject(reportData))]
     ];
     for (const [label, value] of headerLines) {
       children.push(new Paragraph({
@@ -3753,7 +3753,7 @@
       ["Stadt:", metaCity],
       ["Bereich:", metaArea],
       ["Datum:", metaDate],
-      ["Betreff:", reportSubject(reportData)]
+      ["Betreff:", replaceEmojisForPDF(reportSubject(reportData))]
     ];
     for (const [label, value] of headerLines) {
       docDefinition.content.push({
