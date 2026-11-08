@@ -130,6 +130,12 @@ test.describe('Public Pages critical path', () => {
     await page.goto('werkbank_v2.html?city=Bonn', { waitUntil: 'domcontentloaded' });
     await requirePublicProfile(page);
 
+    // The notice stays compact when the user opens the mobile control panel.
+    const collapseButton = page.locator('#collapseBtn');
+    await expect(collapseButton).toHaveAttribute('aria-expanded', 'false');
+    await collapseButton.click();
+    await expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
+
     const notice = page.locator('#publicPreviewNotice');
     await expect(notice).toBeVisible();
     await expect(notice).not.toHaveAttribute('open', '');

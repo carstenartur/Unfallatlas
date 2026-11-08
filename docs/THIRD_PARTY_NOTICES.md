@@ -45,6 +45,7 @@ orphaned known component.
 | `leaflet` | BSD-2-Clause | Complete package license text |
 | `leaflet.markercluster` | MIT | Complete package license text |
 | `leaflet.heat` | BSD-2-Clause | Complete package license text |
+| `simpleheat` (bundled by `leaflet.heat`) | BSD-2-Clause | Complete locked package license text |
 | `leaflet-draw` | MIT | License declaration from installed `package.json` |
 | `leaflet-image` | BSD-2-Clause | License declaration from installed `package.json` |
 | `docx` | MIT | Complete package license text |
@@ -66,6 +67,10 @@ diagnostic inventory, not proof that the supplier bundles were built from this
 project's dependency tree. The unresolved names remain attached to the exact
 asset assessment.
 
+For Leaflet.heat, the build checks the Simpleheat source embedded in the global
+bundle's supplied source map against the locked Simpleheat source. The notice
+and SBOM record the matching component without claiming an independent rebuild.
+
 ## Open architecture decisions
 
 | Asset | Missing proof | Supported resolution paths |
@@ -73,7 +78,7 @@ asset assessment.
 | `vendor/export/docx.js` | Pinned build-tool lock, reproducible source build, complete contains/licenses | Source-build a browser entry with retained metafile/source map, or preserve the DOCX contract behind a separately maintained export service |
 | `vendor/export/pdfmake.js` | Reproducible webpack build including `svg-to-pdfkit`, complete source-map inventory/licenses | Rebuild from a dedicated locked workspace, or replace it with a source-buildable renderer that passes the PDF render gate |
 | `vendor/export/pdfmake-fonts.js` | Integrity-pinned font source, OFL/copyright file, deterministic VFS generator | Pin the Roboto source and generate VFS locally, or use another checked-in OFL family |
-| `vendor/leaflet.heat/leaflet-heat.js` | Locked `simpleheat@0.2.0` source/build/license | Pin and source-build the pair, or deliver separate locked modules |
+| `vendor/leaflet.heat/leaflet-heat.js` | Independent source-build attestation for the global bundle | Rebuild Leaflet.heat and its locked Simpleheat dependency with a pinned toolchain |
 | `vendor/leaflet-image/leaflet-image.js` | Source-build attestation plus complete leaflet-image license evidence | Rebuild with locked `d3-queue@2.0.3`, or replace map capture with a maintained implementation |
 | Leaflet Draw assets | Exact full upstream MIT/copyright file | Vendor the exact upstream evidence, or upgrade to an archive that ships it |
 

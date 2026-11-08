@@ -134,6 +134,10 @@ async function withSiteServer(callback) {
 }
 
 function buildAndValidateSite() {
+  const refreshRis = process.env.PAGES_REFRESH_RIS === '1';
+  if (refreshRis) {
+    runNode('scripts/refresh-ris-catalogues.js', [], { timeoutMs: 22 * 60_000 });
+  }
   fs.rmSync(SITE_ROOT, { recursive: true, force: true });
   fs.mkdirSync(QA_DIR, { recursive: true });
 
@@ -141,6 +145,9 @@ function buildAndValidateSite() {
     '--input-dir', INPUT_DIR,
     '--poi-dir', POI_DIR,
     '--output-dir', SITE_DIR,
+  ]);
+  runNode('scripts/refresh-ris-catalogues.js', [
+    '--validate', path.join(SITE_DIR, 'data', 'ris'), ...(refreshRis ? ['--require-all'] : []),
   ]);
   runNode('scripts/generate-data-status.js', [
     '--site', SITE_DIR,
@@ -304,6 +311,7 @@ async function runBrowserGate() {
       'test',
       'tests/e2e/smoke.spec.js',
       'tests/e2e/pages-critical-path.spec.js',
+      'tests/e2e/political-context-city-snapshot.spec.js',
       '--project=chromium',
     ];
     const options = {

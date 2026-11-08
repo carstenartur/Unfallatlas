@@ -9,7 +9,10 @@
     "js/ua.accident_year_provenance.js",
     "js/ua.source_manifest.js",
     "scripts/generate-sample-docx.js",
-    "tests/fixtures/rendered-document/ci-docx-contract.json"
+    "tests/fixtures/rendered-document/ci-docx-contract.json",
+    "js/ua.evidence_cohort.js",
+    "scripts/release-map-fixture.js",
+    "scripts/qa-numbered-appendix-rendered.js"
   ],
   "lockedPackages": [
     "docx"

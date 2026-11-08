@@ -36,6 +36,7 @@ const { runAssessment, isAvailable } = require('./ai/aiAssessmentService.js');
 const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAssessmentServiceV2.js');
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 const { search: politicalContextSearch } = require('./political-context/services/portalSearchService.js');
+const { createRisSnapshotSearch } = require('./political-context/services/risSnapshotSearch.js');
 const { listSupportedCities }            = require('./political-context/registry/cityPortalRegistry.js');
 const cityRegistry                       = require('./cities/cityRegistry.js');
 const { SUPPORT_LEVELS, hasSupport, describeSupport } =
@@ -54,6 +55,7 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 const ROOT = path.resolve(__dirname, '..');
 const SITE_ROOT = path.join(ROOT, '_site');
+const searchPublishedRis = createRisSnapshotSearch(path.join(SITE_ROOT, 'data', 'ris'));
 const DATA_ROOT = resolveDataRoot(ROOT, process.env.UNFALLATLAS_DATA_ROOT);
 
 // Parse JSON request bodies
@@ -719,12 +721,27 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
   } catch (_) { /* Katalog nicht verfügbar – wie zuvor weitermachen */ }
 
   try {
-    const result = await politicalContextSearch({
+    const search = {
       city: city.trim().substring(0, 100),
       searchTerms: sanitizedTerms,
       context: (context && typeof context === 'object') ? context : {},
       maxResults: resolvedMax
-    });
+    };
+    // Hannover's historical Domino search route now returns 404. Use the
+    // validated SIM catalogue when prepared, with its actual coverage status.
+    if (search.city.toLowerCase() === 'hannover') {
+      const snapshot = await searchPublishedRis(search);
+      return res.json(snapshot || {
+        references: [],
+        meta: {
+          city: search.city, searchTerms: sanitizedTerms, searchedAt: new Date().toISOString(),
+          totalFound: 0, supported: true, searchStatus: 'incomplete', providerKey: 'hannover-sim',
+          sourceUrl: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/Suche.xsp',
+          warnings: ['Für Hannover ist in dieser Installation kein Ratsdatenstand verfügbar.']
+        }
+      });
+    }
+    const result = await politicalContextSearch(search);
     return res.json(result);
   } catch (err) {
     console.error('[political-context/search] Fehler:', err.message);

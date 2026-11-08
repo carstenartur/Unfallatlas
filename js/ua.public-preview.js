@@ -171,20 +171,28 @@
     const searchButton = document.getElementById('polCtxBtnSearch');
     const openButton = document.getElementById('btnPolCtxOpen');
     const endpoint = configuredPoliticalContextEndpoint();
+    const city = String(ctx?.CITY_RAW || activeCityFromUrl()).trim();
+    const available = Boolean(endpoint || UA.RisCatalogue?.hasManifest(city));
 
     if (searchButton) {
-      searchButton.disabled = !endpoint;
-      searchButton.setAttribute('aria-disabled', endpoint ? 'false' : 'true');
-      searchButton.title = endpoint
+      searchButton.disabled = !available;
+      searchButton.setAttribute('aria-disabled', available ? 'false' : 'true');
+      searchButton.title = available
         ? ''
-        : 'Politische Recherche benötigt ein Server-Backend.';
+        : 'Für diese Stadt ist kein Ratsdatenstand geladen.';
     }
-    if (openButton && !endpoint) {
-      openButton.dataset.serverRequired = 'true';
-      openButton.title =
-        'Politische Recherche öffnen – auf GitHub Pages stehen offizielle Portal-Links statt der Serverrecherche bereit.';
+    if (available) {
+      if (openButton) {
+        delete openButton.dataset.serverRequired;
+        openButton.title = 'Politische Recherche öffnen';
+      }
+      if (results?.querySelector('[data-political-context-fallback]')) {
+        results.replaceChildren();
+        if (status) status.textContent = '';
+      }
+      return;
     }
-    if (endpoint || !status || !results) return;
+    if (!status || !results) return;
 
     status.textContent =
       'Serverrecherche auf GitHub Pages nicht verfügbar – es wurde kein fehlerhafter API-Aufruf gesendet.';
@@ -204,10 +212,9 @@
     const explanation = document.createElement('p');
     explanation.style.margin = '0 0 8px';
     explanation.textContent =
-      'Die automatische Recherche läuft nur in der Server-/Docker-Version, weil sie kommunale Portale serverseitig abfragt, normalisiert und bewertet.';
+      'Für diese Stadt ist hier kein Ratsdatenstand verfügbar. Nutzen Sie das amtliche Portal oder eine Server-/Docker-Installation.';
     box.appendChild(explanation);
 
-    const city = String(ctx?.CITY_RAW || activeCityFromUrl()).trim();
     if (city.toLowerCase() === 'bonn') {
       const links = document.createElement('div');
       links.append('Offizielle Bonner Recherche: ');
@@ -229,6 +236,13 @@
         links.appendChild(link);
       }
       box.appendChild(links);
+    } else if (city.toLowerCase() === 'hannover') {
+      const portal = document.createElement('a');
+      portal.href = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/Suche.xsp';
+      portal.target = '_blank';
+      portal.rel = 'noopener';
+      portal.textContent = 'Amtliche Drucksachen in Hannover suchen';
+      box.appendChild(portal);
     } else {
       const hint = document.createElement('p');
       hint.style.margin = '8px 0 0';
@@ -247,8 +261,15 @@
     if (!politicalContext.search.__publicPagesTransportGuard) {
       const guardedSearch = async params => {
         const endpoint = configuredPoliticalContextEndpoint();
-        if (!endpoint) throw politicalBackendUnavailableError();
-        return searchConfiguredPoliticalBackend(endpoint, params);
+        if (endpoint) return searchConfiguredPoliticalBackend(endpoint, params);
+        if (UA.RisCatalogue) {
+          try {
+            return await UA.RisCatalogue.search(params);
+          } catch (error) {
+            if (error.code !== 'RIS_SNAPSHOT_UNAVAILABLE') throw error;
+          }
+        }
+        throw politicalBackendUnavailableError();
       };
       Object.defineProperty(guardedSearch, '__publicPagesTransportGuard', { value: true });
       politicalContext.search = guardedSearch;
@@ -258,8 +279,30 @@
         && !politicalContext.openPanel.__publicPagesTransportGuard) {
       const originalOpenPanel = politicalContext.openPanel.bind(politicalContext);
       const guardedOpenPanel = async panelCtx => {
-        const result = await originalOpenPanel(panelCtx);
+        const city = panelCtx?.CITY_RAW || activeCityFromUrl();
+        const cityRevision = panelCtx?.politicalContextCityRevision;
+        const cityChanged = () => (panelCtx?.CITY_RAW || activeCityFromUrl()) !== city
+          || panelCtx?.politicalContextCityRevision !== cityRevision;
+        let snapshotError;
+        if (!configuredPoliticalContextEndpoint() && UA.RisCatalogue) {
+          try {
+            await UA.RisCatalogue.loadManifest(city);
+          } catch (error) {
+            snapshotError = error;
+          }
+        }
+        if (cityChanged()) return;
         renderPoliticalBackendNotice(panelCtx);
+        const result = await originalOpenPanel(panelCtx);
+        if (snapshotError && !cityChanged()) {
+          renderPoliticalBackendNotice(panelCtx);
+          if (snapshotError.code !== 'RIS_SNAPSHOT_UNAVAILABLE') {
+            const status = document.getElementById('polCtxStatus');
+            if (status) status.textContent = snapshotError.code === 'RIS_SNAPSHOT_EXPIRED'
+              ? snapshotError.message
+              : 'Der veröffentlichte Ratsdatenstand ist derzeit nicht lesbar.';
+          }
+        }
         return result;
       };
       Object.defineProperty(guardedOpenPanel, '__publicPagesTransportGuard', { value: true });
@@ -289,7 +332,7 @@
     notice.innerHTML =
       '<summary style="cursor:pointer;font-weight:700">Öffentliche Browser-Version · nur Videoexport nicht verfügbar</summary>' +
       '<p style="margin:6px 0 2px">Karte, Filter, Bereichsauswahl sowie CSV-, GeoJSON-, KML-, Word- und PDF-Export sind verfügbar. ' +
-      'Politische Recherche und Videoexport benötigen ein Server-Backend; die Bonn-Ansicht bietet ersatzweise Links zum offiziellen Ratsinformationssystem. ' +
+      'Die politische Suche nutzt veröffentlichte Ratsdaten je Stadt. Live-Recherche und Videoexport benötigen ein Server-Backend. ' +
       'Nach aktuellem Stand gilt: eine bekannte Lizenzbeschränkung für diese Browserfunktionen besteht nicht. ' +
       'Technische Provenienz-Härtung wird transparent in ' +
       '<a href="https://github.com/carstenartur/Unfallatlas/issues/406" target="_blank" rel="noopener">Issue #406</a> dokumentiert.</p>';
@@ -321,7 +364,7 @@
     if (ctx && ctx.ui && ctx.ui.exportMapModeHintEl) {
       ctx.ui.exportMapModeHintEl.textContent =
         'Der Kartenmodus gilt für Vorschau, Word/PDF und Datenexporte. ' +
-        'Politische Recherche und Videoexport benötigen ein Server-Backend und sind auf GitHub Pages nicht automatisch verfügbar.';
+        'Veröffentlichte Ratsdaten sind in der Karte und der Suche verfügbar. Live-Recherche und Videoexport benötigen ein Server-Backend.';
     }
   }
 

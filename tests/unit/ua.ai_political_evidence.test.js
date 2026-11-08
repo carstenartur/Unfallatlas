@@ -168,6 +168,52 @@ describe('UA.aiPoliticalEvidence', () => {
     expect(state.qaInstruction).toMatch(/Ratsinformationssystem.*nachvollziehbar/i);
   });
 
+  test('passes snapshot search status, date and warnings to the report and AI facts', async () => {
+    const snapshot = { city: 'bonn', generatedAt: '2026-08-01T12:00:00.000Z', sha256: 'a'.repeat(64) };
+    const selected = reference({ id: 'official', snapshot });
+    const result = searchResult([selected]);
+    Object.assign(result.meta, {
+      sourceType: 'ris-snapshot', sourceFingerprint: snapshot.sha256, generatedAt: snapshot.generatedAt,
+      searchStatus: 'partial-results', stale: true, warnings: ['Der veröffentlichte Datenstand ist älter als acht Tage.']
+    });
+    setup(async () => result);
+    ctx.politicalReferences = [selected];
+    window.UA.aiProposal._internal.mirrorExportOptions(ctx);
+    const report = await window.UA.computeExportReport(ctx);
+    const facts = window.UA.aiProposal._internal.buildExternalAiFactsPackage({ structured: report.structured });
+    for (const state of [report.structured.politicalContextResearch, facts.politicalContextResearch]) {
+      expect(state).toMatchObject({
+        status: 'incomplete', readyToFileBlocked: true, searchedAt: result.meta.searchedAt,
+        details: { searchStatus: 'partial-results', stale: true, warnings: result.meta.warnings, sourceFingerprint: snapshot.sha256 },
+        selectedReferences: [expect.objectContaining({ id: 'official', snapshot })]
+      });
+    }
+  });
+
+  test('discards a previous search when the city returns with the same search terms', async () => {
+    const pending = [];
+    const api = setup(() => new Promise(resolve => pending.push(resolve)));
+    const political = window.UA.PoliticalContext;
+    const search = political.search;
+    const buildSearchTerms = political.buildSearchTerms;
+    require('../../js/ua.political-context.js');
+    Object.assign(political, { search, buildSearchTerms });
+    const first = api.ensurePoliticalResearch(ctx);
+    await Promise.resolve();
+    ctx.CITY_RAW = 'Hannover';
+    political.resetCity(ctx);
+    ctx.CITY_RAW = 'Bonn';
+    political.resetCity(ctx);
+    const second = api.ensurePoliticalResearch(ctx);
+    await Promise.resolve();
+    pending[0](searchResult([reference({ title: 'Verworfene Recherche' })]));
+    await expect(first).resolves.toBeNull();
+    expect(ctx.politicalReferences).toEqual([]);
+    pending[1](searchResult([reference({ title: 'Aktuelle Recherche' })]));
+    await expect(second).resolves.toMatchObject({ status: 'results-found' });
+    expect(ctx.politicalReferences[0].title).toBe('Aktuelle Recherche');
+  });
+
   test('does not auto-adopt non-traffic or explicitly gated-out portal hits', async () => {
     setup(async () => searchResult([
       reference({

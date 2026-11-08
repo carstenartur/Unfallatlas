@@ -111,6 +111,7 @@
   function documentedPoliticalQueries(political) {
     return list(political?.queries).filter(item => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      if ([item.sourceType, item.source, item.provider].some(value => clean(value).toLowerCase() === 'ris-snapshot')) return false;
       const query = clean(item.query || item.searchTerm || item.term);
       const namedSource = clean(
         item.sourceType || item.source || item.provider || item.portal || item.system

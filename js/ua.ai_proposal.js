@@ -51,7 +51,7 @@
       resultEl.innerHTML = "";
 
       try {
-        mirrorExportOptions(ctx);
+        UA.aiProposal._internal.mirrorExportOptions(ctx);
 
         // Reuse the deterministic export pipeline so the AI sees exactly the
         // same `structured` object the user would download as Word/PDF.
@@ -273,7 +273,9 @@
       throw new Error("Exportbericht kann nicht erzeugt werden.");
     }
     const normalizedCtx = ctx || {};
-    mirrorExportOptions(normalizedCtx);
+    // Use the current hooks so optional evidence adapters can enrich both paths.
+    const internal = UA.aiProposal._internal;
+    internal.mirrorExportOptions(normalizedCtx);
     const report = await UA.computeExportReport(normalizedCtx);
     const structured = report && report.structured;
     if (!structured) {
@@ -281,7 +283,7 @@
     }
     const now = new Date().toISOString();
     const mapUrl = buildCurrentMapUrl(normalizedCtx);
-    const facts = buildExternalAiFactsPackage({
+    const facts = internal.buildExternalAiFactsPackage({
       structured,
       deterministicReportText: report.text || "",
       mapUrl,

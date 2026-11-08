@@ -29,4 +29,12 @@ describe('canonical frontend toolchain contract', () => {
 
     expect(pkg.engines.node).toBe(`${nodeMajor}.x`);
   });
+
+  test('Docker uses the same Node release as Maven', () => {
+    const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const dockerNodeVersion = /^FROM node:(\d+\.\d+\.\d+)-[^\s]+ AS node-toolchain$/m.exec(dockerfile);
+
+    expect(dockerNodeVersion?.[1]).toBe(pomProperty(pom, 'node.version').replace(/^v/, ''));
+  });
 });

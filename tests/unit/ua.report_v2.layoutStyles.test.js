@@ -1,4 +1,6 @@
 /**
+ * @jest-environment node
+ *
  * Layout-Pass — central typography styles + map-block dramaturgy (PDF).
  *
  * Akzeptanzkriterien dieses Tests (entsprechen den im Spec-Block
@@ -21,19 +23,20 @@
 
 const fs = require('fs');
 const path = require('path');
+const pdfMake = require('../../scripts/pdfmake-node');
 
 describe('UA.report_v2 – Layout-Pass (canonical styles + map dramaturgy)', () => {
   let UA;
+  let window;
 
   beforeEach(() => {
-    const pdfMakeLib = require('pdfmake/build/pdfmake');
-    const pdfFonts = require('pdfmake/build/vfs_fonts');
-    pdfMakeLib.vfs = pdfFonts;
-
-    window.UA = {};
-    window.docx = require('docx');
-    window.pdfMake = pdfMakeLib;
-    window.saveAs = jest.fn();
+    window = {
+      UA: {},
+      docx: require('docx'),
+      pdfMake,
+      saveAs: jest.fn(),
+      location: new URL('http://localhost:8000/'),
+    };
 
     const filePath = path.resolve(__dirname, '../../js/ua.report_v2.js');
     eval(fs.readFileSync(filePath, 'utf8'));
@@ -41,10 +44,6 @@ describe('UA.report_v2 – Layout-Pass (canonical styles + map dramaturgy)', () 
   });
 
   afterEach(() => {
-    delete window.UA;
-    delete window.docx;
-    delete window.pdfMake;
-    delete window.saveAs;
     jest.restoreAllMocks();
   });
 

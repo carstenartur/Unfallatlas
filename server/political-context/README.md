@@ -223,6 +223,41 @@ in einer konfigurierbaren Liste innerhalb des jeweiligen Provider-Moduls.
 
 ---
 
+## Veröffentlichte Ratsdaten und Karte
+
+Bonn und Hannover teilen sich ein versioniertes Format unter `data/ris/`. Es enthält pro Stadt
+einen Suchindex und separat geladene Kartenobjekte. Das Manifest nennt Quellen, Datenstand,
+Zeitraum und erfasste Gremien. Beide Dateien sind per SHA-256 geprüft. Die Recherche in der
+Werkbank sucht nach Titel, Drucksachennummer oder Ortsangabe und zeigt verknüpfte Anfragen und Antworten.
+Die amtlichen Dokumente bleiben über ihre Original-URL erreichbar. Ausgewählte Vorgänge
+erscheinen im Bericht.
+
+| Stadt | Quelle und Umfang |
+|---|---|
+| Bonn | Öffentliche OParl-Drucksachen ab 2014. |
+| Hannover | Öffentliches SIM-Sitzungsarchiv der Ratsversammlung und des Stadtbezirksrats Linden-Limmer ab 2026, ergänzt durch die aktuellen SIM-Feeds. |
+
+Der Schalter „Ratsvorgänge“ unter „Karten-Layer“ ist anfangs aus. In Hannover werden benannte
+Kreuzungen, Abschnitte und verkehrsbezogene Hausnummern aus Titel und öffentlichem Maßnahmentext
+mit dem [Ortsverzeichnis](../../config/ris-locations/README.md) abgeglichen. Die Recherche zeigt
+je Ort die Fundstelle und öffnet eine belegte Geometrie mit „Auf Karte zeigen“. Ortsangaben mit
+offener Geometrie bleiben in der Suche sichtbar. Die Karte unterscheidet amtliche Geometrien,
+abgeleitete Lagen und reine Straßenbezüge. Der Datenstand bleibt in Recherche und Bericht sichtbar.
+
+`node scripts/refresh-ris-catalogues.js` ruft die städtischen Quellen ab und schreibt die Kataloge.
+Ein Katalog gilt nach acht Tagen als veraltet und läuft 14 Tage nach seiner ursprünglichen
+Erstellung ab. Schlägt die Aktualisierung für Pages fehl, kennzeichnet das Manifest den letzten
+verifizierten Stand mit `refreshFailure` (Zeitpunkt, Grund und Ablaufdatum). Datenstand und
+erfasster Umfang bleiben erhalten. Normale Builds übernehmen lokal vorhandene Kataloge ohne Netzabruf.
+Für einen Docker-Build mit veröffentlichten Katalogen steht `--build-arg RESTORE_PUBLISHED_RIS=1`
+zur Verfügung. Der Browser benötigt für die Kartenprüfung HTTPS oder `localhost`.
+
+Weitere Städte liefern ihre öffentlichen Vorgänge über einen Adapter im gemeinsamen Format.
+Die Veröffentlichung erhält dafür einen Eintrag im Erneuerungsskript. Straßenableitungen
+verwenden die dokumentierten, stadtbezogenen Referenzen unter `config/ris-locations/`.
+
+---
+
 ## Relevanzbewertung
 
 | Faktor                      | Max. Punkte |

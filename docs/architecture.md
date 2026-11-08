@@ -139,7 +139,7 @@ Wichtige Eigenschaften:
   `out/ctxtiles/<slug>/<x>/<y>.json` (Slippy-Tiles, Z=13) verweist.
   `js/ua.context_road_layer.js` baut daraus zwei Canvas-gerenderte
   Leaflet-Layer („Straßensteigung" + „Verkehrsbelastung"), die per
-  Karten-Layer-Control (oben links) ein-/ausgeschaltet werden können.
+  Karten-Layer-Control (oben rechts) ein-/ausgeschaltet werden können.
   Die Overlays zeichnen **das vollständige OSM-Straßennetz im
   Stadt-BBox** (viewport-lazy via `loadTilesForBbox`). Mit
   `dem_producer.js` ≥ 1.1.0 trägt **jeder** Weg im v3-Kontextnetz
@@ -676,7 +676,7 @@ Betreiber-/Technik-Sicht.
 | **KI-Bewertung v2** (mit Fallback)        | ❌ | ✅ Fallback¹ | ✅ KI | ✅ (KI nur mit Key) |
 | **KI-Bewertung v1** (`/api/ai/export-assessment`) | ❌ | ❌ (`503`) | ✅ | ✅ (nur mit Key) |
 | **Video-Export** (`.gif`)                 | ❌ | ✅ | ✅ | ✅ |
-| Konfiguration nötig                       | – | Node 24.x und npm 11 installieren, `npm run start:server` | zusätzlich `GEMINI_API_KEY` setzen | nur `docker run …` (optional `-e GEMINI_API_KEY=…`) |
+| Konfiguration nötig                       | – | Node 26.x und npm 11 installieren, `npm run start:server` | zusätzlich `GEMINI_API_KEY` setzen | nur `docker run …` (optional `-e GEMINI_API_KEY=…`) |
 
 ¹ Ohne `GEMINI_API_KEY` antwortet `POST /api/ai/export-assessment/v2`
 mit `200 OK` und `source: "fallback"` (deterministischer, datengestützter

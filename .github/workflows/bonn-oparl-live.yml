@@ -13,12 +13,16 @@ on:
       - 'tests/unit/bonnPortalSearchDiscoveryLive.test.js'
       - 'tests/unit/bonnPortalGateChallengeLive.test.js'
       - 'tests/unit/bonnPortalGateSolveLive.test.js'
+      - 'js/ua.ris-catalogue.js'
       - 'server/political-context/providers/bonnAllrisProvider.js'
+      - 'server/political-context/providers/bonnOparlCatalogueRecord.js'
       - 'server/political-context/providers/bonnOparlClient.js'
       - 'server/political-context/providers/bonnOparlHttp.js'
       - 'server/political-context/providers/_portalUtils.js'
       - 'server/political-context/services/portalSearchService.js'
       - 'server/political-context/services/portalNormalizationService.js'
+      - 'server/political-context/services/risSnapshot.js'
+      - 'server/political-context/services/risSnapshotSearch.js'
       - 'server/political-context/services/searchVariantBuilder.js'
       - 'server/political-context/schemas/politicalReferenceSearchResult.schema.json'
       - 'server/ai/proposalBriefValueAdd.js'
@@ -46,7 +50,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java 21 with Maven cache
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: '25'
@@ -55,6 +59,7 @@ jobs:
       - name: Run the Maven-owned Bonn live evidence suite
         env:
           BONN_OPARL_LIVE: '1'
+          BONN_OPARL_LIVE_SCOPE: ${{ github.event_name == 'pull_request' && 'snapshot' || 'archive' }}
           PORTAL_SEARCH_TIMEOUT_MS: '20000'
           BONN_OPARL_MAX_PAGES: '300'
           BONN_OPARL_PAGE_LIMIT: '100'
@@ -68,6 +73,7 @@ jobs:
           name: bonn-political-context-live-evidence
           path: |
             out/qa/bonn-political-context-live.json
+            out/qa/bonn-ris-snapshot-live.json
             out/qa/bonn-official-catalogue-discovery.json
             out/qa/bonn-oparl-collection-probes.json
             out/qa/bonn-portal-gate-challenge.json

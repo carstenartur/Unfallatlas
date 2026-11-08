@@ -1,7 +1,8 @@
 # Unfallwerkbank 2.1.4 — prepared release notes
 
-**Status: unpublished candidate.** These notes describe changes already on
-`main` at `7a4c077e02cc4683db41ac22f686ac962bf2f642`, compared with
+**Status: unpublished candidate.** These notes describe changes on
+`main` at `0f6d7ad2b75d2ecc6560d274d29a8a0076f78f30` plus the explicitly
+identified document-QA candidate in PR #724, compared with
 [`v2.1.3`](https://github.com/carstenartur/Unfallatlas/releases/tag/v2.1.3).
 Publication remains blocked by the acceptance items in
 [the preparation record](docs/releases/2.1.4-preparation.md).
@@ -16,7 +17,7 @@ Publication remains blocked by the acceptance items in
   [#388](https://github.com/carstenartur/Unfallatlas/pull/388).
 - **Reproducible context data.** Context generation uses verified inputs and
   explicit fallback behaviour. Reviewed context-data updates are included through
-  [#703](https://github.com/carstenartur/Unfallatlas/pull/703); later open refresh
+  [#745](https://github.com/carstenartur/Unfallatlas/pull/745); later open refresh
   requests are outside this candidate. See also
   [#389](https://github.com/carstenartur/Unfallatlas/pull/389),
   [#666](https://github.com/carstenartur/Unfallatlas/pull/666) and
@@ -36,6 +37,12 @@ Publication remains blocked by the acceptance items in
 
 ## Packaging and quality
 
+- **Candidate document acceptance:** source-bound PDF/DOCX/CSV/GeoJSON exports
+  preserve all 111 selected accident rows and nine distinct numbered maps.
+  Final-page checks reconstruct table cells and captions and verify embedded
+  source hashes and image pixels. Readable 9-point landscape tables and concise
+  clickable map links replace the broken long URLs and cramped appendix columns.
+  This addition is in preparation PR #724; actual Microsoft Word acceptance remains open.
 - The canonical Pages bundle binds locked browser assets, data fingerprints,
   media evidence, notices and SBOM output to the built site.
 - Release acceptance keeps reviewed screenshots intact and checks the actual
@@ -48,9 +55,9 @@ Publication remains blocked by the acceptance items in
   and the Analysis Service JAR from its tested release commit.
 - The reviewed npm security group [#722](https://github.com/carstenartur/Unfallatlas/pull/722)
   updates vulnerable dependency versions while retaining strict audit enforcement.
-  Word/PDF export uses docx 9.15.1 and pdfjs-dist 6.5.438; Playwright packages and
-  the Docker browser runtime are aligned at 1.64.1. The build uses pinned npm
-  11.21.1, and complete audit evidence remains available alongside compact CI
+  Word/PDF export now uses docx 9.15.3, pdfmake 0.3.14 and pdfjs-dist 6.5.438;
+  Playwright packages and the Docker browser runtime are aligned at 1.65.0.
+  The build uses pinned npm 11.21.2, and complete audit evidence remains available alongside compact CI
   summaries.
 - The Analysis Service uses Spring Boot 4.1.2 and Java 27 build/runtime containers.
   Its packaged PostgreSQL driver is 42.7.14 after removal of an obsolete override.
@@ -64,7 +71,7 @@ Publication remains blocked by the acceptance items in
 - The gRPC patch [#727](https://github.com/carstenartur/Unfallatlas/pull/727)
   updates the Testcontainers/Docker test dependency to 1.14.7; the production
   dependency tree is unaffected by that test-only change.
-- Subsequent merged maintenance includes ip-address 10.7.5, JSZip 3.10.2,
+- Subsequent merged maintenance includes ip-address 10.7.6, JSZip 3.10.2,
   the locked Node Testcontainers dependency 12.2.1 and Maven Failsafe 3.6.1.
   The latest merged lockfile also resolves Express 5.3.0 and
   @axe-core/playwright / axe-core 4.14.0
@@ -75,8 +82,7 @@ Publication remains blocked by the acceptance items in
   [combined source change](https://github.com/carstenartur/Unfallatlas/commit/35a504836419a9089358d8bfe6dd8ac674286b05).
 - The 2 November source refresh includes pdfjs-dist 6.5.438
   ([#708](https://github.com/carstenartur/Unfallatlas/pull/708)) and Maven Enforcer
-  3.7.0 ([#735](https://github.com/carstenartur/Unfallatlas/pull/735)). Their new
-  source must complete the applicable checks before release qualification.
+  3.7.0 ([#735](https://github.com/carstenartur/Unfallatlas/pull/735)). Final-source checks remain required before release qualification.
 - Each dialog accessibility audit now has its own Playwright test and normal
   page fixture. All four axe scans, blocking assertions and the separate
   Escape/focus checks remain in place, with the existing per-test time limit.

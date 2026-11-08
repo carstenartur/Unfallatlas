@@ -143,6 +143,8 @@
         const city = String(step.value || "").trim();
         if (!city || city === ctx.CITY_RAW) break;
         ctx.CITY_RAW = city;
+        UA.PoliticalContext?.resetCity?.(ctx);
+        UA.RisLayer?.refresh(ctx);
         // Update dropdown if present
         if (ctx.ui && ctx.ui.citySel) {
           ctx.ui.citySel.value = city;
@@ -227,7 +229,7 @@
         // the public API. Acts as a no-op when the city has no
         // enriched geometries (capability gating handled inside
         // UA.setContextOverlayActive). Used by the onboarding tour
-        // to point at the top-left "Karten-Layer" control and the
+        // to point at the top-right "Karten-Layer" control and the
         // bottom-left legend.
         if (typeof UA.setContextOverlayActive !== "function") break;
         const kind = String(step.kind || "").trim();

@@ -31,6 +31,48 @@
       "type": ["string", "null"],
       "description": "Drucksachen- oder Vorgangsnummer"
     },
+    "relatedTo": {
+      "type": "string",
+      "description": "Quell-ID der Originalvorlage"
+    },
+    "locations": {
+      "type": "array",
+      "description": "Im Vorgang genannte Orte mit Fundstelle und Kennzeichen für die Kartendarstellung",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["label", "kind", "evidence", "mapped"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 4096 },
+          "kind": { "enum": ["junction", "section", "street", "address", "place"] },
+          "mapped": { "type": "boolean" },
+          "evidence": {
+            "type": "object",
+            "required": ["source", "text"],
+            "additionalProperties": false,
+            "properties": {
+              "source": { "enum": ["title", "document"] },
+              "text": { "type": "string", "minLength": 1, "maxLength": 4096 }
+            }
+          }
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "required": ["city", "generatedAt", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "city": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "mapSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "complete": { "type": "boolean" },
+        "stale": { "type": "boolean" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "snippet": {
       "type": ["string", "null"],
       "description": "Kurzer Textausschnitt / Auszug aus dem Dokument"

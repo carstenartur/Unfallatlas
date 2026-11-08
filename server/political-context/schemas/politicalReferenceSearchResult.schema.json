@@ -63,6 +63,32 @@
           "type": ["string", "null"],
           "description": "Direkte URL der strukturierten bzw. maßgeblichen Ausgangsquelle"
         },
+        "generatedAt": { "type": "string" },
+        "sourceFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "stale": { "type": "boolean" },
+        "refreshFailure": {
+          "type": "object",
+          "description": "Fehlgeschlagene Aktualisierung eines weiterhin verwendeten geprüften Ratsdatenstands",
+          "required": ["attemptedAt", "reason", "expiresAt"],
+          "additionalProperties": false,
+          "properties": {
+            "attemptedAt": { "type": "string", "format": "date-time" },
+            "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+            "expiresAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "required": ["from", "to", "bodies", "complete", "warnings"],
+          "additionalProperties": false,
+          "properties": {
+            "from": { "type": ["string", "null"] },
+            "to": { "type": ["string", "null"] },
+            "bodies": { "type": "array", "items": { "type": "string" } },
+            "complete": { "type": "boolean" },
+            "warnings": { "type": "array", "items": { "type": "string" } }
+          }
+        },
         "queryLog": {
           "type": "array",
           "description": "Reproduzierbares Protokoll der tatsächlich ausgeführten Suchbegriffe und Quellen",

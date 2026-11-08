@@ -610,21 +610,36 @@ test.describe('Werkbank V2 - Accessibility', () => {
 test.describe('Werkbank V2 - Document Export Downloads', () => {
   test.beforeEach(async ({ page }) => {
     await setupCDNRoutes(page);
-    await page.goto('/werkbank_v2.html');
-    await waitForScreenshotReady(page, { timeout: 45000 });
+    // Keep the map and report inputs independent of live services.
+    await page.route(/^https:\/\/(?:[a-z]+\.)?tile\.openstreetmap\.org\//, route => route.fulfill({
+      path: 'tests/e2e/fixtures/map-tiles/standard.svg',
+    }));
+    for (const [url, fixture] of [
+      ['https://nominatim.openstreetmap.org/reverse?**', 'nominatim-reverse-hannover.json'],
+      ['https://overpass-api.de/api/interpreter', 'overpass-hannover.json'],
+    ]) {
+      await page.route(url, route => route.fulfill({
+        path: `tests/e2e/fixtures/network/${fixture}`,
+        headers: { 'access-control-allow-origin': '*' },
+      }));
+    }
 
-    // Wait for page initialization
-    await page.waitForFunction(() => {
-      const select = document.querySelector('#citySel');
-      return select && select.querySelectorAll('option').length > 1;
-    });
+    // Use the unmarked viewport fallback for a Hannover neighbourhood. Map overlays
+    // are unnecessary for the map-free export exercised here.
+    await page.goto(
+      '/werkbank_v2.html?city=Hannover&centerLat=52.37020&centerLon=9.73940&zoom=17' +
+        '&showCluster=0&showHeatmap=0',
+      { waitUntil: 'domcontentloaded' },
+    );
+    await waitForScreenshotReady(page, { city: 'Hannover', timeout: 45000 });
 
-    // Open the export modal
+    // Wait for the preview so it does not compete with document generation.
     await page.locator('#btnOpenExport').click();
     const modal = page.locator('#modalOverlay .modal');
-    await modal.waitFor({ state: 'visible' });
+    await expect(modal).toBeVisible();
+    await expect(page.locator('#exportProgress')).toHaveText('Fertig.', { timeout: 15000 });
 
-    // Disable map capture to avoid leaflet-image dependency
+    // Disable map capture; this check is about the document download.
     await page.locator('#cbIncludeMap').uncheck();
   });
 

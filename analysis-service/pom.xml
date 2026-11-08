@@ -33,7 +33,7 @@
              Hibernate ORM stack used by this service. Spring Boot 4.1.x and
              Hibernate Search 8.4.x are upgraded together and must only be
              merged with a green analysis-service `mvn clean verify`. -->
-        <hibernate-search.version>8.4.0.Final</hibernate-search.version>
+        <hibernate-search.version>8.4.1.Final</hibernate-search.version>
     </properties>
 
     <dependencies>

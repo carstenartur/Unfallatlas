@@ -12,6 +12,9 @@
 
 const { enrichWithReferenceModel } = require('./_portalUtils.js');
 const {
+  officialHttpsUrl, paperDate, paperLocationGeometry, mapCataloguePaper,
+} = require('./bonnOparlCatalogueRecord.js');
+const {
   OParlClientError,
   OParlClientErrorCode: HTTP_ERROR_CODE,
   DEFAULT_MAX_PAGES,
@@ -43,6 +46,13 @@ const DEFAULT_BONN_MAX_SCAN_PAGES = positiveInteger(
   process.env.BONN_OPARL_MAX_PAGES,
   300
 );
+const CATALOGUE_TTL_MS = positiveInteger(process.env.BONN_OPARL_CACHE_TTL_MS, 5 * 60 * 1000);
+const MAX_CATALOGUE_SCOPES = 2;
+const MAX_CATALOGUE_CACHE_BYTES = positiveInteger(process.env.BONN_OPARL_CACHE_MAX_BYTES, 64 * 1024 * 1024);
+// The official archive already has roughly 25,000 papers.
+const MAX_CATALOGUE_CACHE_ITEMS = positiveInteger(process.env.BONN_OPARL_CACHE_MAX_ITEMS, 60_000);
+const pendingCatalogueReads = new Map();
+const catalogueSnapshots = new Map();
 
 function bodyScore(body) {
   if (!body || typeof body !== 'object') return -1;
@@ -155,14 +165,14 @@ function matchedTermForPaper(paper, terms) {
   return matchedTermsForPaper(paper, terms)[0] || null;
 }
 
-function bestPaperUrl(paper) {
+function bestPaperUrl(paper, normalize = officialBonnUrl) {
   return [
     paper && paper.web,
     paper && paper.mainFile && paper.mainFile.web,
     paper && paper.id,
     paper && paper.mainFile && paper.mainFile.accessUrl,
     paper && paper.mainFile && paper.mainFile.downloadUrl,
-  ].map(officialBonnUrl).find(Boolean) || '';
+  ].map(normalize).find(Boolean) || '';
 }
 
 function paperSnippet(paper) {
@@ -232,6 +242,72 @@ function compactError(error) {
   };
 }
 
+function isScalar(value) {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
+function pickScalars(object, keys) {
+  const projected = {};
+  for (const key of keys) {
+    const value = object?.[key];
+    if (isScalar(value)) projected[key] = value;
+  }
+  return projected;
+}
+
+function projectObjectOrList(value, project) {
+  return Array.isArray(value) ? value.map(project).filter(Boolean) : project(value);
+}
+
+function projectLocation(location) {
+  if (!location || typeof location !== 'object') return null;
+  const projected = pickScalars(location, ['description', 'streetAddress', 'locality', 'deleted']);
+  const geometry = location.deleted === true ? null : paperLocationGeometry(location.geojson);
+  if (geometry) {
+    const name = location.geojson.properties?.name;
+    projected.geojson = typeof name === 'string' ? { ...geometry, properties: { name } } : geometry;
+  }
+  return geometry || projected.description || projected.streetAddress || projected.locality ? projected : null;
+}
+
+function projectConsultation(consultation) {
+  const organization = projectObjectOrList(consultation?.organization, value => {
+    const names = pickScalars(value, ['name', 'shortName']);
+    return names.name || names.shortName ? names : null;
+  });
+  return organization && (!Array.isArray(organization) || organization.length) ? { organization } : null;
+}
+
+function projectRelation(value) {
+  const id = typeof value === 'object' ? value?.id : value;
+  return typeof id === 'string' ? id : null;
+}
+
+function projectPaper(paper) {
+  // Search and catalogue consumers share this subset. Project each page before
+  // accumulating it, so unrelated embedded objects do not live through a crawl.
+  if (!paper || typeof paper !== 'object') return paper ? {} : null;
+  if (paper.deleted === true) return pickScalars(paper, ['id', 'deleted']);
+  const projected = pickScalars(paper, [
+    'id', 'web', 'name', 'reference', 'paperType', 'date', 'modified', 'gremium', 'organizationName',
+  ]);
+  if (Array.isArray(paper.keyword)) projected.keyword = paper.keyword.filter(isScalar);
+  if (paper.mainFile) {
+    projected.mainFile = pickScalars(paper.mainFile, ['name', 'fileName', 'web', 'accessUrl', 'downloadUrl']);
+  }
+  if (Array.isArray(paper.auxiliaryFile)) {
+    projected.auxiliaryFile = paper.auxiliaryFile.map(value => pickScalars(value, ['name', 'fileName']))
+      .filter(file => file.name || file.fileName);
+  }
+  if (paper.location) projected.location = projectObjectOrList(paper.location, projectLocation);
+  if (paper.consultation) projected.consultation = projectObjectOrList(paper.consultation, projectConsultation);
+  if (paper.superordinatedPaper) {
+    projected.superordinatedPaper = projectObjectOrList(paper.superordinatedPaper, projectRelation);
+  }
+  if (paper.relatedPaper) projected.relatedPaper = projectObjectOrList(paper.relatedPaper, projectRelation);
+  return projected;
+}
+
 function mayUseDirectPaperList(systemUrl, params, error) {
   const explicitDirectUrl = normalizeUrl(params.directPaperListUrl);
   const usesOfficialDiscovery = systemUrl === normalizeUrl(SYSTEM_URL);
@@ -288,13 +364,17 @@ async function resolvePaperSource(params, fetchJsonImpl, systemUrl) {
   }
 }
 
+function collectionPath(url) {
+  return url.pathname.replace(/^\/public(?=\/oparl\/)/, '').replace(/\/$/, '');
+}
+
 function isOfficialBonnPaperCollection(urlValue) {
   const normalized = normalizeUrl(urlValue);
   if (!normalized) return false;
   const url = new URL(normalized);
   return ['www.bonn.sitzung-online.de', 'bonn.sitzung-online.de']
     .includes(url.hostname.toLowerCase())
-    && /^\/oparl\/bodies\/\d+\/papers\/?$/.test(url.pathname);
+    && /^\/oparl\/bodies\/\d+\/papers$/.test(collectionPath(url));
 }
 
 function officialCollectionUrl(urlValue, pageSize, pageNumber) {
@@ -320,23 +400,44 @@ function officialCollectionUrl(urlValue, pageSize, pageNumber) {
 
 function collectionLink(payload, key, currentUrl, pageSize) {
   const raw = payload && payload.links && payload.links[key];
-  const normalized = normalizeUrl(raw, currentUrl);
-  return normalized ? officialCollectionUrl(normalized, pageSize) : '';
+  if (!raw) return '';
+  const target = new URL(assertAllowedNetworkUrl(normalizeUrl(raw, currentUrl)));
+  const page = Number(target.searchParams.get('page') ?? '1');
+  if (!isOfficialBonnPaperCollection(target.href) || collectionPath(target) !== collectionPath(new URL(currentUrl))
+      || !Number.isSafeInteger(page) || page < 1) {
+    throw new OParlClientError(
+      OParlClientErrorCode.INVALID_LIST,
+      `Ungültiger ${key}-Link in der Bonner OParl-Paginierung: ${target.href}`,
+      { url: currentUrl }
+    );
+  }
+  return officialCollectionUrl(currentUrl, pageSize, page);
 }
 
 function collectionPage(payload, currentUrl, pageSize) {
+  const requestedPage = Number(new URL(currentUrl).searchParams.get('page'));
   const parsed = parseListPage(payload, currentUrl);
-  const currentPage = Number(parsed.pagination && parsed.pagination.currentPage);
-  const totalPages = Number(parsed.pagination && parsed.pagination.totalPages);
+  const { currentPage, totalPages } = parsed.pagination;
   let previous = collectionLink(payload, 'prev', currentUrl, pageSize);
   let last = collectionLink(payload, 'last', currentUrl, pageSize);
-  if (!previous && Number.isFinite(currentPage) && currentPage > 1) {
-    previous = officialCollectionUrl(currentUrl, pageSize, currentPage - 1);
+  const next = collectionLink(payload, 'next', currentUrl, pageSize);
+  if ((!Array.isArray(payload) && !Array.isArray(payload.data))
+      || (currentPage != null && Number(currentPage) !== requestedPage)
+      || (previous && previous !== officialCollectionUrl(currentUrl, pageSize, requestedPage - 1))
+      || (next && next !== officialCollectionUrl(currentUrl, pageSize, requestedPage + 1))) {
+    throw new OParlClientError(
+      OParlClientErrorCode.INVALID_LIST,
+      `Inkonsistente Seitennummern in der Bonner OParl-Paginierung: ${currentUrl}`,
+      { url: currentUrl }
+    );
   }
-  if (!last && Number.isFinite(totalPages) && totalPages > 0) {
-    last = officialCollectionUrl(currentUrl, pageSize, totalPages);
+  if (!previous && requestedPage > 1) {
+    previous = officialCollectionUrl(currentUrl, pageSize, requestedPage - 1);
   }
-  return { ...parsed, previous, last };
+  if (!last && positiveInteger(totalPages, 0)) {
+    last = officialCollectionUrl(currentUrl, pageSize, Number(totalPages));
+  }
+  return { ...parsed, data: parsed.data.map(projectPaper), next, previous, last };
 }
 
 async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
@@ -347,14 +448,16 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
   );
   const requestOptions = params.requestOptions || {};
   const firstUrl = officialCollectionUrl(source.paperListUrl, pageSize, 1);
-  const firstPayload = await fetchJsonImpl(firstUrl, requestOptions);
-  const firstPage = collectionPage(firstPayload, firstUrl, pageSize);
+  const firstPage = collectionPage(await fetchJsonImpl(firstUrl, requestOptions), firstUrl, pageSize);
   const cache = new Map([[firstUrl, firstPage]]);
   const visited = new Set();
   const items = [];
   const pages = [];
   let requests = 1;
-  let currentUrl = firstPage.last || firstUrl;
+  // OParl only requires `next`. Bonn normally supplies `last` as well.
+  const newestFirst = !firstPage.next || Boolean(firstPage.last && firstPage.last !== firstUrl);
+  const startUrl = newestFirst ? firstPage.last || firstUrl : firstUrl;
+  let currentUrl = startUrl;
   let scanPagesFetched = 0;
 
   while (currentUrl && scanPagesFetched < maxScanPages) {
@@ -362,7 +465,7 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
     if (visited.has(currentUrl)) {
       throw new OParlClientError(
         OParlClientErrorCode.PAGINATION_CYCLE,
-        `OParl-Rückwärtspaginierung enthält einen Zyklus: ${currentUrl}`,
+        `Die Bonner OParl-Paginierung enthält einen Zyklus: ${currentUrl}`,
         { url: currentUrl, visited: [...visited] }
       );
     }
@@ -374,6 +477,13 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
       page = collectionPage(payload, currentUrl, pageSize);
       requests += 1;
     }
+    if (newestFirst && currentUrl === startUrl && page.next) {
+      throw new OParlClientError(
+        OParlClientErrorCode.INVALID_LIST,
+        `Die gemeldete letzte Bonner OParl-Seite verweist auf eine weitere Seite: ${currentUrl}`,
+        { url: currentUrl }
+      );
+    }
     items.push(...page.data);
     pages.push({
       url: currentUrl,
@@ -381,7 +491,7 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
       pagination: page.pagination,
     });
     scanPagesFetched += 1;
-    currentUrl = page.previous;
+    currentUrl = newestFirst ? page.previous : page.next;
   }
 
   return {
@@ -390,7 +500,7 @@ async function fetchOfficialBonnPaperList(source, params, fetchJsonImpl) {
     pagesFetched: requests,
     scanPagesFetched,
     discoveryPagesFetched: 1,
-    traversalDirection: 'newest-first',
+    traversalDirection: newestFirst ? 'newest-first' : 'forward',
     truncated: Boolean(currentUrl),
     nextUrl: currentUrl || '',
   };
@@ -407,6 +517,7 @@ async function fetchPaperList(source, params, fetchJsonImpl) {
 
   const options = {
     fetchJsonImpl,
+    mapItem: projectPaper,
     maxPages: positiveInteger(params.maxPages, DEFAULT_MAX_PAGES),
     query: {
       created_since: createdSinceIso(params.now, params.lookbackYears),
@@ -441,8 +552,190 @@ async function fetchPaperList(source, params, fetchJsonImpl) {
   }
 }
 
+function paperListWarnings(paperList, pages) {
+  const warnings = [];
+  if (pages.some(page => page.count === 0)) {
+    warnings.push('Die Bonner OParl-Paper-Liste enthält mindestens eine leere Seite.');
+  }
+  if (!paperList.truncated && pages.some(({ pagination }) => (
+    (pagination.totalElements != null && Number(pagination.totalElements) !== paperList.items.length)
+    || (pagination.totalPages != null && Number(pagination.totalPages) !== pages.length)
+  ))) {
+    warnings.push('Die gemeldeten Summen der Bonner OParl-Paginierung stimmen nicht mit dem Abruf überein.');
+  }
+  const ids = new Set();
+  for (const paper of paperList.items) {
+    const id = normalizeUrl(paper && paper.id);
+    if (!id) continue;
+    if (ids.has(id)) {
+      warnings.push('Die Bonner OParl-Paginierung lieferte mehrfach dieselbe Vorgangs-ID.');
+      break;
+    }
+    ids.add(id);
+  }
+  return warnings;
+}
+
+function assertCurrentBonnHttpsUrl(value) {
+  const url = assertAllowedNetworkUrl(value);
+  if (!officialHttpsUrl(url)) {
+    throw new OParlClientError(OParlClientErrorCode.INVALID_URL, 'Ungültige Bonner OParl-HTTPS-URL.');
+  }
+  return url;
+}
+
+function officialJsonFetcher(fetchJsonImpl) {
+  return (value, options) => fetchJsonImpl(assertCurrentBonnHttpsUrl(value), options);
+}
+
+function projectSource({ body, bodyList, ...metadata }) {
+  return {
+    ...metadata,
+    body: pickScalars(body, ['id', 'name', 'shortName']),
+    bodyList: { pagesFetched: bodyList.pagesFetched, truncated: bodyList.truncated },
+  };
+}
+
+async function readPaperCatalogue(params, systemUrl, fetchJsonImpl) {
+  const source = projectSource(await resolvePaperSource(params, fetchJsonImpl, systemUrl));
+  const { paperList: { pages, ...paperList }, ...listMetadata } = await fetchPaperList(source, params, fetchJsonImpl);
+  return {
+    source,
+    paperList,
+    ...listMetadata,
+    listWarnings: paperListWarnings(paperList, pages),
+  };
+}
+
+function pruneCatalogueSnapshots(now) {
+  for (const [scope, entry] of catalogueSnapshots) {
+    if (entry.expiresAt <= now) catalogueSnapshots.delete(scope);
+  }
+}
+
+function retainCatalogueSnapshot(key, catalogue) {
+  const { items, ...listMetadata } = catalogue.paperList;
+  if (items.length > MAX_CATALOGUE_CACHE_ITEMS) return;
+  // Count the UTF-8 JSON footprint one paper at a time, without building a
+  // second archive-sized string. The item limit also bounds row overhead.
+  let bytes = Buffer.byteLength(key) + Buffer.byteLength(
+    JSON.stringify({ ...catalogue, paperList: { ...listMetadata, items: [] } })
+  );
+  if (bytes > MAX_CATALOGUE_CACHE_BYTES) return;
+  for (const item of items) {
+    bytes += Buffer.byteLength(JSON.stringify(item)) + 1;
+    if (bytes > MAX_CATALOGUE_CACHE_BYTES) return;
+  }
+
+  const now = Date.now();
+  pruneCatalogueSnapshots(now);
+  let totalBytes = bytes;
+  let totalItems = items.length;
+  for (const entry of catalogueSnapshots.values()) {
+    totalBytes += entry.bytes;
+    totalItems += entry.catalogue.paperList.items.length;
+  }
+  for (const [scope, entry] of catalogueSnapshots) {
+    if (catalogueSnapshots.size < MAX_CATALOGUE_SCOPES
+        && totalBytes <= MAX_CATALOGUE_CACHE_BYTES
+        && totalItems <= MAX_CATALOGUE_CACHE_ITEMS) break;
+    catalogueSnapshots.delete(scope);
+    totalBytes -= entry.bytes;
+    totalItems -= entry.catalogue.paperList.items.length;
+  }
+  catalogueSnapshots.set(key, { catalogue, bytes, expiresAt: now + CATALOGUE_TTL_MS });
+}
+
+function loadPaperCatalogue(params, systemUrl, officialOnly = false) {
+  if (params.fetchJsonImpl) {
+    const fetchJsonImpl = officialOnly ? officialJsonFetcher(params.fetchJsonImpl) : params.fetchJsonImpl;
+    return readPaperCatalogue(params, systemUrl, fetchJsonImpl);
+  }
+
+  const request = params.requestOptions || {};
+  const key = JSON.stringify([
+    systemUrl, normalizeUrl(params.directPaperListUrl) || String(params.directPaperListUrl || ''),
+    positiveInteger(params.maxBodyPages, 3),
+    positiveInteger(params.maxPages, null), positiveInteger(params.pageLimit, DEFAULT_PAGE_LIMIT),
+    createdSinceIso(params.now, params.lookbackYears),
+    request.timeoutMs, request.maxBytes, request.maxRedirects, request.redirectCount,
+  ]);
+  pruneCatalogueSnapshots(Date.now());
+  const cached = catalogueSnapshots.get(key);
+  if (cached) return cached.catalogue;
+  const inFlight = pendingCatalogueReads.get(key);
+  if (inFlight) return inFlight;
+
+  const pending = readPaperCatalogue(params, systemUrl, officialJsonFetcher(fetchJson))
+    .then(catalogue => {
+      const { source, paperList, listWarnings } = catalogue;
+      if (!paperList.truncated && !source.bodyList.truncated && !listWarnings.length) {
+        retainCatalogueSnapshot(key, catalogue);
+      }
+      return catalogue;
+    })
+    .finally(() => { pendingCatalogueReads.delete(key); });
+  pendingCatalogueReads.set(key, pending);
+  return pending;
+}
+
+function discoveryWarning(source) {
+  const error = source.discoveryError;
+  return error && `Das OParl-Systemdokument war nicht nutzbar (${error.code}: `
+    + `${error.message}); die offizielle direkte Paper-Sammlung wurde verwendet.`;
+}
+
+async function collectBonnCatalogue(params = {}) {
+  const systemUrl = officialHttpsUrl(params.systemUrl || SYSTEM_URL);
+  const sources = systemUrl ? [systemUrl] : [];
+  const coverage = { from: null, to: null, bodies: [], complete: false, warnings: [] };
+  const records = [];
+  try {
+    const url = systemUrl || assertCurrentBonnHttpsUrl(params.systemUrl || SYSTEM_URL);
+    const { source, paperList, listWarnings } = await loadPaperCatalogue(params, url, true);
+    sources.splice(0, sources.length, ...new Set([source.sourceUrl, source.paperListUrl]));
+    const sourceOrigins = new Set(sources.map(value => new URL(value).origin));
+    coverage.bodies.push(String(source.body.name || source.body.shortName || 'Bonn').trim());
+    if (source.discoveryError) coverage.warnings.push(discoveryWarning(source));
+    coverage.warnings.push(...listWarnings);
+    if (source.bodyList.truncated) coverage.warnings.push('Die Bonner OParl-Body-Liste wurde am Seitenlimit abgeschnitten.');
+    if (paperList.truncated) coverage.warnings.push('Die Bonner OParl-Paper-Liste wurde am Seitenlimit abgeschnitten.');
+
+    const cutoff = createdSinceIso(params.now, params.lookbackYears).slice(0, 10);
+    const seen = new Set();
+    let invalidRecords = 0;
+    for (const paper of paperList.items) {
+      if (paper && paper.deleted === true) continue;
+      const date = paper ? paperDate(paper) : null;
+      if (date && date < cutoff) continue;
+      const record = paper && mapCataloguePaper(paper, bestPaperUrl(paper, officialHttpsUrl), PROVIDER_KEY, date);
+      if (!record) {
+        invalidRecords += 1;
+        continue;
+      }
+      if (seen.has(record.id)) continue;
+      seen.add(record.id);
+      records.push(record);
+      const origin = new URL(record.url).origin;
+      if (!sourceOrigins.has(origin)) {
+        sources.push(`${origin}/`);
+        sourceOrigins.add(origin);
+      }
+      if (date && (!coverage.from || date < coverage.from)) coverage.from = date;
+      if (date && (!coverage.to || date > coverage.to)) coverage.to = date;
+    }
+    if (invalidRecords) coverage.warnings.push(`${invalidRecords} Bonner OParl-Vorgänge konnten nicht übernommen werden.`);
+    if (!records.length) coverage.warnings.push('Die Bonner OParl-Sammlung lieferte keine nutzbaren Vorgänge im Betrachtungszeitraum.');
+    coverage.complete = records.length > 0 && !invalidRecords && !source.bodyList.truncated
+      && !paperList.truncated && !listWarnings.length;
+  } catch (error) {
+    const failure = compactError(error);
+    coverage.warnings.push(`Bonner OParl-Abruf fehlgeschlagen (${failure.code}: ${failure.message}).`);
+  }
+  return { records, sources, coverage };
+}
+
 async function searchOparl(params = {}) {
-  const fetchJsonImpl = params.fetchJsonImpl || fetchJson;
   const systemUrl = normalizeUrl(params.systemUrl || SYSTEM_URL);
   if (!systemUrl) {
     throw new OParlClientError(
@@ -470,13 +763,8 @@ async function searchOparl(params = {}) {
     };
   }
 
-  const source = await resolvePaperSource(params, fetchJsonImpl, systemUrl);
+  const { source, paperList, unfilteredRetry, reverseTraversal, listWarnings } = await loadPaperCatalogue(params, systemUrl);
   queryLog.forEach(entry => { entry.url = source.paperListUrl; });
-  const { paperList, unfilteredRetry, reverseTraversal } = await fetchPaperList(
-    source,
-    params,
-    fetchJsonImpl
-  );
 
   const matches = [];
   const termCounts = new Map(terms.map(term => [term.normalized, 0]));
@@ -499,30 +787,33 @@ async function searchOparl(params = {}) {
   }
 
   const results = deduplicateByUrl(matches);
-  const status = paperList.truncated
+  const incomplete = paperList.truncated || source.bodyList.truncated || (reverseTraversal && listWarnings.length > 0);
+  const status = incomplete
     ? (results.length ? 'partial-results' : 'incomplete')
     : (results.length ? 'results-found' : 'searched-no-results');
   queryLog.forEach((entry, index) => {
     const count = termCounts.get(terms[index].normalized) || 0;
     entry.count = count;
-    entry.status = paperList.truncated
+    entry.status = incomplete
       ? (count ? 'partial-results' : 'incomplete')
       : (count ? 'results-found' : 'searched-no-results');
   });
 
   const warnings = [];
   if (source.discoveryError) {
-    warnings.push(
-      `Das OParl-Systemdokument war nicht nutzbar (${source.discoveryError.code}: `
-      + `${source.discoveryError.message}); die offizielle direkte Paper-Sammlung wurde verwendet.`
-    );
+    warnings.push(discoveryWarning(source));
   }
   if (reverseTraversal) {
     warnings.push(
       'Die Bonner OParl-Sammlung wird wegen unzuverlässiger created-Zeitstempel '
-      + 'begrenzt von den neuesten Seiten rückwärts durchsucht; die fachliche '
+      + (paperList.traversalDirection === 'newest-first' ? 'begrenzt von den neuesten Seiten rückwärts durchsucht; ' : 'seitenweise durchsucht; ')
+      + 'die fachliche '
       + 'Datumsgrenze wird lokal anhand des Vorgangsdatums geprüft.'
     );
+    warnings.push(...listWarnings);
+  }
+  if (source.bodyList.truncated) {
+    warnings.push('Die Bonner OParl-Body-Liste wurde am konfigurierten Seitenlimit abgeschnitten.');
   }
   if (unfilteredRetry) {
     warnings.push(
@@ -561,7 +852,7 @@ async function searchOparl(params = {}) {
       scannedItems: paperList.items.length,
       eligibleItems,
       excludedOutsideLookback,
-      truncated: paperList.truncated,
+      truncated: incomplete,
       nextUrl: paperList.nextUrl || '',
       warnings,
     },
@@ -583,6 +874,7 @@ module.exports = {
   mapPaper,
   deduplicateByUrl,
   createdSinceIso,
+  collectBonnCatalogue,
   searchOparl,
   _internal: {
     positiveInteger,

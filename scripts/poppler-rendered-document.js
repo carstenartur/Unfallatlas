@@ -306,7 +306,10 @@ function extractPopplerDocument(pdfPath, options = {}) {
     requiredLinks: contract.requiredLinks || [],
     requiredImageKinds: contract.requiredImageKinds || [],
     expectedCounts: contract.expectedCounts || [],
-    ...(contract.sourceManifestHash ? { sourceManifestHash: contract.sourceManifestHash } : {}),
+    requireSourceManifestHash: contract.requireSourceManifestHash === true,
+    expectedSourceManifestHash: contract.expectedSourceManifestHash || null,
+    ...(options.verifiedSourceManifestHash ? { sourceManifestHash: options.verifiedSourceManifestHash }
+      : (!contract.requireSourceManifestHash && contract.sourceManifestHash ? { sourceManifestHash: contract.sourceManifestHash } : {})),
   };
 }
 

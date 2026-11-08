@@ -19,6 +19,7 @@ const { getProvider, activeProviderName } = require('./providers/index.js');
 const { sharedCache, AiAssessmentCache } = require('./cache/aiAssessmentCache.js');
 const { sharedQueue }          = require('./jobs/aiJobQueue.js');
 const {
+  buildRisSnapshotContext,
   buildProposalEvidenceContracts,
   buildProposalValueAddPrompt,
   buildBlockedFallbackContract,
@@ -186,6 +187,7 @@ function buildAiInputV2(structured, features, preselected, contextHints) {
     ? { name: meta.gremium.name || '', type: meta.gremium.typ || '' }
     : undefined;
   const filters = meta.filters || {};
+  const risSnapshotContext = buildRisSnapshotContext(structured);
   const evidenceContracts = buildProposalEvidenceContracts(structured, features);
 
   return {
@@ -205,6 +207,7 @@ function buildAiInputV2(structured, features, preselected, contextHints) {
     features,
     contextHints: contextHints || undefined,
     ...evidenceContracts,
+    ...(risSnapshotContext ? { risSnapshotContext } : {}),
     preselectedMeasures: preselected.map(measure => ({
       id: measure.id,
       title: measure.title,

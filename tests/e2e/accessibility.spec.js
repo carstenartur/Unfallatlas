@@ -20,6 +20,8 @@ function seriousOrCritical(violations) {
 test.describe('Accessibility – Werkbank V2', () => {
   test('Hauptseite hat keine critical/serious axe-Violations', async ({ page }, testInfo) => {
     await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    // The layer control is replaced once its geometry arrives.
+    await expect(page.getByRole('checkbox', { name: 'Straßensteigung', exact: true })).toBeEnabled();
     await waitForScreenshotReady(page, { city: 'Hannover' });
 
     const results = await new AxeBuilder({ page })
@@ -39,6 +41,34 @@ test.describe('Accessibility – Werkbank V2', () => {
       `axe found ${blocking.length} serious/critical violation(s):\n` +
         blocking.map((v) => `  [${v.impact}] ${v.id}: ${v.description}`).join('\n')
     ).toHaveLength(0);
+  });
+
+  test('Hinweise der Karten-Layer haben beim Laden und bei fehlenden Daten genug Kontrast', async ({ page }) => {
+    const contextData = Promise.withResolvers();
+    await page.route(/\/out\/(?:ways_hannover|output_all_years_hannover\.enrichment\.meta)\.json(?:\.gz)?$/u,
+      async route => {
+        await contextData.promise;
+        await route.fulfill({ status: 404 });
+      });
+    const control = page.getByRole('group', { name: 'Karten-Layer' });
+    const audit = () => new AxeBuilder({ page })
+      .include('.context-overlay-control')
+      .withRules(['color-contrast'])
+      .analyze();
+
+    let loading;
+    try {
+      await page.goto('/werkbank_v2.html?city=Hannover', { waitUntil: 'domcontentloaded' });
+      await expect(control.getByText('(lädt …)', { exact: true })).toBeVisible();
+      loading = await audit();
+    } finally {
+      contextData.resolve();
+    }
+
+    await expect(control.getByText('Layer nicht verfügbar', { exact: false })).toBeVisible();
+    const unavailable = await audit();
+    expect(loading.violations).toHaveLength(0);
+    expect(unavailable.violations).toHaveLength(0);
   });
 
   const dialogs = [

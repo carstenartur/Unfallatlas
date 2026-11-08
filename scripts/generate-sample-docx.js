@@ -3,7 +3,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { createDeterministicMapPng, toDataUrl } = require('./deterministic-map-fixture');
+const { toDataUrl } = require('./deterministic-map-fixture');
+const { createRoleMapFixture, verifyRoleMapFixtures, boundsForPoints, sha256 } = require('./release-map-fixture');
 const scenarios = require('./document-golden-scenarios');
 const docxSourceLinks = require('../js/ua.docx_source_links');
 const docxPagination = require('../js/ua.docx_pagination');
@@ -148,6 +149,27 @@ function createContext(scenarioValue) {
     bounds,
     scenario.involvement,
   );
+  if (isBaselineScenario(scenario)) {
+    // The legacy baseline's rendered table cells are fixed contracts. Keep the
+    // actual marker population consistent with those severity/year totals.
+    const report = createBaselineReportData().structured;
+    let index = 0;
+    for (const [severity, count] of Object.entries(report.severity.bySev)) {
+      for (let i = 0; i < count; i += 1) {
+        points[index].severity = Number(severity);
+        points[index].props.ukategorie = severity;
+        index += 1;
+      }
+    }
+    index = 0;
+    for (const row of report.yearTable) {
+      for (let i = 0; i < row.total; i += 1) {
+        points[index].year = row.year;
+        points[index].props.ujahr = String(row.year);
+        index += 1;
+      }
+    }
+  }
   return {
     CITY_RAW: scenario.city,
     mapMode: 'standard',
@@ -427,19 +449,33 @@ function clusterLabel(scenario) {
     : `Detailkarte ${scenario.areaName}`;
 }
 
+function createScenarioMaps(context, scenario) {
+  const points = context.allPts.map((point, index) => ({
+    id: `G${String(index + 1).padStart(3, '0')}`, lat: point.lat, lon: point.lon,
+    severity: Number(point.props?.ukategorie ?? point.severity),
+  }));
+  const snapshotHash = sha256(JSON.stringify({ scenario: scenario.id, bounds: scenario.bounds, points }));
+  const cluster = points.slice(0, scenario.clusterCount);
+  const specifications = {
+    overview: { points, bounds: boundsForPoints(points, .7) },
+    selection: { points, bounds: scenario.bounds },
+    detail: { points, bounds: boundsForPoints(points, .06) },
+    cluster: { points: cluster, bounds: boundsForPoints(cluster, .1) },
+  };
+  const maps = Object.fromEntries(Object.entries(specifications).map(([role, specification]) =>
+    [role, createRoleMapFixture({ role, snapshotHash, ...specification })]));
+  verifyRoleMapFixtures(Object.values(maps), snapshotHash);
+  return maps;
+}
+
 async function generateSampleDocx(options = {}) {
   const scenario = resolveScenario(options.scenario);
   const outPath = path.resolve(
     options.outPath || path.join(__dirname, '..', 'out', 'ci-render-gate.docx'),
   );
-  const mapMetadata = mapFixtureMetadata(scenario);
-  const mapDataUrl = toDataUrl(
-    createDeterministicMapPng({
-      width: 960,
-      height: 640,
-      ...mapMetadata,
-    }),
-  );
+  const context = options.context || createContext(scenario);
+  const maps = createScenarioMaps(context, scenario);
+  const mapDataUrl = toDataUrl(maps.selection.png);
   const capturedDownloads = [];
   const mockWindow = {
     UA: {},
@@ -474,26 +510,18 @@ async function generateSampleDocx(options = {}) {
   new Function('window', reportSource)(mockWindow);
 
   const UA = mockWindow.UA;
-  UA.captureExportMapImage = async () => mapDataUrl;
+  UA.captureExportMapImage = async (_ctx, captureOptions = {}) =>
+    toDataUrl((captureOptions.exportPoints ? maps.overview : maps.selection).png);
   UA._captureExportMapImage = UA.captureExportMapImage;
-  UA._captureDetailMap = async () => mapDataUrl;
-  const detailBounds = clusterBounds(scenario);
-  UA._captureClusterMaps = async () => [
-    {
-      image: mapDataUrl,
-      bounds: detailBounds,
-      total: scenario.clusterCount,
-      points: createAccidentPoints(
-        scenario.clusterCount,
-        detailBounds,
-        scenario.involvement,
-      ),
-      label: clusterLabel(scenario),
-      zoom: scenario.zoom + 1,
-      lat: scenario.center.lat,
-      lon: scenario.center.lon,
-    },
-  ];
+  UA._captureDetailMap = async () => toDataUrl(maps.detail.png);
+  UA._captureClusterMaps = async () => [{
+    image: toDataUrl(maps.cluster.png),
+    bounds: maps.cluster.receipt.bounds,
+    total: maps.cluster.receipt.markerCount,
+    points: context.allPts.slice(0, scenario.clusterCount),
+    label: clusterLabel(scenario), zoom: scenario.zoom + 1,
+    lat: scenario.center.lat, lon: scenario.center.lon,
+  }];
   const linkRuntime = docxSourceLinks.install(UA, mockWindow);
   if (!linkRuntime.available) {
     fail('docx_source_links_unavailable', 'DOCX source-link runtime could not be installed');
@@ -503,7 +531,6 @@ async function generateSampleDocx(options = {}) {
     fail('docx_pagination_unavailable', 'DOCX pagination runtime could not be installed');
   }
 
-  const context = options.context || createContext(scenario);
   const reportData = options.reportData || createReportData(scenario);
   await UA.exportToWord(context, reportData, {
     ...scenario.exportOptions,
@@ -528,6 +555,7 @@ async function generateSampleDocx(options = {}) {
   );
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, buffer);
+  fs.writeFileSync(`${outPath}.maps.json`, JSON.stringify(Object.values(maps).map(map => map.receipt), null, 2));
   return {
     scenarioId: scenario.id,
     outPath,
@@ -574,6 +602,7 @@ module.exports = {
   clusterBounds,
   mapFixtureMetadata,
   clusterLabel,
+  createScenarioMaps,
   generateSampleDocx,
   main,
 };
