@@ -2,7 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { ReadableStream } = require('node:stream/web');
 const L = require('leaflet');
+const { createCatalogue } = require('../../js/ua.ris-catalogue.js');
 
 const validUrl = 'https://www.bonn.sitzung-online.de/akten/1';
 const records = [
@@ -131,6 +133,111 @@ describe('Ratsvorgänge in the V2 map', () => {
     L.Browser.svg = svg;
     delete window.UA;
     delete window.L;
+  });
+
+  function mountPanelFooter() {
+    const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
+    const page = new DOMParser().parseFromString(html, 'text/html');
+    document.body.append(page.getElementById('panel'));
+    loadScript('ua.ui.js');
+    UA.bindDom(ctx);
+    ctx.ui.statEl.textContent = 'Sichtbar: 34 Unfälle';
+  }
+
+  test('the panel footer shows published and mapped record counts with the map layer off', async () => {
+    mountPanelFooter();
+    const manifest = deferred();
+    UA.RisCatalogue.loadManifest = jest.fn().mockReturnValue(manifest.promise);
+    UA.refreshContextOverlays(ctx);
+    const footer = document.querySelector('#panelBody #risCatalogueCount');
+    expect(footer).not.toBeNull();
+    expect(footer.hidden).toBe(false);
+    expect(footer.textContent).toMatch(/wird geladen/i);
+    expect(footer.previousElementSibling).toBe(ctx.ui.statEl);
+
+    manifest.resolve({ schemaVersion: 2, generatedAt: new Date().toISOString(),
+      recordCount: 1234, mappedRecordCount: 0, geometryCount: 0, coverage: { complete: false, warnings: [] } });
+    await flush();
+
+    expect(footer.textContent).toMatch(/Katalog.*1\.234.*0 verortet.*Teilbestand/);
+    expect(ctx.ui.statEl.textContent).toBe('Sichtbar: 34 Unfälle');
+    expect(checkbox('Ratsvorgänge').checked).toBe(false);
+    expect(UA.RisCatalogue.loadMap).not.toHaveBeenCalled();
+  });
+
+  test('the footer drops a late result from the previous city and distinguishes unavailable counts from zero', async () => {
+    mountPanelFooter();
+    const bonn = deferred();
+    UA.RisCatalogue.loadManifest = jest.fn()
+      .mockReturnValueOnce(bonn.promise)
+      .mockRejectedValueOnce({ code: 'RIS_SNAPSHOT_UNAVAILABLE' });
+    UA.refreshContextOverlays(ctx);
+    ctx.CITY_RAW = 'Hannover';
+    UA.RisLayer.refresh(ctx);
+    const footer = document.getElementById('risCatalogueCount');
+    expect(footer?.textContent).toMatch(/wird geladen/i);
+    await flush();
+    expect(footer.textContent).toMatch(/kein veröffentlichter Ratsdatenbestand/i);
+
+    bonn.resolve({ schemaVersion: 2, generatedAt: new Date().toISOString(),
+      recordCount: 99, mappedRecordCount: 12, coverage: { complete: true, warnings: [] } });
+    await flush();
+
+    expect(footer.textContent).toMatch(/kein veröffentlichter Ratsdatenbestand/i);
+    expect(footer.textContent).not.toMatch(/99|\b0\b/);
+  });
+
+  test('a retained legacy count is marked stale and disappears when its snapshot expires', async () => {
+    jest.useFakeTimers();
+    mountPanelFooter();
+    const day = 24 * 60 * 60 * 1000;
+    const generatedAt = new Date(Date.now() - 13 * day).toISOString();
+    UA.RisCatalogue.loadManifest = jest.fn().mockResolvedValue({
+      schemaVersion: 1, generatedAt, records: { count: 42 }, map: { count: 53 },
+      coverage: { complete: true, warnings: [] },
+    });
+    UA.refreshContextOverlays(ctx);
+    await jest.advanceTimersByTimeAsync(0);
+    const footer = document.getElementById('risCatalogueCount');
+    expect(footer?.textContent).toMatch(/42.*veralteter Datenstand/i);
+    expect(footer.textContent).not.toMatch(/53|verortet/i);
+
+    await jest.advanceTimersByTimeAsync(day);
+    expect(footer.textContent).toMatch(/abgelaufen/i);
+    expect(footer.textContent).not.toContain('42');
+  });
+
+  test('panning rechecks an unavailable footer count after the manifest cache expires', async () => {
+    mountPanelFooter();
+    let now = Date.now();
+    const sha256 = 'a'.repeat(64);
+    const manifest = { schemaVersion: 1, city: 'bonn', generatedAt: new Date(now).toISOString(), sources: [validUrl],
+      coverage: { from: null, to: null, bodies: [], complete: true, warnings: [] },
+      records: { path: `bonn.${sha256}.records.json.gz`, sha256, bytes: 42, count: 42 },
+      map: { path: `bonn.${sha256}.map.json.gz`, sha256, bytes: 53, count: 0 } };
+    const fetchManifest = jest.fn()
+      .mockResolvedValueOnce({ status: 404, ok: false })
+      .mockImplementation(async () => ({ status: 200, ok: true, body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(JSON.stringify(manifest)));
+          controller.close();
+        },
+      }) }));
+    UA.RisCatalogue = createCatalogue({ base: document.baseURI, fetch: fetchManifest, now: () => new Date(now) });
+    UA.refreshContextOverlays(ctx);
+    const footer = document.getElementById('risCatalogueCount');
+    await flush();
+    expect(footer.textContent).toMatch(/kein veröffentlichter Ratsdatenbestand/i);
+
+    ctx.map.fire('moveend');
+    await flush();
+    expect(fetchManifest).toHaveBeenCalledTimes(1);
+    now += 5 * 60 * 1000;
+    ctx.map.fire('moveend');
+    await flush();
+
+    expect(footer.textContent).toMatch(/Katalog.*42/);
+    expect(fetchManifest.mock.calls.map(([url]) => new URL(url).pathname)).toEqual(['/data/ris/bonn.json', '/data/ris/bonn.json']);
   });
 
   test('the RIS checkbox and selection restriction project canonical share state', async () => {

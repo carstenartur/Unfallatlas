@@ -13,6 +13,7 @@
     ui.legendBtn = document.getElementById('legendBtn');
     ui.legendBox = document.getElementById('legendBox');
     ui.statEl = document.getElementById('stat');
+    ui.risCatalogueCountEl = document.getElementById('risCatalogueCount');
     ui.buildInfo = document.getElementById("buildInfo");
     ui.dataSourceCode = document.getElementById("dataSourceCode");
     ui.metaInfoBox = document.getElementById("metaInfoBox");

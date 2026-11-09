@@ -759,6 +759,59 @@
     }, delay);
   }
 
+  function refreshCatalogueCount(ctx, state) {
+    const footer = ctx.ui?.risCatalogueCountEl;
+    const city = state.city;
+    if (!footer || typeof UA.RisCatalogue?.loadManifest !== 'function') return;
+    if (state.catalogueCount?.city !== city) {
+      clearTimeout(state.catalogueCount?.timer);
+      state.catalogueCount = { city };
+      footer.hidden = false;
+      footer.textContent = 'Anzahl der Ratsvorgänge wird geladen …';
+    }
+    const count = state.catalogueCount;
+    if (count.pending) return;
+    const active = () => current(ctx, state) && state.catalogueCount === count;
+    const setLabel = label => { if (footer.textContent !== label) footer.textContent = label; };
+    const expiredLabel = 'Der letzte geprüfte Ratsdatenstand ist abgelaufen.';
+    const showCount = manifest => {
+      if (!active()) return;
+      const { stale, expired, nextCheckAt } = UA.RisCatalogue.snapshotStatus(manifest);
+      if (expired) {
+        setLabel(expiredLabel);
+        return;
+      }
+      const total = manifest.recordCount ?? manifest.records.count;
+      let label = `Ratsvorgänge im veröffentlichten Katalog: ${total.toLocaleString('de-DE')}`;
+      if (manifest.schemaVersion === 2) label += ` (davon ${manifest.mappedRecordCount.toLocaleString('de-DE')} verortet)`;
+      if (!manifest.coverage.complete) label += ' · Teilbestand';
+      if (stale) label += ' · Veralteter Datenstand';
+      if (manifest.refreshFailure) label += ' · Aktualisierung fehlgeschlagen';
+      setLabel(label);
+      const delay = Math.max(0, Math.min(nextCheckAt - Date.now(), 0x7fffffff));
+      count.timer = setTimeout(() => showCount(manifest), delay);
+    };
+
+    // Use the same TTL and in-flight request cache as the map and research.
+    count.pending = true;
+    UA.RisCatalogue.loadManifest(city).then(manifest => {
+      if (!active()) return;
+      count.pending = false;
+      if (count.manifest === manifest) return;
+      clearTimeout(count.timer);
+      count.manifest = manifest;
+      showCount(manifest);
+    }, error => {
+      if (!active()) return;
+      count.pending = false;
+      clearTimeout(count.timer);
+      count.manifest = null;
+      if (error?.code === 'RIS_SNAPSHOT_UNAVAILABLE') setLabel('Für diese Stadt ist kein veröffentlichter Ratsdatenbestand verfügbar.');
+      else if (error?.code === 'RIS_SNAPSHOT_EXPIRED') setLabel(expiredLabel);
+      else setLabel('Der veröffentlichte Ratsdatenbestand konnte nicht geladen werden.');
+    });
+  }
+
   function refresh(ctx) {
     const state = controls.get(ctx);
     if (!state || ctx.map !== state.map) return;
@@ -770,6 +823,7 @@
       state.status.textContent = '';
       state.loadError = null;
     }
+    refreshCatalogueCount(ctx, state);
     const active = sharedState(ctx);
     const wasEnabled = state.toggle.checked;
     state.toggle.checked = active.ris;
@@ -969,6 +1023,7 @@
     }
     if (old) {
       clearLayer(old);
+      clearTimeout(old.catalogueCount?.timer);
       old.map.off('moveend', old.onMove);
     }
     const root = document.createElement('div');
@@ -990,7 +1045,7 @@
     }
     const coverage = text(body, 'details', '');
     body.hidden = legend.hidden = coverage.hidden = true;
-    const onMove = () => { if (toggle.checked) refresh(ctx); };
+    const onMove = () => { if (toggle.checked || ctx.ui?.risCatalogueCountEl) refresh(ctx); };
     const state = {
       root, toggle, body, filter, status, legend, mixedLegend, coverage, onMove,
       map: ctx.map, city: cityOf(ctx), featureLayers: new Map(),
@@ -999,6 +1054,7 @@
     state.map.on('moveend', onMove);
     state.map.once('unload', () => {
       clearTimeout(state.expiryTimer);
+      clearTimeout(state.catalogueCount?.timer);
       state.map.off('moveend', onMove);
       if (controls.get(ctx) === state) controls.delete(ctx);
     });
