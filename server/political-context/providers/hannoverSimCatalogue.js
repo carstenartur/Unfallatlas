@@ -742,13 +742,39 @@ async function collectHannoverYear(options = {}, verifiedList) {
     }
   }
 
-  const pending = [...candidates.values()];
   const yearWork = options.yearWork;
+  const previousAnnual = new Set((yearWork?.documents || []).map(doc => `${SOURCE}:${doc.key}`));
+  const priorAuxiliaries = (yearWork?.catalogue?.records || []).filter(record =>
+    !previousAnnual.has(record.id) && Date.parse(record.detailVerifiedAt) <= now.getTime());
+  for (const record of priorAuxiliaries) {
+    const link = sourceLink(record.url, [ROOT], 'document');
+    if (!link || record.id !== `${SOURCE}:${link.key}` || candidates.has(link.key)) continue;
+    enqueue({ ...link, label: record.title }, { feedDate: record.date });
+  }
+
+  const pending = [...candidates.values()];
   if (yearWork) yearWork.details ||= {};
   const failedDetails = [], deferred = [], listOnlyKeys = [];
   const found = [];
   const relations = new Map();
   const answers = new Set();
+  const checkpointRecords = new Map((yearWork?.catalogue?.records || []).map(record => [record.id, record]));
+  const checkpointListOnly = new Set(yearWork?.listOnlyKeys);
+  const toRecord = ({ doc, result }) => {
+    const parent = relations.get(doc.key);
+    return {
+      id: `${SOURCE}:${doc.key}`, title: result.title, number: doc.number,
+      type: documentType(doc, result, answers.has(doc.key)),
+      date: result.date || doc.searchDate || doc.feedDate || null, gremium: doc.agendaBody || doc.feedBodies?.join(', ') || result.gremium || null,
+      url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
+      ...(result.events === undefined ? {} : { events: result.events }),
+      ...(result.relationships === undefined ? {} : { relationships: result.relationships }),
+      ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
+      ...evidenceQualification(result, options.includeLocationEvidence),
+      ...(result.detailVerifiedAt ? { detailVerifiedAt: result.detailVerifiedAt } : {}),
+      ...(result.locationEvidenceTruncated ? { locationEvidenceTruncated: true } : {}),
+    };
+  };
   let attempted = 0;
   while (pending.length && attempted < maxDocuments && (yearWork || performance.now() < deadline)) {
     // A bounded work queue keeps the allowed connections busy when one
@@ -756,7 +782,7 @@ async function collectHannoverYear(options = {}, verifiedList) {
     const next = pending.splice(0, Math.min(searchMode ? 128 : concurrency, maxDocuments - attempted));
     attempted += next.length;
     const related = [];
-    let acquiredDetail = false;
+    const acquiredDetails = [];
     const readDocument = async doc => {
       const revision = `sim-v4-timeline:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
       const retained = yearWork?.details[doc.key];
@@ -817,7 +843,7 @@ async function collectHannoverYear(options = {}, verifiedList) {
           const checkedAt = result.detailVerifiedAt || now.toISOString();
           result = { ...result, detailVerifiedAt: checkedAt };
           yearWork.details[doc.key] = { revision, checkedAt, result, doc };
-          acquiredDetail = true;
+          acquiredDetails.push({ doc, result });
         }
         return result;
       } catch (error) {
@@ -862,9 +888,18 @@ async function collectHannoverYear(options = {}, verifiedList) {
     }
     if (searchMode || attempted % 100 < concurrency || !pending.length) options.report?.({ phase: 'documents', attempted, found: found.length, pending: pending.length });
     pending.unshift(...related);
-    // Persist new detail results without advancing the saved catalogue's list
-    // clock. The verified inventory and its projection are replaced together.
-    if (acquiredDetail) await options.saveWork();
+    if (acquiredDetails.length) {
+      // Commit the detail and its catalogue record together. An offline
+      // recovery can then use every completed batch with its actual clock.
+      for (const detail of acquiredDetails) {
+        const record = toRecord(detail);
+        checkpointRecords.set(record.id, record);
+        checkpointListOnly.delete(detail.doc.key);
+      }
+      yearWork.catalogue = { ...yearWork.catalogue, sources: [...sources], records: [...checkpointRecords.values()] };
+      yearWork.listOnlyKeys = [...checkpointListOnly];
+      await options.saveWork();
+    }
   }
   if (pending.length) {
     if (attempted >= maxDocuments) limited(`Drucksachenlimit (${maxDocuments}) erreicht; ${pending.length} verlinkte Drucksachen bleiben offen.`);
@@ -873,29 +908,11 @@ async function collectHannoverYear(options = {}, verifiedList) {
   for (const [phase, issue] of failures) warnings.push(`${phase}: ${issue.count} Abruf(e) fehlgeschlagen. Erster Fehler: ${issue.detail}.`);
 
   if (deferred.length) warnings.push(`Quellenarbeit ist fortsetzbar; ${deferred.length} Drucksachen bleiben offen.`);
-  const records = found.map(({ doc, result }) => {
-    const parent = relations.get(doc.key);
-    return {
-      id: `${SOURCE}:${doc.key}`, title: result.title, number: doc.number,
-      type: documentType(doc, result, answers.has(doc.key)),
-      date: result.date || doc.searchDate || doc.feedDate || null, gremium: doc.agendaBody || doc.feedBodies?.join(', ') || result.gremium || null,
-      url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
-      ...(result.events === undefined ? {} : { events: result.events }),
-      ...(result.relationships === undefined ? {} : { relationships: result.relationships }),
-      ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
-      ...evidenceQualification(result, options.includeLocationEvidence),
-      ...(result.detailVerifiedAt ? { detailVerifiedAt: result.detailVerifiedAt } : {}),
-      ...(result.locationEvidenceTruncated ? { locationEvidenceTruncated: true } : {}),
-    };
-  });
-  if (yearWork?.catalogue) {
-    const previousAnnual = new Set((yearWork.documents || []).map(doc => `${SOURCE}:${doc.key}`));
+  const records = found.map(toRecord);
+  if (priorAuxiliaries.length) {
     const current = new Set(records.map(record => record.id));
-    for (const record of yearWork.catalogue.records) {
-      const verifiedAt = Date.parse(record.detailVerifiedAt);
-      if (current.has(record.id) || previousAnnual.has(record.id) || !Number.isFinite(verifiedAt) || verifiedAt > now.getTime()) continue;
-      // Verified links and rolling RSS entries can fall outside the annual
-      // inventory. Keep them with their original detail verification time.
+    for (const record of priorAuxiliaries) {
+      if (current.has(record.id)) continue;
       records.push(record);
       for (const source of yearWork.catalogue.sources) sources.add(source);
     }

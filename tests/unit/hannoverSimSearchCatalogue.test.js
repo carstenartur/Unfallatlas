@@ -659,6 +659,43 @@ test('a later year keeps already verified RSS-only records when its detail budge
         title: 'Vorlage aus dem Feed', detailVerifiedAt: earlier.toISOString(),
       });
     }
+    const later = new Date('2026-11-15T11:00:00Z');
+    const next = await collect({ from: '2026-01-01', now: later, workBudget: 2, requestText: async (url, request) => {
+      if (url.endsWith('.xml')) return { url, status: 200, contentType: 'application/rss+xml',
+        text: '<rss><channel><title>Amtlicher Feed</title></channel></rss>' };
+      if (url === ROOT + 'DS/' + rssKey) return { url, status: 200, contentType: 'text/html',
+        text: document(rssKey, 'Erneut geprüfte Vorlage') };
+      return requestText(url, request);
+    } });
+    expect(next.records.find(record => record.id === 'hannover-sim:' + rssKey)).toMatchObject({
+      title: 'Erneut geprüfte Vorlage', detailVerifiedAt: later.toISOString(),
+    });
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('offline recovery includes a detail batch saved just before the worker stopped', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-interrupted-details-'));
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const key = '0001-2021';
+    const { requestText } = fixture({ years: { 2021: results([row(key, 'Titel der Jahresliste')]) },
+      documents: { ['DS/' + key]: document(key, 'Titel der Detailseite') } });
+    const settings = { ...options, to: '2021-12-31', requestText, checkpoint };
+    let savedBatch = false;
+    const interrupted = { ...checkpoint, write: async (...args) => {
+      if (savedBatch) throw new Error('worker stopped after a detail batch');
+      await checkpoint.write(...args);
+      if (args.at(-1).details[key]) savedBatch = true;
+    } };
+    await expect(collectHannoverCatalogue({ ...settings, checkpoint: interrupted })).rejects.toThrow('worker stopped after a detail batch');
+    const recovered = await collectHannoverCatalogue({ ...settings, workBudget: 0,
+      requestText: () => { throw new Error('Unexpected network request'); } });
+    expect(recovered.records[0]).toMatchObject({ id: 'hannover-sim:' + key, title: 'Titel der Detailseite',
+      locationEvidence: ['Der Radweg an der Limmerstraße wird saniert.'], detailVerifiedAt: NOW.toISOString() });
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });
 
