@@ -37,13 +37,13 @@ beforeEach(async () => {
 afterEach(async () => fs.rm(root, { force: true, recursive: true }));
 
 function writeRisSnapshot(folder, city, value, options) {
-  return writeSnapshot(folder, city, value, { ...options, schemaVersion: value.locationRevision === 3 ? 2 : 1 });
+  return writeSnapshot(folder, city, value, { ...options, schemaVersion: value.locationRevision >= 3 ? 2 : 1 });
 }
 
 function catalogue(city, { count = 2, from = city === 'hannover' ? '2014-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
   const gremium = body || (city === 'bonn' ? 'Bonn' : 'Ratsversammlung');
   return {
-    locationRevision: 3,
+    locationRevision: 4,
     sources: [OFFICIAL[city]],
     coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'],
       ...(city === 'hannover' ? { scope: 'citywide' } : {}) },
@@ -235,6 +235,88 @@ test('restores a fresh deployed snapshot in a clean checkout without contacting 
   const snapshot = await readRisSnapshot(directory, 'bonn');
   expect(snapshot.manifest).toEqual(manifest);
   expect(snapshot.features.features).toHaveLength(1);
+});
+
+test.each([502, 503, 504])('restores an unchanged v2 snapshot after a required links asset returns HTTP %s once', async status => {
+  const prior = await writeRisSnapshot(published, 'bonn', {
+    ...catalogue('bonn'), withdrawalsRecordedAt: FRESH.toISOString(),
+  }, { now: FRESH });
+  const before = await readRisSnapshot(published, 'bonn');
+  const serve = fetchPages();
+  const linksRequests = [];
+  let rejectedResponse;
+  const fetchPublished = async (url, options) => {
+    if (url.endsWith('.links.json.gz')) {
+      linksRequests.push({ url, ...options });
+      if (linksRequests.length === 1) {
+        rejectedResponse = new Response('Temporary upstream failure', { status });
+        return rejectedResponse;
+      }
+    }
+    return serve(url, options);
+  };
+  const collect = jest.fn(() => { throw new Error('A fresh fallback must not refresh the source'); });
+  await expect(refresh({ cities: ['bonn'], restoreOnly: true, fetchPublished, collect }))
+    .resolves.toMatchObject([{ status: 'restored', generatedAt: FRESH.toISOString() }]);
+  const after = await readRisSnapshot(directory, 'bonn');
+  expect(after).toEqual(before);
+  expect(after.manifest).toEqual(prior);
+  expect(linksRequests).toHaveLength(2);
+  expect(linksRequests[1]).toMatchObject({ url: linksRequests[0].url,
+    redirect: 'error', credentials: 'omit', cache: 'force-cache' });
+  expect(linksRequests[1].signal).not.toBe(linksRequests[0].signal);
+  expect(rejectedResponse.body.locked).toBe(false);
+  expect(await rejectedResponse.body.getReader().read()).toEqual({ done: true, value: undefined });
+  expect(collect).not.toHaveBeenCalled();
+});
+
+test('fails closed after three transient responses for a required v2 links asset', async () => {
+  await writeRisSnapshot(published, 'bonn', catalogue('bonn'), { now: FRESH });
+  const serve = fetchPages();
+  const rejectedResponses = [];
+  const fetchPublished = async (url, options) => {
+    if (url.endsWith('.links.json.gz')) {
+      const response = new Response('Unavailable', { status: 503 });
+      rejectedResponses.push(response);
+      return response;
+    }
+    return serve(url, options);
+  };
+  await expect(refresh({ cities: ['bonn'], restoreOnly: true, fetchPublished })).rejects.toThrow(/HTTP 503/);
+  expect(rejectedResponses).toHaveLength(3);
+  for (const response of rejectedResponses) {
+    expect(await response.body.getReader().read()).toEqual({ done: true, value: undefined });
+  }
+  await expect(fs.readFile(path.join(directory, 'bonn.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test.each([
+  ['HTTP 404', () => new Response(null, { status: 404 }), /HTTP 404/],
+  ['HTTP 500', () => new Response(null, { status: 500 }), /HTTP 500/],
+  ['rejected request', () => { throw new Error('Network rejected'); }, /Network rejected/],
+  ['corrupt content', () => new Response('damaged'), /hash|digest|checksum|size|bytes/i],
+  ['oversized content', () => new Response(Buffer.alloc(16 * 1024 * 1024 + 1)), /size limit/],
+])('does not retry a required v2 links asset with %s', async (_failure, respond, expectedError) => {
+  await writeRisSnapshot(published, 'bonn', catalogue('bonn'), { now: FRESH });
+  const serve = fetchPages();
+  let requests = 0;
+  const fetchPublished = async (url, options) => {
+    if (url.endsWith('.links.json.gz')) {
+      requests++;
+      return respond();
+    }
+    return serve(url, options);
+  };
+  await expect(refresh({ cities: ['bonn'], restoreOnly: true, fetchPublished })).rejects.toThrow(expectedError);
+  expect(requests).toBe(1);
+  await expect(fs.readFile(path.join(directory, 'bonn.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+test('does not retry a missing published manifest', async () => {
+  const fetchPublished = jest.fn(async () => new Response(null, { status: 404 }));
+  await expect(refresh({ cities: ['bonn'], restoreOnly: true, fetchPublished })).rejects.toThrow(/No deployed snapshot/);
+  expect(fetchPublished).toHaveBeenCalledTimes(1);
+  await expect(fs.readFile(path.join(directory, 'bonn.json'))).rejects.toMatchObject({ code: 'ENOENT' });
 });
 
 test('restore-only uses the deployed snapshot even when it is stale', async () => {
@@ -445,7 +527,7 @@ test('rebuilds a fresh legacy Hannover snapshot once to publish measure location
     { city: 'hannover', status: 'published' },
   ]);
   const { manifest } = await readRisSnapshot(directory, 'hannover');
-  expect(manifest.locationRevision).toBe(3);
+  expect(manifest.locationRevision).toBe(4);
   expect(manifest.locationAssessment.attempted).toBe(manifest.recordCount);
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
     { city: 'hannover', status: 'current' },
@@ -697,7 +779,7 @@ test('assesses every Bonner record immediately when its fresh snapshot predates 
   const collect = jest.fn(() => catalogue('bonn'));
   await expect(refresh({ cities: ['bonn'], collect })).resolves.toMatchObject([{ city: 'bonn', status: 'published' }]);
   const { manifest, records } = await readRisSnapshot(directory, 'bonn');
-  expect(manifest.locationRevision).toBe(3);
+  expect(manifest.locationRevision).toBe(4);
   expect(manifest.locationAssessment.attempted).toBe(records.length);
   expect(records.every(record => record.locationAssessment)).toBe(true);
   expect(collect).toHaveBeenCalledTimes(1);
@@ -720,7 +802,7 @@ test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s recor
   expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
   expect(snapshot.manifest).toMatchObject({
     generatedAt: prior.generatedAt, sources: city === 'hannover' ? [...prior.sources, 'https://ris.hannit.de/public/vo040'] : prior.sources,
-    coverage: prior.coverage, locationRevision: 3,
+    coverage: prior.coverage, locationRevision: 4,
     locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
     refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
   });
@@ -899,7 +981,7 @@ test('migrates a retained legacy fallback to v2 while preserving original source
   await refresh({ cities: ['bonn'], collect: () => { throw new Error('HTTP 429'); } });
   const snapshot = await readRisSnapshot(directory, 'bonn');
   expect(snapshot.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
-    coverage: prior.coverage, sources: prior.sources, locationRevision: 3,
+    coverage: prior.coverage, sources: prior.sources, locationRevision: 4,
     refreshFailure: { expiresAt: EXPIRY.toISOString(), attemptedAt: NOW.toISOString() } });
   await expect(validateRisDirectory(directory, { now: NOW })).resolves.toHaveLength(1);
 });
@@ -918,7 +1000,7 @@ test('pure format migration preserves canonical records and features without cha
   await refresh({ cities: ['bonn'], collect: () => { throw new Error('fresh source must not be refreshed'); } });
   const after = await readRisSnapshot(directory, 'bonn');
   expect(after.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
-    locationRevision: 3, locationAssessment: prior.locationAssessment, coverage: prior.coverage, sources: prior.sources });
+    locationRevision: 4, locationAssessment: prior.locationAssessment, coverage: prior.coverage, sources: prior.sources });
   expect(after.manifest.refreshFailure).toBeUndefined();
   expect(after.records).toEqual(before.records);
   expect(after.features.features).toEqual(expect.arrayContaining(before.features.features));
@@ -1240,4 +1322,36 @@ test('manual recovery cannot accept an unverified Region contribution as a succe
   await expect(refresh({ cities: ['hannover'], checkpointRetry, collect: async () => unknownRegionWithSim() }))
     .rejects.toThrow(/recovery.*Region.*verified.*timestamp/i);
   expect((await readRisSnapshot(directory, 'hannover')).manifest).toEqual(prior);
+});
+
+test('reassesses revision 3 address evidence locally without refreshing source clocks or inventing full text', async () => {
+  const previous = regionalCatalogue();
+  previous.locationRevision = 3;
+  previous.records[1].title = 'Radverkehr Stephanusstraße 10-14';
+  const regional = previous.records[2];
+  regional.title = 'Radverkehrsmaßnahme';
+  const evidence = { source: 'document', text: 'Radweg in der Ohestraße 6 in Hannover.' };
+  regional.locations = [{ kind: 'address', label: 'Ohestraße 6', evidence,
+    geometry: { type: 'Point', coordinates: [9.724028, 52.366419] } }];
+  regional.locationAssessment = { status: 'mapped', sources: ['title', 'document'], reasons: [], truncated: false };
+  const prior = await writeRisSnapshot(published, 'hannover', previous, { now: FALLBACK });
+  prior.refreshFailure = { attemptedAt: '2026-11-07T09:30:00.000Z', expiresAt: EXPIRY.toISOString(), reason: 'Official HTTP 429' };
+  await fs.writeFile(path.join(published, 'hannover.json'), JSON.stringify(prior));
+  const before = await readRisSnapshot(published, 'hannover');
+  const collect = jest.fn(() => { throw new Error('Backoff must prevent another official source request'); });
+  await refresh({ cities: ['hannover'], collect });
+  const after = await readRisSnapshot(directory, 'hannover');
+  expect(after.manifest).toMatchObject({ locationRevision: 4, generatedAt: prior.generatedAt,
+    sourceStatuses: prior.sourceStatuses, coverage: prior.coverage, sources: prior.sources, refreshFailure: prior.refreshFailure });
+  expect(after.records[1].locations).toEqual([{ kind: 'address', label: 'Stephanusstraße 10-14', mapped: false,
+    evidence: { source: 'title', text: 'Radverkehr Stephanusstraße 10-14' } }]);
+  expect(after.records[1].locationAssessment.reasons).toContain('document_text_unavailable');
+  const restoredRegion = after.records.find(record => record.id === regional.id);
+  expect(restoredRegion.locations).toEqual([{ kind: 'address', label: 'Ohestraße 6', evidence, mapped: true }]);
+  expect(restoredRegion.locationAssessment.reasons).toContain('evidence_truncated');
+  expect(after.features.features.filter(feature => feature.properties.accuracy === 'official'))
+    .toEqual(before.features.features.filter(feature => feature.properties.accuracy === 'official'));
+  expect(after.features.features.find(feature => feature.properties.recordId === regional.id).geometry)
+    .toEqual({ type: 'Point', coordinates: [9.724028, 52.366419] });
+  expect(collect).not.toHaveBeenCalled();
 });

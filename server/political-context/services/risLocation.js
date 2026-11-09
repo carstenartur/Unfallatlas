@@ -12,22 +12,26 @@ const ROADWAY_CUE = /(?:^|\s)(?:fahrbahn|rad(?:fahr)?(?:weg|streifen)|gehweg|str
 const LOCATIVE_CUE = /(?:^|\s)(?:(?:an|auf|in|bei|zu|für|entlang)\s+(?:der|die|dem|des|den|das)|am|im|beim|zum|zur|der|des|für|entlang)\s*$/u;
 const PREPOSITIONAL_NAME = /^(?:am|an|auf|aus|bei|hinter|im|in|neben|über|unter|vor|zum|zur)\s/u;
 const ADJACENT_CUE = /(?:^|\s)(?:neben|vor|hinter|parallel zu[rm])\s+(?:(?:der|dem|den|die|das)\s+)?"?$/u;
-const SPECIFIC_TAIL = /^\s*"?\s*(?:,|(?:nr\.?\s*)?\d|(?:nord|süd|ost|west)\b)/u;
+const SPECIFIC_TAIL = /^\s*"?\s*(?:,|\d|(?:nr\.|hausnr\.|(?:nr|hausnr|hausnummern?)(?=\b|\d))|(?:nord|süd|ost|west)\b)/u;
 const MULTIPLE_LOCATIONS = /[\/;&]|\b(?:und|oder|sowie|bzw)\b/u;
 const LIMITED_SCOPE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll|zwischen|bis|bereich|\p{L}*abschnitt(?:e|en|es|s)?|kreuzung(?:en)?|einmündung|abzweig|ecke|höhe|gegenüber|hausnummern?|unterführung(?:en)?|fussgängerzone(?:n)?)\b/u;
 const MEETING_CUE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll)\b/u;
 const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispiel|im vergleich zu|als vorbild)\b/u;
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
 const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
-const ADDRESS_LIST = new RegExp(`^\\s+(?:(?:nr\\.?|hausnummern?)\\s+)?(${ADDRESS_NUMBER}(?:(?:\\s*,\\s*|\\s+und\\s+)${ADDRESS_NUMBER}){0,7})(?![\\p{L}\\p{N}/-])`, 'u');
+const ADDRESS_PREFIX = /^\s+(?:(?:nr\.?|hausnr\.?|hausnummern?)\s*)?/u;
+const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*(-|–|/|bis\\s+)\\s*(${ADDRESS_NUMBER}))?(?![\\p{L}\\p{N}/–-])`, 'u');
+const ADDRESS_SEPARATOR = /^(?:\s*,\s*|\s+und\s+)(?=\d)/u;
+const ADDRESS_CONTINUATION = /^\s*(?:[-–/]|bis\b|,\s*\d|und\s+\d)/u;
 const HANNOVER_SCOPE = /\bin\s+(?:(?:der\s+)?(?:landeshauptstadt|stadt)\s+)?hannover(?![\p{L}\p{M}\p{N}'-])/gu;
-const CITY_SCOPE_GAP = new RegExp(`^\\s*(?:(?:(?:nr\\.?|hausnummer)\\s+)?${ADDRESS_NUMBER})?\\s*,?\\s*$`, 'u');
 const REGION_NON_MEASURE = /\b(?:kontakt|anschrift|postanschrift|besucheranschrift|adresse|postfach|rathaus|regionshaus|dienstgebäude|verwaltungsgebäude|geschäftsstelle|ansprechpartner|beschlossen|beschlussfassung|beraten|beratung|vorgestellt|erörtert|abgestimmt|verabschiedet)\b/u;
 const REGION_SCOPE_EXCLUSION = /\b(?:ausserhalb|ausser|nicht|kein(?:e|en|em|er|es)?|ohne|statt|anstatt|wie|als|vergleich|vorbild|hingegen|dagegen)\b/u;
 
-function normalize(text) {
+function normalize(text, preserveSpacedDashes = false) {
   return typeof text === 'string' ? text.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss')
-    .replace(/[„“”«»]/g, '"').replace(/[‘’]/g, "'").replace(/[‐‑‒–—]/g, '-')
+    .replace(/[„“”«»]/g, '"').replace(/[‘’]/g, "'").replace(/[‐‑‒–—]/g, (dash, index, subject) =>
+      preserveSpacedDashes && /[–—]/u.test(dash) && /\s/u.test(subject[index - 1] || '')
+        && /\s/u.test(subject[index + 1] || '') ? '–' : '-')
     .replace(/\s+/g, ' ').trim() : '';
 }
 
@@ -217,17 +221,52 @@ function measureJunctions(subject, streets, used) {
   return results;
 }
 
+// Parse the complete address tail before looking up any coordinate. A range
+// must never fall back to the first house number or the entire street.
+function addressTail(subject, city) {
+  const prefix = ADDRESS_PREFIX.exec(subject);
+  if (!prefix) return null;
+  let end = prefix[0].length;
+  const items = [];
+  while (items.length < 8) {
+    const match = ADDRESS_ITEM.exec(subject.slice(end));
+    if (!match) return null;
+    const number = value => value.replace(/\s+/gu, '').replace(/^0+(?=\d)/u, '');
+    const label = value => number(value).replace(/[a-z]+$/u, suffix => ` ${suffix.toUpperCase()}`);
+    const connector = match[2]?.trim().replace('–', '-');
+    const key = number(match[1]) + (connector ? `${connector}${number(match[3])}` : '');
+    items.push({ key, label: label(match[1]) + (connector
+      ? `${connector === 'bis' ? ' bis ' : connector}${label(match[3])}` : '') });
+    end += match[0].length;
+    // A five-digit postal suffix belongs to the address, not to its bounded
+    // house-number list. Require the complete active city name and no other
+    // suffix; regional scope checks deliberately do not pass this option.
+    const postal = /^\s*,\s*\d{5}\s+([\p{L}\p{M} -]+?)\s*[.!]?\s*$/u.exec(subject.slice(end));
+    if (city && postal && normalize(postal[1]) === normalize(city)) return { items, end };
+    const separator = ADDRESS_SEPARATOR.exec(subject.slice(end));
+    if (!separator || items.length === 8) break;
+    end += separator[0].length;
+  }
+  const after = subject.slice(end);
+  // Actual planning titles separate addresses from these procedural subtitles
+  // with a spaced typographic dash. ASCII dashes and other words can still
+  // denote unknown range endpoints, so do not infer an exact address there.
+  const proseSeparator = /^\s+–\s+(?:einleitungsbeschluss|aufstellungsbeschluss)\b/u.test(after);
+  if ((!proseSeparator && ADDRESS_CONTINUATION.test(after)) || /^\s+[a-z]\s*(?:[-–/]|\s+bis\b)/u.test(after)
+      || /^\s+(?:km|meter|minuten)\b/u.test(after)) return null;
+  return { items, end };
+}
+
 function measureAddresses(subject, streets, gazetteer, used) {
   const results = [];
   for (const hit of streets) {
     const { entry, end } = hit;
-    const numbers = ADDRESS_LIST.exec(subject.slice(end));
-    if (!numbers || /^\s+(?:km|meter|minuten|bis)\b/u.test(subject.slice(end + numbers[0].length))) continue;
+    const numbers = addressTail(subject.slice(end), gazetteer.city);
+    if (!numbers) continue;
     used.add(hit);
-    for (const number of numbers[1].split(/\s*,\s*|\s+und\s+/u)) {
-      const key = number.replace(/\s+/gu, '').replace(/^0+(?=\d)/u, '');
-      const label = `${entry.name} ${key.replace(/[a-z]+$/u, suffix => ` ${suffix.toUpperCase()}`)}`;
-      const coordinates = gazetteer.addresses?.[entry.streetKey]?.[key];
+    for (const number of numbers.items) {
+      const label = `${entry.name} ${number.label}`;
+      const coordinates = gazetteer.addresses?.[entry.streetKey]?.[number.key];
       const geometry = isPosition(coordinates) ? { type: 'Point', coordinates } : null;
       results.push(location('address', label, geometry, [{ attribution: gazetteer.addressAttribution || entry.attribution }]));
     }
@@ -255,7 +294,7 @@ function measurePlaceList(subject, hits) {
 }
 
 function measureSubject(text) {
-  return normalize(text)
+  return normalize(text, true)
     .replace(/(\p{L})str(?:\.(?=\s|[/,;)]|$)|(?=\s+\d))/gu, '$1strasse')
     .replace(/([\p{L}\p{M}-]+)-\s+(und|sowie|oder)\s+((?:(?:die|der|den)\s+)?[\p{L}\p{M}-]+strasse)\b/gu,
       '$1strasse $2 $3');
@@ -264,17 +303,38 @@ function measureSubject(text) {
 function hannoverLocationScope(text, byFirstWord) {
   const subject = measureSubject(text);
   const scopes = [...subject.matchAll(HANNOVER_SCOPE)];
-  if (!scopes.length || MULTIPLE_LOCATIONS.test(subject) || MEETING_CUE.test(subject)
+  // Slashes and conjunctions are legitimate inside a complete address list.
+  // The direct qualifier check below still applies to every named location.
+  if (!scopes.length || MEETING_CUE.test(subject)
       || COMPARISON_CUE.test(subject) || REGION_NON_MEASURE.test(subject) || REGION_SCOPE_EXCLUSION.test(subject)) return false;
+  // A comma after the city can introduce an additional municipality without
+  // repeating "in". Treat that suffix as ambiguous; commas inside addresses
+  // or immediately before their direct Hannover qualifier remain supported.
+  if (scopes.some(scope => /^\s*,\s*\S/u.test(subject.slice(scope.index + scope[0].length)))) return false;
   // A second locality makes the sentence ambiguous. Do not try to distribute
   // its streets between municipalities using the city-only gazetteer.
   for (const match of subject.matchAll(/\b(?:in|aus|bei|nach)\s+(?:(?:der|dem)\s+(?:landeshauptstadt|stadt|gemeinde|ortsteil|ortschaft)\s+)?(?!(?:der|dem|den|die|das|des|einem|einer)\b)([\p{L}][\p{L}\p{M}'-]*)/gu)) {
     if (match[1] !== 'hannover') return false;
   }
+  const hits = mentions(subject, byFirstWord, true);
+  const addressSpans = hits.flatMap(hit => {
+    const address = hit.entry?.kind === 'street' && addressTail(subject.slice(hit.end));
+    return address ? [{ start: hit.end, end: hit.end + address.end }] : [];
+  });
+  // Keep the original ambiguity guard outside recognized address tails;
+  // "12/14 in Hannover" differs from "12 in Hannover / Garbsen".
+  for (const match of subject.matchAll(new RegExp(MULTIPLE_LOCATIONS, 'gu'))) {
+    if (!addressSpans.some(span => match.index >= span.start && match.index + match[0].length <= span.end)) return false;
+  }
   // Require the city qualifier immediately after every matched location (or
   // its house number). "In Hannover beschlossen" is a venue, not street scope.
-  return mentions(subject, byFirstWord, true).every(hit => scopes.some(scope =>
-    scope.index >= hit.end && CITY_SCOPE_GAP.test(subject.slice(hit.end, scope.index))));
+  return hits.every(hit => scopes.some(scope => {
+    if (scope.index < hit.end) return false;
+    const gap = subject.slice(hit.end, scope.index);
+    if (/^\s*,?\s*$/u.test(gap)) return true;
+    const address = hit.entry?.kind === 'street' && addressTail(gap);
+    return address && /^\s*,?\s*$/u.test(gap.slice(address.end));
+  }));
 }
 
 function parseMeasureLocations(text, byFirstWord, gazetteer) {

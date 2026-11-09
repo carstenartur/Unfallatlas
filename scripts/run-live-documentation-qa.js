@@ -22,6 +22,13 @@ function runNode(relativeScript, args = [], options = {}) {
   if (result.status !== 0) throw new Error(`${relativeScript} exited with status ${result.status}`);
 }
 
+function requireSuccessfulReport(relativePath, field, expected) {
+  const report = JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), 'utf8'));
+  if (report?.[field] !== expected) {
+    throw new Error(`Required evidence ${relativePath} must have ${field}=${expected}`);
+  }
+}
+
 function cleanCandidates() {
   const screenshotDirectory = path.join(ROOT, 'docs', 'screenshots');
   const readinessDirectory = path.join(ROOT, 'out', 'qa', 'screenshot-readiness');
@@ -38,6 +45,10 @@ function cleanCandidates() {
     }
   }
   fs.rmSync(path.join(ROOT, 'out', 'qa', 'documentation-live-links'), {
+    recursive: true,
+    force: true,
+  });
+  fs.rmSync(path.join(ROOT, 'out', 'qa', 'published-runtime-diagnostic'), {
     recursive: true,
     force: true,
   });
@@ -60,6 +71,7 @@ installChromium();
 
 if (INCLUDE_PUBLISHED_RUNTIME_DIAGNOSTIC) {
   runNode('scripts/diagnose-published-werkbank.cjs');
+  requireSuccessfulReport('out/qa/published-runtime-diagnostic/diagnostic.json', 'healthy', true);
 }
 
 const logPath = path.join(ROOT, 'out', 'qa', 'live-documentation-screenshots.log');
@@ -77,7 +89,10 @@ if (screenshots.status !== 0) {
   throw new Error(`Live documentation screenshots exited with status ${screenshots.status}`);
 }
 
-if (INCLUDE_LIVE_LINKS) runNode('scripts/run-live-documentation-links.cjs');
+if (INCLUDE_LIVE_LINKS) {
+  runNode('scripts/run-live-documentation-links.cjs');
+  requireSuccessfulReport('out/qa/documentation-live-links/command-result.json', 'status', 0);
+}
 runNode('scripts/validate-screenshot-evidence.js', [
   '--report', 'out/qa/screenshot-evidence.json',
 ]);
