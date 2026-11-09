@@ -68,6 +68,6 @@
 
 - Vollständiger Jest-Lauf: 390 Suites und 4.921 Tests bestanden; 11 Tests übersprungen.
 - Kanonischer statischer Build mit gesperrten Browser-Abhängigkeiten erfolgreich.
-- Neun gezielte Chromium-Szenarien bestanden: Desktop, 390px/820px, geteilte Suchseite, Barrierefreiheit, Ortswechsel und Berichtsauswahl.
+- Zehn gezielte Chromium-Szenarien bestanden: Desktop, 390px/820px, geteilte Suchseite, Barrierefreiheit, Ortswechsel und Berichtsauswahl. Ein zusätzlicher Unit-Test belegt die mobile Freigabe der Karte bei erhaltener Recherche.
 - Unabhängiger Review abgeschlossen; gefundene Fokus-/Scrollkorrektur beim Seitenwechsel umgesetzt und geprüft.
 - GitHub-CI und Integration sind der verbleibende Abschluss.

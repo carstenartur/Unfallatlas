@@ -295,6 +295,52 @@ test.describe('mobile workspace', () => {
     await expect(detail.locator('.ris-record-view__title')).toHaveText(CITY_TITLE);
     await expect(detail.locator('.ris-details__body')).toBeVisible();
   });
+
+  test('releases the map for a selected location and preserves the filtered result list', async ({ page }, testInfo) => {
+    test.setTimeout(80_000);
+    const data = await workspaceFixture(testInfo);
+    await data.install(page);
+    await ready(page, `/werkbank_v2.html?${BASE_VIEW}`);
+    await page.locator('#btnRisBrowse').tap();
+    await search(page, 'state');
+    const list = page.locator('#polCtxPanel');
+    const state = resultCard(page, STATE_ID);
+    await expect(page.locator('#polCtxResults .polCtxRef')).toHaveCount(1);
+    await state.locator('.polCtxCheck').check();
+    await state.locator('[data-ris-open-record]').tap();
+    const detail = page.locator('#risDetails');
+    await detail.getByRole('tab', { name: 'Orte', exact: true }).tap();
+    await detail.getByRole('button', { name: 'Auf Karte zeigen: Kartenlage 1', exact: true }).tap();
+    await expect(detail.locator('.ris-details__body')).toBeHidden();
+    await expect(list.locator('.ris-browser__body')).toBeHidden();
+    expect(await page.evaluate(() => window.UA.getRuntimeContext().risView)).toMatchObject({
+      listOpen: true, listCollapsed: true, query: 'Radweg', sourceLevels: ['state'],
+    });
+    const popup = page.locator('.leaflet-popup');
+    await expect(popup).toContainText(STATE_TITLE);
+    await popup.getByRole('link', { name: `Amtliches Dokument: ${STATE_TITLE}`, exact: true })
+      .click({ trial: true });
+    const openedPoint = await page.evaluate(() => {
+      let coordinates;
+      window.UA.getRuntimeContext().map.eachLayer(layer => {
+        if (layer.feature?.geometry.type === 'Point' && layer.isPopupOpen?.()) {
+          const { lng, lat } = layer.getLatLng();
+          coordinates = [lng, lat];
+        }
+      });
+      return coordinates;
+    });
+    expect(openedPoint).toEqual([9.743, 52.381]);
+    await expect(popup).toBeInViewport({ ratio: 1 });
+    await captureEvidence(page, testInfo, 'mobile-selected-location-map-390px');
+    await page.locator('#btnRisBrowse').tap();
+    await expect(list.locator('.ris-browser__body')).toBeVisible();
+    await expect(page.locator('#polCtxSearchInput')).toHaveValue('Radweg');
+    await expect(page.locator('#polCtxLevel')).toHaveValue('state');
+    await expect(page.locator('#polCtxResults .polCtxRef')).toHaveCount(1);
+    await expect(state.locator('.polCtxCheck')).toBeChecked();
+    await captureEvidence(page, testInfo, 'mobile-preserved-results-after-map-390px');
+  });
 });
 
 test('a shared filtered search page overrides local state and restores only that bounded page', async ({ page, browser }, testInfo) => {

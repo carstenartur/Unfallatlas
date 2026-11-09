@@ -165,7 +165,9 @@
       state.mapPending = false;
       state.status.textContent = '';
       if (!target) return;
-      change(ctx, state, { collapsed: true });
+      change(ctx, state, { collapsed: true,
+        ...(ctx.risView.listOpen && window.matchMedia?.('(max-width: 980px)').matches
+          ? { listCollapsed: true } : {}) });
       target.focus({ preventScroll: true });
     } catch (error) {
       if (current()) {

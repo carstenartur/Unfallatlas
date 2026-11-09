@@ -348,6 +348,9 @@ Suchseite und die für den Bericht markierten Dokumente. Der Beratungsverlauf ze
 Datum, Gremium und Ergebnis kompakt; vollständige Quellenzitate lassen sich über
 **Quellenbeleg ansehen** aufklappen. Ein Klick auf **Weitere Suchtreffer laden** zeigt
 die nächste begrenzte Seite und führt den Tastaturfokus zu deren erstem Vorgang.
+**Auf Karte zeigen** klappt auf kleinen Bildschirmen Dokument und Trefferliste ein,
+damit die gewählte Kartenstelle samt Quellen-Popup bedienbar wird. Die Suche bleibt
+beim anschließenden Öffnen der Liste erhalten.
 
 | Quellenebene | Kennung | Verwendung |
 |---|---|---|
