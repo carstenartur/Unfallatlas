@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import JSZip from 'jszip';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import risCatalogue from '../../js/ua.ris-catalogue.js';
 import documentationContract from '../../scripts/documentation-deeplink-contract.cjs';
 import localizedCount from '../../scripts/parse-localized-count.cjs';
 
@@ -252,10 +253,16 @@ test.describe.serial('README screenshot deep links – published application', (
     test(`${scenario.id}: ${scenario.description}`, async ({ page }, testInfo) => {
       test.setTimeout(scenario.expected.verifyDownloads ? 240000 : 120000);
       const targetUrl = applicationUrl(scenario.url);
+      const risManifest = `data/ris/${risCatalogue.cityKey(scenario.expected.city)}.json`;
+      // The documentation candidate can be built without optional RIS data.
+      const localCandidate = applicationBaseUrl && ['localhost', '127.0.0.1', '[::1]'].includes(new URL(targetUrl).hostname);
+      const absentCandidateManifestUrl = localCandidate && !existsSync(resolve('_site', risManifest))
+        ? new URL(risManifest, targetUrl).href
+        : null;
       const diagnostics = {
         scenario: scenario.id, imagePath: scenario.imagePath, url: scenario.url, targetUrl,
         references: scenario.references, pageErrors: [], consoleErrors: [],
-        sameOriginHttpErrors: [], optionalTemplateMisses: [],
+        sameOriginHttpErrors: [], optionalTemplateMisses: [], optionalRisManifestMisses: [],
         externalHttpErrors: [], externalRequestFailures: [],
         downloads: [], state: null, failure: null,
       };
@@ -276,6 +283,10 @@ test.describe.serial('README screenshot deep links – published application', (
         const item = { status: response.status(), url: response.url() };
         if (origin !== liveOrigin) {
           diagnostics.externalHttpErrors.push(item);
+          return;
+        }
+        if (item.status === 404 && item.url === absentCandidateManifestUrl) {
+          diagnostics.optionalRisManifestMisses.push(item);
           return;
         }
         (isOptionalCityTemplateMiss(item)
@@ -308,6 +319,9 @@ test.describe.serial('README screenshot deep links – published application', (
         expect(diagnostics.pageErrors, 'uncaught page errors').toEqual([]);
         expect(diagnostics.consoleErrors, 'console errors').toEqual([]);
         expect(diagnostics.sameOriginHttpErrors, 'live application HTTP/resource errors').toEqual([]);
+        if (diagnostics.optionalRisManifestMisses.length) {
+          await expect(page.locator('#risCatalogueCount')).toHaveText('Für diese Stadt ist kein veröffentlichter Ratsdatenbestand verfügbar.');
+        }
       } catch (error) {
         diagnostics.failure = { name: error?.name || 'Error', message: error?.message || String(error), stack: error?.stack || null };
         throw error;
