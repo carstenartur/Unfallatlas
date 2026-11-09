@@ -21,6 +21,14 @@ describe('UA.MapSceneUrlCodec', () => {
   beforeEach(() => { UA = loadModules(); });
 
   describe('encode / decode round-trip', () => {
+    test('shares optional mobility overlays with the existing road and RIS layers', () => {
+      const active = { slope: true, traffic: false, ris: true, speed30: true, bikeCounts: true, schoolRoutes: true };
+      const scene = UA.MapScene.fromCtx({ CITY_RAW: 'Hannover', contextOverlays: { active } });
+      const query = UA.MapSceneUrlCodec.encode(scene);
+      expect(new URLSearchParams(query).get('mapLayer')).toBe('slope,ris,speed30,bikeCounts,schoolRoutes');
+      expect(UA.MapSceneUrlCodec.decode(query).contextOverlays.active).toEqual(active);
+    });
+
     test('restores every RIS view option alongside both road layers and the selected map area', () => {
       const searchCursor = `ris2.page_A-b.${'a'.repeat(64)}`;
       const searchGeneration = 'b'.repeat(64);

@@ -36,16 +36,40 @@ Die V2-Version verwendet zusätzlich folgende Module:
 - `ua.context_road_layer.js` – First-class Karten-Layer für Straßenkontext
   („Straßensteigung" / „Verkehrsbelastung", siehe unten)
 
-## Karten-Layer: Straßensteigung / Verkehrsbelastung
+## Kartenlayer
 
-Wenn die Stadt mit Slope- bzw. DTV-Daten angereichert wurde, blendet
-die Karte oben links ein **Karten-Layer-Control** ein (Checkboxen
-„Straßensteigung" und „Verkehrsbelastung"). Beim Aktivieren werden die
-betroffenen Straßenabschnitte direkt auf der Karte farbig eingefärbt
-(Canvas-Rendering, Klassen-Rampe siehe Legende unten links). Beide
-Overlays sind defaultmäßig **aus** und merken sich ihren Zustand in
-der URL (`?mapLayer=slope,traffic`) — geteilte Links bringen die
-Layer-Sichtbarkeit also mit.
+Die Schaltfläche **Karte** oben rechts bündelt Hintergrund, Unfall- und
+Kontextlayer. Auf dem Handy startet sie als kleines Symbol und öffnet ein
+scrollbares Menü. Die optionalen Layer sind anfangs ausgeschaltet. Die URL
+speichert die Auswahl, etwa `?mapLayer=slope,traffic,ris,speed30`.
+
+- **Straßensteigung und Verkehrsbelastung** färben die verfügbaren
+  Straßenabschnitte entsprechend der Legende ein.
+- **Tempo 30 (OSM)** nutzt dieselben Straßenkacheln. In Hannover unterscheidet
+  die Legende OSM-markierte Zonenabschnitte, Beschilderung, bedingte Limits und
+  Abschnitte mit unbekannter Regelungsart. Ein Klick auf eine Linie zeigt die
+  erfassten Bedingungen und die Quelle. Die Darstellung bezieht sich auf den
+  angegebenen Datenstand. Die amtliche Zonenfläche ist separat im
+  [Hannover-GIS](https://www.hannover-gis.de/) einsehbar.
+- **Schulwegpläne** öffnen an den Hannoveraner Schulstandorten die
+  [amtlichen PDF-Pläne](https://www.hannover.de/Leben-in-der-Region-Hannover/Soziales/Kinder-Jugendliche/Grundschulzeit/Schulwegpl%C3%A4ne)
+  der Stadt. Die Punkte zeigen die Schulstandorte. Die Karten der Stadt
+  enthalten die Hinweise zu Schulwegen und Querungsstellen.
+- **Rad-Zählstellen** öffnen das GeoJSON an der
+  [VMZ-Quelle](https://www.vmz-niedersachsen.de/geojson/region-hannover-radzaehler.geojson).
+  Speichere die Datei und wähle sie im Menü aus. Die Karte zeigt die
+  zuletzt gelieferten Tages- und Monatswerte je Zählstelle mit ihrem Zeitraum.
+  Die Datei bleibt im Browser der geöffneten Seite. Ein geteilter Link
+  aktiviert den Layer. Die Empfänger laden ihre Datei selbst.
+
+Die ergänzenden Tempo-30-Tags stammen aus dem [BBBike-Hannover-Extrakt](https://download.bbbike.org/osm/bbbike/Hannover/)
+vom 7. November 2026, © [OpenStreetMap-Mitwirkende](https://www.openstreetmap.org/copyright),
+ODbL 1.0. Die Datei kann mit `scripts/producers/hannover_speed30_rules.py`
+aus dem PBF und dem Hannoveraner Straßenkachelindex neu erzeugt und mit
+`gzip -n -9` gepackt werden. Die
+[städtische Dokumentation](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1046-2025)
+belegt die Änderungen im Januar 2025 für Teilstücke der Walderseestraße und
+des Altenbekener Damms. Die Unfallkarte verwendet den aktuellen OSM-Stand.
 
 > **Hinweis — Datenabdeckung:** Mit Producer 1.2.0 / `schemaVersion: 3`
 > zeigen die Karten-Layer das **vollständige OSM-Straßennetz im

@@ -41,6 +41,16 @@
       cache: 'force-cache',
       path: ({ city }) => `out/poi_${slug(city)}.geojson`,
     }),
+    schoolPlans: Object.freeze({
+      compression: COMPRESSION.RAW,
+      cache: 'no-cache',
+      path: ({ city }) => `data/mobility/${slug(city)}-school-plans.json`,
+    }),
+    speed30Rules: Object.freeze({
+      compression: COMPRESSION.GZIP_ONLY,
+      cache: 'no-cache',
+      path: ({ city }) => `data/mobility/${slug(city)}-speed30.json`,
+    }),
     contextWays: Object.freeze({
       compression: COMPRESSION.GZIP_PREFERRED,
       cache: 'force-cache',
