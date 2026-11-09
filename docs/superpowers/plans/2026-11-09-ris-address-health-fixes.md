@@ -81,3 +81,9 @@ The user already authorized continuing the repairs and previous integration work
 All three implementation tasks passed independent review. The complete local `mvn -B -ntp verify` passed using the repository-pinned Java 25, Node 26.13.0 and npm 11.21.2. Java: 42 tests passed. Frontend unit: 4,632 passed, 11 skipped. Frontend integration: 135 passed. Performance: 7 passed. Browser and public-site acceptance remain hosted gates: the official browser download returned a 195-byte HTML unavailable response in this local environment.
 
 The original regional-qualifier and malformed-marker review findings were corrected and re-reviewed before integration. Public deployment, live report receipts and the release acceptance requirements above must still be verified separately.
+
+## Published-record sample follow-up
+
+A SHA-verified sample of 256 published Hannover records exposed additional title boundaries before merging: Jordanstraße 28A before a procedural subtitle, Eintrachtweg 1-15 before a procedural subtitle, and Brockfeld 65 before the postal suffix 30539 Hannover. Regressions now use these actual titles and the actual Gazetteer; Hildesheimer Straße 9-15 also demonstrates the previous truncation to 9.
+
+The parser preserves original spaced en/em dashes only for measure parsing and accepts the observed procedural subtitle cues Einleitungsbeschluss/Aufstellungsbeschluss after a complete address. Ambiguous or unknown range endpoints remain unresolved. A five-digit postal code is accepted as a suffix only when followed by exactly the active city. This does not extend regional city qualification. The focused parser suite passed 153 tests; the combined build and final scoped review must confirm this final fix before integration.

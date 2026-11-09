@@ -684,3 +684,59 @@ test.each(['Nr', 'Hausnr', 'Hausnummer', 'Hausnummern'])('keeps the valid attach
   expect(record.locations).toMatchObject([{ kind: 'address', label: 'Limmerstraße 12',
     geometry: { type: 'Point', coordinates: [9.712, 52.37] } }]);
 });
+
+test.each([
+  ['hannover-sim:0576-2023', 'Vorhabenbezogener Bebauungsplan Nr. 1921 – Jordanstraße 28A – Einleitungsbeschluss', 'Jordanstraße 28 A'],
+  ['hannover-sim:0579-2023', 'Bebauungsplan Nr. 650, Teilaufhebung als Maßnahme der Innenentwicklung – Eintrachtweg 1-15 – Aufstellungsbeschluss, Beschluss über die frühzeitige Beteiligung der Öffentlichkeit', 'Eintrachtweg 1-15'],
+  ['hannover-sim:0001-2018', 'Einfacher Bebauungsplan der Innenentwicklung Nr. 1864, Hildesheimer Straße 9 - 15 (ungerade) Aufstellungsbeschluss', 'Hildesheimer Straße 9-15'],
+])('retains the complete address before a prose separator in published record %s', (id, title, label) => {
+  const { readFileSync } = require('node:fs');
+  const { gunzipSync } = require('node:zlib');
+  const path = require('node:path');
+  const gazetteer = JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz'))));
+  const [record] = enrichRisLocations([{ id, source: 'hannover-sim', title }], { city: 'hannover', gazetteer });
+  expect(record.locations).toMatchObject([{ kind: 'address', label, evidence: { source: 'title', text: title } }]);
+  if (label.includes('-')) expect(record.locations[0].geometry).toBeUndefined();
+});
+
+test.each(['–', '—'])('retains an exact address and a text-only range before a spaced %s procedural separator', separator => {
+  const title = `Radverkehr Limmerstraße 12 A ${separator} Einleitungsbeschluss`;
+  const rangeTitle = `Radverkehr Limmerstraße 12-14 ${separator} Aufstellungsbeschluss`;
+  const [exact, range] = enrichRisLocations([{ title }, { title: rangeTitle }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(exact.locations).toMatchObject([{ kind: 'address', label: 'Limmerstraße 12 A',
+    geometry: { type: 'Point', coordinates: [9.713, 52.37] }, evidence: { source: 'title', text: title } }]);
+  expect(range.locations).toEqual([{ kind: 'address', label: 'Limmerstraße 12-14', evidence: { source: 'title', text: rangeTitle } }]);
+});
+
+test('retains the address before the postal city suffix in published record hannover-sim:0007-2019', () => {
+  const { readFileSync } = require('node:fs');
+  const { gunzipSync } = require('node:zlib');
+  const path = require('node:path');
+  const gazetteer = JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz'))));
+  const title = 'Umwandlung der finanziellen Förderung der Kindertagesstätte „Brockfeldzwerge“, Brockfeld 65, 30539 Hannover';
+  const [record] = enrichRisLocations([{ id: 'hannover-sim:0007-2019', source: 'hannover-sim', title }], { city: 'hannover', gazetteer });
+  expect(record.locations).toMatchObject([{ kind: 'address', label: 'Brockfeld 65', evidence: { source: 'title', text: title } }]);
+});
+
+test('distinguishes a five-digit postal code and the active city from a house-number list', () => {
+  const title = 'Radverkehr Limmerstraße 12, 30539 Hannover';
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toMatchObject([{ kind: 'address', label: 'Limmerstraße 12',
+    geometry: { type: 'Point', coordinates: [9.712, 52.37] }, evidence: { source: 'title', text: title } }]);
+});
+
+test.each(['30539', '30539 Garbsen', '305390 Hannover', '30539 Hannover, Garbsen'])('does not mistake an invalid or ambiguous numeric continuation %s for a city suffix', suffix => {
+  const [record] = enrichRisLocations([{ title: `Radverkehr Limmerstraße 12, ${suffix}` }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+});
+
+test('does not create a new postal-code city scope rule for regional addresses', () => {
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title: 'Radverkehr Limmerstraße 12, 30539 Hannover' }],
+    { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+});
+
+test.each(['12 - unbekannt', '12 - N.N.', '12 - ?', '12 – unbekannt', '12 – N.N.', '12 – ?', '12 - Einleitungsbeschluss', '12 – Erneuerung'])('does not turn an unknown range endpoint %s into the first address point', tail => {
+  const [record] = enrichRisLocations([{ title: `Verkehrssicherheit Limmerstraße ${tail}` }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.some(place => place.geometry)).toBe(false);
+});

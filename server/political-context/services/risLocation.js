@@ -20,16 +20,18 @@ const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispi
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
 const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
 const ADDRESS_PREFIX = /^\s+(?:(?:nr\.?|hausnr\.?|hausnummern?)\s*)?/u;
-const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*(-|/|bis\\s+)\\s*(${ADDRESS_NUMBER}))?(?![\\p{L}\\p{N}/-])`, 'u');
+const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*(-|–|/|bis\\s+)\\s*(${ADDRESS_NUMBER}))?(?![\\p{L}\\p{N}/–-])`, 'u');
 const ADDRESS_SEPARATOR = /^(?:\s*,\s*|\s+und\s+)(?=\d)/u;
-const ADDRESS_CONTINUATION = /^\s*(?:[-/]|bis\b|,\s*\d|und\s+\d)/u;
+const ADDRESS_CONTINUATION = /^\s*(?:[-–/]|bis\b|,\s*\d|und\s+\d)/u;
 const HANNOVER_SCOPE = /\bin\s+(?:(?:der\s+)?(?:landeshauptstadt|stadt)\s+)?hannover(?![\p{L}\p{M}\p{N}'-])/gu;
 const REGION_NON_MEASURE = /\b(?:kontakt|anschrift|postanschrift|besucheranschrift|adresse|postfach|rathaus|regionshaus|dienstgebäude|verwaltungsgebäude|geschäftsstelle|ansprechpartner|beschlossen|beschlussfassung|beraten|beratung|vorgestellt|erörtert|abgestimmt|verabschiedet)\b/u;
 const REGION_SCOPE_EXCLUSION = /\b(?:ausserhalb|ausser|nicht|kein(?:e|en|em|er|es)?|ohne|statt|anstatt|wie|als|vergleich|vorbild|hingegen|dagegen)\b/u;
 
-function normalize(text) {
+function normalize(text, preserveSpacedDashes = false) {
   return typeof text === 'string' ? text.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss')
-    .replace(/[„“”«»]/g, '"').replace(/[‘’]/g, "'").replace(/[‐‑‒–—]/g, '-')
+    .replace(/[„“”«»]/g, '"').replace(/[‘’]/g, "'").replace(/[‐‑‒–—]/g, (dash, index, subject) =>
+      preserveSpacedDashes && /[–—]/u.test(dash) && /\s/u.test(subject[index - 1] || '')
+        && /\s/u.test(subject[index + 1] || '') ? '–' : '-')
     .replace(/\s+/g, ' ').trim() : '';
 }
 
@@ -221,7 +223,7 @@ function measureJunctions(subject, streets, used) {
 
 // Parse the complete address tail before looking up any coordinate. A range
 // must never fall back to the first house number or the entire street.
-function addressTail(subject) {
+function addressTail(subject, city) {
   const prefix = ADDRESS_PREFIX.exec(subject);
   if (!prefix) return null;
   let end = prefix[0].length;
@@ -231,17 +233,26 @@ function addressTail(subject) {
     if (!match) return null;
     const number = value => value.replace(/\s+/gu, '').replace(/^0+(?=\d)/u, '');
     const label = value => number(value).replace(/[a-z]+$/u, suffix => ` ${suffix.toUpperCase()}`);
-    const connector = match[2]?.trim();
+    const connector = match[2]?.trim().replace('–', '-');
     const key = number(match[1]) + (connector ? `${connector}${number(match[3])}` : '');
     items.push({ key, label: label(match[1]) + (connector
       ? `${connector === 'bis' ? ' bis ' : connector}${label(match[3])}` : '') });
     end += match[0].length;
+    // A five-digit postal suffix belongs to the address, not to its bounded
+    // house-number list. Require the complete active city name and no other
+    // suffix; regional scope checks deliberately do not pass this option.
+    const postal = /^\s*,\s*\d{5}\s+([\p{L}\p{M} -]+?)\s*[.!]?\s*$/u.exec(subject.slice(end));
+    if (city && postal && normalize(postal[1]) === normalize(city)) return { items, end };
     const separator = ADDRESS_SEPARATOR.exec(subject.slice(end));
     if (!separator || items.length === 8) break;
     end += separator[0].length;
   }
   const after = subject.slice(end);
-  if (ADDRESS_CONTINUATION.test(after) || /^\s+[a-z]\s*(?:[-/]|\s+bis\b)/u.test(after)
+  // Actual planning titles separate addresses from these procedural subtitles
+  // with a spaced typographic dash. ASCII dashes and other words can still
+  // denote unknown range endpoints, so do not infer an exact address there.
+  const proseSeparator = /^\s+–\s+(?:einleitungsbeschluss|aufstellungsbeschluss)\b/u.test(after);
+  if ((!proseSeparator && ADDRESS_CONTINUATION.test(after)) || /^\s+[a-z]\s*(?:[-–/]|\s+bis\b)/u.test(after)
       || /^\s+(?:km|meter|minuten)\b/u.test(after)) return null;
   return { items, end };
 }
@@ -250,7 +261,7 @@ function measureAddresses(subject, streets, gazetteer, used) {
   const results = [];
   for (const hit of streets) {
     const { entry, end } = hit;
-    const numbers = addressTail(subject.slice(end));
+    const numbers = addressTail(subject.slice(end), gazetteer.city);
     if (!numbers) continue;
     used.add(hit);
     for (const number of numbers.items) {
@@ -283,7 +294,7 @@ function measurePlaceList(subject, hits) {
 }
 
 function measureSubject(text) {
-  return normalize(text)
+  return normalize(text, true)
     .replace(/(\p{L})str(?:\.(?=\s|[/,;)]|$)|(?=\s+\d))/gu, '$1strasse')
     .replace(/([\p{L}\p{M}-]+)-\s+(und|sowie|oder)\s+((?:(?:die|der|den)\s+)?[\p{L}\p{M}-]+strasse)\b/gu,
       '$1strasse $2 $3');
