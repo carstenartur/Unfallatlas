@@ -107,6 +107,9 @@
             workspaceContext.politicalPendingPageKey = null;
             updateView(workspaceContext, { listOpen: false, listCollapsed: false });
           }
+          document.getElementById('polCtxResults')?.setAttribute('aria-busy', 'false');
+          const searchButton = document.getElementById('polCtxBtnSearch');
+          if (searchButton) searchButton.disabled = false;
           if (wasOpen && restoreFocus) {
             const target = returnFocus?.isConnected && !returnFocus.closest('[hidden], [inert], [aria-hidden="true"]')
               ? returnFocus : document.getElementById('btnPolCtxOpen') || document.getElementById('btnRisBrowse');
@@ -557,6 +560,7 @@
     const key = pageKey(ctx);
     ctx.politicalSearchRequest = request;
     ctx.politicalPendingPageKey = key;
+    ctx.politicalLoadedPageKey = null;
     const current = () => ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city;
     if (basisEl) {
       basisEl.replaceChildren('Suche nach: ');
@@ -570,7 +574,7 @@
     resultsEl.setAttribute('aria-busy', 'true');
     if (btnSearch) btnSearch.disabled = true;
     const snapshot = pageSnapshot || (view.searchGeneration ? {
-      city: UA.RisCatalogue?.cityKey?.(city) || city.toLocaleLowerCase('de'), generation: view.searchGeneration,
+      city: UA.RisCatalogue?.cityKey?.(city) || city.toLocaleLowerCase('de'), sha256: view.searchGeneration,
     } : null);
     const params = { city, searchTerms: terms,
       context: { gremium: ctx.ui?._lastExportResult?.structured?.meta?.gremium?.name || '' },

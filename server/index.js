@@ -768,6 +768,11 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
     if (((search.city.toLowerCase() === 'hannover' || levels.length) && !landtagFiltered) || page != null) {
       const result = await searchPublishedRis(search);
       if(page != null && !result)throw Object.assign(new Error('Der Ratsdatenstand für die Suchfortsetzung ist nicht mehr verfügbar.'),{code:'RIS_SNAPSHOT_REFERENCE_MISMATCH'});
+      // A missing publication must not disable an existing live city provider.
+      // Continuations and invalid publications never enter this fallback.
+      if (!result && search.city.toLowerCase() !== 'hannover' && page == null) {
+        return res.json(await politicalContextSearch(search));
+      }
       return res.json(result || {
         references: [],
         meta: {

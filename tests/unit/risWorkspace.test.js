@@ -101,9 +101,30 @@ describe('Ratsatlas-style research workspace', () => {
     ctx.risView = UA.RisViewState.normalize({ listOpen: true, query: 'Radweg', sourceLevels: ['region'], searchCursor: cursor, searchGeneration: generation });
     await UA.PoliticalContext.refreshPanel?.(ctx); await flush();
     expect(UA.PoliticalContext.search).toHaveBeenCalledTimes(1);
-    expect(UA.PoliticalContext.search).toHaveBeenCalledWith(expect.objectContaining({ page: cursor, snapshot, searchTerms: ['Radweg'], sourceLevels: ['region'] }));
+    expect(UA.PoliticalContext.search).toHaveBeenCalledWith(expect.objectContaining({ page: cursor,
+      snapshot: { city: 'hannover', sha256: generation }, searchTerms: ['Radweg'], sourceLevels: ['region'] }));
     expect(document.getElementById('polCtxSearchInput').value).toBe('Radweg');
     expect(document.getElementById('polCtxLevel').value).toBe('region');
+  });
+
+  test('reopening restarts a cancelled replacement of the same query and releases search controls', async () => {
+    await search();
+    let finishCancelled;
+    UA.PoliticalContext.search.mockReturnValueOnce(new Promise(resolve => { finishCancelled = resolve; }))
+      .mockResolvedValueOnce(result([record]));
+    const pending = UA.PoliticalContext._runSearch(ctx);
+    document.getElementById('polCtxBtnClose').click();
+    const enabledAfterClose = !document.getElementById('polCtxBtnSearch').disabled;
+    await UA.PoliticalContext.openPanel(ctx);
+    finishCancelled(result([{ ...record, title: 'Veraltete Wiederholung' }]));
+    await pending;
+    expect(enabledAfterClose).toBe(true);
+    expect(UA.PoliticalContext.search).toHaveBeenCalledTimes(3);
+    expect(document.querySelectorAll('.polCtxRef')).toHaveLength(1);
+    expect(document.getElementById('polCtxResults').textContent).toContain(record.title);
+    expect(document.getElementById('polCtxResults').textContent).not.toContain('Veraltete Wiederholung');
+    expect(document.getElementById('polCtxBtnSearch').disabled).toBe(false);
+    expect(document.getElementById('polCtxResults').getAttribute('aria-busy')).toBe('false');
   });
 
   test('late results cannot replace a newer filtered search or reopen a closed list', async () => {

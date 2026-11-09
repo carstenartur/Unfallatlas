@@ -332,8 +332,10 @@ test.describe('mobile workspace', () => {
     });
     expect(openedPoint).toEqual([9.743, 52.381]);
     await expect(popup).toBeInViewport({ ratio: 1 });
+    await expect(detail).toBeHidden();
+    await expect(page.locator('#btnRisBrowse')).toBeHidden();
     await captureEvidence(page, testInfo, 'mobile-selected-location-map-390px');
-    await page.locator('#btnRisBrowse').tap();
+    await list.getByRole('button', { name: 'Trefferliste ausklappen', exact: true }).tap();
     await expect(list.locator('.ris-browser__body')).toBeVisible();
     await expect(page.locator('#polCtxSearchInput')).toHaveValue('Radweg');
     await expect(page.locator('#polCtxLevel')).toHaveValue('state');

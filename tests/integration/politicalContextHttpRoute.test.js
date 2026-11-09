@@ -45,12 +45,22 @@ describe('production political-context HTTP route', () => {
         source: 'fixture-source', url: source + id, sourceContext: { level, publisher: 'Amtliche Testquelle',
           issuer: null, documentKind: 'Antrag', status: 'proposal', publicationDate: null, documentDate: null, meetingDate: null },
       })) }, { schemaVersion: 2 });
-    // Redirect only the on-disk source location; the route and immutable reader
-    // run unchanged against a real published fixture, without touching _site.
+    const liveRecords = [...Array.from({ length: 20 }, (_, i) => [`live-city-${i}`, 'city']),
+      ['live-state', 'state'], ['live-region', 'region']].map(([id, level]) => ({
+      title: `Schulweg ${id}`, type: 'Antrag', url: `https://example.org/${id}`,
+      sourceContext: { level, publisher: 'Amtliche Testquelle', issuer: null, documentKind: 'Antrag',
+        status: 'proposal', publicationDate: null, documentDate: null, meetingDate: null },
+    }));
+    // Use a real immutable catalogue and the real live-search service. Only the
+    // catalogue location and providers' external acquisition are fixture-owned.
     const preload = path.join(fixtureDirectory, 'published-source.cjs');
     await fs.writeFile(preload, `const api = require(${JSON.stringify(path.join(ROOT, 'server/political-context/services/risSnapshotSearch.js'))});
 const create = api.createRisSnapshotSearch;
 api.createRisSnapshotSearch = () => create(${JSON.stringify(fixtureDirectory)});
+for (const file of ['berlinAllrisProvider.js', 'bonnAllrisProvider.js', 'hamburgParldokProvider.js', 'hannoverCompositeProvider.js']) {
+  const provider = require(${JSON.stringify(path.join(ROOT, 'server/political-context/providers'))} + '/' + file);
+  provider.search = async () => ${JSON.stringify(liveRecords)};
+}
 `);
     child = spawn(process.execPath, ['--require', preload, path.join(ROOT, 'server', 'start.js')], {
       cwd: ROOT,
@@ -168,6 +178,56 @@ api.createRisSnapshotSearch = () => create(${JSON.stringify(fixtureDirectory)});
     const changed = await query({ ...continuation, sourceLevels: ['city'] });
     expect(changed.status).toBe(400);
     expect(await changed.json()).toMatchObject({ code: 'RIS_SNAPSHOT_CURSOR_INVALID' });
+  });
+
+  test('an initial non-Hannover level search falls back to the live service when no snapshot exists, filtering before the cap', async () => {
+    const response = await fetch(`${baseUrl}/api/political-context/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: 'Berlin', searchTerms: ['Schulweg'], sourceLevels: ['state'], maxResults: 1 }),
+    });
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.references.map(value => value.url)).toEqual(['https://example.org/live-state']);
+    expect(result.references[0].sourceContext.level).toBe('state');
+    expect(result.meta).toMatchObject({ providerKey: 'berlin-allris', totalFound: 1 });
+  });
+
+  test.each([undefined, ['state']])('Hannover keeps its published-catalogue requirement when the snapshot is missing (levels=%j)', async sourceLevels => {
+    const response = await fetch(`${baseUrl}/api/political-context/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: 'Hannover', searchTerms: ['Schulweg'], sourceLevels, maxResults: 1 }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ references: [], meta: { searchStatus: 'incomplete', providerKey: 'hannover-sim' } });
+  });
+
+  test('a non-Hannover continuation never changes to live results when its snapshot is missing', async () => {
+    const response = await fetch(`${baseUrl}/api/political-context/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: 'Berlin', searchTerms: ['Schulweg'], sourceLevels: ['state'],
+        page: `ris2.abc.${'a'.repeat(64)}`, snapshot: { city: 'berlin', sha256: 'b'.repeat(64) } }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: 'RIS_SNAPSHOT_REFERENCE_MISMATCH' });
+  });
+
+  test.each(['{', JSON.stringify({ schemaVersion: 2, city: 'hamburg' })])('a present but invalid snapshot fails closed instead of using live results: %s', async content => {
+    await fs.writeFile(path.join(fixtureDirectory, 'hamburg.json'), content);
+    const response = await fetch(`${baseUrl}/api/political-context/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: 'Hamburg', searchTerms: ['Schulweg'], sourceLevels: ['state'], maxResults: 1 }),
+    });
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ code: 'POLITICAL_SEARCH_FAILED' });
+  });
+
+  test('an empty published result remains authoritative even when the live provider has matching levels', async () => {
+    const response = await fetch(`${baseUrl}/api/political-context/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: 'Bonn', searchTerms: ['Schulweg'], sourceLevels: ['region'], maxResults: 1 }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ references: [], meta: { providerKey: 'ris-snapshot', searchStatus: 'searched-no-results' } });
   });
 
   test('validates POST payloads through the production handler', async () => {

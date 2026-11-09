@@ -701,6 +701,8 @@ body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--colla
     inset-inline-start: auto; inset-inline-end: 5rem; width: 44px; padding: 10px; justify-content: center;
   }
   body:has(#risDetails.ris-details--collapsed:not([hidden])) .ris-workspace-launcher span { display: none; }
+  body:has(#map .ua-ris-popup) .ris-details--collapsed,
+  body:has(#map .ua-ris-popup) .ris-workspace-launcher { display: none; }
   .ris-process-step__summary { column-gap: 8px; }
   .ris-process-step__summary .ris-process-step__body { font-size: .88rem; }
   .ris-record-view__relation-path { grid-template-columns: minmax(0, auto) minmax(4rem, 1fr) minmax(0, auto); gap: 6px; }
