@@ -65,10 +65,14 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each(['js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-record-view.js', 'js/ua.ris-details.js',
-    'js/ua.ris-layer.js', 'js/ua.ui.js', 'js/ua.map_v2.js', 'js/ua.map_scene.js',
+    'js/ua.map_v2.js', 'js/ua.map_scene.js',
     'js/ua.map_scene_url_codec.js', 'js/ua.traffic_situation.js', 'js/ua.political-context.js', 'css/ris-record-view.css', 'css/ua.css'])
   ('%s refreshes the shareable RIS view', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-ris-view"`);
+  });
+
+  test.each(['js/ua.ris-layer.js', 'js/ua.ui.js'])('%s refreshes the RIS catalogue count', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-09-ris-count"`);
   });
 
   test('shared spatial budgets and partitions load before their consumers', () => {
