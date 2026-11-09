@@ -16,9 +16,11 @@ function form() {
     + '<input name="view:dynamic:Edit_SucheKriterium" type="radio" value="alle">'
     + '<input name="view:dynamic:Edit_SucheNach" value="">'
     + '<select name="view:dynamic:Edit_Jahr"><option value="egal">Alle</option>'
-    + Array.from({ length: 6 }, (_, i) => `<option value="${2021 + i}">${2021 + i}</option>`).join('')
+    + Array.from({ length: 28 }, (_, i) => `<option value="${1999 + i}">${1999 + i}</option>`).join('')
     + '</select><select name="view:dynamic:Edit_Maske"><option value="egal">Alle</option></select>'
     + '<select name="view:dynamic:Edit_Beratungsfolge"><option value="egal">Alle</option></select>'
+    + '<select name="view:dynamic:Edit_Veroeff_Operator"><option value="&gt;">nach dem</option><option value="&lt;">vor dem</option><option value="=">am</option></select>'
+    + '<input name="view:dynamic:Edit_Veroeff_Datum" type="date">'
     + '<select name="view:dynamic:Edit_SortierenNach"><option value="1">Relevanz</option><option value="4">Nummer</option></select>'
     + '<select name="view:dynamic:Edit_Maximal"><option value="10">10</option><option value="0" selected>Alle</option></select>'
     + '<input type="hidden" name="toSearch" value="1">'
@@ -58,7 +60,10 @@ function fixture({ years = {}, documents = {}, formText = form() } = {}) {
       expect(params.get('view:dynamic:Edit_Beratungsfolge')).toBe('egal');
       expect(params.get('$$viewid')).toBe('public-form-state');
       expect(options.cookie).toBe('SessionID=public-session');
-      return { url, status: 200, contentType: 'text/html', text: years[params.get('view:dynamic:Edit_Jahr')] || results([]) };
+      const year = params.get('view:dynamic:Edit_Jahr');
+      const date = params.get('view:dynamic:Edit_Veroeff_Datum');
+      const query = date ? `${year}${params.get('view:dynamic:Edit_Veroeff_Operator')}${date}` : year;
+      return { url, status: 200, contentType: 'text/html', text: years[query] || results([]) };
     }
     if (url === SEARCH) return { url, status: 200, contentType: 'text/html', text: formText, cookies: ['SessionID=public-session; Path=/; HttpOnly'] };
     const text = documents[url.slice(ROOT.length)];
@@ -95,6 +100,54 @@ test('reads all six public year lists without a keyword and preserves distinct f
 test('rejects a truncated year list instead of publishing it as a complete discovery result', async () => {
   const { requestText } = fixture({ years: { 2021: results([row('15-0001-2021')], 2) } });
   await expect(collectHannoverCatalogue({ ...options, requestText })).rejects.toThrow(/Treffer|Ergebnis|Suchliste/);
+});
+
+test('recognizes the official zero-result response in the earliest year', async () => {
+  const { requestText } = fixture({ years: { 1999: html('<h2>Kein Dokument wurde gefunden</h2>') } });
+  const catalogue = await collectHannoverCatalogue({ ...options, from: '1999-01-01', to: '1999-12-31', requestText });
+  expect(catalogue.records).toEqual([]);
+});
+
+test('retains official links with no list title and keeps the supplement identity distinct', async () => {
+  const supplement = row('15-0786u.Erg.-2012S1', 'Amtlicher Nachtrag', '02.02.2012')
+    .replace('15-0786u.Erg./2012 S1', '15-0786 u. Erg./2012 S1');
+  const { requestText } = fixture({ years: { 2012: results([
+    row('15-3029-2012S1', '', '01.02.2012'), row('15-0786-2012S1', 'Grundvorgang', '02.02.2012'), supplement,
+  ]) } });
+  const { records } = await collectHannoverCatalogue({ ...options, from: '2012-01-01', to: '2012-12-31', requestText });
+  expect(records).toHaveLength(3);
+  expect(records).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'hannover-sim:15-3029-2012S1', title: '15-3029/2012 S1', locationEvidenceUnavailable: true }),
+    expect.objectContaining({ id: 'hannover-sim:15-0786U.ERG.-2012S1', number: '15-0786 u. Erg./2012 S1', title: 'Amtlicher Nachtrag' }),
+  ]));
+});
+
+test('reads the official text of a document without a title in either source view', async () => {
+  const key = '15-3029-2007S1';
+  const { requestText } = fixture({
+    years: { 2007: results([row(key, '', '20.12.2007')]) },
+    documents: { ['DS/' + key]: document(key, '') },
+  });
+  const { records } = await collectHannoverCatalogue({ ...options, from: '2007-01-01', to: '2007-12-31', requestText });
+  expect(records).toEqual([expect.objectContaining({ id: 'hannover-sim:' + key, title: '15-3029/2007 S1',
+    locationEvidence: ['Der Radweg an der Limmerstraße wird saniert.'] })]);
+  expect(records[0].locationEvidenceUnavailable).toBeUndefined();
+});
+
+test('recovers documents beyond the SIM list ceiling with disjoint publication-date queries', async () => {
+  const first = row('0000-2019', 'Ältere Vorlage', '28.06.2019');
+  const boundary = row('0001-2019', 'Vorlage am Stichtag', '01.07.2019');
+  const last = Array.from({ length: 4999 }, (_, index) =>
+    row(`${String(index + 2).padStart(4, '0')}-2019`, 'Weitere Vorlage', '02.07.2019'));
+  const { requestText } = fixture({ years: {
+    2019: results([boundary, ...last]),
+    '2019<2019-07-01': results([first]),
+    '2019=2019-07-01': results([boundary]),
+    '2019>2019-07-01': results(last),
+  } });
+  const { records } = await collectHannoverCatalogue({ ...options, from: '2019-01-01', to: '2019-12-31', requestText });
+  expect(records).toHaveLength(5001);
+  expect(records.slice(0, 2).map(record => record.id)).toEqual(['hannover-sim:0000-2019', 'hannover-sim:0001-2019']);
 });
 
 test('retains verified list metadata when a public detail page is unavailable and exposes the missing evidence', async () => {
@@ -519,8 +572,24 @@ test('persists year work at a document budget, resumes remaining details and pre
         2022: results([row('0001-2022', 'Neue Vorlage', '01.02.2022')]) },
       documents: { 'DS/0001-2021': document('0001-2021'), 'DS/0002-2021': document('0002-2021'), 'DS/0001-2022': document('0001-2022') },
     });
-    const first = await collectHannoverCatalogue({ ...options, to: '2022-12-31', checkpoint, workBudget: 1, requestText });
-    expect(first.records.map(record => record.id)).toEqual(['hannover-sim:0001-2021', 'hannover-sim:0002-2021']);
+    let laterYearAtFirstDetail;
+    const first = await collectHannoverCatalogue({ ...options, to: '2022-12-31', checkpoint, workBudget: 1,
+      requestText: async (url, request) => {
+        if (url === ROOT + 'DS/0001-2021') {
+          laterYearAtFirstDetail = await checkpoint.read('hannover-sim', 'public-year-search:true', 2022, 'sim-history-v1');
+        }
+        return requestText(url, request);
+      } });
+    expect(laterYearAtFirstDetail?.catalogue.records).toEqual([
+      expect.objectContaining({ id: 'hannover-sim:0001-2022', title: 'Neue Vorlage', locationEvidenceUnavailable: true }),
+    ]);
+    expect(first.records.map(record => record.id)).toEqual(['hannover-sim:0001-2021', 'hannover-sim:0001-2022', 'hannover-sim:0002-2021']);
+    expect(first.records.find(record => record.id === 'hannover-sim:0001-2022'))
+      .toMatchObject({ title: 'Neue Vorlage', locationEvidenceUnavailable: true });
+    const composed = composeHannoverCatalogue(first, { records: [], sources: [], sourceStatuses: [] }, { now: NOW });
+    expect(composed.sourceStatuses[0].retrievedAt).toBe(NOW.toISOString());
+    const firstSourceDetails = calls.filter(call => call.url.includes('/DS/'));
+    expect(firstSourceDetails.map(call => call.url)).toEqual([ROOT + 'DS/0001-2021']);
     expect(first.coverage.warnings.join(' ')).toMatch(/fortsetz|offen/i);
     expect(first.history.pending).toBe(true);
     expect(first.history.interrupted).toBe(true);
@@ -555,6 +624,41 @@ test('checkpoint retries failed detail metadata and detects changed source revis
       documents: { 'DS/0001-2021': document('0001-2021', 'Geänderte Vorlage') } });
     const third = await collectHannoverCatalogue({ ...options, to: '2021-12-31', checkpoint, requestText: changed.requestText });
     expect(third.records[0].title).toBe('Geänderte Vorlage');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('a later year keeps already verified RSS-only records when its detail budget is spent', async () => {
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
+  const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'sim-rss-retention-'));
+  try {
+    const checkpoint = createRisSourceCheckpoint({ directory: folder });
+    const rssKey = '0002-2026';
+    const { requestText } = fixture({
+      years: { 2025: results([row('0001-2025', 'Vorlage 2025', '01.01.2025')]),
+        2026: results([row('0001-2026')]) },
+      documents: { ['DS/' + rssKey]: document(rssKey, 'Vorlage aus dem Feed') },
+    });
+    const live = async (url, request) => {
+      if (url.endsWith('.xml')) return { url, status: 200, contentType: 'application/rss+xml',
+        text: `<rss><channel><title>Amtlicher Feed</title><item><link>${ROOT}DS/${rssKey}</link>`
+          + '<pubDate>Thu, 05 Nov 2026 09:00:00 +0100</pubDate></item></channel></rss>' };
+      return requestText(url, request);
+    };
+    const collect = extra => collectHannoverCatalogue({ ...options, checkpoint, requestText: live, includeRss: true, ...extra });
+    const earlier = new Date('2026-11-07T11:00:00Z');
+    const original = await collect({ from: '2026-01-01', now: earlier });
+    expect(original.records.map(record => record.id)).toContain('hannover-sim:' + rssKey);
+    const current = await collect({ from: '2025-01-01', workBudget: 1 });
+    const offline = await collect({ from: '2025-01-01', workBudget: 0,
+      requestText: () => { throw new Error('Unexpected network request'); } });
+    for (const catalogue of [current, offline]) {
+      expect(catalogue.records.find(record => record.id === 'hannover-sim:' + rssKey)).toMatchObject({
+        title: 'Vorlage aus dem Feed', detailVerifiedAt: earlier.toISOString(),
+      });
+    }
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });
 
