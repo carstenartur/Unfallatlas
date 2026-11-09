@@ -1,6 +1,7 @@
 (() => {
   const UA = (window.UA = window.UA || {});
   const sections = new Set(['history', 'relations', 'locations']);
+  const levels = ['city', 'region', 'state', 'federal', 'eu'];
   const enabled = value => value === true || value === 1 || value === '1';
 
   function pageNumber(value) {
@@ -15,6 +16,10 @@
     const source = value && typeof value === 'object' ? value : {};
     const id = typeof source.recordId === 'string' ? source.recordId.trim() : '';
     const recordId = id && id.length <= 2048 ? id : null;
+    const query = typeof source.query === 'string' ? source.query.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 512) : '';
+    const searchCursor = query && typeof source.searchCursor === 'string' && source.searchCursor.length <= 2048
+      && /^ris2\.[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(source.searchCursor)
+      && typeof source.searchGeneration === 'string' && /^[a-f0-9]{64}$/.test(source.searchGeneration) ? source.searchCursor : null;
     return {
       selectionOnly: enabled(source.selectionOnly),
       recordId,
@@ -26,6 +31,12 @@
       relationsPage: recordId ? pageNumber(source.relationsPage) : 0,
       relatedPage: recordId ? pageNumber(source.relatedPage) : 0,
       locationsPage: recordId ? pageNumber(source.locationsPage) : 0,
+      listOpen: enabled(source.listOpen),
+      listCollapsed: enabled(source.listOpen) && enabled(source.listCollapsed),
+      query,
+      sourceLevels: levels.filter(level => Array.isArray(source.sourceLevels) && source.sourceLevels.includes(level)),
+      searchCursor,
+      searchGeneration: searchCursor ? source.searchGeneration : null,
     };
   }
 
@@ -41,6 +52,12 @@
       relationsPage: query.get('risRelationsPage'),
       relatedPage: query.get('risRelatedPage'),
       locationsPage: query.get('risLocationsPage'),
+      listOpen: query.get('risList'),
+      listCollapsed: query.get('risListCollapsed'),
+      query: query.get('risQuery'),
+      sourceLevels: (query.get('risLevels') || '').split(','),
+      searchCursor: query.get('risSearchPage'),
+      searchGeneration: query.get('risSearchSnapshot'),
     });
   }
 
@@ -57,6 +74,12 @@
       risRelationsPage: view.relationsPage || null,
       risRelatedPage: view.relatedPage || null,
       risLocationsPage: view.locationsPage || null,
+      risList: view.listOpen ? 1 : null,
+      risListCollapsed: view.listCollapsed ? 1 : null,
+      risQuery: view.query || null,
+      risLevels: view.sourceLevels.length ? view.sourceLevels.join(',') : null,
+      risSearchPage: view.searchCursor,
+      risSearchSnapshot: view.searchGeneration,
     };
   }
 

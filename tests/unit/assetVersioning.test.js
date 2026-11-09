@@ -27,7 +27,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each(['js/ua.ris-partitions.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
+    expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
   });
 
   test('the tour invalidates the cache for the political research UI', () => {
@@ -42,7 +42,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each(['js/ua.state.js', 'js/ua.app_v2.js'])('%s refreshes confirmed area scope', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-ris-view"`);
+    expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
   });
 
   test('both canonical template and export assets load the current defaults', () => {
@@ -61,18 +61,20 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each(['js/ua.ris-partitions.js'])('%s refreshes paged consultation history', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-regional-catalogue"`);
+    expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
   });
 
   test.each(['js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-record-view.js', 'js/ua.ris-details.js',
     'js/ua.map_v2.js', 'js/ua.map_scene.js',
     'js/ua.map_scene_url_codec.js', 'js/ua.traffic_situation.js', 'js/ua.political-context.js', 'css/ris-record-view.css', 'css/ua.css'])
   ('%s refreshes the shareable RIS view', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-ris-view"`);
+    expect(html).toContain(`${asset}?v=${['js/ua.app_v2.js', 'js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js',
+      'js/ua.ris-record-view.js', 'js/ua.ris-details.js', 'js/ua.political-context.js', 'css/ris-record-view.css'].includes(asset)
+      ? '2026-11-09-ris-workspace' : '2026-11-08-ris-view'}"`);
   });
 
   test.each(['js/ua.ris-layer.js', 'js/ua.ui.js'])('%s refreshes the RIS catalogue count', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-09-ris-count"`);
+    expect(html).toContain(`${asset}?v=${asset === 'js/ua.ris-layer.js' ? '2026-11-09-ris-workspace' : '2026-11-09-ris-count'}"`);
   });
 
   test('shared spatial budgets and partitions load before their consumers', () => {
@@ -83,7 +85,10 @@ describe('Werkbank deployment asset versions', () => {
         expect(scripts.indexOf(shared)).toBeLessThan(scripts.indexOf(consumer));
       }
     }
+    expect(scripts.indexOf('js/ua.ris-sources.js')).toBeGreaterThanOrEqual(0);
+    expect(scripts.indexOf('js/ua.ris-sources.js')).toBeLessThan(scripts.indexOf('js/ua.ris-catalogue.js'));
     expect(scripts.indexOf('js/ua.ris-partitions.js')).toBeLessThan(scripts.indexOf('js/ua.ris-catalogue.js'));
+    expect(scripts.indexOf('js/ua.political-context.js')).toBeLessThan(scripts.indexOf('js/ua.app_v2.js'));
   });
 
   test('support metadata and runtime BUILD expose the same release timestamp', () => {

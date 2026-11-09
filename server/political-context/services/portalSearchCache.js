@@ -49,7 +49,8 @@ const sharedCache = new KeyValueStore({
  * @param {boolean}  [args.expandVariants]
  * @returns {string}
  */
-function buildKey({ city, searchTerms, context, maxResults, expandVariants }) {
+function buildKey({ city, searchTerms, context, maxResults, expandVariants, sourceLevels }) {
+  const levels = require('../../../js/ua.ris-sources').parseLevels(sourceLevels);
   const canonical = JSON.stringify({
     city: String(city || '').trim().toLowerCase(),
     terms: Array.isArray(searchTerms)
@@ -57,7 +58,8 @@ function buildKey({ city, searchTerms, context, maxResults, expandVariants }) {
       : [],
     context: canonicalize(context || {}),
     maxResults: Number.isFinite(maxResults) ? maxResults : null,
-    expandVariants: expandVariants !== false
+    expandVariants: expandVariants !== false,
+    ...(levels.length ? { sourceLevels: levels } : {})
   });
   return crypto.createHash('sha256').update(canonical).digest('hex');
 }

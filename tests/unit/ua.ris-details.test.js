@@ -139,6 +139,22 @@ describe('shareable independent RIS details', () => {
     expect(new URL(location.href).searchParams.has('risCollapsed')).toBe(false);
   });
 
+  test('showing a location on mobile collapses the open list while retaining its search state', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = () => ({ matches: true });
+    try {
+      ctx.risView = { listOpen: true, query: 'Kanalweg', sourceLevels: ['region'] };
+      const { pending, target } = await pendingLocation();
+      pending.resolve(target); await flush();
+      expect(ctx.risView).toMatchObject({ listOpen: true, listCollapsed: true, collapsed: true,
+        query: 'Kanalweg', sourceLevels: ['region'] });
+      expect(document.activeElement).toBe(target);
+      expect(new URL(location.href).searchParams.get('risListCollapsed')).toBe('1');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   test('failed report validation shows the error without a success confirmation', async () => {
     UA.PoliticalContext = { addReferences: jest.fn().mockRejectedValue(new Error('Der Datenstand hat sich geändert.')) };
     await UA.RisDetails.open(ctx, record.id);

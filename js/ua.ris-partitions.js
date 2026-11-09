@@ -100,7 +100,7 @@
   }
   function validSourceContext(value) {
     return value === undefined || exactFields(value, ['level', 'publisher', 'issuer', 'documentKind', 'status', 'publicationDate', 'documentDate', 'meetingDate'])
-      && ['city', 'region', 'state'].includes(value.level) && factText(value.publisher, 512)
+      && ['city', 'region', 'state', 'federal', 'eu'].includes(value.level) && factText(value.publisher, 512)
       && !/[<>]/.test([value.publisher, value.issuer, value.documentKind].join(''))
       && (value.issuer === null || factText(value.issuer, 512)) && factText(value.documentKind, 256)
       && ['proposal', 'answer', 'agenda', 'minutes', 'other'].includes(value.status)

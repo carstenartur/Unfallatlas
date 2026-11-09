@@ -221,7 +221,10 @@
   function recordContext(parent, entry, ctx, guard) {
     const context = entry.sourceContext;
     if (context) {
-      const levels = { city: 'Stadt', region: 'Region', state: 'Land' };
+      const levels = Object.fromEntries((UA.RisSources?.levels || [
+        { id: 'city', label: 'Stadt' }, { id: 'region', label: 'Region' }, { id: 'state', label: 'Land' },
+        { id: 'federal', label: 'Deutschland' }, { id: 'eu', label: 'EU' },
+      ]).map(level => [level.id, level.label]));
       const statuses = { proposal: 'Vorlage / Antrag', answer: 'Antwort', agenda: 'Tagesordnung', minutes: 'Protokoll', other: 'Sonstiges' };
       text(parent, 'div', [levels[context.level], context.publisher, context.issuer, context.documentKind, statuses[context.status]].filter(Boolean).join(' · '));
       const dates = [['publicationDate', 'Veröffentlichung'], ['documentDate', 'Dokumentdatum'], ['meetingDate', 'Sitzungsdatum']];

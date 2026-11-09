@@ -39,7 +39,7 @@ test.each([1,2])('known empty lists and absent legacy history remain different i
 });
 test.each([1,2])('rejects malformed facts and untrusted cross-source URLs in schema %i',async schemaVersion=>{
  for(const extra of [{events:[{...event(0),date:'2026-02-30'}]},{events:[{...event(0),url:'https://evil.example/x'}]},
- {relationships:[{...edge(0),targetUrl:'javascript:alert(1)'}]},{sourceContext:{...context,level:'federal'}},{originalPdfUrl:'https://www.landtag-niedersachsen.de@evil.example/a.pdf'},
+ {relationships:[{...edge(0),targetUrl:'javascript:alert(1)'}]},{sourceContext:{...context,level:'unknown'}},{originalPdfUrl:'https://www.landtag-niedersachsen.de@evil.example/a.pdf'},
  {events:[event(0)],eventCount:7}])await expect(writeRisSnapshot(dir,'hannover',catalogue(extra),{now,schemaVersion})).rejects.toThrow(/metadata|history|event|source|count/i);
 });
 test('legacy v1 cannot silently truncate long histories',async()=>{

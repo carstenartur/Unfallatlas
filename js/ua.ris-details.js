@@ -38,11 +38,14 @@
     state.root.classList.toggle('ris-details--collapsed', collapsed);
     state.body.hidden = collapsed;
     state.status.hidden = collapsed;
-    state.collapse.textContent = collapsed ? 'Ausklappen' : 'Einklappen';
+    state.share.textContent = collapsed ? 'Teilen' : 'Ansicht teilen';
+    state.collapse.textContent = collapsed ? 'Öffnen' : 'Einklappen';
     state.collapse.setAttribute('aria-label', `Vorgangsansicht ${collapsed ? 'ausklappen' : 'einklappen'}`);
     state.collapse.setAttribute('aria-expanded', String(!collapsed));
     state.root.setAttribute('aria-label', state.record?.title ? `Ratsvorgang: ${state.record.title}` : 'Ratsvorgang');
     state.heading.textContent = collapsed && state.record ? state.record.number || 'Ratsvorgang' : 'Ratsvorgang';
+    if (state.back) state.back.hidden = !ctx.risView.listOpen;
+    UA.PoliticalContext?.refreshPanel?.(ctx, { load: false });
   }
 
   function change(ctx, state, patch) {
@@ -71,6 +74,7 @@
 
   function close(ctx, { restoreFocus = true } = {}) {
     ctx.risView = normalized({ ...ctx.risView, recordId: null });
+    UA.PoliticalContext?.refreshPanel?.(ctx, { load: false });
     const state = panels.get(ctx);
     if (state) {
       const target = state.returnFocus;
@@ -121,7 +125,10 @@
     const status = document.createElement('div'); status.className = 'ris-details__status';
     status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     state = { root, toolbar, heading, body, status, city: cityOf(ctx) };
-    button(actions, 'Ansicht teilen', 'Link zur aktuellen Ansicht kopieren', () => share(ctx, state));
+    state.back = button(toolbar, '← Trefferliste', 'Zur Trefferliste', () => UA.PoliticalContext?.returnToResults?.(ctx));
+    state.back.className = 'ris-details__back';
+    state.back.hidden = !ctx.risView?.listOpen;
+    state.share = button(actions, 'Ansicht teilen', 'Link zur aktuellen Ansicht kopieren', () => share(ctx, state));
     state.collapse = button(actions, 'Einklappen', 'Vorgangsansicht einklappen', () => {
       change(ctx, state, { collapsed: !ctx.risView.collapsed });
     });
@@ -158,7 +165,9 @@
       state.mapPending = false;
       state.status.textContent = '';
       if (!target) return;
-      change(ctx, state, { collapsed: true });
+      change(ctx, state, { collapsed: true,
+        ...(ctx.risView.listOpen && window.matchMedia?.('(max-width: 980px)').matches
+          ? { listCollapsed: true } : {}) });
       target.focus({ preventScroll: true });
     } catch (error) {
       if (current()) {
@@ -195,6 +204,7 @@
     const active = () => state.token === token && !state.root.hidden && cityOf(ctx) === city
       && ctx.risView?.recordId === id && ctx.politicalContextCityRevision === revision;
     state.body.replaceChildren();
+    state.body.scrollTop = 0;
     state.status.textContent = 'Vorgang wird geladen …';
     const pending = (async () => {
       try {
@@ -251,5 +261,10 @@
     return result;
   }
 
-  UA.RisDetails = { open, refresh, close };
+  function setCollapsed(ctx, collapsed) {
+    const state = panels.get(ctx);
+    if (state) change(ctx, state, { collapsed });
+  }
+
+  UA.RisDetails = { open, refresh, close, setCollapsed };
 })();

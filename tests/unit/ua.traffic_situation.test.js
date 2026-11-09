@@ -490,7 +490,16 @@ describe('UA.TrafficSituation', () => {
     });
 
     test('the worked RIS document survives a TrafficSituation JSON round-trip', () => {
-      const scene = UA.MapSceneUrlCodec.decode('?city=Hannover&mapLayer=ris&risSelectionOnly=1&risRecord=region%3AA&risView=relations&risCollapsed=1&risEventsPage=2&risRelationsPage=3&risRelatedPage=4&risLocationsPage=5');
+      const searchCursor = `ris2.pageB.${'c'.repeat(64)}`;
+      const searchGeneration = 'd'.repeat(64);
+      const query = new URLSearchParams('city=Hannover&mapLayer=ris&risSelectionOnly=1&risRecord=region%3AA&risView=relations&risCollapsed=1&risEventsPage=2&risRelationsPage=3&risRelatedPage=4&risLocationsPage=5');
+      query.set('risList', '1');
+      query.set('risListCollapsed', '1');
+      query.set('risQuery', 'Mittellandkanal, Brücke');
+      query.set('risLevels', 'region,state');
+      query.set('risSearchPage', searchCursor);
+      query.set('risSearchSnapshot', searchGeneration);
+      const scene = UA.MapSceneUrlCodec.decode(query.toString());
       const situation = UA.TrafficSituation.fromMapScene(scene);
       const restored = UA.TrafficSituation.deserialize(JSON.parse(JSON.stringify(UA.TrafficSituation.serialize(situation))));
       const result = UA.TrafficSituation.toMapScene(restored);
@@ -498,8 +507,17 @@ describe('UA.TrafficSituation', () => {
       expect(result.risView).toEqual({
         selectionOnly: true, recordId: 'region:A', section: 'relations', collapsed: true,
         eventsPage: 2, relationsPage: 3, relatedPage: 4, locationsPage: 5,
+        listOpen: true, listCollapsed: true, query: 'Mittellandkanal, Brücke', sourceLevels: ['region', 'state'],
+        searchCursor, searchGeneration,
       });
-      expect(new URLSearchParams(UA.MapSceneUrlCodec.encode(result)).get('risRecord')).toBe('region:A');
+      const encoded = new URLSearchParams(UA.MapSceneUrlCodec.encode(result));
+      expect(encoded.get('risRecord')).toBe('region:A');
+      expect(encoded.get('risList')).toBe('1');
+      expect(encoded.get('risListCollapsed')).toBe('1');
+      expect(encoded.get('risQuery')).toBe('Mittellandkanal, Brücke');
+      expect(encoded.get('risLevels')).toBe('region,state');
+      expect(encoded.get('risSearchPage')).toBe(searchCursor);
+      expect(encoded.get('risSearchSnapshot')).toBe(searchGeneration);
     });
 
     test('road-layer metadata cannot switch off an independently enabled RIS map overlay', () => {

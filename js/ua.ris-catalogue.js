@@ -3,6 +3,7 @@
 
   const partitions = () => typeof module === 'object' && module.exports ? require('./ua.ris-partitions') : window.UA.RisPartitions;
   const spatialGrid = () => typeof module === 'object' && module.exports ? require('./ua.spatial-grid') : window.UA.SpatialGrid;
+  const sourceDefinitions = () => typeof module === 'object' && module.exports ? require('./ua.ris-sources') : window.UA.RisSources;
   const SCHEMA_VERSION = 1;
   const MAX_BYTES = 16 * 1024 * 1024;
   const MAX_COUNT = 50_000;
@@ -39,6 +40,19 @@
   function invalid() {
     return error('RIS_SNAPSHOT_INVALID', 'Der veröffentlichte Ratsdatenstand konnte nicht geprüft werden.');
   }
+
+  function searchLevels(value) {
+    // Existing catalogue readers remain usable without the optional source UI
+    // module when no level restriction is requested.
+    if (value === undefined || Array.isArray(value) && !value.length) return [];
+    const definitions = sourceDefinitions();
+    if (!definitions) {
+      throw error('RIS_SOURCE_LEVELS_INVALID', 'Ungültige Auswahl der politischen Ebenen.');
+    }
+    return definitions.parseLevels(value);
+  }
+
+  const matchesLevels = (record, levels) => !levels.length || levels.includes(sourceDefinitions().levelOf(record));
 
   function isSourceUrl(value, sources) {
     try {
@@ -370,6 +384,7 @@
   }
 
   function searchSnapshot({ manifest, records }, params, now = new Date()) {
+    const levels = searchLevels(params.sourceLevels);
     const status = availableStatus(manifest, now);
     const city = params.city || manifest.city;
     const terms = [...new Set((params.searchTerms || []).map(fold))]
@@ -383,6 +398,7 @@
         family.push(record);
         children.set(record.relatedTo, family);
       }
+      if (!matchesLevels(record, levels)) continue;
       const title = ` ${fold(record.title)} `;
       const number = ` ${fold(record.number)} `;
       const locations = record.locations?.map(location => ` ${fold(location.label)} `) || [];
@@ -404,7 +420,7 @@
       if (selected.size >= limit) break;
       const parent = byId.get(record.relatedTo) || record;
       for (const entry of [record, parent, ...(children.get(parent.id) || [])]) {
-        if (selected.size < limit) selected.set(entry.id, entry);
+        if (selected.size < limit && matchesLevels(entry, levels)) selected.set(entry.id, entry);
       }
     }
     const complete = terms.length > 0 && status.complete;
@@ -942,9 +958,11 @@
       return state;
     }
     async function searchPartition(originalPart, params) {
+      const levels = searchLevels(params.sourceLevels);
       const terms = [...new Set((params.searchTerms || []).map(term => fold(term)))].filter(term => term.length >= 3 && term !== fold(params.city)).slice(0, 12);
       const limit = Number.isInteger(params.maxResults) ? Math.max(0, Math.min(30, params.maxResults)) : 15;
-      const query = await cursorDigest(JSON.stringify([originalPart.manifest.city, terms, limit]));
+      // Omitted/empty filters preserve existing unfiltered continuation links.
+      const query = await cursorDigest(JSON.stringify([originalPart.manifest.city, terms, limit, ...(levels.length ? [levels] : [])]));
       if (params.page != null && !params.snapshot) throw invalidCursor();
       const state = params.page != null ? await decodeCursor(params.page, query, originalPart.manifest, terms) : {
         v: 1,
@@ -1012,6 +1030,12 @@
           const id = currentPosting.items[state.o];
           const record = await recordFrom(part, id);
           if (!record) throw invalid();
+          if (!matchesLevels(record, levels)) {
+            state.o++;
+            state.l = null;
+            scanned++;
+            continue;
+          }
           const phrase = ` ${terms[state.t]} `;
           let matched = ` ${fold(record.title)} `.includes(phrase) || ` ${fold(record.number)} `.includes(phrase) || locationMatch(record.locations || [], phrase);
           let locationPage = state.l ?? record.locationsNextPage;
@@ -1079,7 +1103,8 @@
             if (selected.size >= limit) break;
             if (selected.has(id)) continue;
             const relative = await recordFrom(part, id);
-            if (relative) selected.set(id, relative);else relatedIncomplete = true;
+            if (relative) { if (matchesLevels(relative, levels)) selected.set(id, relative); }
+            else relatedIncomplete = true;
           }
         }
       } catch (failure) {
@@ -1114,6 +1139,7 @@
         return Boolean(manifest && !snapshotStatus(manifest, now()).expired);
       },
       async search(params) {
+        searchLevels(params.sourceLevels);
         const part=await partition(params.city,{snapshot:params.snapshot,revalidate:params.page!=null});
         if(!part && params.page!=null)throw invalidCursor();
         return part ? searchPartition(part,params) : searchSnapshot(await load(params.city), params, now());

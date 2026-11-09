@@ -153,8 +153,10 @@ Daher kann eine unvollständige Seite zunächst keine Treffer und trotzdem eine
 Fortsetzung enthalten. Der Cursor bewahrt den Fortschritt auch innerhalb langer
 Ortslisten. Ausgegeben werden keine vermeintlich vollständigen Nulltreffer, wenn das
 Arbeitsbudget oder eine fehlende Datei die Prüfung begrenzt hat. Überlappende
-Suchbegriffe können denselben Vorgang auf mehreren Seiten liefern; die Oberfläche
-führt diese anhand der stabilen ID zusammen und erhält bestehende Auswahlen.
+Suchbegriffe können denselben Vorgang auf mehreren Seiten liefern. Die Oberfläche
+zeigt jeweils eine begrenzte Suchseite; Berichtsauswahlen bleiben anhand der stabilen
+ID auch beim Wechsel der Seite erhalten. Ein Quellenebenenfilter wird vor der
+Treffergrenze angewendet und ist Bestandteil der Cursoridentität.
 
 ## Historische Quellenarbeit fortsetzen
 
@@ -332,6 +334,44 @@ Das Schließen des Menüs schaltet keine Karteninhalte ab. Lesbare Beschriftunge
 Tastaturbedienung, Fokusrückgabe und mindestens 44 CSS-Pixel große Berührungsziele
 ergänzen die zurückhaltend durchscheinende Oberfläche.
 
+## Gemeinsamer Arbeitsbereich für Ratsdokumente
+
+**Ratsdokumente** öffnet eine nichtmodale Trefferliste neben der Karte. Suchtext und
+Quellenebene stehen direkt über den kompakten Treffern. Der Dokumenttitel öffnet die
+gemeinsame Vorgangsansicht mit **Beratungsverlauf**, **Zusammenhänge** und **Orte**.
+Auf breiten Bildschirmen bleiben Trefferliste, Vorgang und die bedienbare Karte
+gleichzeitig sichtbar. Liste und Detail lassen sich unabhängig einklappen.
+
+Auf Telefonen und schmalen Tablets wechselt die Ansicht zwischen Liste und Dokument.
+**Trefferliste** führt zur bestehenden Suche zurück und erhält Suchtext, Quellenfilter,
+Suchseite und die für den Bericht markierten Dokumente. Der Beratungsverlauf zeigt
+Datum, Gremium und Ergebnis kompakt; vollständige Quellenzitate lassen sich über
+**Quellenbeleg ansehen** aufklappen. Ein Klick auf **Weitere Suchtreffer laden** zeigt
+die nächste begrenzte Seite und führt den Tastaturfokus zu deren erstem Vorgang.
+**Auf Karte zeigen** klappt auf kleinen Bildschirmen Dokument und Trefferliste ein,
+damit die gewählte Kartenstelle samt Quellen-Popup bedienbar wird. Die Suche bleibt
+beim anschließenden Öffnen der Liste erhalten.
+
+| Quellenebene | Kennung | Verwendung |
+|---|---|---|
+| Stadt | `city` | Kommunale Rats- und Bezirksvorgänge |
+| Region | `region` | Regionale Vorgänge, beispielsweise Region Hannover |
+| Land | `state` | Landesebene, beispielsweise Niedersächsischer Landtag |
+| Deutschland | `federal` | Für später angeschlossene Bundesquellen vorbereitet |
+| EU | `eu` | Für später angeschlossene EU-Quellen vorbereitet |
+
+Quellenebenen sind unabhängig vom gewählten Stadtkatalog. Ein Hannover-Katalog kann
+städtische, regionale und Landesdokumente enthalten. Die gemeinsamen Metadaten und
+Filter unterstützen alle fünf Ebenen; die vorbereiteten Kennungen für Deutschland
+und EU erschließen noch keine zusätzlichen Quellen.
+
+Ebene und Herausgeber erscheinen am Treffer und im Dokument. Direkte amtliche
+Querverweise zeigen den Ausgangsvorgang, die belegte Beziehungsart und das Ziel samt
+Quellenebene. So lassen sich vorhandene Verweise zwischen Stadt, Region und Land
+verfolgen. Fehlende Ebenen bleiben als unbekannt gekennzeichnet. Räumliche Nähe,
+ähnliche Titel oder die Zugehörigkeit zu einer Ebene erzeugen keine neue Beziehung.
+Auch nicht verortete Vorgänge bleiben durchsuchbar und intern erreichbar.
+
 ## Ratsvorgänge über die URL teilen
 
 Die Ebene **Ratsvorgänge** ist Bestandteil des gemeinsamen URL-Zustands:
@@ -357,13 +397,21 @@ ebenfalls teilbar; **Schließen** entfernt die Dokumentauswahl aus dem Link.
 | `risRelationsPage` | Sichtbare Seite direkter Querverweise, ab 0 | 0 |
 | `risRelatedPage` | Sichtbare Seite verknüpfter Vorgänge, ab 0 | 0 |
 | `risLocationsPage` | Sichtbare Seite der Ortsbelege/Kartenlagen, ab 0 | 0 |
+| `risList=1` | Trefferliste geöffnet | Aus |
+| `risListCollapsed=1` | Trefferliste eingeklappt | Aus |
+| `risQuery` | Suchtext, höchstens 512 Zeichen | Leer |
+| `risLevels` | Quellenebenen, etwa `region,state` | Alle |
+| `risSearchPage` | Gebundener Cursor der sichtbaren Suchseite | Erste Seite |
+| `risSearchSnapshot` | Datenstand des Suchcursors | Kein Cursor |
 
 Standardwerte werden weggelassen. Jede Datenseite wird gezielt geladen; eine große
 Seitenzahl in einem Link löst keinen Nachladezyklus über sämtliche Vorgänger aus.
 Die Seitengrenzen stammen aus dem Katalog: Große Quellenbelege können bereits vor
 der maximalen Eintragszahl eine neue Datenseite erfordern.
-Ungültige Seiten werden berichtigt. Beim Stadtwechsel werden Dokumentauswahl,
-Detailseiten und Flächenfilter zurückgesetzt, die gewünschte RIS-Ebene bleibt erhalten.
+Ungültige Seiten werden berichtigt. Ein Suchcursor für einen geänderten Datenstand
+führt zu einem sichtbaren Fehler mit der Aktion **Suche neu starten**. Beim Stadtwechsel
+werden Dokumentauswahl, Detailseiten, Suchtext, Quellenfilter, Berichtsauswahl und
+Flächenfilter zurückgesetzt; die gewünschte RIS-Kartenebene bleibt erhalten.
 
 Die Prozesslinie zeigt für jede dokumentierte Beratung Datum, Gremium, Ergebnis,
 Quellenbeleg und Link zum amtlichen Sitzungsnachweis. Datumslose Angaben stehen
@@ -378,12 +426,14 @@ Zuständigkeit. Verfügbare Ziele lassen sich intern öffnen; amtliche Quellen b
 direkt erreichbar. **Orte** zeigt Fundstellen und bietet für verortete Einträge den
 Übergang zur Karte. Auf Telefon und Tablet ist die Ansicht einklappbar und schließbar.
 
-Gestalterische Referenz für die vertikale Prozesslinie:
-[Ratsatlas Bonn von Damian Paderta](https://github.com/daimpad/ratsatlas-bonn/tree/bcefc9e9e5931689ba10da55ebe56c92f01761d6),
-insbesondere `site/app.js` (`stepHtml`) und `site/style.css`. Die Unfallwerkbank
-verwendet eine eigene Umsetzung für ihre stadtübergreifenden, seitenweise geladenen
-Katalogdaten. Quellenmodell und Verfahrensannahmen des Ratsatlas werden nicht
-übertragen; siehe [Drittanbieterhinweise](THIRD_PARTY_NOTICES.md).
+Gestalterische und funktionale Referenz:
+[Ratsatlas Bonn von Damian Paderta](https://github.com/daimpad/ratsatlas-bonn/tree/52fe9cad6d66ad9dc5df96deb645b175f5543cac),
+insbesondere die getrennten Karten-, Listen- und Detailbereiche, die Auswahl eines
+Vorgangs und `stepHtml` in `site/app.js` sowie `site/style.css`. Die Unfallwerkbank
+passt diese Bedienstruktur an ihre stadtübergreifenden, seitenweise geladenen
+Katalogdaten und die verknüpfbaren Quellenebenen an. Bonn-spezifische Gremien und
+Verfahrensannahmen werden nicht übertragen; siehe
+[Drittanbieterhinweise](THIRD_PARTY_NOTICES.md).
 
 ## Skalierung einordnen
 

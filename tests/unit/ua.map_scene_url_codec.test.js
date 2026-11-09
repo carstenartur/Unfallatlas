@@ -22,6 +22,8 @@ describe('UA.MapSceneUrlCodec', () => {
 
   describe('encode / decode round-trip', () => {
     test('restores every RIS view option alongside both road layers and the selected map area', () => {
+      const searchCursor = `ris2.page_A-b.${'a'.repeat(64)}`;
+      const searchGeneration = 'b'.repeat(64);
       const scene = UA.MapScene.create({
         city: 'Hannover', center: { lat: 52.3759, lon: 9.732 }, zoom: 15,
         selection: { south: 52.37, west: 9.72, north: 52.38, east: 9.74 },
@@ -29,16 +31,26 @@ describe('UA.MapSceneUrlCodec', () => {
         risView: {
           selectionOnly: true, recordId: 'region-hannover-ris:2026/123+Anfrage A', section: 'relations', collapsed: true,
           eventsPage: 2, relationsPage: 3, relatedPage: 4, locationsPage: 5,
+          listOpen: true, listCollapsed: true, query: 'Radverkehr, Mittellandkanal + Brücke',
+          sourceLevels: ['city', 'region', 'state'], searchCursor, searchGeneration,
         },
       });
       const encoded = UA.MapSceneUrlCodec.encode(scene);
       const query = new URLSearchParams(encoded);
       expect(query.get('mapLayer')).toBe('slope,traffic,ris');
       expect(query.get('risRelatedPage')).toBe('4');
+      expect(query.get('risList')).toBe('1');
+      expect(query.get('risListCollapsed')).toBe('1');
+      expect(query.get('risQuery')).toBe('Radverkehr, Mittellandkanal + Brücke');
+      expect(query.get('risLevels')).toBe('city,region,state');
+      expect(query.get('risSearchPage')).toBe(searchCursor);
+      expect(query.get('risSearchSnapshot')).toBe(searchGeneration);
       const decoded = UA.MapSceneUrlCodec.decode(encoded);
       expect(decoded.risView).toEqual({
         selectionOnly: true, recordId: 'region-hannover-ris:2026/123+Anfrage A', section: 'relations', collapsed: true,
         eventsPage: 2, relationsPage: 3, relatedPage: 4, locationsPage: 5,
+        listOpen: true, listCollapsed: true, query: 'Radverkehr, Mittellandkanal + Brücke',
+        sourceLevels: ['city', 'region', 'state'], searchCursor, searchGeneration,
       });
       expect(decoded.contextOverlays.active).toEqual({ slope: true, traffic: true, ris: true });
       expect(decoded.selection).toEqual({ south: 52.37, west: 9.72, north: 52.38, east: 9.74 });
@@ -64,6 +76,8 @@ describe('UA.MapSceneUrlCodec', () => {
       expect(restored.risView).toEqual({
         selectionOnly: false, recordId: null, section: 'history', collapsed: false,
         eventsPage: 0, relationsPage: 0, relatedPage: 0, locationsPage: 0,
+        listOpen: false, listCollapsed: false, query: '', sourceLevels: [],
+        searchCursor: null, searchGeneration: null,
       });
       expect(restored.layers.showCluster).toBe(false);
     });
@@ -79,6 +93,9 @@ describe('UA.MapSceneUrlCodec', () => {
       // Default boolean values should not be present
       expect(params.has('showCluster')).toBe(false);
       expect(params.has('showHeatmap')).toBe(false);
+      for (const key of ['risList', 'risListCollapsed', 'risQuery', 'risLevels', 'risSearchPage', 'risSearchSnapshot']) {
+        expect(params.has(key)).toBe(false);
+      }
     });
 
     test('city is preserved', () => {

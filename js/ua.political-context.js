@@ -24,6 +24,48 @@
   let mapRequest = null;
   const generatedSearchInputs = new WeakMap();
   const observedSearchInputs = new WeakSet();
+  let workspaceContext = null;
+  const normalizeView = value => UA.RisViewState?.normalize(value) || { listOpen: false, listCollapsed: false,
+    query: '', sourceLevels: [], searchCursor: null, searchGeneration: null, ...value };
+  const levelNames = () => UA.RisSources?.levels || [
+    { id: 'city', label: 'Stadt' }, { id: 'region', label: 'Region' }, { id: 'state', label: 'Land' },
+    { id: 'federal', label: 'Deutschland' }, { id: 'eu', label: 'EU' },
+  ];
+  const pageKey = ctx => JSON.stringify([ctx.CITY_RAW, ctx.risView?.query, ctx.risView?.sourceLevels,
+    ctx.risView?.searchCursor, ctx.risView?.searchGeneration]);
+
+  function updateView(ctx, patch) {
+    ctx.risView = normalizeView({ ...ctx.risView, ...patch });
+    if (!UA._hydrating) UA.syncAllToUrl?.(ctx);
+    projectWorkspace(ctx);
+  }
+
+  function projectWorkspace(ctx) {
+    const view = normalizeView(ctx.risView);
+    const panel = document.getElementById('polCtxPanel');
+    if (!panel) return;
+    const detailOpen = !!view.recordId && !view.collapsed;
+    document.body.classList.toggle('ris-list-open', view.listOpen);
+    document.body.classList.toggle('ris-list-collapsed', view.listCollapsed);
+    document.body.classList.toggle('ris-document-open', detailOpen);
+    panel.classList.toggle('ris-browser--collapsed', view.listCollapsed);
+    const mobileDetail = detailOpen && window.matchMedia?.('(max-width: 980px)').matches;
+    panel.inert = !!mobileDetail;
+    for (const control of [document.getElementById('btnPolCtxOpen'), document.getElementById('btnRisBrowse')]) {
+      control?.setAttribute('aria-expanded', String(view.listOpen && !view.listCollapsed));
+    }
+    const collapse = document.getElementById('polCtxBtnCollapse');
+    if (collapse) {
+      collapse.textContent = view.listCollapsed ? 'Ausklappen' : 'Einklappen';
+      collapse.setAttribute('aria-expanded', String(!view.listCollapsed));
+      collapse.setAttribute('aria-label', `Trefferliste ${view.listCollapsed ? 'ausklappen' : 'einklappen'}`);
+    }
+    const body = panel.querySelector('.ris-browser__body');
+    if (body) body.hidden = view.listCollapsed;
+    const city = document.getElementById('polCtxCity');
+    if (city) city.textContent = ctx.CITY_RAW || 'Aktuelle Stadt';
+    UA.PoliticalContext.selectRecord?.(ctx, view.recordId);
+  }
 
   function isGeneratedSearchInput(input) {
     return input && generatedSearchInputs.has(input) && generatedSearchInputs.get(input) === input.value;
@@ -46,19 +88,49 @@
 
   function getPanelController(panel) {
     if (!panelController) {
-      panelController = UA.createModalController(panel, {
-        initialFocus: '#polCtxBtnClose',
-        returnFocus: () => document.getElementById('btnPolCtxOpen'),
-        fallbackFocus: () => document.getElementById('collapseBtn'),
+      let returnFocus;
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-modal', 'false');
+      panelController = {
+        isOpen: () => panel.style.display === 'flex',
+        open({ focus = true } = {}) {
+          if (panel.style.display !== 'flex') returnFocus = document.activeElement;
+          panel.style.display = 'flex'; panel.removeAttribute('aria-hidden');
+          if (focus) document.getElementById('polCtxBtnClose')?.focus({ preventScroll: true });
+        },
+        close({ restoreFocus = true } = {}) {
+          const wasOpen = panel.style.display === 'flex';
+          panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true'); panel.inert = false;
+          mapRequest = null;
+          if (workspaceContext) {
+            workspaceContext.politicalSearchRequest = null;
+            workspaceContext.politicalPendingPageKey = null;
+            updateView(workspaceContext, { listOpen: false, listCollapsed: false });
+          }
+          document.getElementById('polCtxResults')?.setAttribute('aria-busy', 'false');
+          const searchButton = document.getElementById('polCtxBtnSearch');
+          if (searchButton) searchButton.disabled = false;
+          if (wasOpen && restoreFocus) {
+            const target = returnFocus?.isConnected && !returnFocus.closest('[hidden], [inert], [aria-hidden="true"]')
+              ? returnFocus : document.getElementById('btnPolCtxOpen') || document.getElementById('btnRisBrowse');
+            target?.focus({ preventScroll: true });
+          }
+        },
+      };
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !event.defaultPrevented && panelController.isOpen()
+            && panel.contains(document.activeElement)) {
+          event.preventDefault(); panelController.close();
+        }
       });
     }
     return panelController;
   }
 
-  function showPanel(panel) {
+  function showPanel(panel, options) {
     if (!panel) return;
     mapRequest = null;
-    getPanelController(panel).open();
+    getPanelController(panel).open(options);
   }
 
   function closePanel(panel, options) {
@@ -319,119 +391,99 @@
     return list.childElementCount || ref.locationsNextPage != null || ref.geometryNextPage != null ? section : null;
   }
 
-  function renderRef(ref, related, ctx, includeRelated = true) {
-    const typeColors = {
-      'Antrag':            '#2563eb',
-      'Änderungsantrag':   '#7c3aed',
-      'Anfrage':           '#0891b2',
-      'Beschluss':         '#059669',
-      'Verwaltungsantwort':'#d97706',
-      'Protokoll':         '#6b7280',
-      'Sonstige':          '#9ca3af'
+  function renderRef(ref, related, ctx) {
+    const node = (tag, text, className) => {
+      const el = document.createElement(tag);
+      if (text != null) el.textContent = text;
+      if (className) el.className = className;
+      return el;
     };
-    const color = typeColors[ref.type] || '#6b7280';
-    const score = Number.isFinite(ref.relevanceScore) ? `Score: ${ref.relevanceScore}` : '';
-    const dateStr = ref.date ? ` · ${UA.escHtml(ref.date)}` : '';
-    const gremiumStr = ref.gremium ? ` · ${UA.escHtml(ref.gremium)}` : '';
-    const numberStr = ref.number ? ` · ${UA.escHtml(ref.number)}` : '';
-    const snippet = ref.snippet
-      ? `<div style="margin-top:4px;font-size:11px;color:#555;line-height:1.4;">${UA.escHtml(ref.snippet.substring(0, 200))}</div>`
-      : '';
-
     const url = safeReferenceUrl(ref.url);
-    const card = document.createElement('div');
-    card.className = 'polCtxRef';
-    card.dataset.url = url;
-    card.dataset.referenceId = ref.id || url;
-    card.dataset.title = ref.title ?? '';
-    card.style.cssText = `
-      border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:10px 12px;
-      margin-bottom:8px;background:rgba(255,255,255,.9);transition:background .15s;`;
-    card.innerHTML = `
-      <div style="display:flex;align-items:flex-start;gap:8px;">
-        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;flex:1;">
-          <input type="checkbox" class="polCtxCheck" style="margin-top:2px;cursor:pointer;"
-            data-url="${UA.escHtml(url)}"
-            data-id="${UA.escHtml(ref.id || '')}"
-            data-related-to="${UA.escHtml(ref.relatedTo || '')}"
-            data-snapshot="${UA.escHtml(JSON.stringify(ref.snapshot || null))}"
-            data-title="${UA.escHtml(ref.title)}"
-            data-type="${UA.escHtml(ref.type)}"
-            data-date="${UA.escHtml(ref.date || '')}"
-            data-gremium="${UA.escHtml(ref.gremium || '')}"
-            data-number="${UA.escHtml(ref.number || '')}"
-            data-reference-type="${UA.escHtml(ref.referenceType || '')}"
-            data-reason="${UA.escHtml(ref.reason || '')}"
-            data-snippet="${UA.escHtml(ref.snippet || '')}"
-            data-source="${UA.escHtml(ref.source || '')}"
-          />
-          <div style="flex:1;">
-            <div style="font-weight:700;font-size:13px;line-height:1.3;">
-              ${UA.escHtml(ref.title)}
-            </div>
-            <div style="margin-top:3px;font-size:11px;color:#555;">
-              <span style="background:${color};color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;">${UA.escHtml(ref.type)}</span>
-              <span style="color:#888;">${dateStr}${gremiumStr}${numberStr}</span>
-              <span style="float:right;color:#aaa;font-size:10px;">${score}</span>
-            </div>
-            ${related ? `<small>${ref.relatedTo === related.id ? 'Gehört zu Drucksache' : 'Verknüpfter Vorgang:'} ${UA.escHtml(related.number || related.title)}</small>` : ''}
-            ${snippet}
-          </div>
-        </label>
-      </div>
-      ${url ? `<a href="${UA.escHtml(url)}" target="_blank" rel="noopener noreferrer">Amtliches Original öffnen</a>` : ''}`;
-    const assessment = renderLocationAssessment(ref.locationAssessment);
-    if (assessment) card.insertBefore(assessment, card.querySelector('a'));
-    const locations = renderLocations(ref, ctx);
-    if (locations) card.insertBefore(locations, card.querySelector('a'));
-    if (ref.id && ref.snapshot && typeof UA.RisDetails?.open === 'function') {
-      const open = document.createElement('button');
-      open.type = 'button'; open.className = 'smallBtn';
-      open.textContent = 'Verlauf und Zusammenhänge';
-      open.setAttribute('aria-label', `Verlauf und Zusammenhänge: ${ref.title}`);
-      open.addEventListener('click', () => {
-        const panel = document.getElementById('polCtxPanel');
-        if (panel) closePanel(panel, { restoreFocus: false });
-        UA.RisDetails.open(ctx, ref.id, { trigger: document.getElementById('btnPolCtxOpen') });
+    const card = node('article', null, 'polCtxRef ris-result');
+    card.dataset.url = url; card.dataset.referenceId = ref.id || url; card.dataset.title = ref.title || '';
+    card.setAttribute('aria-current', String(ctx.risView?.recordId === ref.id));
+    const heading = node('div', null, 'ris-result__heading');
+    const level = UA.RisSources?.levelOf(ref) || ref.sourceContext?.level;
+    const label = levelNames().find(item => item.id === level)?.label;
+    const badge = node('span', label || 'Ebene nicht angegeben', 'ris-record-view__level');
+    badge.dataset.level = label ? level : 'unknown';
+    heading.append(badge, node('span', ref.type || 'Ratsvorgang', 'ris-result__kind'));
+    card.append(heading);
+    const canOpen = ref.id && ref.snapshot && typeof UA.RisDetails?.open === 'function';
+    const title = node(canOpen ? 'button' : url ? 'a' : 'h3', ref.title || 'Vorgang ohne Titel', 'ris-result__title');
+    if (canOpen) {
+      title.type = 'button'; title.dataset.risOpenRecord = ref.id;
+      title.setAttribute('aria-label', `Verlauf und Zusammenhänge: ${ref.title}`);
+      title.addEventListener('click', () => {
+        UA.PoliticalContext.selectRecord(ctx, ref.id);
+        UA.RisDetails.open(ctx, ref.id, { trigger: title });
       });
-      card.append(open);
+    } else if (url) {
+      title.href = url; title.target = '_blank'; title.rel = 'noopener noreferrer';
     }
-    if (includeRelated && ref.id && ref.snapshot && typeof UA.RisCatalogue?.loadRelatedRecords === 'function') {
-      const button = document.createElement('button');
-      button.type = 'button'; button.className = 'smallBtn'; button.textContent = 'Verknüpfte Vorgänge anzeigen';
-      const relatives = document.createElement('section');
-      relatives.setAttribute('aria-label', 'Verknüpfte Vorgänge');
-      const status = document.createElement('div'); status.setAttribute('role', 'status');
-      card.append(button, status, relatives);
-      let page = 0;
-      const seen = new Set([ref.id]);
-      const city = ctx.CITY_RAW, revision = ctx.politicalContextCityRevision;
-      const active = () => button.isConnected && city === ctx.CITY_RAW && revision === ctx.politicalContextCityRevision
-        && getPanelController(document.getElementById('polCtxPanel')).isOpen();
-      button.addEventListener('click', async () => {
-        if (button.disabled || !active()) return;
-        button.disabled = true;
-        status.textContent = 'Verknüpfte Vorgänge werden geladen …';
-        try {
-          const result = await UA.RisCatalogue.loadRelatedRecords(city, ref.id, page, { snapshot: ref.snapshot });
-          if (!active()) return;
-          for (const entry of result.records) {
-            if (seen.has(entry.id)) continue;
-            seen.add(entry.id);
-            relatives.append(renderRef(entry, ref, ctx, false));
-          }
-          status.textContent = result.complete === false ? 'Verknüpfte Vorgänge unvollständig; Daten fehlen.'
-            : seen.size === 1 ? 'Keine verknüpften Vorgänge.' : `${seen.size - 1} verknüpfte Vorgänge geladen.`;
-          if (result.complete === false) button.textContent = 'Erneut versuchen';
-          else if (result.nextPage != null) { page = result.nextPage; button.textContent = 'Weitere verknüpfte Vorgänge laden'; }
-          else button.hidden = true;
-        } catch (error) {
-          if (active()) status.textContent = error?.message || 'Verknüpfte Vorgänge konnten nicht geladen werden. Bitte erneut versuchen.';
-        } finally { button.disabled = false; }
-      });
+    card.append(title);
+    const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ref.date || '');
+    const dateText = date ? `${date[3]}.${date[2]}.${date[1]}` : ref.date;
+    card.append(node('p', [ref.number, dateText, ref.gremium].filter(Boolean).join(' · '), 'ris-result__meta'));
+    card.append(node('p', UA.RisSources?.sourceLabel(ref) || ref.sourceContext?.publisher || ref.source || 'Quelle nicht angegeben', 'ris-result__source'));
+    if (related) card.append(node('p', `Verknüpft mit ${related.number || related.title}`, 'ris-result__meta'));
+    if (ref.snippet) card.append(node('p', ref.snippet.slice(0, 180), 'ris-result__snippet'));
+    if (canOpen) {
+      const places = ref.locationCount ?? ref.locations?.length;
+      const description = places > 0 ? `${places} ${places === 1 ? 'Ortsbezug' : 'Ortsbezüge'}`
+        : ref.locationAssessment?.status === 'unresolved' ? 'Ortsbezug ungeklärt'
+          : places === 0 ? 'Ohne Kartenlage' : null;
+      if (description) card.append(node('p', description, 'ris-result__location'));
+    } else {
+      // Live references without a published record remain readable. Published
+      // records have one shared detail renderer, including its bounded loaders.
+      const assessment = renderLocationAssessment(ref.locationAssessment);
+      const locations = renderLocations(ref, ctx);
+      if (assessment || locations) {
+        const disclosure = node('details', null, 'ris-result__legacy-details');
+        disclosure.append(node('summary', 'Ortsbezug und Belege'));
+        if (assessment) disclosure.append(assessment);
+        if (locations) disclosure.append(locations);
+        card.append(disclosure);
+      }
     }
+    const actions = node('div', null, 'ris-result__actions');
+    const selection = node('label', null, 'ris-result__selection');
+    const check = node('input', null, 'polCtxCheck'); check.type = 'checkbox';
+    check.checked = !!ctx.politicalSelectedRecords?.has(ref.id || url);
+    for (const field of ['id', 'relatedTo', 'title', 'type', 'date', 'gremium', 'number', 'referenceType', 'reason', 'snippet', 'source']) {
+      check.dataset[field] = ref[field] || '';
+    }
+    check.dataset.url = url;
+    check.dataset.snapshot = JSON.stringify(ref.snapshot || null);
+    check.setAttribute('aria-label', `Für Bericht auswählen: ${ref.title}`);
+    selection.append(check, node('span', 'Für Bericht'));
+    check.addEventListener('change', () => {
+      ctx.politicalSelectedRecords ||= new Map();
+      if (check.checked) ctx.politicalSelectedRecords.set(ref.id || url, ref);
+      else ctx.politicalSelectedRecords.delete(ref.id || url);
+      updateSelectionCount();
+    });
+    actions.append(selection);
+    if (url) {
+      const link = node('a', 'Original ↗'); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      link.setAttribute('aria-label', `Amtliches Original öffnen: ${ref.title}`); actions.append(link);
+    }
+    card.append(actions);
     return card;
   }
+
+  function updateSelectionCount() {
+    const count = workspaceContext?.politicalSelectedRecords?.size || document.querySelectorAll('#polCtxResults .polCtxCheck:checked').length;
+    const label = document.getElementById('polCtxSelectionCount');
+    if (label) label.textContent = count ? `${count} für den Bericht ausgewählt` : 'Vorgänge für den Bericht auswählen';
+  }
+
+  UA.PoliticalContext.selectRecord = function selectRecord(ctx, id) {
+    for (const card of document.querySelectorAll('#polCtxResults .polCtxRef')) {
+      card.setAttribute('aria-current', String(card.dataset.referenceId === id));
+    }
+  };
 
   /**
    * Rendert die Trefferliste ins Panel.
@@ -450,20 +502,21 @@
     const { coverage, generatedAt, warnings = [], searchStatus } = result.meta;
     const note = generatedAt ? `<p>Datenstand ${UA.escHtml(generatedAt.slice(0, 10))}${
       coverage?.from && coverage?.to ? ` · Zeitraum ${UA.escHtml(coverage.from)} bis ${UA.escHtml(coverage.to)}` : ''
-    }${coverage?.bodies?.length ? ` · ${UA.escHtml(coverage.bodies.join(', '))}` : ''}</p>` : '';
+    }</p>` : '';
     const limits = warnings.length ? `<p>${UA.escHtml(warnings.join(' '))}</p>` : '';
+    const coverageNote = note || limits ? `<details class="ris-browser__coverage"><summary>Datenstand und Quellenhinweise${warnings.length ? ' · Hinweise vorhanden' : ''}</summary>${note}${limits}</details>` : '';
     if (!result.references || result.references.length === 0) {
       const message = searchStatus === 'searched-no-results'
         ? 'Keine passenden Vorgänge im durchsuchten Bestand.'
         : 'Der verfügbare Datenstand erlaubt keinen vollständigen Befund.';
       const portal = safeReferenceUrl(result.meta.sourceUrl);
-      container.innerHTML = `${note}<p>${message}</p>${limits}${portal
+      container.innerHTML = `${coverageNote}<p class="ris-browser__empty">${message}</p>${portal
         ? `<a href="${UA.escHtml(portal)}" target="_blank" rel="noopener noreferrer">Amtliche Quelle öffnen</a>`
         : ''}`;
       return;
     }
     const byId = new Map(result.references.map(ref => [ref.id, ref]));
-    container.innerHTML = `${note}${limits}`;
+    container.innerHTML = coverageNote;
     for (const ref of result.references) container.append(renderRef(ref, byId.get(ref.relatedTo), ctx));
   }
 
@@ -482,112 +535,167 @@
       || (typeof value === 'string' && value.length <= 2048 && /^ris2\.[A-Za-z0-9_-]+\.[a-f0-9]{64}$/.test(value));
   }
 
-  async function runSearch(ctx) {
-    const statusEl  = document.getElementById('polCtxStatus');
+  async function runSearch(ctx, { restore = false, page, snapshot: pageSnapshot, focusResults = false } = {}) {
+    const statusEl = document.getElementById('polCtxStatus');
     const resultsEl = document.getElementById('polCtxResults');
-    const basisEl   = document.getElementById('polCtxBasis');
+    const basisEl = document.getElementById('polCtxBasis');
     const btnSearch = document.getElementById('polCtxBtnSearch');
     if (!statusEl || !resultsEl) return;
-
-    refreshGeneratedSearchInput(ctx);
+    workspaceContext = ctx;
+    UA.PoliticalContext.getSelectedReferences();
+    if (!restore) refreshGeneratedSearchInput(ctx);
     const input = document.getElementById('polCtxSearchInput');
-    const enteredTerms = (input?.value || '').split(/[,;]+/).map(term => term.trim()).filter(Boolean);
+    const level = document.getElementById('polCtxLevel');
+    const previousView = normalizeView(ctx.risView);
+    const entered = restore ? previousView.query : input?.value || '';
+    const enteredTerms = entered.split(/[,;]+/).map(term => term.trim()).filter(Boolean);
     const terms = enteredTerms.length ? enteredTerms.slice(0, 5) : UA.PoliticalContext.buildSearchTerms(ctx);
+    const sourceLevels = restore ? previousView.sourceLevels : level
+      ? level.value.split(',').filter(Boolean) : previousView.sourceLevels;
+    updateView(ctx, { query: enteredTerms.length ? entered : terms.filter(term => term !== ctx.CITY_RAW).join(', '), sourceLevels,
+      ...(restore ? {} : { searchCursor: null, searchGeneration: null }) });
+    const view = normalizeView(ctx.risView);
     const city = ctx.CITY_RAW || '';
     const request = Symbol('political-search');
+    const key = pageKey(ctx);
     ctx.politicalSearchRequest = request;
-
-    // „Suche basiert auf …": macht für Nutzer transparent, welche Begriffe
-    // die Auto-Suche einsetzt (Stadt + Straße + Stadtbezirk + ggf. Gremium).
+    ctx.politicalPendingPageKey = key;
+    ctx.politicalLoadedPageKey = null;
+    const current = () => ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city;
     if (basisEl) {
-      basisEl.replaceChildren('Suche basiert auf: ');
-      if (terms.length) {
-        terms.forEach((term, index) => {
-          if (index) basisEl.append(', ');
-          const label = document.createElement('strong');
-          label.textContent = term;
-          basisEl.append(label);
-        });
-      } else {
-        const label = document.createElement('em');
-        label.textContent = '(keine Suchbegriffe)';
-        basisEl.append(label);
-      }
+      basisEl.replaceChildren('Suche nach: ');
+      terms.forEach((term, index) => {
+        if (index) basisEl.append(', ');
+        const label = document.createElement('strong'); label.textContent = term; basisEl.append(label);
+      });
     }
-
-    statusEl.textContent = 'Suche läuft…';
-    resultsEl.innerHTML  = '';
+    statusEl.textContent = 'Vorgänge werden gesucht …';
+    if (page == null && !view.searchCursor) resultsEl.replaceChildren();
+    resultsEl.setAttribute('aria-busy', 'true');
     if (btnSearch) btnSearch.disabled = true;
-
-    const params = {
-        city,
-        searchTerms: terms,
-        context: {
-          gremium: (ctx.ui && ctx.ui._lastExportResult &&
-            ctx.ui._lastExportResult.structured &&
-            ctx.ui._lastExportResult.structured.meta &&
-            ctx.ui._lastExportResult.structured.meta.gremium &&
-            ctx.ui._lastExportResult.structured.meta.gremium.name) || ''
-        },
-        maxResults: 15
+    const snapshot = pageSnapshot || (view.searchGeneration ? {
+      city: UA.RisCatalogue?.cityKey?.(city) || city.toLocaleLowerCase('de'), sha256: view.searchGeneration,
+    } : null);
+    const params = { city, searchTerms: terms,
+      context: { gremium: ctx.ui?._lastExportResult?.structured?.meta?.gremium?.name || '' },
+      maxResults: 15, ...(sourceLevels.length ? { sourceLevels } : {}),
+      ...((page ?? view.searchCursor) != null ? { page: page ?? view.searchCursor, ...(snapshot ? { snapshot } : {}) } : {}),
     };
     try {
       const result = await UA.PoliticalContext.search(params);
-      if (ctx.politicalSearchRequest !== request || (ctx.CITY_RAW || '') !== city) return;
-      statusEl.textContent = result.references.length > 0
-        ? `${result.references.length} Vorgänge gefunden.`
-        : result.meta.searchStatus === 'searched-no-results'
-          ? 'Keine Vorgänge im durchsuchten Bestand.'
-          : 'Recherche unvollständig.';
-      renderResults(resultsEl, result, ctx);
-      if (hasSearchContinuation(result.meta.nextPage)) {
-        const button = document.createElement('button');
-        button.type = 'button'; button.className = 'smallBtn'; button.textContent = 'Weitere Suchtreffer laden';
-        resultsEl.append(button);
-        let page = result.meta.nextPage;
-        const snapshot = result.meta.snapshot || result.references.find(ref => ref.snapshot)?.snapshot
-          || (result.meta.generation ? { city, generation: result.meta.generation } : null);
-        const generation = value => value?.generation || value?.sha256;
-        const active = () => button.isConnected && ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city
-          && getPanelController(document.getElementById('polCtxPanel')).isOpen();
-        button.addEventListener('click', async () => {
-          if (button.disabled || !active()) return;
-          button.disabled = true;
-          statusEl.textContent = 'Weitere Suchtreffer werden geladen …';
-          try {
-            const next = await UA.PoliticalContext.search({ ...params, page, ...(snapshot ? { snapshot } : {}) });
-            if (!active()) return;
-            const expected = generation(snapshot);
-            const incoming = generation(next.meta.snapshot) || next.meta.generation;
-            if (expected && ((incoming && incoming !== expected)
-                || next.references.some(ref => ref.snapshot && generation(ref.snapshot) !== expected))) {
-              throw new Error('Die Suchseiten stammen aus unterschiedlichen Datenständen. Bitte die Recherche erneut starten.');
-            }
-            const seen = new Set([...resultsEl.querySelectorAll('.polCtxRef')].map(card => card.dataset.referenceId));
-            const byId = new Map(next.references.map(ref => [ref.id, ref]));
-            for (const ref of next.references) {
-              const id = ref.id || ref.url;
-              if (seen.has(id)) continue;
-              seen.add(id);
-              resultsEl.insertBefore(renderRef(ref, byId.get(ref.relatedTo), ctx), button);
-            }
-            statusEl.textContent = `${seen.size} Vorgänge geladen.` + (next.meta.complete === false || next.meta.truncated ? ' Recherche unvollständig.' : '');
-            if (hasSearchContinuation(next.meta.nextPage)) page = next.meta.nextPage;
-            else button.hidden = true;
-          } catch (error) {
-            if (active()) statusEl.textContent = error?.message || 'Weitere Suchtreffer konnten nicht geladen werden. Bitte erneut versuchen.';
-          } finally { button.disabled = false; }
-        });
+      if (!current()) return;
+      const expected = snapshot?.generation || snapshot?.sha256;
+      const incoming = result.meta.snapshot?.generation || result.meta.snapshot?.sha256 || result.meta.generation;
+      if (expected && ((incoming && expected !== incoming) || result.references.some(ref => ref.snapshot
+          && (ref.snapshot.generation || ref.snapshot.sha256) !== expected))) {
+        throw new Error('Der Datenstand der Suchseite hat sich geändert. Bitte die Suche neu starten.');
       }
-    } catch (err) {
-      if (ctx.politicalSearchRequest === request && (ctx.CITY_RAW || '') === city) {
-        statusEl.textContent = 'Fehler bei der Recherche. ' + String(err.message || err);
+      const count = result.references.length;
+      const continuation = hasSearchContinuation(result.meta.nextPage);
+      statusEl.textContent = count ? `${count} ${count === 1 ? 'Vorgang' : 'Vorgänge'} auf dieser Suchseite.`
+        : continuation ? 'Noch kein Treffer auf dieser Suchseite. Weitere Suchtreffer können folgen.'
+          : result.meta.searchStatus === 'searched-no-results' ? 'Keine Vorgänge im durchsuchten Bestand.' : 'Recherche unvollständig.';
+      if (count && (result.meta.complete === false || result.meta.truncated || result.meta.searchStatus === 'partial-results')) {
+        statusEl.textContent += ' Recherche unvollständig.';
+      }
+      renderResults(resultsEl, result, ctx);
+      const controls = document.createElement('nav'); controls.className = 'ris-browser__pager';
+      controls.setAttribute('aria-label', 'Suchseiten');
+      const firstPage = () => {
+        updateView(ctx, { searchCursor: null, searchGeneration: null });
+        return runSearch(ctx, { restore: true, focusResults: true });
+      };
+      if (params.page != null) {
+        const first = document.createElement('button'); first.type = 'button'; first.textContent = 'Zur ersten Suchseite';
+        first.addEventListener('click', firstPage); controls.append(first);
+      }
+      if (continuation) {
+        const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Weitere Suchtreffer laden';
+        const nextSnapshot = result.meta.snapshot || result.references.find(ref => ref.snapshot)?.snapshot
+          || (result.meta.generation ? { city: UA.RisCatalogue?.cityKey?.(city) || city.toLocaleLowerCase('de'), generation: result.meta.generation } : null);
+        next.addEventListener('click', () => {
+          if (!current() || next.disabled) return;
+          next.disabled = true;
+          updateView(ctx, { searchCursor: result.meta.nextPage,
+            searchGeneration: nextSnapshot?.generation || nextSnapshot?.sha256 });
+          runSearch(ctx, { restore: true, page: result.meta.nextPage, snapshot: nextSnapshot, focusResults: true });
+        });
+        controls.append(next);
+      }
+      if (controls.childElementCount) resultsEl.append(controls);
+      ctx.politicalLoadedPageKey = key;
+      updateSelectionCount();
+      if (focusResults) {
+        resultsEl.scrollTop = 0;
+        const target = resultsEl.querySelector('[data-ris-open-record]') || statusEl;
+        if (target === statusEl) statusEl.tabIndex = -1;
+        target.focus({ preventScroll: true });
+      }
+    } catch (error) {
+      if (current()) {
+        statusEl.textContent = 'Fehler bei der Recherche. ' + String(error.message || error);
+        const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = 'Suche neu starten';
+        retry.addEventListener('click', () => {
+          updateView(ctx, { searchCursor: null, searchGeneration: null });
+          runSearch(ctx, { restore: true, focusResults: true });
+        });
+        resultsEl.append(retry);
+        if (focusResults) retry.focus();
       }
     } finally {
-      if (btnSearch && ctx.politicalSearchRequest === request) btnSearch.disabled = false;
+      if (current()) {
+        ctx.politicalPendingPageKey = null;
+        resultsEl.setAttribute('aria-busy', 'false');
+        if (btnSearch) btnSearch.disabled = false;
+      }
     }
   }
   UA.PoliticalContext._runSearch = runSearch;
+
+  function projectSearchFields(ctx) {
+    const view = normalizeView(ctx.risView);
+    const input = document.getElementById('polCtxSearchInput');
+    if (input && input.value !== view.query) input.value = view.query;
+    const level = document.getElementById('polCtxLevel');
+    if (level) {
+      const value = view.sourceLevels.join(',');
+      if (value && ![...level.options].some(option => option.value === value)) {
+        const option = document.createElement('option'); option.value = value;
+        option.textContent = levelNames().filter(item => view.sourceLevels.includes(item.id)).map(item => item.label).join(' + ');
+        level.append(option);
+      }
+      level.value = value;
+    }
+  }
+
+  UA.PoliticalContext.refreshPanel = function refreshPanel(ctx, { load = true } = {}) {
+    workspaceContext = ctx;
+    const panel = document.getElementById('polCtxPanel');
+    if (!panel) return;
+    ctx.risView = normalizeView(ctx.risView);
+    projectWorkspace(ctx);
+    if (!ctx.risView.listOpen) {
+      panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    showPanel(panel, { focus: false });
+    if (!load) return;
+    projectSearchFields(ctx);
+    const key = pageKey(ctx);
+    if (ctx.risView.query && !ctx.risView.listCollapsed && ctx.politicalLoadedPageKey !== key && ctx.politicalPendingPageKey !== key) {
+      return runSearch(ctx, { restore: true });
+    }
+  };
+
+  UA.PoliticalContext.returnToResults = function returnToResults(ctx) {
+    UA.RisDetails?.setCollapsed?.(ctx, true);
+    updateView(ctx, { listOpen: true, listCollapsed: false });
+    const pending = UA.PoliticalContext.refreshPanel(ctx);
+    const panel = document.getElementById('polCtxPanel');
+    (panel?.querySelector('.polCtxRef[aria-current="true"] [data-ris-open-record]')
+      || document.getElementById('polCtxSearchInput'))?.focus({ preventScroll: true });
+    return pending;
+  };
 
   /**
    * Öffnet das politische Recherche-Panel und startet ggf. direkt die Suche.
@@ -598,7 +706,15 @@
     const panel = document.getElementById('polCtxPanel');
     if (!panel) return;
 
+    workspaceContext = ctx;
+    if (ctx.risView?.recordId && !ctx.risView.collapsed && window.matchMedia?.('(max-width: 980px)').matches) {
+      UA.RisDetails?.setCollapsed?.(ctx, true);
+    }
+    updateView(ctx, { listOpen: true, listCollapsed: false });
     showPanel(panel);
+    const existingInput = document.getElementById('polCtxSearchInput');
+    const editedQuery = existingInput?.value.trim() && existingInput.value !== ctx.risView.query && !isGeneratedSearchInput(existingInput);
+    if (ctx.risView.query && !editedQuery && !isGeneratedSearchInput(existingInput)) return UA.PoliticalContext.refreshPanel(ctx);
     const inputEl = document.getElementById('polCtxSearchInput');
     const previousInput = inputEl?.value;
     const previousSearch = ctx.politicalSearchRequest;
@@ -647,7 +763,7 @@
    */
   UA.PoliticalContext.getSelectedReferences = function getSelectedReferences() {
     const checks = document.querySelectorAll('.polCtxCheck:checked');
-    return [...checks].map(cb => ({
+    const selected = [...checks].map(cb => ({
       id:            cb.dataset.id            || undefined,
       relatedTo:     cb.dataset.relatedTo     || undefined,
       snapshot:      JSON.parse(cb.dataset.snapshot || 'null') || undefined,
@@ -665,6 +781,12 @@
       snippet:       cb.dataset.snippet       || null,
       source:        cb.dataset.source        || null
     }));
+    if (!workspaceContext) return selected;
+    const retained = new Map(workspaceContext.politicalSelectedRecords || []);
+    for (const check of document.querySelectorAll('#polCtxResults .polCtxCheck:not(:checked)')) retained.delete(check.dataset.id || check.dataset.url);
+    for (const ref of selected) retained.set(ref.id || ref.url, ref);
+    workspaceContext.politicalSelectedRecords = retained;
+    return [...retained.values()];
   };
 
   UA.PoliticalContext.addReferences = async function addReferences(ctx, selected) {
@@ -698,6 +820,10 @@
     ctx.politicalContextCityRevision = Symbol('political-city');
     UA.RisDetails?.refresh(ctx);
     ctx.politicalSearchRequest = null;
+    ctx.politicalLoadedPageKey = null;
+    ctx.politicalPendingPageKey = null;
+    ctx.politicalSelectedRecords = new Map();
+    ctx.risView = normalizeView({ ...ctx.risView, query: '', sourceLevels: [], searchCursor: null, searchGeneration: null });
     ctx.politicalContextResearch = null;
     UA.lastPoliticalContextResearch = null;
     ctx.__uaPoliticalResearchKey = null;
@@ -705,6 +831,8 @@
     ctx.__uaPoliticalResearchPromise = null;
     const input = document.getElementById('polCtxSearchInput');
     if (input) { input.value = ''; generatedSearchInputs.delete(input); }
+    const level = document.getElementById('polCtxLevel');
+    if (level) level.value = '';
     const button = document.getElementById('polCtxBtnSearch');
     if (button) {
       button.disabled = false;
@@ -713,6 +841,8 @@
     for (const id of ['polCtxStatus', 'polCtxResults', 'polCtxBasis']) {
       document.getElementById(id)?.replaceChildren();
     }
+    projectWorkspace(ctx);
+    updateSelectionCount();
   };
 
   // ── Initialisierung ───────────────────────────────────────────────────────────
@@ -724,6 +854,7 @@
    * @param {object} ctx
    */
   UA.PoliticalContext.init = function init(ctx) {
+    workspaceContext = ctx;
     const btnOpen    = document.getElementById('btnPolCtxOpen');
     const btnClose   = document.getElementById('polCtxBtnClose');
     const btnSearch  = document.getElementById('polCtxBtnSearch');
@@ -740,6 +871,20 @@
       // Click-Handler-Promise keinen unhandled-rejection-Logspam verursacht.
       Promise.resolve(UA.PoliticalContext.openPanel(ctx)).catch(() => {});
     });
+    document.getElementById('btnRisBrowse')?.addEventListener('click', () => {
+      Promise.resolve(UA.PoliticalContext.openPanel(ctx)).catch(() => {});
+    });
+    document.getElementById('polCtxBtnCollapse')?.addEventListener('click', () => {
+      updateView(ctx, { listCollapsed: !ctx.risView?.listCollapsed });
+      UA.PoliticalContext.refreshPanel(ctx);
+    });
+    document.getElementById('polCtxLevel')?.addEventListener('change', () => {
+      Promise.resolve(runSearch(ctx)).catch(() => {});
+    });
+    document.getElementById('polCtxSearchInput')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); Promise.resolve(runSearch(ctx)).catch(() => {}); }
+    });
+    window.matchMedia?.('(max-width: 980px)').addEventListener?.('change', () => projectWorkspace(ctx));
 
     // Panel schließen
     if (btnClose) {

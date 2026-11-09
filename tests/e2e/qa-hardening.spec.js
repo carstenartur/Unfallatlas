@@ -173,18 +173,25 @@ test.describe('QA-Härtung – Export-Dialog', () => {
 });
 
 test.describe('QA-Härtung – Politische Recherche', () => {
-  test('Dialog öffnet und zeigt klaren Mehrwert + Lade/Leer/Fehler-Slot', async ({ page }) => {
+  test('Arbeitsbereich öffnet mit Suche, Quellenebenen und Lade/Leer/Fehler-Slot', async ({ page }) => {
     await openApp(page);
 
     await page.locator('#btnPolCtxOpen').click();
     const panel = page.locator('#polCtxPanel');
     await expect(panel).toBeVisible();
-    // Mehrwert-Erklärung im Panel-Text.
-    await expect(panel).toContainText(/Anträg|Beschlüsse|Verwaltungsantworten/);
+    await expect(panel).toHaveAttribute('aria-modal', 'false');
+    await expect(panel.getByRole('heading', { name: 'Ratsdokumente', exact: true })).toBeVisible();
+    // Recherche in amtlichen Quellen bleibt auch ohne Kartenlage nutzbar.
+    await expect(panel).toContainText(/verfügbaren amtlichen Quellen/);
+    await expect(panel).toContainText(/ohne Kartenlage öffnen/);
+    await expect(panel.getByRole('searchbox', { name: 'Thema, Straße oder Drucksachennummer' })).toBeVisible();
+    const levels = panel.getByRole('combobox', { name: 'Quellenebene' });
+    await expect(levels).toBeVisible();
+    await expect(levels.locator('option')).toHaveText(['Alle Ebenen', 'Stadt', 'Region', 'Land', 'Deutschland', 'EU']);
     // Status-Container für Lade/Leer/Fehler ist im DOM.
     await expect(panel.locator('#polCtxStatus')).toHaveCount(1);
     await expect(panel.locator('#polCtxResults')).toHaveCount(1);
-    // Dialog wieder schließen, damit nachfolgende Tests sauber starten.
+    // Arbeitsbereich wieder schließen, damit nachfolgende Tests sauber starten.
     await page.locator('#polCtxBtnClose').click();
     await expect(panel).toBeHidden();
   });

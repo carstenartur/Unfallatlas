@@ -485,6 +485,7 @@ if (UA.qBool("export", false)) {
         // Detail resolution is independent of map geometry and must see the
         // finished canonical state, including a restored city-only session.
         UA.RisDetails?.refresh(ctx);
+        UA.PoliticalContext?.refreshPanel?.(ctx);
       } catch (e) {
         console.warn("RIS-Detailansicht nach Hydration konnte nicht geöffnet werden:", e);
       }
