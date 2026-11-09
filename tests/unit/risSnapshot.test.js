@@ -486,3 +486,23 @@ test('rejects more than 50,000 records without publishing a manifest', async () 
   await expect(writeRisSnapshot(directory, 'bonn', catalogue(records))).rejects.toThrow(/record count/i);
   expect(await fs.readdir(directory)).toEqual([]);
 });
+
+test.each([1, 2])('retains parsed address ranges and suffixes through the real snapshot v%s API', async schemaVersion => {
+  const { enrichRisLocations } = require('../../server/political-context/services/risLocation');
+  const title = 'Radverkehr Adenauerallee 12 A, 12-14 und 12/14';
+  const records = enrichRisLocations([{ ...original, title }], { city: 'bonn', gazetteer: {
+    city: 'bonn', attribution: 'Verified address fixture',
+    entries: [{ name: 'Adenauerallee', kind: 'street', streetKey: 'adenauer',
+      geometry: { type: 'LineString', coordinates: [[7.108, 50.727], [7.109, 50.728]] } }],
+    addresses: { adenauer: { '12': [7.108, 50.727], '12a': [7.109, 50.728] } },
+  } });
+  await writeRisSnapshot(directory, 'bonn', catalogue(records), { schemaVersion });
+  const snapshot = await readRisSnapshot(directory, 'bonn');
+  expect(snapshot.records[0].locations).toEqual([
+    { label: 'Adenauerallee 12 A', kind: 'address', evidence: { source: 'title', text: title }, mapped: true },
+    { label: 'Adenauerallee 12-14', kind: 'address', evidence: { source: 'title', text: title }, mapped: false },
+    { label: 'Adenauerallee 12/14', kind: 'address', evidence: { source: 'title', text: title }, mapped: false },
+  ]);
+  expect(snapshot.features.features).toHaveLength(1);
+  expect(snapshot.features.features[0].geometry).toEqual({ type: 'Point', coordinates: [7.109, 50.728] });
+});

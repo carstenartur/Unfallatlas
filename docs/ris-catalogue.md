@@ -266,6 +266,15 @@ und einen vorhandenen Fehler-/Ablaufvermerk. Eine neue Ortsprüfrevision ist ein
 Schritt: Sie bewertet vorhandene Titel, gespeicherte Belege und amtliche Lagen gegen
 das aktuelle geprüfte Ortsverzeichnis. Begrenzte Belege werden entsprechend bezeichnet.
 
+Hausnummern einschließlich Zusätzen, Listen und Angaben wie `12-14`, `12 bis 14`
+oder `12/14` bleiben als Adressbezug mit ihrer Fundstelle erhalten. Eine Kartenposition
+entsteht nur aus dem vollständigen passenden Adressschlüssel im geprüften
+Ortsverzeichnis; ein unbekannter Bereich wird weder auf seine erste Hausnummer noch
+auf den ganzen Straßenverlauf gelegt. `Nr.12` und `Hausnr. 12` werden ebenfalls
+erkannt. Bei Regionsvorlagen muss die unmittelbare Stadtzuordnung im selben Satz
+auch zur vollständigen Adressangabe passen. Ortsprüfrevision 4 bewertet dafür ältere
+Bestände erneut, ohne Quellenzeiten zu erneuern oder fehlende Volltexte zu ergänzen.
+
 Ein Quellenfehler oder eine lokale Formatänderung erzeugt keine neue Quellenzeit.
 Auch beibehaltene Vorgänge, die im nächsten Abruf fehlen, behalten ihre ursprüngliche
 Verifikationszeit. Ein frisch aktualisierter Stadtteil des Katalogs erneuert keine

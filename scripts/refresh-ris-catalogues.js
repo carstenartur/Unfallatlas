@@ -28,7 +28,7 @@ const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 60 * 60_000 };
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
-const LOCATION_REVISION = 3;
+const LOCATION_REVISION = 4;
 const HISTORY_START_YEAR = 2014;
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
@@ -137,13 +137,20 @@ async function validateRisDirectory(directory, { requireAll = false, now = new D
 
 async function fetchPublishedFile(fetch, filename, { manifest = false } = {}) {
   const url = new URL(filename, PUBLISHED_DIRECTORY).href;
-  const response = await fetch(url, {
-    redirect: 'error', credentials: 'omit', cache: manifest ? 'no-cache' : 'force-cache',
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) {
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetch(url, {
+      redirect: 'error', credentials: 'omit', cache: manifest ? 'no-cache' : 'force-cache',
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (response.ok) break;
     await response.body?.cancel();
     if (manifest && response.status === 404) return null;
+    // Retry only temporary HTTP failures, before accepting or reading any bytes.
+    if ([502, 503, 504].includes(response.status) && attempt < 2) {
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      continue;
+    }
     throw new Error(`Published RIS file ${filename}: HTTP ${response.status}`);
   }
   if (!response.body) throw new Error(`Published RIS file ${filename} has no response body`);

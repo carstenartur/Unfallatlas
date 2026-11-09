@@ -510,6 +510,8 @@
                                 <goals><goal>npm</goal></goals>
                                 <configuration>
                                     <arguments>run qa:documentation-live</arguments>
+                                    <!-- Required profile evidence must run even when ordinary tests are skipped. -->
+                                    <skipTests>false</skipTests>
                                     <environmentVariables>
                                         <DOCUMENTATION_LIVE_LINKS>${documentation.liveLinks}</DOCUMENTATION_LIVE_LINKS>
                                     </environmentVariables>

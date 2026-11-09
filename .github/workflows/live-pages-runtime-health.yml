@@ -21,6 +21,7 @@ on:
       - 'scripts/run-live-documentation-qa.js'
       - 'tests/e2e/documentation-deeplinks.live.spec.js'
       - 'tests/unit/criticalRuntimeRecovery.test.js'
+      - 'tests/unit/liveDocumentationQa.test.js'
       - 'out/**'
       - 'data/**'
   workflow_run:
@@ -99,5 +100,5 @@ jobs:
             out/qa/documentation-media.json
             playwright-report/
             test-results/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30

@@ -558,3 +558,129 @@ test('preserves official Region geometry and incomplete evidence flags without d
     reasons: ['gazetteer_unavailable', 'document_text_unavailable', 'evidence_truncated'], truncated: true,
   });
 });
+
+const addressGazetteer = {
+  city: 'hannover', attribution: 'Verified address fixture', addressAttribution: 'Verified address fixture',
+  entries: [{ ...limmerstrasse, streetKey: 'limmer' }],
+  addresses: { limmer: { '12': [9.712, 52.37], '12a': [9.713, 52.37], '14': [9.714, 52.37] } },
+};
+
+test.each([
+  ['12-14', '12-14'], ['12 bis 14', '12 bis 14'], ['12/14', '12/14'],
+  ['12 A – 14 B', '12 A-14 B'], ['12 / 14', '12/14'],
+])('retains the complete address compound %s without geocoding its first number', (tail, label) => {
+  const title = `Radverkehr in der Limmerstraße ${tail}`;
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([{ kind: 'address', label: `Limmerstraße ${label}`, evidence: { source: 'title', text: title } }]);
+  expect(record.locationAssessment.reasons).toContain('unmapped_location');
+});
+
+test.each(['Nr.12', 'Nr. 12', 'Hausnr. 12', 'Hausnummer 12'])('maps an explicit address abbreviation %s to its exact key', tail => {
+  const title = `Radverkehr in der Limmerstraße ${tail}`;
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([{ kind: 'address', label: 'Limmerstraße 12',
+    geometry: { type: 'Point', coordinates: [9.712, 52.37] }, attribution: 'Verified address fixture', evidence: { source: 'title', text: title } }]);
+});
+
+test('does not discard a range following an exact address in a mixed list', () => {
+  const title = 'Radverkehr Limmerstraße 12 A, 12 bis 14 und 99';
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.map(place => [place.label, place.geometry?.coordinates])).toEqual([
+    ['Limmerstraße 12 A', [9.713, 52.37]], ['Limmerstraße 12 bis 14', undefined], ['Limmerstraße 99', undefined],
+  ]);
+});
+
+test.each(['12-foo', '12/Schule', '12 bis Schule', '12345', '12abc', '12 -', '12/14abc', '12 km'])('never maps an address prefix from malformed or non-address tail %s', tail => {
+  const [record] = enrichRisLocations([{ title: `Radverkehr in der Limmerstraße ${tail}` }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.some(place => place.geometry)).toBe(false);
+});
+
+test.each([
+  ['12-14', ['Limmerstraße 12-14']], ['12 bis 14', ['Limmerstraße 12 bis 14']],
+  ['12/14', ['Limmerstraße 12/14']], ['Nr.12', ['Limmerstraße 12']],
+  ['Hausnr. 12', ['Limmerstraße 12']], ['12 A und 14', ['Limmerstraße 12 A', 'Limmerstraße 14']],
+])('retains a regional address %s directly qualified by Hannover', (tail, labels) => {
+  const title = `Radverkehr in der Limmerstraße ${tail} in Hannover`;
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.map(place => place.label)).toEqual(labels);
+  expect(record.locations.every(place => place.evidence.text === title)).toBe(true);
+});
+
+test.each([
+  'Radverkehr Limmerstraße 12-14 in Garbsen',
+  'Radverkehr Limmerstraße 12/14 in Hannover und in Garbsen',
+  'Radverkehr Limmerstraße 12-14 in Hannover. In Garbsen werden andere Straßen geprüft.',
+])('does not lend Hannover coordinates to another municipality in regional evidence: %s', title => {
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.some(place => place.geometry)).toBe(false);
+});
+
+test('requires the regional address city qualifier in the same sentence', () => {
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title: 'Radverkehr in Hannover',
+    locationEvidence: ['Radweg in der Limmerstraße 12-14. Die Maßnahme liegt in Hannover.'],
+  }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+});
+
+test.each([
+  'Radverkehr Limmerstraße Nr.12 in Hannover / Garbsen',
+  'Radverkehr Limmerstraße 12 in Hannover und Garbsen',
+  'Radverkehr Limmerstraße 12 A-foo',
+  'Radverkehr Limmerstraße 12 A bis Schule',
+])('rejects ambiguous non-address continuations rather than mapping an address prefix: %s', title => {
+  const [record] = enrichRisLocations([{ source: title.includes('Hannover') ? 'region-hannover-ris' : 'hannover-ris', title }],
+    { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.some(place => place.geometry)).toBe(false);
+});
+
+test.each(['12 A -', 'Hausnr.12-foo', 'Hausnr. 12/Schule'])('does not replace an invalid explicit address %s with the entire street', tail => {
+  const [record] = enrichRisLocations([{ title: `Radverkehr in der Limmerstraße ${tail}` }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.some(place => place.geometry)).toBe(false);
+});
+
+test('uses an address compound coordinate only when its complete authoritative key exists', () => {
+  const [record] = enrichRisLocations([{ title: 'Radverkehr Limmerstraße 12-14' }], { city: 'hannover', gazetteer: {
+    ...addressGazetteer, addresses: { limmer: { '12': [9.712, 52.37], '12-14': [9.716, 52.37] } },
+  } });
+  expect(record.locations).toMatchObject([{ kind: 'address', label: 'Limmerstraße 12-14',
+    geometry: { type: 'Point', coordinates: [9.716, 52.37] } }]);
+});
+
+test('does not map only a numeric prefix of an address list beyond its parsing bound', () => {
+  const [record] = enrichRisLocations([{ title: 'Radverkehr Limmerstraße 12, 14, 16, 18, 20, 22, 24, 26 und 28' }],
+    { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+});
+
+test.each(['12', '12-14', '12 und 14', '12, 14'])('retains a directly qualified Region address with a comma before Hannover: %s', tail => {
+  const title = `Radverkehr Limmerstraße ${tail}, in Hannover`;
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.length).toBe(tail.includes('und') || tail === '12, 14' ? 2 : 1);
+  expect(record.locations[0].label).toBe(tail === '12-14' ? 'Limmerstraße 12-14' : 'Limmerstraße 12');
+});
+
+test.each(['12', '12-14', '12 und 14', '12, 14'])('rejects a second comma-separated municipality after the Region city qualifier: %s', tail => {
+  const title = `Radverkehr Limmerstraße ${tail} in Hannover, Garbsen`;
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+});
+
+test.each(['Hausnr. unbekannt', 'Hausnr.unbekannt', 'Nr. unbekannt', 'Hausnummer unbekannt'])('does not infer a whole-street location from the explicit unknown address marker %s', tail => {
+  const title = `Radverkehr in der Limmerstraße ${tail}`;
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+  expect(record.title).toBe(title);
+});
+
+test.each(['Nr', 'Hausnr', 'Hausnummer', 'Hausnummern'])('does not map a whole street for the malformed attached numeric marker %s12-foo', prefix => {
+  const [record] = enrichRisLocations([{ title: `Radverkehr in der Limmerstraße ${prefix}12-foo` }],
+    { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+});
+
+test.each(['Nr', 'Hausnr', 'Hausnummer', 'Hausnummern'])('keeps the valid attached numeric marker %s12 mapped to its exact address', prefix => {
+  const [record] = enrichRisLocations([{ title: `Radverkehr in der Limmerstraße ${prefix}12` }],
+    { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toMatchObject([{ kind: 'address', label: 'Limmerstraße 12',
+    geometry: { type: 'Point', coordinates: [9.712, 52.37] } }]);
+});
