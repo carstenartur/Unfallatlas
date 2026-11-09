@@ -161,16 +161,18 @@ führt diese anhand der stabilen ID zusammen und erhält bestehende Auswahlen.
 Der gemeinsame Einstiegspunkt ist:
 
 ```sh
-node scripts/refresh-ris-catalogues.js --city hannover --history-start-year 2014
+node scripts/refresh-ris-catalogues.js --city hannover
 ```
 
 Ein begrenzter, erneut ausführbarer Durchlauf:
 
 ```sh
-node scripts/refresh-ris-catalogues.js --city hannover --history-start-year 2014 --work-budget 2000 --max-duration-ms 3480000
+node scripts/refresh-ris-catalogues.js --city hannover --work-budget 2000 --max-duration-ms 3480000
 ```
 
-Für Bonn gilt derselbe Einstiegspunkt mit `--city bonn`. Dort zählt das Arbeitsbudget
+Hannover beginnt standardmäßig mit dem ältesten angebotenen SIM-Jahr 1999.
+`--history-start-year` setzt bei Bedarf einen anderen Beginn. Für Bonn gilt
+derselbe Einstiegspunkt mit `--city bonn` und dem bisherigen Standardjahr 2014. Dort zählt das Arbeitsbudget
 Quellseiten. Hannover teilt ein gesetztes Budget zwischen SIM und ALLRIS: SIM zählt neu
 versuchte Dokumentdetails, ALLRIS die öffentlichen Seiten- und Detailabrufe. Die bestehende
 ergänzende Landtags-/Bekanntmachungssuche hat eigene Grenzen von zwei Katalogseiten und
@@ -223,9 +225,13 @@ Normaler Push, Wochenlauf und regulärer CLI-Aufruf behalten ihren bisherigen
 Retry-Vertrag. Nach der tatsächlichen Veröffentlichung werden Manifest,
 Datensatzanzahl und öffentlicher Build-Fingerprint gegen das CI-Artefakt geprüft.
 
-Hannover vergleicht jeden Jahrgang mit der von der amtlichen Suche angegebenen
-Tabellenzeilenzahl. Nicht verfügbare Detailseiten behalten die unabhängig geprüften
-Listendaten und eine sichtbare Einschränkung. Die stadtweite Suche verwendet
+Hannover prüft zuerst alle Jahreslisten und ruft anschließend die Details im
+verbleibenden Arbeitsbudget ab. Erreicht eine Jahresliste die SIM-Grenze von
+5.000 Zeilen, fragt der Importer die Veröffentlichungen vor, am und nach dem
+1. Juli getrennt ab. Die Teilabfragen müssen unter der Grenze bleiben und gemeinsam
+alle bereits beobachteten IDs enthalten. Die amtliche Vorlagennummer dient als
+Anzeige, wenn der Titel in der Liste fehlt und die Detailseite nicht verfügbar ist.
+Nicht verfügbare Details bleiben als Einschränkung sichtbar. Die stadtweite Suche verwendet
 `coverage.scope: "citywide"`; sie belegt keine Vollständigkeit des gesamten amtlichen
 Archivs, deshalb bleibt `coverage.complete: false`.
 

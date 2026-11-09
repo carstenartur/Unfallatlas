@@ -12,9 +12,10 @@ const FEEDS = [`${ROOT}RSS_Drucksachen_Rat.xml`, `${ROOT}RSS_Drucksachen_STBR.xm
 const SOURCE = 'hannover-sim';
 const DAY_MS = 86_400_000;
 const RSS_DAYS = 14;
+const SEARCH_RESULT_LIMIT = 5000;
 const MONTHS = 'jan feb mar apr may jun jul aug sep oct nov dec'.split(' ');
 const ATTRS = String.raw`((?:[^"'<>]|"[^"]*"|'[^']*')*)`;
-const NUMBER = /^((?:(?:[A-Z]{1,3}|\d{1,2})-)?\d{1,6})[-/](\d{4})((?:[ -]?[A-Z]{1,3}\d{1,3}){0,3})$/i;
+const NUMBER = /^((?:(?:[A-Z]{1,3}|\d{1,2})-)?\d{1,6})(\s*u\.\s*erg\.)?[-/](\d{4})((?:[ -]?[A-Z]{1,3}\d{1,3}){0,3})$/i;
 const ENTITIES = {
   nbsp: ' ', auml: 'ä', Auml: 'Ä', ouml: 'ö', Ouml: 'Ö', uuml: 'ü', Uuml: 'Ü', szlig: 'ß',
   apos: "'", ndash: '–', mdash: '—', hellip: '…', bdquo: '„', ldquo: '“', rdquo: '”',
@@ -90,11 +91,12 @@ function germanDate(value) {
 function documentNumber(value) {
   const parts = value.match(NUMBER);
   if (!parts) return null;
-  const [, prefix, year, ending] = parts;
+  const [, prefix, supplement, year, ending] = parts;
   const suffixes = ending.toUpperCase().match(/[A-Z]{1,3}\d{1,3}/g) || [];
   const suffix = suffixes.join('');
-  const baseKey = `${prefix.toUpperCase()}-${year}`;
-  return { key: baseKey + suffix, baseKey, suffix, number: [ `${prefix.toUpperCase()}/${year}`, ...suffixes ].join(' ') };
+  const baseKey = `${prefix.toUpperCase()}${supplement ? 'U.ERG.' : ''}-${year}`;
+  const number = [`${prefix.toUpperCase()}${supplement ? ' u. Erg.' : ''}/${year}`, ...suffixes].join(' ');
+  return { key: baseKey + suffix, baseKey, suffix, number };
 }
 
 function sourceLink(href, bases, kind) {
@@ -175,7 +177,7 @@ function parseSelector(text, url) {
   return archives;
 }
 
-function searchRequest(text, response, year) {
+function searchRequest(text, response, year, publication) {
   const { main } = htmlPage(text, SEARCH);
   const forms = elements(main, 'form');
   const form = forms.find(([, attrs]) => {
@@ -209,6 +211,7 @@ function searchRequest(text, response, year) {
   const selections = {
     Edit_SucheTyp: 'Vorlage', Edit_SucheKriterium: 'alle', Edit_SucheNach: '',
     Edit_Jahr: String(year), Edit_Maske: 'egal', Edit_Beratungsfolge: 'egal', Edit_Maximal: '0', Edit_SortierenNach: '4',
+    ...(publication ? { Edit_Veroeff_Operator: publication.operator, Edit_Veroeff_Datum: publication.date } : {}),
   };
   for (const [suffix, value] of Object.entries(selections)) {
     const names = [...new Set([...fields.keys(), ...choices.keys()])].filter(name => name.endsWith(`:${suffix}`));
@@ -225,11 +228,13 @@ function searchRequest(text, response, year) {
 
 function parseSearchResults(text, year) {
   const { main, bases } = htmlPage(text, SEARCH);
-  const countText = plain(main).match(/\b([\d.\s]+)\s+Dokumente?\s+wurde[n]?\s+gefunden\b/i);
-  const expected = countText && Number(countText[1].replace(/[.\s]/g, ''));
-  if (!Number.isSafeInteger(expected) || expected < 0) throw new Error('SIM-Suchliste ohne prüfbare Trefferzahl');
+  const summary = plain(main);
+  const countText = summary.match(/\b([\d.\s]+)\s+Dokumente?\s+wurde[n]?\s+gefunden\b/i);
   const table = elements(main, 'table').find(([, , content]) =>
     /Vorlagennummer/i.test(plain(content)) && /Vorlagentyp/i.test(plain(content)));
+  if (!countText && !table && /^Kein Dokument wurde gefunden(?:[.! ]|$)/i.test(summary)) return { documents: [], rows: 0 };
+  const expected = countText && Number(countText[1].replace(/[.\s]/g, ''));
+  if (!Number.isSafeInteger(expected) || expected < 0) throw new Error('SIM-Suchliste ohne prüfbare Trefferzahl');
   if (!table && expected) throw new Error('SIM-Suchliste ohne Vorlagentabelle');
   const documents = new Map();
   let rows = 0;
@@ -239,17 +244,52 @@ function parseSearchResults(text, year) {
     if (privateRow(attributes(attrs), plain(row))) throw new Error('Nichtöffentliche Zeile in der SIM-Suchliste');
     const number = documentNumber(plain(cells[1] || '').replace(/\s+/g, ''));
     const doc = links(cells[2] || '', bases, 'document').find(link => link.key === number?.key);
-    if (!doc || Number(doc.baseKey.slice(-4)) !== year || !doc.label) throw new Error('Unlesbare oder jahresfremde Vorlage in der SIM-Suchliste');
+    if (!doc || Number(doc.baseKey.slice(-4)) !== year) throw new Error('Unlesbare oder jahresfremde Vorlage in der SIM-Suchliste');
     const sourceDates = [...plain(cells[3] || '').matchAll(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/g)].map(match => germanDate(match[0]));
     if (!sourceDates[0]) throw new Error('Vorlage in der SIM-Suchliste ohne gültiges Datum');
     rows++;
-    documents.set(doc.key, {
+    const candidate = {
       ...doc, searchTitle: doc.label, searchType: plain(cells[0]), searchDate: sourceDates[0],
       sourceRevision: sourceDates.at(-1),
-    });
+    };
+    candidate.searchTitle ||= documents.get(doc.key)?.searchTitle || '';
+    documents.set(doc.key, candidate);
   }
   if (rows !== expected) throw new Error(`Unvollständige SIM-Suchliste: ${rows} von ${expected} Treffern`);
   return { documents: [...documents.values()], rows };
+}
+
+async function discoverSearchYear(load, year) {
+  async function search(publication) {
+    const request = await load(SEARCH, 'Suchformular', (text, response) => searchRequest(text, response, year, publication));
+    if (!request) throw new Error(`SIM-Suchformular für ${year} nicht verfügbar`);
+    const result = await load(SEARCH, 'Suchliste', text => parseSearchResults(text, year), false, request);
+    if (!result) throw new Error(`SIM-Suchliste für ${year} nicht vollständig verfügbar`);
+    return result;
+  }
+  const annual = await search();
+  if (annual.rows < SEARCH_RESULT_LIMIT) return annual;
+
+  // SIM may report the capped row count even with "Alle" selected. Its form
+  // accepts one publication-date comparison, including equality at the split.
+  const documents = new Map();
+  let rows = 0;
+  for (const operator of ['<', '=', '>']) {
+    const part = await search({ operator, date: `${year}-07-01` });
+    if (part.rows >= SEARCH_RESULT_LIMIT) throw new Error(`SIM-Suchliste für ${year} bleibt nach Datum begrenzt`);
+    rows += part.rows;
+    for (const doc of part.documents) {
+      const previous = documents.get(doc.key);
+      if (!previous || doc.sourceRevision > previous.sourceRevision ||
+        doc.sourceRevision === previous.sourceRevision && doc.searchTitle && !previous.searchTitle) {
+        documents.set(doc.key, doc);
+      }
+    }
+  }
+  if (annual.documents.some(doc => !documents.has(doc.key))) {
+    throw new Error(`SIM-Datumsabfragen für ${year} decken die Jahresliste nicht ab`);
+  }
+  return { rows, documents: [...documents.values()] };
 }
 
 function headingSection(markup, pattern, tag = 'h[34]') {
@@ -379,6 +419,7 @@ function evidenceQualification(result, includeLocationEvidence, checkedAt) {
 async function restoreCheckpointClocks(state, options) {
   if (typeof options.sourceCache?.getMetadata !== 'function') return false;
   const records = new Map((state.catalogue?.records || []).map(record => [record.id, record]));
+  for (const key of state.listOnlyKeys || []) records.delete(`${SOURCE}:${key}`);
   const entries = Object.entries(state.details || {}).filter(([key, detail]) => detail.result && detail.cacheClockVersion !== 1 &&
     (evidenceQualification(detail.result, options.includeLocationEvidence).locationEvidenceUnavailable ||
       records.get(`${SOURCE}:${key}`)?.locationEvidenceUnavailable));
@@ -408,12 +449,12 @@ async function restoreCheckpointClocks(state, options) {
 function parseDocument(text, doc, includeLocationEvidence) {
   const { main, bases } = htmlPage(text, doc.url);
   const h2 = elements(main, 'h2')[0];
-  const heading = plain(h2?.[2]).match(/^(.{1,100}?)\s+Nr\.?\s*(.+?):\s*(.+)$/i);
+  const heading = plain(h2?.[2]).match(/^(.{1,100}?)\s+Nr\.?\s*(.+?):\s*(.*)$/i);
   const number = heading && documentNumber(heading[2]);
   if (number?.key !== doc.key || privateRow(attributes(h2?.[1] || ''), heading?.[3])) {
     throw new Error('Keine öffentliche Drucksache mit der erwarteten Drucksachennummer');
   }
-  const title = heading[3];
+  const title = heading[3] || doc.searchTitle || doc.label || doc.number;
   const contentHeading = elements(main, 'h3').find(match => /^Inhalt der Drucksache/i.test(plain(match[2])));
   const metadata = visibleMeasureMarkup(main.slice(0, contentHeading?.index));
   const relatedSection = headingSection(metadata, /^verwandte Drucksachen\s*:?$/i);
@@ -544,7 +585,7 @@ function boundedOption(value, fallback, maximum) {
  * `requestText(url, { timeoutMs, maxBytes, method?, body?, cookie? })` may supply
  * { url, status, contentType, text, cookies? }. POST is limited to the public search form.
  */
-async function collectHannoverYear(options = {}) {
+async function collectHannoverYear(options = {}, verifiedList) {
   const now = new Date(options.now ?? Date.now());
   const today = BERLIN_DATE.format(now);
   const from = isoDate(options.from ?? `${Number(today.slice(0, 4)) - 1}-01-01`);
@@ -624,19 +665,18 @@ async function collectHannoverYear(options = {}) {
     return results.filter(Boolean);
   }
 
-  const searchDocuments = [];
+  const searchDocuments = verifiedList ?? [];
   if (searchMode) {
-    for (let year = Number(from.slice(0, 4)); year <= Number(to.slice(0, 4)); year++) {
-      const request = await load(SEARCH, 'Suchformular', (text, response) => searchRequest(text, response, year));
-      if (!request) throw new Error(`SIM-Suchformular für ${year} nicht verfügbar`);
-      const result = await load(SEARCH, 'Suchliste', text => parseSearchResults(text, year), false, request);
-      if (!result) throw new Error(`SIM-Suchliste für ${year} nicht vollständig verfügbar`);
-      searchDocuments.push(...result.documents);
-      options.report?.({ phase: 'search', year, rows: result.rows, documents: result.documents.length });
+    if (!verifiedList) {
+      for (let year = Number(from.slice(0, 4)); year <= Number(to.slice(0, 4)); year++) {
+        const result = await discoverSearchYear(load, year);
+        searchDocuments.push(...result.documents);
+        options.report?.({ phase: 'search', year, rows: result.rows, documents: result.documents.length });
+      }
     }
+    if (searchDocuments.length > maxDocuments) throw new Error(`Drucksachenlimit (${maxDocuments}) für ${searchDocuments.length} gefundene Vorlagen erreicht`);
     sources.add(SEARCH);
     bodies.add('Alle öffentlichen Gremien');
-    if (searchDocuments.length > maxDocuments) throw new Error(`Drucksachenlimit (${maxDocuments}) für ${searchDocuments.length} gefundene Vorlagen erreicht`);
   }
 
   const archiveInputs = searchMode ? [] : [{ url: RAT_ARCHIVE, label: 'Ratsversammlung' }];
@@ -702,19 +742,39 @@ async function collectHannoverYear(options = {}) {
     }
   }
 
-  const pending = [...candidates.values()];
   const yearWork = options.yearWork;
-  if (yearWork) {
-    yearWork.documents = searchDocuments;
-    yearWork.details ||= {};
-    yearWork.failedDetails = [];
-    yearWork.deferred = [];
-    yearWork.discoveryVerifiedAt = now.toISOString();
-    await options.saveWork();
+  const previousAnnual = new Set((yearWork?.documents || []).map(doc => `${SOURCE}:${doc.key}`));
+  const priorAuxiliaries = (yearWork?.catalogue?.records || []).filter(record =>
+    !previousAnnual.has(record.id) && Date.parse(record.detailVerifiedAt) <= now.getTime());
+  for (const record of priorAuxiliaries) {
+    const link = sourceLink(record.url, [ROOT], 'document');
+    if (!link || record.id !== `${SOURCE}:${link.key}` || candidates.has(link.key)) continue;
+    enqueue({ ...link, label: record.title }, { feedDate: record.date });
   }
+
+  const pending = [...candidates.values()];
+  if (yearWork) yearWork.details ||= {};
+  const failedDetails = [], deferred = [], listOnlyKeys = [];
   const found = [];
   const relations = new Map();
   const answers = new Set();
+  const checkpointRecords = new Map((yearWork?.catalogue?.records || []).map(record => [record.id, record]));
+  const checkpointListOnly = new Set(yearWork?.listOnlyKeys);
+  const toRecord = ({ doc, result }) => {
+    const parent = relations.get(doc.key);
+    return {
+      id: `${SOURCE}:${doc.key}`, title: result.title, number: doc.number,
+      type: documentType(doc, result, answers.has(doc.key)),
+      date: result.date || doc.searchDate || doc.feedDate || null, gremium: doc.agendaBody || doc.feedBodies?.join(', ') || result.gremium || null,
+      url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
+      ...(result.events === undefined ? {} : { events: result.events }),
+      ...(result.relationships === undefined ? {} : { relationships: result.relationships }),
+      ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
+      ...evidenceQualification(result, options.includeLocationEvidence),
+      ...(result.detailVerifiedAt ? { detailVerifiedAt: result.detailVerifiedAt } : {}),
+      ...(result.locationEvidenceTruncated ? { locationEvidenceTruncated: true } : {}),
+    };
+  };
   let attempted = 0;
   while (pending.length && attempted < maxDocuments && (yearWork || performance.now() < deadline)) {
     // A bounded work queue keeps the allowed connections busy when one
@@ -722,21 +782,25 @@ async function collectHannoverYear(options = {}) {
     const next = pending.splice(0, Math.min(searchMode ? 128 : concurrency, maxDocuments - attempted));
     attempted += next.length;
     const related = [];
+    const acquiredDetails = [];
     const readDocument = async doc => {
       const revision = `sim-v4-timeline:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
       const retained = yearWork?.details[doc.key];
-      if (retained?.revision === revision && now.getTime() - Date.parse(retained.checkedAt) < 7 * DAY_MS) {
+      const detailAge = now.getTime() - Date.parse(retained?.checkedAt);
+      if (retained?.revision === revision && detailAge >= 0 && detailAge < 7 * DAY_MS) {
         return { ...retained.result, ...evidenceQualification(retained.result, options.includeLocationEvidence, retained.checkedAt) };
       }
       const metadata = () => {
-        if (!retained?.result && !doc.searchTitle) return null;
+        if (!retained?.result && !doc.searchDate) return null;
+        if (!retained?.result) listOnlyKeys.push(doc.key);
         return { related: [], locationEvidence: [], ...retained?.result,
-          ...(doc.searchTitle ? { title: doc.searchTitle, rawType: doc.searchType, date: doc.searchDate } : {}),
+          ...(doc.searchDate ? { title: doc.searchTitle || retained?.result?.title || doc.number,
+            rawType: doc.searchType, date: doc.searchDate } : {}),
           locationEvidenceUnavailable: true,
           ...(retained?.result ? { detailVerifiedAt: retained.checkedAt } : {}) };
       };
       if (yearWork && (options.work.remaining <= 0 || performance.now() >= deadline)) {
-        yearWork.deferred.push(doc.key);
+        deferred.push(doc.key);
         return metadata();
       }
       if (yearWork) options.work.remaining--;
@@ -773,14 +837,19 @@ async function collectHannoverYear(options = {}) {
           }
         } else {
           result = await read();
-          if (!result && searchMode && doc.searchTitle) throw new Error('Keine verifizierte öffentliche Drucksache');
+          if (!result && searchMode && doc.searchDate) throw new Error('Keine verifizierte öffentliche Drucksache');
         }
-        if (yearWork && result) yearWork.details[doc.key] = { revision, checkedAt: result.detailVerifiedAt || now.toISOString(), result, doc };
+        if (yearWork && result) {
+          const checkedAt = result.detailVerifiedAt || now.toISOString();
+          result = { ...result, detailVerifiedAt: checkedAt };
+          yearWork.details[doc.key] = { revision, checkedAt, result, doc };
+          acquiredDetails.push({ doc, result });
+        }
         return result;
       } catch (error) {
         if (!searchMode && options.strict) throw error;
         if (!failureRecorded) {
-          const phase = !searchMode || doc.searchTitle ? 'Drucksachen' : 'Verknüpfte Drucksachen';
+          const phase = !searchMode || doc.searchDate ? 'Drucksachen' : 'Verknüpfte Drucksachen';
           const issue = failures.get(phase) || { count: 0, detail: String(error.message).slice(0, 160) };
           issue.count++;
           failures.set(phase, issue);
@@ -788,7 +857,7 @@ async function collectHannoverYear(options = {}) {
         if (!searchMode) return null;
         // An auxiliary link has no verified year-list metadata to publish.
         // Its absence must not discard the independently verified year lists.
-        if (yearWork) yearWork.failedDetails.push(doc.key);
+        if (yearWork) failedDetails.push(doc.key);
         return metadata();
       }
     };
@@ -819,7 +888,18 @@ async function collectHannoverYear(options = {}) {
     }
     if (searchMode || attempted % 100 < concurrency || !pending.length) options.report?.({ phase: 'documents', attempted, found: found.length, pending: pending.length });
     pending.unshift(...related);
-    if (yearWork) { yearWork.cursor = attempted; await options.saveWork(); }
+    if (acquiredDetails.length) {
+      // Commit the detail and its catalogue record together. An offline
+      // recovery can then use every completed batch with its actual clock.
+      for (const detail of acquiredDetails) {
+        const record = toRecord(detail);
+        checkpointRecords.set(record.id, record);
+        checkpointListOnly.delete(detail.doc.key);
+      }
+      yearWork.catalogue = { ...yearWork.catalogue, sources: [...sources], records: [...checkpointRecords.values()] };
+      yearWork.listOnlyKeys = [...checkpointListOnly];
+      await options.saveWork();
+    }
   }
   if (pending.length) {
     if (attempted >= maxDocuments) limited(`Drucksachenlimit (${maxDocuments}) erreicht; ${pending.length} verlinkte Drucksachen bleiben offen.`);
@@ -827,22 +907,16 @@ async function collectHannoverYear(options = {}) {
   }
   for (const [phase, issue] of failures) warnings.push(`${phase}: ${issue.count} Abruf(e) fehlgeschlagen. Erster Fehler: ${issue.detail}.`);
 
-  if (yearWork?.deferred.length) warnings.push(`Quellenarbeit ist fortsetzbar; ${yearWork.deferred.length} Drucksachen bleiben offen.`);
-  const records = found.map(({ doc, result }) => {
-    const parent = relations.get(doc.key);
-    return {
-      id: `${SOURCE}:${doc.key}`, title: result.title, number: doc.number,
-      type: documentType(doc, result, answers.has(doc.key)),
-      date: result.date || doc.searchDate || doc.feedDate || null, gremium: doc.agendaBody || doc.feedBodies?.join(', ') || result.gremium || null,
-      url: doc.url, source: SOURCE, ...(parent ? { relatedTo: `${SOURCE}:${parent}` } : {}),
-      ...(result.events === undefined ? {} : { events: result.events }),
-      ...(result.relationships === undefined ? {} : { relationships: result.relationships }),
-      ...(result.locationEvidence ? { locationEvidence: result.locationEvidence } : {}),
-      ...evidenceQualification(result, options.includeLocationEvidence),
-      ...(result.detailVerifiedAt ? { detailVerifiedAt: result.detailVerifiedAt } : {}),
-      ...(result.locationEvidenceTruncated ? { locationEvidenceTruncated: true } : {}),
-    };
-  });
+  if (deferred.length) warnings.push(`Quellenarbeit ist fortsetzbar; ${deferred.length} Drucksachen bleiben offen.`);
+  const records = found.map(toRecord);
+  if (priorAuxiliaries.length) {
+    const current = new Set(records.map(record => record.id));
+    for (const record of priorAuxiliaries) {
+      if (current.has(record.id)) continue;
+      records.push(record);
+      for (const source of yearWork.catalogue.sources) sources.add(source);
+    }
+  }
   records.sort((a, b) => a.id.localeCompare(b.id));
   const observed = [...dates].sort();
   const catalogue = {
@@ -852,8 +926,8 @@ async function collectHannoverYear(options = {}) {
       bodies: [...bodies].sort(), complete: false, warnings, ...(searchMode ? { scope: 'citywide' } : {}) },
   };
   if (yearWork) {
-    yearWork.pending = Boolean(yearWork.failedDetails.length || yearWork.deferred.length || pending.length);
-    yearWork.catalogue = catalogue;
+    Object.assign(yearWork, { documents: searchDocuments, discoveryVerifiedAt: now.toISOString(), catalogue, listOnlyKeys,
+      failedDetails, deferred, pending: Boolean(failedDetails.length || deferred.length || pending.length) });
     await options.saveWork();
   }
   return catalogue;
@@ -873,41 +947,69 @@ async function collectHannoverCatalogue(options = {}) {
   if (options.workBudget !== undefined && (!Number.isSafeInteger(options.workBudget) || options.workBudget < 0)) throw new TypeError('Invalid RIS work budget');
   const work = { remaining: options.workBudget ?? Infinity };
   const deadline = performance.now() + (options.maxDurationMs ?? 58 * 60_000);
+  const yearOptions = year => ({
+    ...options,
+    from: year === Number(from.slice(0, 4)) ? from : `${year}-01-01`,
+    to: year === Number(to.slice(0, 4)) ? to : `${year}-12-31`,
+    maxDurationMs: Math.max(1, Math.floor(deadline - performance.now())),
+  });
+  const save = (year, state) => options.checkpoint.write(SOURCE, scope, year, revision, state);
+  // Save each verified inventory and its list projection before fetching any
+  // details. A worker interruption must leave later years recoverable offline.
+  const states = new Map();
+  const staged = new Set();
+  for (const year of years) {
+    const state = await options.checkpoint.read(SOURCE, scope, year, revision) || {};
+    if (await restoreCheckpointClocks(state, options)) await save(year, state);
+    states.set(year, state);
+    if (requested.includes(year) && work.remaining > 0 && performance.now() < deadline) {
+      try {
+        await collectHannoverYear({ ...yearOptions(year), yearWork: state, work: { remaining: 0 }, includeRss: false,
+          report: event => { if (event.phase === 'search') options.report?.(event); },
+          saveWork: () => save(year, state) });
+        staged.add(year);
+      } catch (error) {
+        if (performance.now() < deadline) throw error;
+      }
+    }
+  }
   const catalogues = [];
   const annualDocuments = new Map();
+  const listVerifications = new Map();
   const mergedRecords = new Map();
   const pendingYears = [];
   let interrupted = false;
   for (const year of years) {
-    const state = await options.checkpoint.read(SOURCE, scope, year, revision) || {};
-    if (await restoreCheckpointClocks(state, options)) {
-      await options.checkpoint.write(SOURCE, scope, year, revision, state);
-    }
-    const requestedYear = requested.includes(year);
-    if (requestedYear && work.remaining > 0 && performance.now() < deadline) {
-      await collectHannoverYear({ ...options, yearWork: state, work,
-        from: year === Number(from.slice(0, 4)) ? from : `${year}-01-01`,
-        to: year === Number(to.slice(0, 4)) ? to : `${year}-12-31`,
-        maxDurationMs: Math.max(1, Math.floor(deadline - performance.now())),
-        saveWork: () => options.checkpoint.write(SOURCE, scope, year, revision, state),
-      });
-    } else if (requestedYear) { pendingYears.push(year); interrupted = true; }
+    const state = states.get(year);
+    if (staged.has(year)) {
+      if (work.remaining > 0 && performance.now() < deadline) {
+        await collectHannoverYear({ ...yearOptions(year), yearWork: state, work, saveWork: () => save(year, state) }, state.documents);
+      }
+    } else if (requested.includes(year)) { pendingYears.push(year); interrupted = true; }
     if (state.deferred?.length) interrupted = true;
     if (state.catalogue) {
       const documents = new Map((state.documents || []).map(doc => [`${SOURCE}:${doc.key}`, doc]));
+      const listClock = Date.parse(state.discoveryVerifiedAt);
+      const listOnlyKeys = new Set(state.listOnlyKeys);
       // A retained year need not be fetched again to correct its existing evidence
       // qualification or reapply the type from its verified annual discovery list.
       catalogues.push(state.catalogue);
       for (const record of state.catalogue.records) {
         const doc = documents.get(record.id);
-        if (doc?.searchType || doc?.searchTitle) annualDocuments.set(record.id, doc);
-        const detail = state.details?.[record.id.slice(SOURCE.length + 1)];
+        if (doc?.searchDate) annualDocuments.set(record.id, doc);
+        const listOnly = doc && listOnlyKeys.has(doc.key);
+        const detail = listOnly ? undefined : state.details?.[record.id.slice(SOURCE.length + 1)];
         const checkedAt = Date.parse(record.detailVerifiedAt || detail?.checkedAt);
         const projected = { ...record,
           ...(Number.isFinite(checkedAt) ? { detailVerifiedAt: new Date(checkedAt).toISOString() } : {}),
           type: documentType(doc, { ...record, rawType: detail?.result.rawType }, record.type === 'Verwaltungsantwort'),
           ...evidenceQualification(record, options.includeLocationEvidence, detail?.checkedAt),
         };
+        if (listOnly && projected.title === (doc.searchTitle || doc.number) &&
+          projected.date === doc.searchDate && projected.number === doc.number && projected.url === doc.url &&
+          !projected.events?.length && !projected.relationships?.length) {
+          listVerifications.set(record.id, { record: projected, time: listClock });
+        }
         mergedRecords.set(record.id, mergeYearRecord(mergedRecords.get(record.id), {
           record: projected, checkedAt: Number.isFinite(checkedAt) ? checkedAt : -Infinity,
         }));
@@ -918,8 +1020,20 @@ async function collectHannoverCatalogue(options = {}) {
   const records = [...mergedRecords.values()].map(({record}) => ({ ...record,
     type: documentType(annualDocuments.get(record.id), record),
   })).sort((a, b) => a.id.localeCompare(b.id));
+  // The annual inventory proves the age of list-only records. It cannot date
+  // old checkpoint detail content for which verification time was never saved.
+  const sourceClocks = records.map(record => {
+    if (record.detailVerifiedAt !== undefined) return Date.parse(record.detailVerifiedAt);
+    const verification = listVerifications.get(record.id);
+    if (verification && !record.locationEvidence?.length && record.locationEvidenceUnavailable &&
+      ['title', 'date', 'gremium', 'relatedTo', 'type'].every(field => verification.record[field] === record[field])) return verification.time;
+    return NaN;
+  });
+  const generatedAt = sourceClocks.length && sourceClocks.every(time => Number.isFinite(time) && time <= now.getTime())
+    ? new Date(sourceClocks.reduce((oldest, time) => Math.min(oldest, time), Infinity)).toISOString() : undefined;
   const coverage = catalogues.map(item => item.coverage);
   return { records, sources: [...new Set(catalogues.flatMap(item => item.sources))],
+    ...(generatedAt ? { generatedAt } : {}),
     history: { pending: pendingYears.length > 0, interrupted, pendingYears, requestedFrom: from, requestedTo: to },
     coverage: { from: coverage.map(item => item.from).filter(Boolean).sort()[0] || null,
       to: coverage.map(item => item.to).filter(Boolean).sort().at(-1) || null,

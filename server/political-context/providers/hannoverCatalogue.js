@@ -6,6 +6,7 @@ const { collectHannoverAdditionalSources } = require('./hannoverAdditionalSource
 const { composeHannoverCatalogue } = require('./hannoverCatalogueComposition');
 
 const REGION_HOST = 'ris.hannit.de';
+const HANNOVER_HISTORY_START_YEAR = 1999;
 function includesRegionSource(sources = []) {
   return sources.some(source => {
     try { return new URL(source).hostname === REGION_HOST; } catch (_) { return false; }
@@ -84,7 +85,7 @@ function combineHannoverCatalogues(city, region, { now = new Date(), additional 
   };
 }
 
-async function collectCombinedHannoverCatalogue({ now = new Date(), from = '2014-01-01',
+async function collectCombinedHannoverCatalogue({ now = new Date(), from = `${HANNOVER_HISTORY_START_YEAR}-01-01`,
   maxDurationMs = 58 * 60_000, workBudget, sourceCache, checkpoint, report = () => {},
   collectCity = collectHannoverCatalogue, collectRegion = collectRegionHannoverCatalogue,
   collectAdditional = collectHannoverAdditionalSources, onExclusions = () => {}, checkpointOnly = false } = {}) {
@@ -125,4 +126,4 @@ async function collectCombinedHannoverCatalogue({ now = new Date(), from = '2014
   return combineHannoverCatalogues(city, region, { now, additional });
 }
 
-module.exports = { combineHannoverCatalogues, collectCombinedHannoverCatalogue, includesRegionSource, historicalCityStart };
+module.exports = { HANNOVER_HISTORY_START_YEAR, combineHannoverCatalogues, collectCombinedHannoverCatalogue, includesRegionSource, historicalCityStart };

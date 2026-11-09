@@ -17,7 +17,7 @@ const { createRisSourceCache } = require('../server/political-context/services/r
 const { createRisSourceCheckpoint } = require('../server/political-context/services/risSourceCheckpoint');
 const { collectionProvenance } = require('../server/political-context/services/risProvenance');
 const { validateCheckpointRetry } = require('./ris-checkpoint-retry-options');
-const { collectCombinedHannoverCatalogue, includesRegionSource, historicalCityStart } = require('../server/political-context/providers/hannoverCatalogue');
+const { HANNOVER_HISTORY_START_YEAR, collectCombinedHannoverCatalogue, includesRegionSource, historicalCityStart } = require('../server/political-context/providers/hannoverCatalogue');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIRECTORY = path.join(ROOT, 'data', 'ris');
@@ -30,14 +30,14 @@ const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
 const LOCATION_REVISION = 5;
-const HISTORY_START_YEAR = 2014;
+const historyStartYears = { bonn: 2014, hannover: HANNOVER_HISTORY_START_YEAR };
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
 const ASSET_BYTES = 16 * 1024 * 1024;
 // Public manifests must not carry raw errors from source responses or local filesystem paths.
 const PUBLIC_REFRESH_FAILURE = 'Die letzte Aktualisierung der amtlichen Ratsdaten ist fehlgeschlagen.';
 
-async function collectOfficial(city, now, { previousCoverage, previousSourceStatuses, historyStartYear = HISTORY_START_YEAR, workBudget,
+async function collectOfficial(city, now, { previousCoverage, previousSourceStatuses, historyStartYear = historyStartYears[city], workBudget,
   maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {}, onExclusions = () => {}, checkpointOnly = false } = {}) {
   if (checkpointOnly && (city !== 'hannover' || workBudget !== 0)) throw new Error('Hannover checkpoint recovery requires zero source work');
   const sourceCache = createRisSourceCache({ directory: sourceDirectory, now: () => now.getTime() });
@@ -589,8 +589,10 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     let reason;
     const lastFailure = previous.manifest?.refreshFailure?.attemptedAt;
     const upgradeLocations = needsLocationAssessment(previous.manifest);
+    const previousSimStart = previous.manifest?.sourceStatuses?.find(source => source.source === 'hannover-sim')?.from
+      ?? previous.manifest?.coverage.from;
     const upgradeHistory = city === 'hannover' && (previous.manifest?.coverage.scope !== 'citywide' ||
-      previous.manifest?.coverage.from > `${sourceOptions.historyStartYear}-01-01` ||
+      previousSimStart > `${sourceOptions.historyStartYear}-01-01` ||
       previous.manifest?.coverage.warnings.some(warning => /Quellenarbeit ist fortsetzbar/.test(warning)));
     // Earlier catalogues declared the portal as a manual link with zero rows.
     // A declared URL alone does not establish that the regional import exists.
@@ -673,18 +675,20 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
 
 async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, now,
   fetchPublished = globalThis.fetch, collect = collectFromSource, restoreOnly = false, report = () => {},
-  historyStartYear = HISTORY_START_YEAR, workBudget, maxDurationMs, sourceDirectory, checkpointRetry } = {}) {
+  historyStartYear, workBudget, maxDurationMs, sourceDirectory, checkpointRetry } = {}) {
   if (!Array.isArray(cities) || !cities.length || cities.some(city => !Object.hasOwn(SOURCE_LIMIT_MS, city))) {
     throw new Error('Supported RIS cities: bonn, hannover');
   }
-  if (!Number.isInteger(historyStartYear) || historyStartYear < 1900 || historyStartYear > 9999) throw new TypeError('Invalid RIS historical start year');
+  if (historyStartYear !== undefined && (!Number.isInteger(historyStartYear) || historyStartYear < 1900 || historyStartYear > 9999)) {
+    throw new TypeError('Invalid RIS historical start year');
+  }
   if (workBudget !== undefined && (!Number.isSafeInteger(workBudget) || workBudget < 0)) throw new TypeError('Invalid RIS work budget');
   if (checkpointRetry !== undefined) {
     checkpointRetry = validateCheckpointRetry(checkpointRetry);
     if (restoreOnly || !cities.includes('hannover')) throw new Error('Checkpoint recovery requires a Hannover refresh');
     if (workBudget !== undefined && workBudget !== 0) throw new Error('Checkpoint recovery requires zero source work');
   }
-  const sourceOptions = { historyStartYear, workBudget: checkpointRetry ? 0 : workBudget, maxDurationMs, sourceDirectory,
+  const sourceOptions = { workBudget: checkpointRetry ? 0 : workBudget, maxDurationMs, sourceDirectory,
     ...(checkpointRetry ? { checkpointRetry, checkpointOnly: true } : {}) };
   const clock = now === undefined ? () => new Date() : () => now;
   const startedAt = clock();
@@ -692,7 +696,8 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
   await listDirectory(directory);
   const outcomes = await Promise.allSettled([...new Set(cities)].map(async city => {
     const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect,
-      restoreOnly: restoreOnly || Boolean(checkpointRetry && city !== 'hannover'), report, sourceOptions });
+      restoreOnly: restoreOnly || Boolean(checkpointRetry && city !== 'hannover'), report,
+      sourceOptions: { ...sourceOptions, historyStartYear: historyStartYear ?? historyStartYears[city] } });
     report(outcome);
     return outcome;
   }));
@@ -702,7 +707,7 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
 }
 
 function parseRefreshArguments(args) {
-  const usage = 'Usage: node scripts/refresh-ris-catalogues.js [--city bonn|hannover] [--restore-only] [--history-start-year 2014] [--work-budget N] [--max-duration-ms N]\n' +
+  const usage = 'Usage: node scripts/refresh-ris-catalogues.js [--city bonn|hannover] [--restore-only] [--history-start-year YYYY] [--work-budget N] [--max-duration-ms N]\n' +
     '       node scripts/refresh-ris-catalogues.js --checkpoint-retry hannover --source-cache-key KEY --min-records N\n' +
     '       node scripts/refresh-ris-catalogues.js --validate <directory> [--require-all]';
   if (args[0] === '--validate') {

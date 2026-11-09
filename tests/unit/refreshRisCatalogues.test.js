@@ -96,7 +96,7 @@ function fetchPages({ decoded = false, tamper } = {}) {
 }
 
 function refresh(options) {
-  return refreshRisCatalogues({ directory, now: NOW, fetchPublished: fetchPages(), ...options });
+  return refreshRisCatalogues({ directory, now: NOW, fetchPublished: fetchPages(), historyStartYear: 2014, ...options });
 }
 
 const checkpointRetry = { city: 'hannover', sourceCacheKey: 'ris-sources-v1-Linux-42502618892-1', minimumRecords: 3 };
@@ -183,7 +183,7 @@ test('checkpoint recovery restores Bonn without collecting it', async () => {
 
 test('checkpoint-only collection requires every historical year and never queries official sources', async () => {
   const sourceDirectory = path.join(root, 'source-cache');
-  const options = { sourceDirectory, checkpointOnly: true, workBudget: 0 };
+  const options = { sourceDirectory, checkpointOnly: true, workBudget: 0, historyStartYear: 2014 };
   await expect(collectOfficial('hannover', NOW, options)).rejects.toThrow(/checkpoint/i);
   const checkpoint = createRisSourceCheckpoint({ directory: sourceDirectory });
   for (let year = 2014; year < NOW.getUTCFullYear(); year++) {
@@ -216,6 +216,16 @@ test('checkpoint-only collection requires every historical year and never querie
     expect(externalFetch).not.toHaveBeenCalled();
     expect(externalHttps).not.toHaveBeenCalled();
   } finally { externalFetch.mockRestore(); externalHttps.mockRestore(); }
+});
+
+test('expands the published Hannover SIM range to the earliest offered year by default', async () => {
+  const previous = catalogue('hannover');
+  await writeRisSnapshot(published, 'hannover', previous, { now: FRESH });
+  const collect = jest.fn(async () => catalogue('hannover', { count: 3, from: '1999-01-01' }));
+  const [outcome] = await refresh({ cities: ['hannover'], historyStartYear: undefined, collect });
+  expect(collect).toHaveBeenCalledWith('hannover', NOW, expect.objectContaining({ historyStartYear: 1999 }));
+  expect(outcome).toMatchObject({ status: 'published', records: 3 });
+  expect((await readRisSnapshot(directory, 'hannover')).manifest.coverage.from).toBe('1999-01-01');
 });
 
 async function seedFallback(target) {
