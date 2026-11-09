@@ -53,17 +53,13 @@ describe('UA.computeExportReport – PR-E enrichment-sources note', () => {
     }, extra || {});
   }
 
-  test('exposes ENRICHMENT_SOURCES_NOTE constant on UA with required source attribution', () => {
+  test('unloaded provenance fallback does not invent source attribution', () => {
     expect(UA.ENRICHMENT_SOURCES_NOTE).toBeDefined();
     expect(typeof UA.ENRICHMENT_SOURCES_NOTE.title).toBe('string');
     expect(UA.ENRICHMENT_SOURCES_NOTE.title).toMatch(/Kontextdaten/);
     expect(Array.isArray(UA.ENRICHMENT_SOURCES_NOTE.sources)).toBe(true);
-    expect(UA.ENRICHMENT_SOURCES_NOTE.sources.length).toBeGreaterThanOrEqual(2);
-    // Plan-Anforderung („SRTM 30 m via OpenTopography, OSM Stand …"):
-    // SRTM-Quelle und OSM-Quelle müssen separat ausgewiesen sein.
-    const labels = UA.ENRICHMENT_SOURCES_NOTE.sources.map(s => s.label).join(' | ');
-    expect(labels).toMatch(/SRTM/);
-    expect(labels).toMatch(/OpenStreetMap/i);
+    expect(UA.ENRICHMENT_SOURCES_NOTE.sources).toEqual([]);
+    expect(UA.ENRICHMENT_SOURCES_NOTE.body).toContain('noch nicht verfügbar');
     // Disclaimer-Botschaft („Umgebung, nicht Ursache") muss erhalten bleiben.
     expect(UA.ENRICHMENT_SOURCES_NOTE.body).toMatch(/Umgebung/);
     expect(UA.ENRICHMENT_SOURCES_NOTE.body).toMatch(/nicht.*(Ursach|Ursachen)/i);
@@ -95,10 +91,10 @@ describe('UA.computeExportReport – PR-E enrichment-sources note', () => {
     expect(r.structured.enrichmentSourcesNote).toBe(UA.ENRICHMENT_SOURCES_NOTE);
     // TEXT contains title + at least one source label.
     expect(r.text).toContain(UA.ENRICHMENT_SOURCES_NOTE.title);
-    expect(r.text).toMatch(/SRTM/);
-    expect(r.text).toMatch(/OpenStreetMap/);
+    expect(r.text).toContain('noch nicht verfügbar');
+    expect(r.text).not.toMatch(/SRTM|OSM-highway-Proxy/);
     // HTML contains title and at least one source URL.
     expect(r.html).toContain(UA.ENRICHMENT_SOURCES_NOTE.title);
-    expect(r.html).toMatch(/openstreetmap\.org/);
+    expect(r.html).toContain('noch nicht verfügbar');
   });
 });

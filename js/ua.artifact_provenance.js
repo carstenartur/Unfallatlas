@@ -464,7 +464,38 @@
       });
     }
 
+    // Display-only projection. Never write these fragments back into a manifest.
+    function projectQualityNote(value) {
+      const original = String(value);
+      const runs = [];
+      const plain = text => {
+        if (text) runs.push({ text: text.replace(/\b[0-9a-f]{64}\b/gi,
+          hash => `Prüfcode (gekürzt): ${hash.slice(0, 12)}…`) });
+      };
+      let cursor = 0;
+      for (const match of original.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+        plain(original.slice(cursor, match.index));
+        let url = match[0];
+        // Sentence punctuation is not part of the target; query delimiters within
+        // the token and balanced parentheses remain byte-for-byte unchanged.
+        while (/[.,;!]$/.test(url) || (url.endsWith(')') &&
+          (url.match(/\)/g) || []).length > (url.match(/\(/g) || []).length)) url = url.slice(0, -1);
+        let parsed;
+        try { parsed = new URL(url); } catch (_) { parsed = null; }
+        if (parsed && ['https:', 'http:'].includes(parsed.protocol) && !parsed.username && !parsed.password) {
+          const label = /Standortdistribution:\s*$/i.test(original.slice(0, match.index))
+            ? 'Amtliche Standortdaten' : `Quellenbeleg (${parsed.hostname})`;
+          runs.push({ text: label, url });
+          plain(match[0].slice(url.length));
+        } else plain(match[0]);
+        cursor = match.index + match[0].length;
+      }
+      plain(original.slice(cursor));
+      return { text: runs.map(run => run.text).join(''), runs };
+    }
+
     return Object.freeze({
+      projectQualityNote,
       SIDECAR_SCHEMA_VERSION,
       SOURCE_IDS_PROPERTY,
       MANIFEST_HASH_PROPERTY,

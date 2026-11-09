@@ -265,12 +265,12 @@
       // browsers even though every script returned HTTP 200.
       const coreModules = [
         moduleUrl("ua.source_manifest.js?v=2026-07-22"),
-        moduleUrl("ua.artifact_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.artifact_provenance.js?v=2026-11-08-source-note-links"),
         moduleUrl("ua.zip.js?v=2026-07-22"),
-        moduleUrl("ua.export_provenance.js?v=2026-11-08-context"),
+        moduleUrl("ua.export_provenance.js?v=2026-11-08-provenance-context-copy"),
         moduleUrl("ua.accident_year_provenance.js?v=2026-07-23"),
-        moduleUrl("ua.kml_export_provenance.js?v=2026-07-22"),
-        moduleUrl("ua.document_export_provenance.js?v=2026-07-22"),
+        moduleUrl("ua.kml_export_provenance.js?v=2026-11-08-typed-context-export"),
+        moduleUrl("ua.document_export_provenance.js?v=2026-11-08-frozen-export-scope"),
       ];
       const documentAdapters = [
         moduleUrl("ua.document_export_prewarm.js?v=2026-07-22"),

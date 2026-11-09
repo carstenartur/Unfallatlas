@@ -117,7 +117,7 @@ function inspectPdf(buffer) {
   return JSON.parse(result.stdout);
 }
 
-function setupRuntime() {
+function setupRuntime({ legacySource = true } = {}) {
   jest.resetModules();
   const docx = require('docx');
   const pdfMake = require('pdfmake/build/pdfmake');
@@ -140,8 +140,10 @@ function setupRuntime() {
       const document = new Document({
         sections: [{ children: [
           new Paragraph({ text: 'Base DOCX document' }),
-          new Paragraph({ text: 'DATENQUELLE', heading: HeadingLevel.HEADING_2 }),
-          new Paragraph({ text: LEGACY_SOURCE }),
+          ...(legacySource ? [
+            new Paragraph({ text: 'DATENQUELLE', heading: HeadingLevel.HEADING_2 }),
+            new Paragraph({ text: LEGACY_SOURCE }),
+          ] : []),
         ] }],
       });
       produced.word = await Packer.toBlob(document);
@@ -168,6 +170,22 @@ describe('live PDF/DOCX exports use the shared SourceManifest', () => {
     delete window.UA;
     jest.restoreAllMocks();
     jest.resetModules();
+  });
+
+  test.each([true, false])('DOCX source heading keeps its first body paragraph on the same page (legacySource=%s)', async legacySource => {
+    const { produced } = setupRuntime({ legacySource });
+    await window.UA.exportToWord({ artifactId: 'docx-heading-pagination' });
+    const archive = await JSZip.loadAsync(new Uint8Array(await blobToArrayBuffer(produced.word)));
+    const xml = await archive.file('word/document.xml').async('string');
+    const document = new DOMParser().parseFromString(xml, 'application/xml');
+    const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const paragraphs = [...document.getElementsByTagNameNS(ns, 'p')];
+    const index = paragraphs.findIndex(p => p.textContent === 'DATENQUELLEN, METHODIK UND NACHVOLLZIEHBARKEIT');
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(paragraphs[index].getElementsByTagNameNS(ns, 'keepNext')).toHaveLength(1);
+    expect(paragraphs[index + 1].textContent).toContain('Dieser Abschnitt nennt Datenquellen');
+    // Keep only the heading with the introduction, not the entire long source section.
+    expect(paragraphs[index + 1].getElementsByTagNameNS(ns, 'keepNext')).toHaveLength(0);
   });
 
   test('DOCX contains visible provenance and real external hyperlink relationships', async () => {

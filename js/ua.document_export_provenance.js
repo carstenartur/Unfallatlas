@@ -7,14 +7,16 @@
  * renderer-neutral source view with real external hyperlinks.
  */
 (function initDocumentExportProvenance(root, factory) {
-  const api = factory();
+  const artifactProvenance = typeof module !== "undefined" && module.exports
+    ? require("./ua.artifact_provenance") : root?.UA?.artifactProvenance;
+  const api = factory(artifactProvenance);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) {
     const UA = (root.UA = root.UA || {});
     UA.documentExportProvenance = api;
     if (UA.exportProvenanceRuntime && UA.artifactProvenance) api.install(UA, root);
   }
-})(typeof window !== "undefined" ? window : null, function createDocumentExportProvenanceApi() {
+})(typeof window !== "undefined" ? window : null, function createDocumentExportProvenanceApi(artifactProvenance) {
   "use strict";
 
   const LEGACY_SOURCE_HEADING = "DATENQUELLE";
@@ -287,7 +289,8 @@
         margin: [0, 0, 0, source.qualityNotes.length ? 2 : 5],
       });
       source.qualityNotes.forEach((note) => nodes.push({
-        text: `Grenzen: ${note}`,
+        text: ["Grenzen: ", ...artifactProvenance.projectQualityNote(note).runs.map(
+          run => run.url ? pdfLink(run.text, run.url) : run.text)],
         margin: [0, 0, 0, 2],
       }));
     });
@@ -317,11 +320,17 @@
   async function createSnapshot(ctx, UA, root) {
     requireRuntime(UA);
     const manifest = await UA.exportProvenanceRuntime.createManifest(ctx, { UA, root });
+    // Retain the exact snapshot before normalization creates a new manifest
+    // object and another export may replace the original context's cache.
+    const bound = UA.exportProvenance?.bindExportContext
+      ? UA.exportProvenance.bindExportContext(UA, ctx, manifest) : ctx;
     const normalized = await UA.artifactProvenance.normalizeAndHash(manifest);
     const view = buildSourceView(normalized);
     validateSourceView(UA, view);
     return Object.freeze({
       manifest: normalized.manifest,
+      boundContext: UA.exportProvenance?.bindExportContext
+        ? UA.exportProvenance.bindExportContext(UA, bound, normalized.manifest) : bound,
       sourceManifestSha256: normalized.sha256,
       view,
     });
@@ -404,7 +413,8 @@
         spacing: { after: source.qualityNotes.length ? 40 : 100 },
       }));
       source.qualityNotes.forEach((note) => nodes.push(new docx.Paragraph({
-        text: `Grenzen: ${note}`,
+        children: [docxTextRun(docx, "Grenzen: "), ...artifactProvenance.projectQualityNote(note).runs.map(
+          run => run.url ? docxLink(docx, run.text, run.url) : docxTextRun(docx, run.text))],
         spacing: { after: 40 },
       })));
     });
@@ -481,7 +491,7 @@
       let next = options;
       let marker = null;
       if (options?.text === LEGACY_SOURCE_HEADING) {
-        next = { ...options, text: SOURCE_HEADING };
+        next = { ...options, text: SOURCE_HEADING, keepNext: true };
         marker = "heading";
       } else if (options?.text === LEGACY_SOURCE_TEXT) {
         next = { ...options, text: SOURCE_INTRO };
@@ -509,6 +519,7 @@
           children.push(
             new OriginalParagraph({
               text: SOURCE_HEADING,
+              keepNext: true,
               heading: docx.HeadingLevel?.HEADING_2,
               pageBreakBefore: true,
               spacing: { before: 400, after: 200 },
@@ -604,10 +615,14 @@
 
     const run = (format, ctx, original, args) => serialize(async () => {
       const snapshot = await createSnapshot(ctx, UA, root);
+      const bound = snapshot.boundContext;
+      const note = UA.exportProvenance?.buildContextNote?.(UA, bound, { sourceDetailsIncluded: true });
+      const rendererArgs = args.map((value, index) => index === 0 && value?.structured && note !== undefined
+        ? { ...value, structured: { ...value.structured, enrichmentSourcesNote: note } } : value);
       await ensureLibraries();
       const result = format === "docx"
-        ? await withDocxBoundary(root, snapshot.view, () => original.call(UA, ctx, ...args))
-        : await withPdfBoundary(root, snapshot.view, () => original.call(UA, ctx, ...args));
+        ? await withDocxBoundary(root, snapshot.view, () => original.call(UA, bound, ...rendererArgs))
+        : await withPdfBoundary(root, snapshot.view, () => original.call(UA, bound, ...rendererArgs));
       return Object.freeze({
         format,
         manifest: snapshot.manifest,

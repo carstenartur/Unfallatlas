@@ -52,7 +52,7 @@
     return labels;
   }
 
-  function placemark(point) {
+  function placemark(point, contextFields = {}) {
     const props = point?.props || {};
     const year = props.year ?? "";
     const category = props.ukategorie ?? "";
@@ -65,6 +65,7 @@
       `<Data name="ustunde"><value>${escapeXml(props.ustunde ?? "")}</value></Data>` +
       `<Data name="uwochentag"><value>${escapeXml(props.uwochentag ?? "")}</value></Data>` +
       `<Data name="strzustand"><value>${escapeXml(props.strzustand ?? "")}</value></Data>` +
+      Object.entries(contextFields).map(([key,value]) => `<Data name="${escapeXml(key)}"><value>${escapeXml(value && typeof value === 'object' ? JSON.stringify(value) : value ?? '')}</value></Data>`).join('') +
       `</ExtendedData><Point><coordinates>${escapeXml(point.lon)},${escapeXml(point.lat)},0</coordinates></Point></Placemark>`;
   }
 
@@ -78,14 +79,14 @@
       throw new Error("missing_dependency: live export point selector is unavailable");
     }
     const city = String(ctx?.CITY_RAW || "");
-    const points = UA.exportProvenance.exportPoints(UA, ctx);
+    const points = (UA.exportProvenance.boundExportPoints || UA.exportProvenance.exportPoints)(UA, ctx);
     const parts = new Array(points.length + 2);
     parts[0] = `<?xml version="1.0" encoding="UTF-8"?>` +
       `<kml xmlns="http://www.opengis.net/kml/2.2"><Document>` +
       `<name>${escapeXml(`Unfallatlas ${city} ${generatedDate}`)}</name>` +
       `<description>Exportierte Unfalldaten</description>${documentExtendedData}`;
     for (let index = 0; index < points.length; index += 1) {
-      parts[index + 1] = placemark(points[index]);
+      parts[index + 1] = placemark(points[index], ctx?.exportContextEvidence === false ? {} : UA.exportProvenance.dataContextProperties?.(points[index].props) || {});
     }
     parts[parts.length - 1] = `</Document></kml>`;
     return Object.freeze({
@@ -150,7 +151,8 @@
       try {
         const manifest = await createManifest(ctx, { UA, root });
         const extended = await buildKmlExtendedData(manifest);
-        const built = buildKmlParts(UA, ctx, undefined, extended.xml);
+        const bound = UA.exportProvenance?.bindExportContext ? UA.exportProvenance.bindExportContext(UA, ctx, manifest) : ctx;
+        const built = buildKmlParts(UA, bound, undefined, extended.xml);
         directDownload(root, built.parts, built.filename);
         return Object.freeze({
           filename: built.filename,

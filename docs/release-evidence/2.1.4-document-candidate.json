@@ -1,14 +1,124 @@
 {
   "schemaVersion": "unfallwerkbank.release-document-candidate/v1",
   "status": "awaiting-external-acceptance",
-  "renderSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-  "integratedReviewedSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-  "wordInputFingerprint": "a6b6865ec58ff59265f400b8f49575d363f877090d0ae11a2435488bae4291bc",
-  "sourceManifestHash": "39e381935a077e703825f259eb95c30dc5b89bf6974a993bed9b57743e022e8f",
+  "renderSourceCommit": "81f265f172f71a75130683fd4ac525cd6b5065a3",
+  "integratedReviewedSourceCommit": "81f265f172f71a75130683fd4ac525cd6b5065a3",
+  "renderSourceTree": "321f5a84400a6be48bed2fcec9ebb2d07e543f3c",
+  "publishedEquivalentCodeCommit": "72686d7aa24ad016caded7472fcceaa91dbdc60f",
+  "publishedEquivalentCodeTree": "321f5a84400a6be48bed2fcec9ebb2d07e543f3c",
+  "commitRoles": "Actual local rendering used renderSourceCommit. The published equivalent code commit has the exact same tree. Any subsequent inventory/documentation-only commit does not change these renderer inputs.",
+  "generatedAt": "2026-11-08T23:08:57.476671+00:00",
+  "wordInputFingerprint": "fa545bc954845c2746eeb39b33c8131b3fb8b388c1e368062e85265b2ef97dab",
+  "wordInputEvidence": {
+    "schemaVersion": "unfallwerkbank.word-compatibility-inputs/v1",
+    "configPath": "config/word-compatibility-inputs.json",
+    "fingerprint": "fa545bc954845c2746eeb39b33c8131b3fb8b388c1e368062e85265b2ef97dab",
+    "files": [
+      {
+        "path": "js/ua.accident_year_provenance.js",
+        "bytes": 6578,
+        "sha256": "d7f3606c31c08419331932b2b192c3ddd49840f79ef1403d3ff8a17ea71f139f"
+      },
+      {
+        "path": "js/ua.ai_political_reference_bridge.js",
+        "bytes": 19170,
+        "sha256": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc"
+      },
+      {
+        "path": "js/ua.analysis_scope.js",
+        "bytes": 18780,
+        "sha256": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4"
+      },
+      {
+        "path": "js/ua.artifact_provenance.js",
+        "bytes": 17984,
+        "sha256": "62618e437aab939f273981bea81ba3eaa9e26fc83be4980b5649ce0529036716"
+      },
+      {
+        "path": "js/ua.document_export_prewarm.js",
+        "bytes": 7149,
+        "sha256": "b599c94392a4badf7a73d400b44101009a5fd2baf98cde1bebd0cc6adcf6048e"
+      },
+      {
+        "path": "js/ua.document_export_provenance.js",
+        "bytes": 27129,
+        "sha256": "abcddee480f90c02f5e04a03c2a088fc638de2bec8adf3445de1a996082d9da4"
+      },
+      {
+        "path": "js/ua.docx_pagination.js",
+        "bytes": 4846,
+        "sha256": "f3646f9ba9008d3632848db9aa3e84b5086a8c43347f97035ba0bfa0d00b4b58"
+      },
+      {
+        "path": "js/ua.docx_source_links.js",
+        "bytes": 6448,
+        "sha256": "c9a7e6bd8479f2924afcc51d89dab61da8e98d0108662d59fb07f373c1fb137c"
+      },
+      {
+        "path": "js/ua.evidence_cohort.js",
+        "bytes": 74639,
+        "sha256": "84ab14b5e4adc42435ea793c28a5674ccd63d56b4216d6e0258c197b44ed420b"
+      },
+      {
+        "path": "js/ua.export_provenance.js",
+        "bytes": 45197,
+        "sha256": "41a17363da7a717ca512a5e9868e790bcf270d2b605d7bd3ebcfc8d116c8985f"
+      },
+      {
+        "path": "js/ua.export_template_defaults.js",
+        "bytes": 19160,
+        "sha256": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22"
+      },
+      {
+        "path": "js/ua.export_v2.js",
+        "bytes": 165255,
+        "sha256": "ef54b394c82018167808b10f61f0dd10d03ee4c8e49ec7bda7f7dd52ec078eb8"
+      },
+      {
+        "path": "js/ua.report_v2.js",
+        "bytes": 242828,
+        "sha256": "116f2e86d205c096a087adc87ccf22bbabdab8e2dcf9070341bc0781d8514894"
+      },
+      {
+        "path": "js/ua.source_manifest.js",
+        "bytes": 25224,
+        "sha256": "9481f565f91685d94ac0152e61dfceec125f5d296b7034f5de646b3b606b713d"
+      },
+      {
+        "path": "scripts/generate-sample-docx.js",
+        "bytes": 22079,
+        "sha256": "270df130b2c1cec436b8002de7dc6daac0d1de0d704d93b726da632157af2cb3"
+      },
+      {
+        "path": "scripts/qa-numbered-appendix-rendered.js",
+        "bytes": 25786,
+        "sha256": "6be664662eacec802d432ee2b1adb4c7214fa72df0a72a258a1670c0b366b56e"
+      },
+      {
+        "path": "scripts/release-map-fixture.js",
+        "bytes": 10071,
+        "sha256": "719c820abeee5c36d87970a283ba051330ef2a14ef20bc9d0e4abfa318bb465a"
+      },
+      {
+        "path": "tests/fixtures/rendered-document/ci-docx-contract.json",
+        "bytes": 4398,
+        "sha256": "3450a8cdb102e0dc3d36285e8b138fba15438bd13eeca3539fccdb5711da6911"
+      }
+    ],
+    "packages": [
+      {
+        "name": "docx",
+        "version": "9.15.3",
+        "resolved": "https://registry.npmjs.org/docx/-/docx-9.15.3.tgz",
+        "integrity": "sha512-3FnU6K5cuvGXEAn24yhvP3mfrZ1G8k9+hH8pSVDYsMR+mGmfK/t0NR5AwoMQodnaaxiRt2e+SvckffcJe/NvTQ=="
+      }
+    ]
+  },
+  "sourceManifestHash": "fe93cf299844a88d87406013ba33e7fe4f808f1a356bda185ea00c13f31b3f17",
   "sourceGeoJsonSha256": "23afbd7bc25ad170e849734db9499ce60dbf15f792a79a41cc1f357413755cce",
   "sourceAcquisition": {
     "kind": "local-file-read",
-    "acquiredAt": "2026-11-08T18:40:04.441Z",
+    "acquiredAt": "2026-11-08T22:59:51.370Z",
     "upstreamRetrievedAt": null
   },
   "tools": {
@@ -16,40 +126,46 @@
     "npm": "11.9.0",
     "pdfmake": "0.3.14",
     "docx": "9.15.3",
-    "libreOffice": "LibreOfficeDev 26.8.0.0.alpha0",
+    "libreOffice": "LibreOfficeDev 26.8.0.0.alpha0 2c87e51eeaa2b413ff4ae097b2705eea1995d8e5",
     "poppler": "26.05.0",
     "mavenAvailable": false
   },
   "artifacts": [
     {
       "path": "out/ci-render-gate.docx",
-      "bytes": 83350,
-      "sha256": "66cfd053a96f7fb370bda203c5da4722febcc81f442dbe9cdb58299e0b01ca2a"
+      "bytes": 83366,
+      "sha256": "638d36387d42df1853da65101a3177773e5d6e9e4f425fa9d886c7514895dbbb",
+      "referencePages": 5
     },
     {
       "path": "out/ci-render-gate.pdf",
-      "bytes": 187090,
-      "sha256": "b55de2e4f2df9d2d48d648b67ae782b5077b66b3c8bf92667d7ca6ec1b1fedeb"
+      "bytes": 185404,
+      "sha256": "fdf29446268ecefa4b6b7153702d430cb3bcd3aca7d86ec96a6c9b49e2348003",
+      "referencePages": 5
     },
     {
       "path": "out/qa/rendered-document/docx/converted.pdf",
-      "bytes": 249402,
-      "sha256": "ff5caf97dc2b8c52d860cd1c8898ec1b7b44cd81e7d160490b57a18e08aa6f26"
+      "bytes": 249464,
+      "sha256": "66e81f8f87cd993aefa93147ca8f0e52272c3b9be0989b55e623b763eff0cd13",
+      "referencePages": 5
     },
     {
       "path": "out/qa/release-document/appendix.docx",
-      "bytes": 188442,
-      "sha256": "7ae124bf1ab26a17dd7ccb66fd9a5a96c1e49668d51fc8cd247e500386c0c46c"
+      "bytes": 188468,
+      "sha256": "79eeeb5c6f3dbd8038c76e9dfc0a3efdacce226a50adf0e26daba056a23e7b38",
+      "referencePages": 13
     },
     {
       "path": "out/qa/release-document/appendix.pdf",
       "bytes": 420353,
-      "sha256": "b5085223b2684540ece10a005d37e3b2fe292ec9aa434af56aeedaee95080f4a"
+      "sha256": "1b7d21c91805a1adc82a2cd6edc998322a25d2776880b4a9eb30cfdf3bff673a",
+      "referencePages": 14
     },
     {
       "path": "out/qa/release-document/docx/converted.pdf",
-      "bytes": 714803,
-      "sha256": "6419ffe4ba7cee3be18c95446cac664ea10d074d183853b4c6d4b0a49b759450"
+      "bytes": 714804,
+      "sha256": "b7e2f81f9b855f67ff207497b190b7a1c61af29ee43a6e378f4a95fd3e5b952e",
+      "referencePages": 13
     }
   ],
   "automatedEvidence": {
@@ -57,22 +173,368 @@
     "unitSuites": 18,
     "unitTests": 110,
     "layoutScenarios": 5,
+    "layoutPages": 28,
     "numberedAccidents": 111,
     "numberedMaps": 9,
     "ordinaryDocxPages": 5,
+    "ordinaryNativePdfPages": 5,
     "numberedPdfPages": 14,
     "numberedDocxPages": 13,
-    "nativeRepeatedHeaders": 4,
-    "docxRepeatedHeaders": 3,
+    "numberedResults": [
+      {
+        "format": "native-pdf",
+        "pages": 14,
+        "rowCount": 111,
+        "headerCount": 4,
+        "mapBindings": 9,
+        "captionBindings": 9,
+        "audit": {
+          "schemaVersion": 1,
+          "documentId": "release-numbered-native-pdf",
+          "renderer": "native-pdf-poppler",
+          "pageCount": 14,
+          "passed": true,
+          "counts": {
+            "error": 0,
+            "warning": 0
+          },
+          "issues": [],
+          "summary": {
+            "wordCount": 1762,
+            "imageCount": 9,
+            "mapCount": 9,
+            "linkCount": 120,
+            "tableRowCount": 115,
+            "sourceManifestHash": "fe93cf299844a88d87406013ba33e7fe4f808f1a356bda185ea00c13f31b3f17"
+          }
+        }
+      },
+      {
+        "format": "docx-pdf",
+        "pages": 13,
+        "rowCount": 111,
+        "headerCount": 3,
+        "mapBindings": 9,
+        "captionBindings": 9,
+        "audit": {
+          "schemaVersion": 1,
+          "documentId": "release-numbered-docx-pdf",
+          "renderer": "native-pdf-poppler",
+          "pageCount": 13,
+          "passed": true,
+          "counts": {
+            "error": 0,
+            "warning": 0
+          },
+          "issues": [],
+          "summary": {
+            "wordCount": 1798,
+            "imageCount": 9,
+            "mapCount": 9,
+            "linkCount": 11,
+            "tableRowCount": 114,
+            "sourceManifestHash": "fe93cf299844a88d87406013ba33e7fe4f808f1a356bda185ea00c13f31b3f17"
+          }
+        }
+      }
+    ],
     "finalNumberedRenderPassed": true,
-    "detailHeadingsBoundToMapPagesPerFormat": 8,
     "finalWordContractSuites": 3,
     "finalWordContractTests": 26,
-    "visualPagesReviewed": {
-      "nativeNumberedPdf": 14,
-      "convertedNumberedDocx": 13,
-      "ordinaryDocx": 5
+    "visualPageScope": {
+      "deliveredCandidatePdfViews": 37,
+      "ordinaryDocx": 5,
+      "ordinaryNative": 5,
+      "numberedDocx": 13,
+      "numberedNative": 14,
+      "additionalLayoutPages": 28,
+      "additionalSourceBoundPages": 29,
+      "productionMethodDiagnosticPages": 38,
+      "totalCoveredPageViews": 132,
+      "newlyVisuallyInspectedPages": 20,
+      "exactPixelEqualHistoricalReviewPages": 112
+    },
+    "visualEvidence": {
+      "path": "out/qa/final-document-fa545bc9-20261108/final-visual-review.json",
+      "bytes": 225302,
+      "sha256": "cdc3d27860ef5058952c4121378c56e71c9bf3b337de52ad30c6a276386a136b"
     }
+  },
+  "sourceBoundOrdinaryEvidence": {
+    "generation": "Unchanged short technical ordinary generator using production exports; hourly fixture contains genuine pinned Düsseldorf data. Other fixtures are explicitly technical, not new scientific observations or activations.",
+    "cases": [
+      {
+        "kind": "count",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "count18504",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "hourly",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 3
+        }
+      },
+      {
+        "kind": "model",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "old",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "proxy",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      },
+      {
+        "kind": "dgm",
+        "docx": {
+          "passed": true,
+          "pages": 2
+        },
+        "native": {
+          "passed": true,
+          "pages": 2
+        }
+      }
+    ],
+    "artifacts": [
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/all-source-bound-audit.json",
+        "bytes": 1062,
+        "sha256": "19e3428ad8899b578a33d1009000b35923a467b5f75bec8cefc0acdc775723a2"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/count-source-manifest.json",
+        "bytes": 7477,
+        "sha256": "271704fdd47f6b56cbfc4e55001d5522cda438c961b3fce47722398b7122df34"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/count.docx",
+        "bytes": 15414,
+        "sha256": "e339e6882e3d61be18056d769aa103a22225c77d85185b91891ed7dbe0fb6d41"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/count.pdf",
+        "bytes": 61516,
+        "sha256": "927ac90d9930cc0e1d78b5511c7aec4d18104638a0450d1b9fc67e5a6ee2f0d4"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/count18504-source-manifest.json",
+        "bytes": 7481,
+        "sha256": "f4d617ff79e57422e7f03e3634ab2c7cbe21fa5c8531893374d53d165013f1d0"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/count18504.docx",
+        "bytes": 15426,
+        "sha256": "32689603b8dddb748906d09d39e5a84ef161e04d5811aec03d299d6cc2e6eefe"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/count18504.pdf",
+        "bytes": 61949,
+        "sha256": "45372004dd647e2cbbdcb4598be056467bbfd744f399cf9af9b463b602ea163f"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/dgm-source-manifest.json",
+        "bytes": 5535,
+        "sha256": "69ab9c5f99ee6429380468f012b77faf89055fa68239b30aa219a72c2cb892fc"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/dgm.docx",
+        "bytes": 14706,
+        "sha256": "c7b6377f1def6745a224cde09f3319525daae486683a31492db9543c7bc000b9"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/dgm.pdf",
+        "bytes": 55174,
+        "sha256": "a7598df96da8a6af4f2344bfbf94c41acc687290b15fcaf47e378eeb4e668744"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/hourly-source-manifest.json",
+        "bytes": 9453,
+        "sha256": "ddaf9af9abd50c8f339f8be1999c7d7f0fbe2696ab72851d2d33abeee948cd68"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/hourly.docx",
+        "bytes": 17243,
+        "sha256": "8b33534c603092bbcd26b42e6bb9abcdb089558a6455b89aa919b077d83cac85"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/hourly.pdf",
+        "bytes": 72372,
+        "sha256": "a95c86bc539f379499c6ba5bd3896a17798badaa56c33dac41e80adf9943d58f"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/model-source-manifest.json",
+        "bytes": 7474,
+        "sha256": "491ad4ea8ca4c7baf5b48c96fc9710120a77105b70ef7c3149e3a912ac0eebb6"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/model.docx",
+        "bytes": 15391,
+        "sha256": "0300cd673b7ebda8b3eaa31233f01897a166d219090dc1a04dfb8fcfb5faa854"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/model.pdf",
+        "bytes": 61563,
+        "sha256": "60b2a77ecc454bbcc6941d4e130fa5c240fc92a645a474f5be223dd775a61d01"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/old-source-manifest.json",
+        "bytes": 7523,
+        "sha256": "cb889339b62e2ee1f3f817b04a47e144972d4d7506aa8e4e2a093e422b127e4a"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/old.docx",
+        "bytes": 15460,
+        "sha256": "ef3af119aac51cfbaeeb62b83b823ced596aabaf82b7e62131960a1d00835463"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/old.pdf",
+        "bytes": 61801,
+        "sha256": "c7a41875f2e83224f3f148c899e5160409e8dd1920a4310efe3ba2c82c065b7b"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/proxy-source-manifest.json",
+        "bytes": 4628,
+        "sha256": "d37f55f84f9dd1e9cd0e9af55ae73879208432600385407e6ccc6d70cb92f743"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/proxy.docx",
+        "bytes": 14585,
+        "sha256": "2301d3dae099b2399071b0c25d1ffe926199ff6a7a061e465603cdab370e4f4a"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/proxy.pdf",
+        "bytes": 54044,
+        "sha256": "b787817a8dfa77974e17026c548109999bd47f4db53c87a7ba0ee067bf225180"
+      },
+      {
+        "path": "out/qa/final-document-fa545bc9-20261108/source-bound/source-bound-generation-receipt.json",
+        "bytes": 9003,
+        "sha256": "b34a0b1a5fcd25fd0e9370b0db756d90a7221a79d5a49a8bd0d8bcbddb79ea69"
+      }
+    ],
+    "rawSourceManifestPolicy": "Full original URLs, hashes, attribution, original units, timestamps and directions remain in embedded/raw metadata. Display projection is concise and clickable. No source activation or inferred road match."
+  },
+  "productionMethodWarningEvidence": {
+    "sourceCommit": "81f265f172f71a75130683fd4ac525cd6b5065a3",
+    "wordInputFingerprint": "fa545bc954845c2746eeb39b33c8131b3fb8b388c1e368062e85265b2ef97dab",
+    "generatedAt": "2026-11-08T23:02:13.923Z",
+    "productionWrapper": true,
+    "accidents": 37,
+    "completeAreaAccidents": 312,
+    "methodNote": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
+    "checks": {
+      "structured": true,
+      "text": true,
+      "html": true,
+      "visibleHtml": true,
+      "visibleMethodNoteConditionWaited": true,
+      "serverAssessmentPrompt": true,
+      "serverProposalPrompt": true
+    },
+    "externalRequests": "blocked; no live tiles or political/model execution",
+    "mapExport": false,
+    "microsoftWordEvidenceVerified": false,
+    "evidenceDirectory": "out/qa/production-method-warning",
+    "role": "Actual production-wrapper method preservation and additional rendering diagnostic; not Microsoft Word, model, scientific or proposal acceptance. The numbered 111-case appendix itself makes no pattern comparison.",
+    "contentVerification": {
+      "docxXmlContainsExactNote": true,
+      "pdfs": {
+        "native": {
+          "pages": 20,
+          "exactNotePages": [
+            2
+          ]
+        },
+        "docx": {
+          "pages": 18,
+          "exactNotePages": [
+            1
+          ]
+        }
+      }
+    },
+    "genericPublicLinkAudit": {
+      "passed": false,
+      "reason": "Actual local browser exports retain localhost HTTP development URL; unchanged adapter rejects unsafe_link. No link assertion is relaxed."
+    },
+    "artifacts": [
+      {
+        "path": "out/qa/production-method-warning/production-report.json",
+        "bytes": 3458946,
+        "sha256": "f8218440c477e41cbd324236bb1d5bfe40ae022181faef30e1a536cd0f8e6337"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.html",
+        "bytes": 342807,
+        "sha256": "f97763ea1d175c85f1085197b5ee50faf8a9708e7c19f9ad4893d5d23c2d8291"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-model-prompts.json",
+        "bytes": 23094,
+        "sha256": "abbbeca5d9c28e3e7a92bb6c4613464f0823b4ac6ec9a6de77cb1a6fd2e6aa2b"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.docx",
+        "bytes": 29111,
+        "sha256": "1310a9fde7b95efd1894940b5b56b486f8ad6cafdd0901a6d0d0cb94fff8256a"
+      },
+      {
+        "path": "out/qa/production-method-warning/production-report.pdf",
+        "bytes": 172377,
+        "sha256": "0e559fb496d3e96910d13cd26386dd7e16ef37cb5cbc4c089631bdb8fac038de"
+      },
+      {
+        "path": "out/qa/production-method-warning/docx-render/production-report.pdf",
+        "bytes": 353931,
+        "sha256": "2419f2cac7ffa43f008547266e0923617ab6807d9c5b052ea51e1a207d8688b0"
+      }
+    ]
   },
   "externalAcceptance": {
     "microsoftWordVerified": false,
@@ -81,77 +543,234 @@
     "canonicalMavenNode26ExactHeadVerified": false,
     "releasePublished": false
   },
-  "ordinarySampleRenderSourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-  "productionMethodWarningEvidence": {
-    "sourceCommit": "63421d9912de93760f1e676dfad8e851be78eaff",
-    "wordInputFingerprint": "a6b6865ec58ff59265f400b8f49575d363f877090d0ae11a2435488bae4291bc",
-    "generatedAt": "2026-11-08T18:43:29.450Z",
-    "productionWrapper": true,
-    "accidents": 37,
-    "methodNote": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
-    "checks": {
-      "structured": true,
-      "text": true,
-      "html": true,
-      "visibleHtml": true,
-      "serverAssessmentPrompt": true,
-      "serverProposalPrompt": true
-    },
-    "externalRequests": "blocked; no live tiles or political/model execution",
-    "mapExport": false,
-    "microsoftWordEvidenceVerified": false,
-    "evidenceDirectory": "out/qa/production-method-warning",
-    "role": "method-warning-only; not a Microsoft Word or proposal acceptance",
-    "docxXmlContainsExactNote": true,
-    "actualPdfTextContainsExactNote": true,
-    "convertedDocxTextContainsExactNote": true,
-    "visuallyReviewedNotePages": {
-      "nativePdf": [
-        2
-      ],
-      "convertedDocx": [
-        1
-      ]
-    },
-    "generatedPages": {
-      "nativePdf": 20,
-      "convertedDocx": 18
-    },
-    "localPublicLinkAudit": {
-      "passed": false,
-      "reason": "Actual browser export retains its localhost HTTP development URL; the separate public-HTTPS audit rejects it. No link gate was disabled."
-    },
-    "artifacts": [
+  "historicalEvidence": "a6, 957 and ed573 packages and original receipts remain unchanged in separate paths. Current visual coverage reuses individually mapped ed573 coverage only through exact decoded-pixel comparison and verification of the old image hashes; prior inherited 957 review methods remain recorded per page. All differing current pages were actually newly inspected. The historical hosted S document proof is separate from these newly generated local bytes.",
+  "inputRevision": [
+    {
+      "path": "js/ua.export_provenance.js",
+      "oldSha256": "d4165305b61196c344616b8c4b3e0aa9b0a26856ce120c25372865d7915182f5",
+      "newSha256": "41a17363da7a717ca512a5e9868e790bcf270d2b605d7bd3ebcfc8d116c8985f",
+      "bytes": 45197
+    }
+  ],
+  "sourceFreezeEvidence": {
+    "path": "final-fa545-source-freeze.json",
+    "sha256": "141bededdd7c260938c109baad2e940b897033ace5a7daee44533f433ae7f8a1",
+    "authorFixCommit": "ea255ee76f60ebdfb02a83b836dd55a774ca96b2",
+    "mainDocumentationSourceCommit": "85d32225ee8930d55b3b9740ff149f78b66a57a1",
+    "mainDocumentationPath": "docs/traffic-open-data-snapshots.md",
+    "mainDocumentationSha256": "3e11aed735b4a8a5104180bbda8bd8c7f486726a9c1a556fff74ca49f54167dd",
+    "remoteCodeParents": [
+      "60eaf1d22edc4b04547888d7076fdb3db2b8c3a7",
+      "85d32225ee8930d55b3b9740ff149f78b66a57a1"
+    ],
+    "wordInputsUnchangedAcrossRender": true,
+    "goldenFixtureSha256": "d36c21bc48b49ae2ce029c87e52fbdd53ecb39af4472d301f862a18afeeef5c3",
+    "goldenRuntimePins": [
       {
-        "path": "out/qa/production-method-warning/production-report.json",
-        "bytes": 3457556,
-        "sha256": "8021ddfd66e56e29eedb1ff697d4b2414cf0c3c9bb1aa659a7bc501b9846d5a3"
+        "path": "js/ua.ai_political_evidence.js",
+        "expected": "96a34bb01ef8374268b1fda2b9ea9dfc60783b818258f47c35b40465f04edfb6",
+        "actual": "96a34bb01ef8374268b1fda2b9ea9dfc60783b818258f47c35b40465f04edfb6",
+        "matches": true
       },
       {
-        "path": "out/qa/production-method-warning/production-report.html",
-        "bytes": 342508,
-        "sha256": "7f139a4436b60900c1fea2eec353c431b55dc7a7f27909ec74a29dc23ec2be0d"
+        "path": "js/ua.ai_political_reference_bridge.js",
+        "expected": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc",
+        "actual": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc",
+        "matches": true
       },
       {
-        "path": "out/qa/production-method-warning/production-model-prompts.json",
-        "bytes": 23094,
-        "sha256": "5f4ed14cb2991a211267795ea681441342c84726e127decb6d00755d3e5789ca"
+        "path": "js/ua.analysis_scope.js",
+        "expected": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4",
+        "actual": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4",
+        "matches": true
       },
       {
-        "path": "out/qa/production-method-warning/production-report.docx",
-        "bytes": 29003,
-        "sha256": "199c539bdb9bc958540529862edcfbcadb2a1d26aab982e7fd042c469905edb0"
+        "path": "js/ua.area_name_control.js",
+        "expected": "879b4582ef15e8ee335c78b6431f21109bf0150e3c9226ac0bbaa2d2966bbdb1",
+        "actual": "879b4582ef15e8ee335c78b6431f21109bf0150e3c9226ac0bbaa2d2966bbdb1",
+        "matches": true
       },
       {
-        "path": "out/qa/production-method-warning/production-report.pdf",
-        "bytes": 170971,
-        "sha256": "d382fd355c3c4fe76c61b577ac9ee6e6250355bf5f3af0675c56e4e2e7e24af5"
+        "path": "js/ua.evidence_safe_semantics.js",
+        "expected": "cf022eed045f94f6da257ffdd2d73069c294db7e0c08e225e51fdc6629afa6f4",
+        "actual": "cf022eed045f94f6da257ffdd2d73069c294db7e0c08e225e51fdc6629afa6f4",
+        "matches": true
       },
       {
-        "path": "out/qa/production-method-warning/docx-render/production-report.pdf",
-        "bytes": 352712,
-        "sha256": "74fd21324e95d61a2b641e86489377b6e708525beb482a41d4d6d83c2fc8538f"
+        "path": "js/ua.evidence_safe_semantics_hardening.js",
+        "expected": "f0dc5155752e32444b38a138f8e5a6270ef881b93ca834ef82da715e48ddc98e",
+        "actual": "f0dc5155752e32444b38a138f8e5a6270ef881b93ca834ef82da715e48ddc98e",
+        "matches": true
+      },
+      {
+        "path": "js/ua.export_template_defaults.js",
+        "expected": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22",
+        "actual": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22",
+        "matches": true
+      },
+      {
+        "path": "js/ua.export_v2.js",
+        "expected": "ef54b394c82018167808b10f61f0dd10d03ee4c8e49ec7bda7f7dd52ec078eb8",
+        "actual": "ef54b394c82018167808b10f61f0dd10d03ee4c8e49ec7bda7f7dd52ec078eb8",
+        "matches": true
+      },
+      {
+        "path": "js/ua.filters.js",
+        "expected": "0600a8b1cac3ab3fcd2dc1da58f8b75579474fa76f279b0228fefd0d07d61450",
+        "actual": "0600a8b1cac3ab3fcd2dc1da58f8b75579474fa76f279b0228fefd0d07d61450",
+        "matches": true
+      },
+      {
+        "path": "js/ua.heatmap.js",
+        "expected": "d65c22f2a07d871fb38b1c18b88877e14f2d461357458d1e4e5330cb161a86c5",
+        "actual": "d65c22f2a07d871fb38b1c18b88877e14f2d461357458d1e4e5330cb161a86c5",
+        "matches": true
+      },
+      {
+        "path": "js/ua.stats.js",
+        "expected": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",
+        "actual": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",
+        "matches": true
+      },
+      {
+        "path": "js/ua.trend.js",
+        "expected": "2bbb47165228ad8f564bb6ca18e34ce430b13ae236562108043b5a6815ff0012",
+        "actual": "2bbb47165228ad8f564bb6ca18e34ce430b13ae236562108043b5a6815ff0012",
+        "matches": true
+      }
+    ],
+    "newGoldenFixtureRequired": false
+  },
+  "displayedCalendarDateEvidence": {
+    "scope": "Actual rendered report dates, not UTC day or source acquisition clocks",
+    "records": [
+      {
+        "format": "docx",
+        "page": 1,
+        "onlyDisplayedDateChanged": true,
+        "previousDisplayedDate": "8.11.2026",
+        "currentDisplayedDate": "9.11.2026",
+        "diff": "--- historical-ed573\n+++ current-fa545\n@@ -2,7 +2,7 @@\n An: zuständiges Gremium prüfen\n Stadt: Bonn\n Bereich: Markierter Untersuchungsbereich in Bonn (50.73000–50.73550° N; 7.09100–7.10100° E)\n-Datum: 8.11.2026\n+Datum: 9.11.2026\n Betreff: Prüfung und Verbesserung der Verkehrssicherheit im Bereich Markierter Untersuchungsbereich in\n Bonn (50.73000–50.73550° N; 7.09100–7.10100° E)\n                                           ---------------------------------\n@@ -14,7 +14,7 @@\n  Bereich                    Markierter Untersuchungsbereich in Bonn (50.73000–50.73550° N; 7.09100–\n                             7.10100° E)\n  Stadt                      Bonn\n- Exportdatum                8.11.2026\n+ Exportdatum                9.11.2026\n  Werkbank-Link              Werkbank-Link öffnen\n  Zuständigkeitshinweis      Zuständige Bezirksvertretung konnte nicht eindeutig ermittelt werden. Bitte\n                             prüfen Sie die Zuordnung anhand der vier Bonner Stadtbezirke (Bonn, Bad"
+      },
+      {
+        "format": "native",
+        "page": 1,
+        "onlyDisplayedDateChanged": true,
+        "previousDisplayedDate": "8.11.2026",
+        "currentDisplayedDate": "9.11.2026",
+        "diff": "--- historical-ed573\n+++ current-fa545\n@@ -2,7 +2,7 @@\n An: zuständiges Gremium prüfen\n Stadt: Bonn\n Bereich: Markierter Untersuchungsbereich in Bonn (50.73000–50.73550° N; 7.09100–7.10100° E)\n-Datum: 8.11.2026\n+Datum: 9.11.2026\n Betreff: Prüfung und Verbesserung der Verkehrssicherheit im Bereich Markierter Untersuchungsbereich in\n Bonn (50.73000–50.73550° N; 7.09100–7.10100° E)\n \n@@ -14,7 +14,7 @@\n Gremiumstyp                Bezirksvertretung\n Bereich                    Markierter Untersuchungsbereich in Bonn (50.73000–50.73550° N; 7.09100–7.10100° E)\n Stadt                      Bonn\n-Exportdatum                8.11.2026\n+Exportdatum                9.11.2026\n Werkbank-Link              Werkbank-Link öffnen\n Zuständigkeitshinweis      Zuständige Bezirksvertretung konnte nicht eindeutig ermittelt werden. Bitte prüfen Sie die Zuordnung\n                            anhand der vier Bonner Stadtbezirke (Bonn, Bad Godesberg, Beuel, Hardtberg)."
       }
     ]
+  },
+  "visualReviewReusePolicy": "112 exact decoded-RGB-pixel matches retain individually mapped historical ed573 visual coverage; 20 changed pages actually newly viewed. All 132 current views freshly generated and all applicable automated audits rerun.",
+  "localAuthorRuntimeEvidence": {
+    "sourceCommit": "ea255ee76f60ebdfb02a83b836dd55a774ca96b2",
+    "sourceTree": "1c429ae3cfe3809c08f163d2b5106cda8d6e4605",
+    "tests": {
+      "red": {
+        "exitCode": 1,
+        "failed": 6,
+        "log": {
+          "path": "ci-prototype-regression-red-final.log",
+          "bytes": 4734,
+          "sha256": "e5f4b211a55ee44169f6a4af9e624da0f647bdaaacf6b27029d445bef3e16907"
+        }
+      },
+      "green": {
+        "exitCode": 0,
+        "passed": 6,
+        "log": {
+          "path": "ci-prototype-regression-green.log",
+          "bytes": 207,
+          "sha256": "45ea2db2330d038f66165e44b65ff71888066d247c78469b3849caacb43030e9"
+        }
+      },
+      "full": {
+        "command": "node node_modules/jest/bin/jest.js --runInBand",
+        "exitCode": 0,
+        "suitesPassed": 379,
+        "testsPassed": 4571,
+        "snapshotsPassed": 1,
+        "suitesSkipped": 5,
+        "testsSkipped": 11,
+        "seconds": 306.207,
+        "note": "Run after the functional patch, before the final cache strings. Only cache strings and their expected assertions changed afterward.",
+        "log": {
+          "path": "ci-prototype-full-jest.log",
+          "bytes": 3607,
+          "sha256": "19c6e3fe9ca290ee52f698ef3893c704971383fab9e6b967e9109e04a7b7cde5"
+        }
+      },
+      "cache": {
+        "exitCode": 0,
+        "suitesPassed": 2,
+        "testsPassed": 38,
+        "log": {
+          "path": "ci-prototype-cache-loader-tests.log",
+          "bytes": 230,
+          "sha256": "f43ba0f16ed0b36475eec3c2e756f896ac409dc833a0a61814cec0d7de39ffe1"
+        }
+      }
+    },
+    "browser": {
+      "status": "passed",
+      "exitCode": 0,
+      "nodeVersion": "v24.22.1",
+      "browserVersion": "153.0.8010.0",
+      "runtimeSha256": "41a17363da7a717ca512a5e9868e790bcf270d2b605d7bd3ebcfc8d116c8985f",
+      "yearAdapter": {
+        "differentContext": true,
+        "ownsUi": false,
+        "inheritedUiMatches": true,
+        "ownsPoints": true,
+        "readonlyPoints": true,
+        "canonicalYears": [
+          2024
+        ]
+      },
+      "counts": {
+        "loaded": 12,
+        "filtered": 12,
+        "viewport": 12
+      },
+      "manifestSha256": "d0e8dfa7975b1ee977d9dd3593d0b057e98908950a81e2885d72415fc54c5309",
+      "pdf": {
+        "bytes": 122945,
+        "sha256": "2d345360bbac829611ae5516d3f7ba24e7ced54c575fcee8d5316f3c5d9a4919",
+        "suggestedFilename": "Antrag-an-die-Bezirksvertretung_Bonn_8-11-2026.pdf"
+      },
+      "frameVisuallyInspected": true,
+      "scope": "Local real Chromium source-manifest capture and PDF exporter using the unchanged deterministic video fixture and hermetic map tiles; no GIF encoding, Docker or live-map acceptance.",
+      "evidence": [
+        {
+          "path": "ci-prototype-browser-probe.cjs",
+          "bytes": 8523,
+          "sha256": "9c6ece14ce7651c04ca35631f7b7bdd3f1d4accf3bd67cf938d74d17313f3b6b"
+        },
+        {
+          "path": "ci-prototype-browser-probe.log",
+          "bytes": 1351,
+          "sha256": "41a2180eddf5e4a1b0e373747231edf171568baf0b6b535039cfc5bda6de025c"
+        },
+        {
+          "path": "ci-prototype-browser-probe.json",
+          "bytes": 15413,
+          "sha256": "ba9b6d8fb69f19501f11438b38dab019d584dbfec2c3dae2ceffc156d27d253e"
+        },
+        {
+          "path": "ci-prototype-browser-media-frame.png",
+          "bytes": 233313,
+          "sha256": "6ea6f366110616af508bab44b69d2b90af9873e819a7e1025386596b631ab5fa"
+        },
+        {
+          "path": "ci-prototype-browser-fixture.pdf",
+          "bytes": 122945,
+          "sha256": "2d345360bbac829611ae5516d3f7ba24e7ced54c575fcee8d5316f3c5d9a4919"
+        }
+      ]
+    },
+    "evidenceFile": "ci-prototype-final-evidence.json",
+    "evidenceFileSha256": "87826564619efe8cb3fff1b37abc89b8a00a2c86dbaac0d892ec7022ac30dac4",
+    "scope": "Local functional-patch full Jest run before final cache strings, followed by final cache/loader tests and actual Chromium probe. Not hosted exact-head acceptance of the later B2/documentation candidate."
   }
 }
