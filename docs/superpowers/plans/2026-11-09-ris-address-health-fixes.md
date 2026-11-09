@@ -38,7 +38,7 @@
 - [x] Extend the shared address-tail parsing and the direct-city qualifier consistently; retain conservative geometry behavior.
 - [x] Advance the location assessment revision and prove existing revision-3 snapshots are reassessed without changing their source timestamps or claiming unavailable detail text was recovered.
 - [x] Run parser/snapshot regressions and the full frontend suite; report any environment limitation separately.
-- [ ] Review the focused diff and integrate after the actual CI checks pass.
+- [x] Review the focused diff and integrate after the actual CI checks pass.
 
 ### Task 2: Make live diagnostics execute and require fresh evidence
 
@@ -49,7 +49,7 @@
 - [x] Reproduce the Maven skip binding and missing-evidence success using the existing execution configuration and controlled child processes.
 - [x] Explicitly enable the required Maven execution despite ordinary test skipping.
 - [x] Remove stale evidence and require fresh successful reports when the corresponding checks were requested; make absent uploaded evidence fatal.
-- [ ] Verify meaningful missing/stale/malformed/unhealthy/success cases, then inspect the real workflow result after integration.
+- [x] Verify meaningful missing/stale/malformed/unhealthy/success cases, then inspect the real workflow result after integration.
 
 ### Task 3: Recover transient published-snapshot responses
 
@@ -72,6 +72,21 @@
 - [ ] Review the current release dry-run prerequisites and run the existing nonpublishing workflow when a supported authorized entry point is available.
 - [x] Keep real Microsoft Word and domain-review requirements explicitly open until their actual evidence is available.
 
+### Task 5: Migrate retained detail after a successful catalogue refresh
+
+**Evidence:** PR #759 was reviewed, verified and merged as `36f8f45`. Pages run `42569998173` successfully deployed its immutable artifact. The public manifest and artifact bytes matched at location revision 4, but `hannover-sim:0001-2018` still stored `Hildesheimer Straße 9` beside the complete source title `9 - 15`. This was reproduced in the public UI and in the artifact, excluding browser cache as the cause.
+
+**Cause:** A successful catalogue/history refresh with an individual unavailable detail places the prior record in `retainedDetails`. That path preserves its old location assessment, excludes it from the corrected parser, and still assigns the current global revision. The original migration test covered whole-source failure/backoff, not this per-record path.
+
+**Files:** `scripts/refresh-ris-catalogues.js`, `tests/unit/refreshRisCatalogues.test.js`, the revision description in `docs/ris-catalogue.md`.
+
+- [x] Reproduce the deployed case through the successful-collection/per-record-unavailable-detail path, from both revision 3 and the already published revision 4.
+- [x] Reassess retained titles and selected document quotations consistently with the existing local migration; preserve verified official geometry, history, source clocks, coverage and unavailable/truncated evidence flags.
+- [x] Advance to revision 5 so already published revision-4 records cannot bypass this correction.
+- [x] Prove the complete `9-15` label replaces the old `9`, without claiming missing full text was recovered or inventing geometry.
+- [ ] Run focused regression tests, independent review, canonical verification and final-head CI before merging the narrow follow-up.
+- [ ] Verify the actual new immutable artifact and public UI contain the corrected label; verify the final deployment health and nonpublishing release rehearsal separately.
+
 ## Decisions
 
 The user already authorized continuing the repairs and previous integration work. These changes repair existing contracts; no new interaction design or data-source policy is introduced. Address ranges remain textual unless verified geometry exists. Root coordinates shared dependency installation and commits; workers edit only their assigned files.
@@ -87,3 +102,11 @@ The original regional-qualifier and malformed-marker review findings were correc
 A SHA-verified sample of 256 published Hannover records exposed additional title boundaries before merging: Jordanstraße 28A before a procedural subtitle, Eintrachtweg 1-15 before a procedural subtitle, and Brockfeld 65 before the postal suffix 30539 Hannover. Regressions now use these actual titles and the actual Gazetteer; Hildesheimer Straße 9-15 also demonstrates the previous truncation to 9.
 
 The parser preserves original spaced en/em dashes only for measure parsing and accepts the observed procedural subtitle cues Einleitungsbeschluss/Aufstellungsbeschluss after a complete address. Ambiguous or unknown range endpoints remain unresolved. A five-digit postal code is accepted as a suffix only when followed by exactly the active city. This does not extend regional city qualification. The focused parser suite passed 153 tests; the combined build and final scoped review must confirm this final fix before integration.
+
+## First deployment evidence and retained-detail follow-up
+
+The final PR #759 tree passed canonical Maven verification (42 Java, 4,652 frontend unit, 135 integration and 7 performance tests) and independent review. All 18 applicable hosted checks passed; two PR-only skips were expected. The merged main commit `36f8f45` deployed successfully in Pages run `42569998173`. The actual public build manifest, both RIS manifests, HTML and all 95 script sources referenced by the browser matched the immutable artifact byte-for-byte.
+
+The resulting live-health run `42571590592` actually executed the required npm diagnostic despite `-DskipTests=true`, produced a fresh literal `healthy: true` receipt and numeric link-check `status: 0`, and passed 21 screenshot plus 6 published-link checks. Its deployment fingerprint matches that Pages artifact. This confirms Task 2, not address migration or a complete political-search network audit.
+
+Direct public UI and artifact inspection then exposed the retained-detail migration defect addressed by Task 5. Actual document quotations also confirm that exact numbers such as Lange Laube 20 (`0557-2024`) and Ohestraße 6 (`region-hannover-ris:vo:1007559`) already worked, while Schulenburger Landstraße 167-225 (`0142-2022F1`) is newly retained by the corrected parser. These are verified stored quotations, not evidence that missing full documents were re-fetched.

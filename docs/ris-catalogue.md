@@ -272,8 +272,14 @@ entsteht nur aus dem vollständigen passenden Adressschlüssel im geprüften
 Ortsverzeichnis; ein unbekannter Bereich wird weder auf seine erste Hausnummer noch
 auf den ganzen Straßenverlauf gelegt. `Nr.12` und `Hausnr. 12` werden ebenfalls
 erkannt. Bei Regionsvorlagen muss die unmittelbare Stadtzuordnung im selben Satz
-auch zur vollständigen Adressangabe passen. Ortsprüfrevision 4 bewertet dafür ältere
-Bestände erneut, ohne Quellenzeiten zu erneuern oder fehlende Volltexte zu ergänzen.
+auch zur vollständigen Adressangabe passen. Ortsprüfrevision 5 bewertet dafür ältere
+Bestände erneut, auch wenn ein erfolgreicher Katalogabruf einzelne Detailseiten nicht
+erneut liefern konnte. Bereits mit Revision 4 veröffentlichte, unverändert übernommene
+Ortsangaben werden dabei ebenfalls geprüft. Die Prüfung verwendet die zuvor
+gespeicherten Titelbelege und begrenzten Dokumentzitate; neue Listenmetadaten ersetzen
+keinen fehlenden Sachtext. Unveränderte verifizierte Kartenbelege bleiben erhalten,
+korrigierte Hausnummernbereiche übernehmen keinen Punkt ihrer früheren Anfangsnummer.
+Quellenzeiten werden nicht erneuert und fehlende Volltexte nicht ergänzt.
 
 Ein Quellenfehler oder eine lokale Formatänderung erzeugt keine neue Quellenzeit.
 Auch beibehaltene Vorgänge, die im nächsten Abruf fehlen, behalten ihre ursprüngliche
