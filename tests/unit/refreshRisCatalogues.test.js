@@ -43,7 +43,7 @@ function writeRisSnapshot(folder, city, value, options) {
 function catalogue(city, { count = 2, from = city === 'hannover' ? '2014-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
   const gremium = body || (city === 'bonn' ? 'Bonn' : 'Ratsversammlung');
   return {
-    locationRevision: 4,
+    locationRevision: 5,
     sources: [OFFICIAL[city]],
     coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'],
       ...(city === 'hannover' ? { scope: 'citywide' } : {}) },
@@ -527,7 +527,7 @@ test('rebuilds a fresh legacy Hannover snapshot once to publish measure location
     { city: 'hannover', status: 'published' },
   ]);
   const { manifest } = await readRisSnapshot(directory, 'hannover');
-  expect(manifest.locationRevision).toBe(4);
+  expect(manifest.locationRevision).toBe(5);
   expect(manifest.locationAssessment.attempted).toBe(manifest.recordCount);
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
     { city: 'hannover', status: 'current' },
@@ -779,7 +779,7 @@ test('assesses every Bonner record immediately when its fresh snapshot predates 
   const collect = jest.fn(() => catalogue('bonn'));
   await expect(refresh({ cities: ['bonn'], collect })).resolves.toMatchObject([{ city: 'bonn', status: 'published' }]);
   const { manifest, records } = await readRisSnapshot(directory, 'bonn');
-  expect(manifest.locationRevision).toBe(4);
+  expect(manifest.locationRevision).toBe(5);
   expect(manifest.locationAssessment.attempted).toBe(records.length);
   expect(records.every(record => record.locationAssessment)).toBe(true);
   expect(collect).toHaveBeenCalledTimes(1);
@@ -802,7 +802,7 @@ test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s recor
   expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
   expect(snapshot.manifest).toMatchObject({
     generatedAt: prior.generatedAt, sources: city === 'hannover' ? [...prior.sources, 'https://ris.hannit.de/public/vo040'] : prior.sources,
-    coverage: prior.coverage, locationRevision: 4,
+    coverage: prior.coverage, locationRevision: 5,
     locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
     refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
   });
@@ -981,7 +981,7 @@ test('migrates a retained legacy fallback to v2 while preserving original source
   await refresh({ cities: ['bonn'], collect: () => { throw new Error('HTTP 429'); } });
   const snapshot = await readRisSnapshot(directory, 'bonn');
   expect(snapshot.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
-    coverage: prior.coverage, sources: prior.sources, locationRevision: 4,
+    coverage: prior.coverage, sources: prior.sources, locationRevision: 5,
     refreshFailure: { expiresAt: EXPIRY.toISOString(), attemptedAt: NOW.toISOString() } });
   await expect(validateRisDirectory(directory, { now: NOW })).resolves.toHaveLength(1);
 });
@@ -1000,7 +1000,7 @@ test('pure format migration preserves canonical records and features without cha
   await refresh({ cities: ['bonn'], collect: () => { throw new Error('fresh source must not be refreshed'); } });
   const after = await readRisSnapshot(directory, 'bonn');
   expect(after.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
-    locationRevision: 4, locationAssessment: prior.locationAssessment, coverage: prior.coverage, sources: prior.sources });
+    locationRevision: 5, locationAssessment: prior.locationAssessment, coverage: prior.coverage, sources: prior.sources });
   expect(after.manifest.refreshFailure).toBeUndefined();
   expect(after.records).toEqual(before.records);
   expect(after.features.features).toEqual(expect.arrayContaining(before.features.features));
@@ -1067,15 +1067,17 @@ test.each(['official', 'derived', 'relation'])('assesses retained legacy %s evid
   expect(after.manifest.refreshFailure).toBeUndefined();
   expect(retained).toMatchObject({ title: next.records[0].title, relatedTo: priorRecord.relatedTo,
     locationAssessment: {
-      status: evidenceKind === 'relation' ? 'unresolved' : 'partial',
+      status: 'partial',
       reasons: expect.arrayContaining(['document_text_unavailable']),
     } });
-  expect(retained.locations).toEqual(before.records[0].locations || []);
+  expect(retained.locations).toEqual(evidenceKind === 'derived' ? before.records[0].locations : [{
+    kind: 'street', label: 'Limmerstraße', mapped: true, evidence: { source: 'title', text: priorRecord.title },
+  }]);
   expect(retained.locationAssessment.truncated).toBe(evidenceKind === 'derived');
   expect(retained.locationAssessment.sources.includes('official')).toBe(evidenceKind === 'official');
   expect(retained.locationAssessment.sources.includes('document')).toBe(evidenceKind === 'derived');
   expect(after.features.features.filter(feature => feature.properties.recordId === priorRecord.id))
-    .toEqual(before.features.features.filter(feature => feature.properties.recordId === priorRecord.id));
+    .toEqual(expect.arrayContaining(before.features.features.filter(feature => feature.properties.recordId === priorRecord.id)));
 });
 
 test('keeps complete title-derived feature labels when newly unavailable detail evidence retains prior locations', async () => {
@@ -1341,7 +1343,7 @@ test('reassesses revision 3 address evidence locally without refreshing source c
   const collect = jest.fn(() => { throw new Error('Backoff must prevent another official source request'); });
   await refresh({ cities: ['hannover'], collect });
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 4, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 5, generatedAt: prior.generatedAt,
     sourceStatuses: prior.sourceStatuses, coverage: prior.coverage, sources: prior.sources, refreshFailure: prior.refreshFailure });
   expect(after.records[1].locations).toEqual([{ kind: 'address', label: 'Stephanusstraße 10-14', mapped: false,
     evidence: { source: 'title', text: 'Radverkehr Stephanusstraße 10-14' } }]);
@@ -1354,4 +1356,158 @@ test('reassesses revision 3 address evidence locally without refreshing source c
   expect(after.features.features.find(feature => feature.properties.recordId === regional.id).geometry)
     .toEqual({ type: 'Point', coordinates: [9.724028, 52.366419] });
   expect(collect).not.toHaveBeenCalled();
+});
+
+test.each([3, 4])('reassesses retained unavailable details from revision %s during a successful catalogue publication', async revision => {
+  const previous = regionalCatalogue();
+  previous.locationRevision = revision;
+  const title = 'Einfacher Bebauungsplan der Innenentwicklung Nr. 1864, Hildesheimer Straße 9 - 15 (ungerade) Aufstellungsbeschluss';
+  previous.records[1] = { ...previous.records[1], id: 'hannover-sim:0001-2018', title,
+    detailVerifiedAt: FALLBACK.toISOString(), locations: [{ kind: 'address', label: 'Hildesheimer Straße 9',
+      evidence: { source: 'title', text: title } }],
+    locationAssessment: { status: 'unresolved', sources: ['title'], reasons: ['document_text_unavailable', 'non_traffic_address'], truncated: false } };
+  const regional = previous.records[2];
+  regional.title = 'BBS 3 Sanierung der Mischluftboxen Entwurfsplanung / HU-Bau';
+  regional.id = 'region-hannover-ris:vo:1007559';
+  regional.detailVerifiedAt = FALLBACK.toISOString();
+  regional.events = [{ date: '2020-06-22', body: 'Schulausschuss', outcome: 'Vertagt', url: regional.url, evidence: '22.06.2020 Schulausschuss Vertagt' }];
+  regional.relatedTo = previous.records[1].id;
+  const evidence = { source: 'document', text: 'Am Standort Ohestraße 6 in Hannover muss die Funktion der Lüftungsanlage für den Schulbetrieb gewährleistet sein.' };
+  regional.locations = [{ kind: 'address', label: 'Ohestraße 6', evidence,
+    geometry: { type: 'Point', coordinates: [9.724028, 52.366419] }, attribution: 'Verified original address evidence' }];
+  regional.locationAssessment = { status: 'mapped', sources: ['title', 'document'], reasons: [], truncated: false };
+  previous.sourceStatuses[0].retrievedAt = FALLBACK.toISOString();
+  const prior = await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), locationRevision: undefined,
+    history: { pending: false, interrupted: false, pendingYears: [] },
+    records: previous.records.map(record => ({ id: record.id, title: record.title, number: record.number,
+      date: record.date, type: record.type, url: record.url, source: record.source, gremium: record.gremium,
+      locationEvidenceUnavailable: true })) };
+  await expect(refresh({ cities: ['hannover'], collect: () => incoming }))
+    .resolves.toMatchObject([{ status: 'published', generatedAt: prior.generatedAt }]);
+  const after = await readRisSnapshot(directory, 'hannover');
+  const corrected = after.records.find(record => record.id === 'hannover-sim:0001-2018');
+  expect(corrected.locations).toEqual([{ kind: 'address', label: 'Hildesheimer Straße 9-15', mapped: false,
+    evidence: { source: 'title', text: title } }]);
+  expect(corrected.locationAssessment.reasons).toContain('document_text_unavailable');
+  expect(after.manifest).toMatchObject({ locationRevision: 5, generatedAt: prior.generatedAt,
+    sources: prior.sources, sourceStatuses: prior.sourceStatuses,
+    coverage: { from: prior.coverage.from, to: prior.coverage.to, bodies: prior.coverage.bodies, complete: false } });
+  const preserved = after.records.find(record => record.id === regional.id);
+  expect(preserved.locations).toEqual([{ kind: 'address', label: 'Ohestraße 6', evidence, mapped: true }]);
+  expect(preserved.locationAssessment).toMatchObject({ status: 'partial', truncated: true,
+    reasons: expect.arrayContaining(['document_text_unavailable', 'evidence_truncated']) });
+  expect(after.features.features.filter(feature => feature.properties.accuracy === 'official'))
+    .toEqual(before.features.features.filter(feature => feature.properties.accuracy === 'official'));
+  expect(after.features.features.find(feature => feature.properties.recordId === regional.id).geometry)
+    .toEqual(before.features.features.find(feature => feature.properties.recordId === regional.id).geometry);
+  expect(preserved.events).toEqual(regional.events);
+  expect(preserved.relatedTo).toBe(regional.relatedTo);
+  expect(after.features.features.find(feature => feature.properties.recordId === regional.id))
+    .toEqual(before.features.features.find(feature => feature.properties.recordId === regional.id));
+});
+
+test('never transfers a retained prefix point to a corrected range and leaves revision 5 retained results stable', async () => {
+  const previous = catalogue('hannover');
+  previous.locationRevision = 4;
+  const title = 'Radverkehr Stephanusstraße 10-14';
+  const stale = previous.records[1];
+  stale.title = title;
+  stale.locations = [{ kind: 'address', label: 'Stephanusstraße 10',
+    evidence: { source: 'title', text: title }, geometry: { type: 'Point', coordinates: [9.714685, 52.368463] } }];
+  stale.locationAssessment = { status: 'mapped', sources: ['title'], reasons: [], truncated: false };
+  const prior = await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), history: { pending: false, interrupted: false },
+    records: [previous.records[0], { ...stale, title: 'Neuer Listentitel: Radverkehr Limmerstraße 12', locationEvidenceUnavailable: true }] };
+  const collect = jest.fn(() => incoming);
+  await refresh({ cities: ['hannover'], collect });
+  const first = await readRisSnapshot(directory, 'hannover');
+  const corrected = first.records.find(record => record.id === stale.id);
+  expect(corrected.title).toBe(incoming.records[1].title);
+  expect(corrected.locations).toEqual([{ kind: 'address', label: 'Stephanusstraße 10-14', mapped: false,
+    evidence: { source: 'title', text: title } }]);
+  expect(first.features.features.some(feature => feature.properties.recordId === stale.id)).toBe(false);
+  expect(first.manifest).toMatchObject({ locationRevision: 5, generatedAt: prior.generatedAt });
+  await refresh({ cities: ['hannover'], collect });
+  const second = await readRisSnapshot(directory, 'hannover');
+  expect(collect).toHaveBeenCalledTimes(2);
+  expect(second.records).toEqual(first.records);
+  expect(second.features.features).toEqual(first.features.features);
+  expect(second.manifest.generatedAt).toBe(first.manifest.generatedAt);
+});
+
+test('reassesses an available prior title even when its old snapshot has no recognized title locations', async () => {
+  const previous = catalogue('hannover');
+  previous.locationRevision = 4;
+  const original = previous.records[1];
+  original.id = 'hannover-sim:0579-2023';
+  original.title = 'Bebauungsplan Nr. 650, Teilaufhebung als Maßnahme der Innenentwicklung – Eintrachtweg 1-15 – Aufstellungsbeschluss, Beschluss über die frühzeitige Beteiligung der Öffentlichkeit';
+  original.locations = [];
+  original.relatedTo = previous.records[0].id;
+  await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), history: { pending: false, interrupted: false },
+    records: [previous.records[0], { ...original, title: 'Neue Listenfassung ohne Ortsbezug', locationEvidenceUnavailable: true }] };
+  await refresh({ cities: ['hannover'], collect: () => incoming });
+  const after = await readRisSnapshot(directory, 'hannover');
+  const corrected = after.records.find(record => record.id === original.id);
+  expect(corrected.title).toBe('Neue Listenfassung ohne Ortsbezug');
+  expect(corrected).not.toHaveProperty('locationTitleEvidence');
+  expect(corrected.locations).toEqual([{ kind: 'address', label: 'Eintrachtweg 1-15', mapped: false,
+    evidence: { source: 'title', text: original.title } }]);
+  expect(corrected.relatedTo).toBe(original.relatedTo);
+  expect(after.manifest.generatedAt).toBe(FALLBACK.toISOString());
+});
+
+test('reassesses every distinct retained regional title quotation independently with its original scope and map identity', async () => {
+  const previous = regionalCatalogue();
+  previous.locationRevision = 4;
+  const regional = previous.records[2];
+  regional.title = 'Verkehrssicherheit Ohestraße 6 in Hannover';
+  const quotes = ['Radverkehr Ohestraße 6 in Hannover', 'Radverkehr Am Spielfelde 13 A in Hannover'];
+  regional.locations = [
+    { kind: 'address', label: 'Ohestraße 6', evidence: { source: 'title', text: quotes[0] },
+      geometry: { type: 'Point', coordinates: [9.724028, 52.366419] }, attribution: 'Original verified address A' },
+    { kind: 'address', label: 'Am Spielfelde 13 A', evidence: { source: 'title', text: quotes[1] },
+      geometry: { type: 'Point', coordinates: [9.707019, 52.362972] }, attribution: 'Original verified address B' },
+  ];
+  regional.locationAssessment = { status: 'mapped', sources: ['title'], reasons: [], truncated: false };
+  await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), history: { pending: false, interrupted: false },
+    records: previous.records.map(record => ({ ...record, title: 'Aktualisierte Listenmetadaten', locationEvidenceUnavailable: true })) };
+  await refresh({ cities: ['hannover'], collect: () => incoming });
+  const after = await readRisSnapshot(directory, 'hannover');
+  const corrected = after.records.find(record => record.id === regional.id);
+  expect(corrected.locations).toEqual([
+    { kind: 'address', label: 'Ohestraße 6', evidence: { source: 'title', text: quotes[0] }, mapped: true },
+    { kind: 'address', label: 'Am Spielfelde 13 A', evidence: { source: 'title', text: quotes[1] }, mapped: true },
+  ]);
+  expect(corrected.locationAssessment.sources).toEqual(['title']);
+  expect(corrected.locationAssessment.reasons).toContain('document_text_unavailable');
+  expect(after.features.features.filter(feature => feature.properties.recordId === regional.id))
+    .toEqual(before.features.features.filter(feature => feature.properties.recordId === regional.id));
+  expect(after.manifest.generatedAt).toBe(FALLBACK.toISOString());
+});
+
+test('does not restore a revision 4 petitioners contact point when retaining unavailable details', async () => {
+  const previous = catalogue('hannover');
+  previous.locationRevision = 4;
+  const record = previous.records[1];
+  record.id = 'hannover-sim:0271-2020';
+  record.title = 'Petition Nr. 02 / 1. Halbjahr 2019 Schriftliche Eingabe der Herren Gregor Bischoff und Gerd Reincke, Herrenhäuser Kirchweg 12, 30167 Hannover zum Thema „Entkopplung der Ampelschaltung am Industrieweg und die Entkopplung aller betreffenden Ampelschaltungen im Stadtgebiet“';
+  record.locations = [{ kind: 'address', label: 'Herrenhäuser Kirchweg 12',
+    evidence: { source: 'title', text: record.title }, geometry: { type: 'Point', coordinates: [9.71127, 52.391688] } }];
+  record.locationAssessment = { status: 'mapped', sources: ['title'], reasons: [], truncated: false };
+  const prior = await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), history: { pending: false, interrupted: false },
+    records: [previous.records[0], { ...record, locationEvidenceUnavailable: true }] };
+  await refresh({ cities: ['hannover'], collect: () => incoming });
+  const after = await readRisSnapshot(directory, 'hannover');
+  const retained = after.records.find(item => item.id === record.id);
+  expect(retained.locations).toEqual([{ kind: 'address', label: 'Herrenhäuser Kirchweg 12', mapped: false,
+    evidence: { source: 'title', text: record.title } }]);
+  expect(retained.locationAssessment.reasons).toEqual(expect.arrayContaining(['document_text_unavailable', 'non_traffic_address']));
+  expect(after.features.features.some(feature => feature.properties.recordId === record.id)).toBe(false);
+  expect(after.manifest.generatedAt).toBe(prior.generatedAt);
 });

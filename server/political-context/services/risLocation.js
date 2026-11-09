@@ -20,9 +20,10 @@ const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispi
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
 const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
 const ADDRESS_PREFIX = /^\s+(?:(?:nr\.?|hausnr\.?|hausnummern?)\s*)?/u;
-const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*(-|–|/|bis\\s+)\\s*(${ADDRESS_NUMBER}))?(?![\\p{L}\\p{N}/–-])`, 'u');
+const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*([-–/+]|bis\\s+)\\s*(${ADDRESS_NUMBER})|\\s*([-–+])\\s*([a-z]{1,2})(?!\\p{L}))?(?![\\p{L}\\p{N}/+–-])`, 'u');
 const ADDRESS_SEPARATOR = /^(?:\s*,\s*|\s+und\s+)(?=\d)/u;
-const ADDRESS_CONTINUATION = /^\s*(?:[-–/]|bis\b|,\s*\d|und\s+\d)/u;
+const ADDRESS_CONTINUATION = /^\s*(?:[-–/+]|bis\b|,\s*\d|und\s+\d)/u;
+const TITLE_ADDRESS_SUFFIX = /^\s+[-–]\s*(?:(?:modifizierter\s+)?einleitungsbeschluss|auslegungsbeschluss|aufstellungs(?:- und einleitungs)?beschluss|satzungsbeschluss|beschluss|dachsanierung|entscheidung zur belegung|erneuerung sportboden|aus mitteln|vormals as solar)\b/u;
 const HANNOVER_SCOPE = /\bin\s+(?:(?:der\s+)?(?:landeshauptstadt|stadt)\s+)?hannover(?![\p{L}\p{M}\p{N}'-])/gu;
 const REGION_NON_MEASURE = /\b(?:kontakt|anschrift|postanschrift|besucheranschrift|adresse|postfach|rathaus|regionshaus|dienstgebäude|verwaltungsgebäude|geschäftsstelle|ansprechpartner|beschlossen|beschlussfassung|beraten|beratung|vorgestellt|erörtert|abgestimmt|verabschiedet)\b/u;
 const REGION_SCOPE_EXCLUSION = /\b(?:ausserhalb|ausser|nicht|kein(?:e|en|em|er|es)?|ohne|statt|anstatt|wie|als|vergleich|vorbild|hingegen|dagegen)\b/u;
@@ -223,7 +224,7 @@ function measureJunctions(subject, streets, used) {
 
 // Parse the complete address tail before looking up any coordinate. A range
 // must never fall back to the first house number or the entire street.
-function addressTail(subject, city) {
+function addressTail(subject, city, allowClosingFence = false) {
   const prefix = ADDRESS_PREFIX.exec(subject);
   if (!prefix) return null;
   let end = prefix[0].length;
@@ -233,26 +234,31 @@ function addressTail(subject, city) {
     if (!match) return null;
     const number = value => value.replace(/\s+/gu, '').replace(/^0+(?=\d)/u, '');
     const label = value => number(value).replace(/[a-z]+$/u, suffix => ` ${suffix.toUpperCase()}`);
-    const connector = match[2]?.trim().replace('–', '-');
-    const key = number(match[1]) + (connector ? `${connector}${number(match[3])}` : '');
+    const connector = (match[2] || match[4])?.trim().replace('–', '-');
+    const letterEnd = match[5];
+    if (letterEnd && !/[a-z]$/u.test(number(match[1]))) return null;
+    const endpoint = letterEnd || (match[3] && number(match[3]));
+    const key = number(match[1]) + (connector ? `${connector}${endpoint}` : '');
     items.push({ key, label: label(match[1]) + (connector
-      ? `${connector === 'bis' ? ' bis ' : connector}${label(match[3])}` : '') });
+      ? `${connector === 'bis' ? ' bis ' : connector}${letterEnd ? letterEnd.toUpperCase() : label(match[3])}` : '') });
     end += match[0].length;
     // A five-digit postal suffix belongs to the address, not to its bounded
-    // house-number list. Require the complete active city name and no other
-    // suffix; regional scope checks deliberately do not pass this option.
-    const postal = /^\s*,\s*\d{5}\s+([\p{L}\p{M} -]+?)\s*[.!]?\s*$/u.exec(subject.slice(end));
-    if (city && postal && normalize(postal[1]) === normalize(city)) return { items, end };
+    // house-number list. Accept observed city-district/title continuations,
+    // never a second municipality; regional scope does not pass this option.
+    const postal = /^\s*,\s*\d{5}\s+([\p{L}\p{M}]+)(?:-[\p{L}\p{M}-]+)?(.*)$/u.exec(subject.slice(end));
+    if (city && postal && normalize(postal[1]) === normalize(city)
+        && (/^\s*[.!]?\s*$/u.test(postal[2])
+          || /^\s+(?:zum thema|des trägers|ersatzneubau|neubau|2\.\s*bauabschnitt)\b/u.test(postal[2]))) return { items, end };
     const separator = ADDRESS_SEPARATOR.exec(subject.slice(end));
     if (!separator || items.length === 8) break;
     end += separator[0].length;
   }
   const after = subject.slice(end);
-  // Actual planning titles separate addresses from these procedural subtitles
-  // with a spaced typographic dash. ASCII dashes and other words can still
-  // denote unknown range endpoints, so do not infer an exact address there.
-  const proseSeparator = /^\s+–\s+(?:einleitungsbeschluss|aufstellungsbeschluss)\b/u.test(after);
-  if ((!proseSeparator && ADDRESS_CONTINUATION.test(after)) || /^\s+[a-z]\s*(?:[-–/]|\s+bis\b)/u.test(after)
+  // Recognize observed title subtitles and balanced planning-title fences,
+  // while unknown words and incomplete range endpoints remain unresolved.
+  const proseSeparator = TITLE_ADDRESS_SUFFIX.test(after);
+  const closingFence = allowClosingFence && /^\s+[-–](?:\s*$|\s+[-–]\s+vereinfachtes verfahren\b)/u.test(after);
+  if ((!proseSeparator && !closingFence && ADDRESS_CONTINUATION.test(after)) || /^\s+[a-z]\s*(?:[-–/+]|\s+bis\b)/u.test(after)
       || /^\s+(?:km|meter|minuten)\b/u.test(after)) return null;
   return { items, end };
 }
@@ -261,7 +267,9 @@ function measureAddresses(subject, streets, gazetteer, used) {
   const results = [];
   for (const hit of streets) {
     const { entry, end } = hit;
-    const numbers = addressTail(subject.slice(end), gazetteer.city);
+    const before = subject.slice(0, hit.index);
+    const fenced = /\b(?:bebauungsplan\p{L}*|durchführungsvertrag|veränderungssperre)\b/u.test(before) && /\s[-–]\s/u.test(before);
+    const numbers = addressTail(subject.slice(end), gazetteer.city, fenced);
     if (!numbers) continue;
     used.add(hit);
     for (const number of numbers.items) {
@@ -350,11 +358,28 @@ function parseMeasureLocations(text, byFirstWord, gazetteer) {
   ];
 }
 
+function isPetitionerContactAddress(location) {
+  if (location.kind !== 'address' || typeof location.evidence?.text !== 'string') return false;
+  const compact = text => measureSubject(text).replace(/(\d)\s+([a-z])(?!\p{L})/gu, '$1$2');
+  const subject = compact(location.evidence.text);
+  const address = subject.indexOf(compact(location.label));
+  const topic = subject.indexOf('zum thema');
+  if (address < 0 || topic <= address) return false;
+  const before = subject.slice(0, address);
+  // The address identifies the senders of this written petition, before its
+  // explicitly introduced topic. A measure address after that topic is valid.
+  return /\bpetition\b/u.test(before) && /\bschriftliche eingabe (?:der|des|von)\b/u.test(before);
+}
+
 function measureLocations(record, byFirstWord, gazetteer, limit, requireHannoverScope = false) {
   const document = (Array.isArray(record.locationEvidence) ? record.locationEvidence : [])
     .filter(paragraph => typeof paragraph === 'string' && paragraph.trim()).flatMap(paragraph =>
     paragraph.split(/(?<=[.!?])\s+(?=[\p{Lu}„])/u));
-  const allEvidence = [...document.map(text => ({ source: 'document', text })), { source: 'title', text: record.title }];
+  // Retained snapshots may hold older title quotations as well as the prior
+  // record title. Keep their individual source identity and sentence scope.
+  const titles = [...new Set([...(Array.isArray(record.locationTitleEvidence) ? record.locationTitleEvidence : []), record.title]
+    .filter(text => typeof text === 'string' && text.trim()))];
+  const allEvidence = [...document.map(text => ({ source: 'document', text })), ...titles.map(text => ({ source: 'title', text }))];
   // Scope stays with its original sentence/line, including multi-sentence
   // titles. A publisher, heading or another paragraph cannot license a street.
   const evidence = requireHannoverScope ? allEvidence.flatMap(proof => typeof proof.text === 'string'
@@ -364,9 +389,16 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
   const reasons = new Set();
   const general = [];
   const keep = (found, proof) => {
+    const candidate = { ...found, evidence: proof };
+    if (isPetitionerContactAddress(candidate)) {
+      delete candidate.geometry;
+      delete candidate.attribution;
+      delete candidate.mapLabel;
+      reasons.add('non_traffic_address');
+    }
     const key = `${found.kind}:${normalize(found.label)}`;
     const existing = locations.get(key);
-    if (!existing || (!existing.geometry && found.geometry)) locations.set(key, { ...found, evidence: proof });
+    if (!existing || (!existing.geometry && candidate.geometry)) locations.set(key, candidate);
   };
   for (const proof of evidence) {
     const normalized = normalize(proof.text);
@@ -446,4 +478,4 @@ function enrichRisLocations(records, { city, gazetteer, maxLocationsPerRecord = 
   });
 }
 
-module.exports = { enrichRisLocations };
+module.exports = { enrichRisLocations, isPetitionerContactAddress };

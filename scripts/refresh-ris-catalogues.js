@@ -11,7 +11,8 @@ const zlib = require('node:zlib');
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const { readRisSnapshot, writeRisSnapshot, enumerateSnapshotAssets, RIS_FALLBACK_MAX_AGE_MS } = require('../server/political-context/services/risSnapshot');
-const { enrichRisLocations } = require('../server/political-context/services/risLocation');
+const { enrichRisLocations, isPetitionerContactAddress } = require('../server/political-context/services/risLocation');
+const { validLocationGeometry } = require('../js/ua.ris-catalogue').snapshotFormat;
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
 const { createRisSourceCheckpoint } = require('../server/political-context/services/risSourceCheckpoint');
 const { collectionProvenance } = require('../server/political-context/services/risProvenance');
@@ -28,7 +29,7 @@ const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 60 * 60_000 };
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
-const LOCATION_REVISION = 4;
+const LOCATION_REVISION = 5;
 const HISTORY_START_YEAR = 2014;
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
@@ -347,6 +348,40 @@ function snapshotInputs({ records, features }) {
   });
 }
 
+function reassessRetainedLocations(records, city, gazetteer) {
+  const inputs = records.map(record => {
+    const document = [...new Set((record.locations || []).filter(location => location.evidence.source === 'document')
+      .map(location => location.evidence.text))];
+    return {
+      ...record, locationEvidence: document,
+      locationTitleEvidence: [...new Set((record.locations || []).filter(location => location.evidence.source === 'title')
+        .map(location => location.evidence.text))],
+      // Stored quotations do not establish full document availability.
+      locationEvidenceTruncated: document.length > 0 || record.locationAssessment?.truncated === true,
+      locationEvidenceUnavailable: record.locationEvidenceUnavailable === true || !document.length
+        || record.locationAssessment?.reasons.includes('document_text_unavailable') === true,
+    };
+  });
+  return enrichRisLocations(inputs, { city, gazetteer, maxLocationsPerRecord: Infinity }).map((record, index) => {
+    let restoredAddress = false;
+    const locations = record.locations.map(location => {
+      const prior = records[index].locations?.find(old => old.kind === location.kind && old.label === location.label
+        && old.evidence.source === location.evidence.source && old.evidence.text === location.evidence.text);
+      // Keep the verified map evidence and its credit for unchanged matches.
+      // A corrected range or a newly rejected marker must not inherit a point.
+      if (!prior?.geometry || isPetitionerContactAddress(location)) return location;
+      restoredAddress ||= location.kind === 'address';
+      return { ...location, geometry: prior.geometry, ...(prior.mapLabel ? { mapLabel: prior.mapLabel } : {}) };
+    });
+    const reasons = record.locationAssessment.reasons.filter(reason =>
+      !(reason === 'non_traffic_address' && restoredAddress)
+      && !(reason === 'unmapped_location' && locations.every(location => validLocationGeometry(location.geometry, location.kind))));
+    const mapped = record.locationSource === 'official' || locations.some(location => validLocationGeometry(location.geometry, location.kind));
+    return { ...record, title: records[index].title, locations, locationAssessment: { ...record.locationAssessment, reasons,
+      status: mapped ? (reasons.length ? 'partial' : 'mapped') : record.locationAssessment.status } };
+  });
+}
+
 function retainedLegacyAssessment(record) {
   // Legacy snapshots can contain verified detail without assessment metadata.
   // Describe only that retained evidence; do not re-geocode it from the newer
@@ -391,6 +426,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   }
   const historicalSourceClocks = [];
   const retainedDetails = new Map();
+  const retainedAssessmentSources = new Map();
   // Checkpoint evidence can outlive a published snapshot. Its original detail
   // clock must constrain publication even when no previous manifest exists.
   const retainedClocks = inputs.filter(record => record.locationEvidenceUnavailable && record.detailVerifiedAt)
@@ -435,6 +471,11 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
           reasons: [...new Set([...prior.locationAssessment.reasons, 'document_text_unavailable'])] };
         else merged.locationAssessment = retainedLegacyAssessment(prior);
         retainedDetails.set(next.id, merged);
+        if (needsLocationAssessment(old.manifest)) {
+          // Reassess only the prior snapshot's title and saved quotations;
+          // newer list metadata is not a substitute for the unavailable body.
+          retainedAssessmentSources.set(next.id, { ...prior, locationEvidenceUnavailable: true });
+        }
         priorRecords.set(next.id, merged);
       } else priorRecords.set(next.id, next);
     }
@@ -447,7 +488,12 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   }
   const gazetteer = await loadGazetteer(city);
   const records = enrichRisLocations(inputs.filter(record => !retainedDetails.has(record.id)), { city, gazetteer, maxLocationsPerRecord: Infinity });
-  for (const record of retainedDetails.values()) records.push(record);
+  const reassessed = new Map(reassessRetainedLocations([...retainedAssessmentSources.values()], city, gazetteer)
+    .map(record => [record.id, record]));
+  for (const record of retainedDetails.values()) {
+    const assessment = reassessed.get(record.id);
+    records.push(assessment ? { ...record, locations: assessment.locations, locationAssessment: assessment.locationAssessment } : record);
+  }
   if (previous?.manifest && ((catalogue.history?.retainPreviousClock ?? catalogue.history?.interrupted) || retainedDetails.size)) {
     retainedClocks.push(previous.manifest.generatedAt);
   }
@@ -503,28 +549,13 @@ async function prepareLocalAssessment(directory, selected, builtAt) {
       { now: builtAt, schemaVersion: 2 });
     return { directory, manifest };
   }
-  const { features } = original;
   const records = snapshotInputs(original);
-  const official = new Map(features.features.filter(feature => feature.properties.accuracy === 'official')
-    .map(feature => [feature.properties.recordId, feature]));
-  const inputs = records.map(record => {
-    const document = [...new Set((record.locations || []).filter(location => location.evidence.source === 'document')
-      .map(location => location.evidence.text))];
-    const feature = official.get(record.id);
-    return {
-      ...record, locationEvidence: document,
-      // A published snapshot stores selected quotations, never the full text.
-      locationEvidenceTruncated: document.length > 0 || record.locationAssessment?.truncated === true,
-      locationEvidenceUnavailable: !document.length || record.locationAssessment?.reasons.includes('document_text_unavailable') === true,
-      ...(feature ? { geometry: feature.geometry, locationSource: 'official', locationLabel: feature.properties.label } : {}),
-    };
-  });
   const gazetteer = await loadGazetteer(source.city);
   const next = await writeRisSnapshot(directory, source.city, {
     sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISION,
     ...(source.sourceStatuses === undefined ? {} : { sourceStatuses: source.sourceStatuses }),
     ...(source.withdrawalsRecordedAt === undefined ? {} : { withdrawalsRecordedAt: source.withdrawalsRecordedAt }),
-    records: enrichRisLocations(inputs, { city: source.city, gazetteer, maxLocationsPerRecord: Infinity }),
+    records: reassessRetainedLocations(records, source.city, gazetteer),
     generatedAt: source.generatedAt, ...(source.provenance === undefined ? {} : { provenance: source.provenance }), ...(source.refreshFailure ? { refreshFailure: source.refreshFailure } : {}),
   }, { now: builtAt, schemaVersion: 2 });
   // Local analysis does not refresh the official source or its retry/expiry
