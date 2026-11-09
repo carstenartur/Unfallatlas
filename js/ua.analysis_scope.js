@@ -293,6 +293,12 @@
   function wrapUpdateStats(original) {
     if (typeof original !== 'function' || hasScopeHookInChain(original)) return original;
     const wrapped = function updateStatsWithExactScopes(ctx, hotInfo) {
+      if (ctx && ctx.lifecyclePrimary === true) {
+        const status = UA.lifecycle?.getSnapshot?.()?.status;
+        // Deferred scope refreshes must not replace the primary load/error
+        // message with successful-looking zero counts before data is usable.
+        if (status === 'booting' || status === 'loading' || status === 'error') return;
+      }
       const scope = refreshScopePoints(ctx);
       const statEl = ctx && ctx.ui && ctx.ui.statEl;
       if (!statEl) return original.apply(this, arguments);
