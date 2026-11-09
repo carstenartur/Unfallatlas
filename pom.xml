@@ -525,6 +525,11 @@
 
         <profile>
             <id>release-site</id>
+            <properties>
+                <!-- Pages applies a different distribution profile. Preserve the
+                     canonical site bound to the extended browser receipts. -->
+                <pages.outputDir>.build/release-pages-qa</pages.outputDir>
+            </properties>
             <build>
                 <plugins>
                     <plugin>

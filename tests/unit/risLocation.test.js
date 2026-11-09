@@ -736,7 +736,331 @@ test('does not create a new postal-code city scope rule for regional addresses',
   expect(record.locations).toEqual([]);
 });
 
-test.each(['12 - unbekannt', '12 - N.N.', '12 - ?', '12 – unbekannt', '12 – N.N.', '12 – ?', '12 - Einleitungsbeschluss', '12 – Erneuerung'])('does not turn an unknown range endpoint %s into the first address point', tail => {
+test.each(['12 - unbekannt', '12 - N.N.', '12 - ?', '12 – unbekannt', '12 – N.N.', '12 – ?', '12 - unbekannter Beschluss', '12 – Erneuerung'])('does not turn an unknown range endpoint %s into the first address point', tail => {
   const [record] = enrichRisLocations([{ title: `Verkehrssicherheit Limmerstraße ${tail}` }], { city: 'hannover', gazetteer: addressGazetteer });
   expect(record.locations.some(place => place.geometry)).toBe(false);
+});
+
+test('keeps retained title quotations separate from document evidence and scopes each regional sentence independently', () => {
+  const first = 'Radverkehr Limmerstraße 12 in Hannover';
+  const second = 'Radverkehr Limmerstraße 14 in Hannover';
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title: 'Regionales Programm',
+    locationTitleEvidence: [first, second, first, 'Radverkehr Limmerstraße 12. Die Lage ist in Hannover.'],
+  }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.map(({ label, evidence }) => ({ label, evidence }))).toEqual([
+    { label: 'Limmerstraße 12', evidence: { source: 'title', text: first } },
+    { label: 'Limmerstraße 14', evidence: { source: 'title', text: second } },
+  ]);
+  expect(record.locationAssessment.sources).toEqual(['title']);
+});
+
+const observedRetainedAddressTitles = [
+  [
+    "hannover-sim:0235-2021",
+    "Vorhabenbezogener Bebauungsplan Nr. 1879 - Bürohaus Hildesheimer Straße 114 - Modifizierter Einleitungsbeschluss",
+    [
+      "Hildesheimer Straße 114"
+    ]
+  ],
+  [
+    "hannover-sim:0245-2016",
+    "Durchführungsvertrag zum vorhabenbezogenen Bebauungsplan der Innenentwicklung Nr. 1798 - Sodenstraße 3 -",
+    [
+      "Sodenstraße 3"
+    ]
+  ],
+  [
+    "hannover-sim:0271-2020",
+    "Petition Nr. 02 / 1. Halbjahr 2019 Schriftliche Eingabe der Herren Gregor Bischoff und Gerd Reincke, Herrenhäuser Kirchweg 12, 30167 Hannover zum Thema „Entkopplung der Ampelschaltung am Industrieweg und die Entkopplung aller betreffenden Ampelschaltungen im Stadtgebiet“",
+    [
+      "Herrenhäuser Kirchweg 12"
+    ]
+  ],
+  [
+    "hannover-sim:0314-2018",
+    "Gewährung einer Sonderfinanzierung Einrichtung „Große Haie“, Hildesheimer Straße 54, 30169 Hannover des Trägers Krabbe-l-ino e. V. für den Zeitraum 01.08.2016 bis 31.07.2017",
+    [
+      "Hildesheimer Straße 54"
+    ]
+  ],
+  [
+    "hannover-sim:0396-2021",
+    "Einrichtung und Förderung der Kindertagesstätte \"Kita Holzwiesen\", Grünspechtwiese 1, 30657 Hannover-Bothfeld",
+    [
+      "Grünspechtwiese 1"
+    ]
+  ],
+  [
+    "hannover-sim:0396-2021N1",
+    "Einrichtung und Förderung der Kindertagesstätte \"Kita Herzkamp\", Grünspechtwiese 1, 30657 Hannover-Bothfeld",
+    [
+      "Grünspechtwiese 1"
+    ]
+  ],
+  [
+    "hannover-sim:0565-2026",
+    "Vorhabenbezogener Bebauungsplan der Innenentwicklung Nr. 1911 - Geschäftshaus Burgwedeler Straße 10 - Auslegungsbeschluss",
+    [
+      "Burgwedeler Straße 10"
+    ]
+  ],
+  [
+    "hannover-sim:0605-2018",
+    "IGS Linden, Sekundarstufe II Beethovenstraße 5 - Dachsanierung",
+    [
+      "Beethovenstraße 5"
+    ]
+  ],
+  [
+    "hannover-sim:0771-2022",
+    "Vorhabenbezogener Bebauungsplan der Innenentwicklung Nr. 1911 – Wohn- und Geschäftshaus Burgwedeler Straße 10 – Aufstellungs- und Einleitungsbeschluss, Beschluss über die frühzeitige Beteiligung der Öffentlichkeit",
+    [
+      "Burgwedeler Straße 10"
+    ]
+  ],
+  [
+    "hannover-sim:0895-2020",
+    "Bebauungsplan der Innenentwicklung Nr. 580, 3. Änderung - Nenndorfer Chaussee 9 - vormals AS Solar - Beschluss zur frühzeitigen Beteiligung der Öffentlichkeit, Aufstellungsbeschluss",
+    [
+      "Nenndorfer Chaussee 9"
+    ]
+  ],
+  [
+    "hannover-sim:0895-2020N1",
+    "Bebauungsplan der Innenentwicklung Nr. 580, 3. Änderung - Nenndorfer Chaussee 9 - vormals AS Solar - Beschluss zur frühzeitigen Beteiligung der Öffentlichkeit, Aufstellungsbeschluss",
+    [
+      "Nenndorfer Chaussee 9"
+    ]
+  ],
+  [
+    "hannover-sim:0912-2017",
+    "Umstrukturierung der Kindertagesstätte \"Wigwam\", Rumpelstilzchenweg 5, 30179 Hannover-Sahlkamp",
+    [
+      "Rumpelstilzchenweg 5"
+    ]
+  ],
+  [
+    "hannover-sim:0916-2021",
+    "Bebauungsplan Nr. 718, 1. Änderung – Kita Uferzeile 6 - - vereinfachtes Verfahren nach § 13 BauGB - Beschluss über Stellungnahmen, Satzungsbeschluss",
+    [
+      "Uferzeile 6"
+    ]
+  ],
+  [
+    "hannover-sim:0951-2025",
+    "Schulstandort Göttinger Straße 14 – Entscheidung zur Belegung mit dem hochwachsenden Gymnasium Bemerode ab dem Schuljahr 2027/28",
+    [
+      "Göttinger Straße 14"
+    ]
+  ],
+  [
+    "hannover-sim:0951-2025N1",
+    "Schulstandort Göttinger Straße 14 – Entscheidung zur Belegung mit dem hochwachsenden Gymnasium Bemerode ab dem Schuljahr 2027/28",
+    [
+      "Göttinger Straße 14"
+    ]
+  ],
+  [
+    "hannover-sim:0974-2016",
+    "Vorhabenbezogener Bebauungsplan der Innenentwicklung Nr. 1833 - Böhmerstraße 8 - Beschluss zur frühzeitigen Beteiligung der Öffentlichkeit, Einleitungsbeschluss, Aufstellungsbeschluss",
+    [
+      "Böhmerstraße 8"
+    ]
+  ],
+  [
+    "hannover-sim:1481-2026",
+    "IGS Linden Sporthallen, Am Spielfelde 13 A – Erneuerung Sportboden",
+    [
+      "Am Spielfelde 13 A"
+    ]
+  ],
+  [
+    "hannover-sim:15-0935-2014",
+    "Zuwendung für die Unterstützung der Flüchtlingsarbeit im Bereich des Flüchtlingsheims Vahrenwald in der Büttnerstraße 19 – aus Mitteln des Integrationsbeirates Vahrenwald-List",
+    [
+      "Büttnerstraße 19"
+    ]
+  ],
+  [
+    "hannover-sim:15-2295-2019",
+    "Vorhabenbezogener Bebauungsplan Nr. 1879 - Wohn- und Geschäftshaus Hildesheimer Straße 114 - Beschluss zur frühzeitigen Beteiligung der Öffentlichkeit",
+    [
+      "Hildesheimer Straße 114"
+    ]
+  ],
+  [
+    "hannover-sim:1519-2016",
+    "Umstrukturierung in der Kindertagesstätte Ev.-luth. Familienzentrum Baldeniusstraße 33 b, 30419 Hannover-Stöcken",
+    [
+      "Baldeniusstraße 33 B"
+    ]
+  ],
+  [
+    "hannover-sim:1548-2024",
+    "Unterkunft für Geflüchtete, Fuhsestraße 28, 30419 Hannover Ersatzneubau",
+    [
+      "Fuhsestraße 28"
+    ]
+  ],
+  [
+    "hannover-sim:1559-2024",
+    "Unterkunft für Geflüchtete, Helmkestraße 28, 30419 Hannover 2. Bauabschnitt",
+    [
+      "Helmkestraße 28"
+    ]
+  ],
+  [
+    "hannover-sim:1567-2019",
+    "Vorhabenbezogener Bebauungsplan Nr. 1879 - Geschäftshaus Hildesheimer Straße 114 - Einleitungsbeschluss",
+    [
+      "Hildesheimer Straße 114"
+    ]
+  ],
+  [
+    "hannover-sim:1567-2019N1",
+    "Vorhabenbezogener Bebauungsplan Nr. 1879 - Wohn- und Geschäftshaus Hildesheimer Straße 114 - Einleitungsbeschluss",
+    [
+      "Hildesheimer Straße 114"
+    ]
+  ],
+  [
+    "hannover-sim:1639-2015",
+    "Durchführungsvertrag zum vorhabenbezogenen Bebauungsplan Nr. 1815 - Velberstraße 4 -",
+    [
+      "Velberstraße 4"
+    ]
+  ],
+  [
+    "hannover-sim:1652-2020",
+    "Durchführungsvertrag zum vorhabenbezogenen Bebauungsplan Nr. 1877 - Hildesheimer Straße 451 -",
+    [
+      "Hildesheimer Straße 451"
+    ]
+  ],
+  [
+    "hannover-sim:1749-2024",
+    "Unterkunft für Geflüchtete, Am Heisterholze 20 A-F, 30559 Hannover Neubau",
+    [
+      "Am Heisterholze 20 A-F"
+    ]
+  ],
+  [
+    "hannover-sim:1795-2021",
+    "Durchführungsvertrag zum vorhabenbezogenen Bebauungsplan Nr. 1879 - Bürohaus Hildesheimer Straße 114 -",
+    [
+      "Hildesheimer Straße 114"
+    ]
+  ],
+  [
+    "hannover-sim:1867-2015",
+    "Vorhabenbezogener Bebauungsplan der Innenentwicklung Nr. 1798 - Sodenstraße 3 - Auslegungsbeschluss",
+    [
+      "Sodenstraße 3"
+    ]
+  ],
+  [
+    "hannover-sim:1867-2015E1",
+    "Vorhabenbezogener Bebauungsplan der Innenentwicklung Nr. 1798 - Sodenstraße 3 - Auslegungsbeschluss",
+    [
+      "Sodenstraße 3"
+    ]
+  ],
+  [
+    "hannover-sim:2127-2025",
+    "Erste Verlängerung der Geltungsdauer der Veränderungssperre Nr. 123 für den Geltungsbereich des Bebauungsplans Nr. 1926 - Hildesheimer Straße 230 -",
+    [
+      "Hildesheimer Straße 230"
+    ]
+  ],
+  [
+    "hannover-sim:2271-2018",
+    "Bebauungsplan Nr. 1365, 1. textliche Änderung - Einzelhandelssonderstandort Davenstedter Straße 80 - Aufstellungsbeschluss",
+    [
+      "Davenstedter Straße 80"
+    ]
+  ],
+  [
+    "hannover-sim:2450-2025",
+    "Änderungsantrag der Elternvertretung im Schul- und Bildungsausschuss (Frau Dr. Sonja Memenga-Niksch und Herr Ralf Popp) zu Drucks. Nr. 0951/2024: Schulstandort Göttinger Straße 14 – Entscheidung zur Belegung mit dem hochwachsenden Gymnasium Bemerode ab dem Schuljahr 2027/28",
+    [
+      "Göttinger Straße 14"
+    ]
+  ],
+  [
+    "hannover-sim:2653-2020",
+    "Vorhabenbezogener Bebauungsplan der Innenentwicklung Nr. 1802 - Wohn- und Geschäftshaus Tiestestr. 14 c - Satzungsbeschluss",
+    [
+      "Tiestestraße 14 C"
+    ]
+  ],
+  [
+    "hannover-sim:2963-2018",
+    "Vorhabenbezogener Bebauungsplan der Innenentwicklung Nr. 1802 - Wohn- und Geschäftshaus Tiestestraße 14 c - Aufstellungs- und Einleitungsbeschluss, Beschluss über die frühzeitige Beteiligung der Öffentlichkeit",
+    [
+      "Tiestestraße 14 C"
+    ]
+  ]
+];
+
+test.each(observedRetainedAddressTitles)('retains complete address evidence at the observed title boundary in %s', (id, title, labels) => {
+  const { readFileSync } = require('node:fs');
+  const { gunzipSync } = require('node:zlib');
+  const path = require('node:path');
+  const gazetteer = JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz'))));
+  const [record] = enrichRisLocations([{ id, source: 'hannover-sim', title }], { city: 'hannover', gazetteer });
+  expect(record.locations.filter(location => location.kind === 'address').map(location => location.label)).toEqual(labels);
+  expect(record.locations.every(location => location.evidence.source === 'title' && location.evidence.text === title)).toBe(true);
+  if (id === 'hannover-sim:1749-2024') expect(record.locations[0].geometry).toBeUndefined();
+});
+
+test.each([
+  ['20 A-F', '20 A-F'], ['20A-F', '20 A-F'], ['3A+B', '3 A+B'], ['3 A + B', '3 A+B'],
+])('preserves a complete letter compound %s instead of mapping its numeric prefix', (tail, label) => {
+  const title = `Radverkehr Limmerstraße ${tail}`;
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: {
+    ...addressGazetteer, addresses: { limmer: { '20': [9.712, 52.37], '20a': [9.713, 52.37], '3a': [9.714, 52.37] } },
+  } });
+  expect(record.locations).toEqual([{ kind: 'address', label: `Limmerstraße ${label}`, evidence: { source: 'title', text: title } }]);
+});
+
+test.each(['12 - unbekannt', '12 - N.N.', '12 - ?', '12 -', '12-F', '12A+foo', '12A+B+C', '12+Schule'])('rejects a genuinely unknown or incomplete endpoint %s after supporting title delimiters', tail => {
+  const [record] = enrichRisLocations([{ title: `Radverkehr Limmerstraße ${tail}` }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.some(location => location.geometry)).toBe(false);
+});
+
+test('uses a letter-compound point only for its complete verified key', () => {
+  const [record] = enrichRisLocations([{ title: 'Radverkehr Limmerstraße 3A+B' }], { city: 'hannover', gazetteer: {
+    ...addressGazetteer, addresses: { limmer: { '3a': [9.712, 52.37], '3a+b': [9.715, 52.37] } },
+  } });
+  expect(record.locations).toMatchObject([{ label: 'Limmerstraße 3 A+B', geometry: { type: 'Point', coordinates: [9.715, 52.37] } }]);
+});
+
+test('retains both full compounds in the actual Dunantstraße 3A+B planning title', () => {
+  const { readFileSync } = require('node:fs');
+  const { gunzipSync } = require('node:zlib');
+  const path = require('node:path');
+  const gazetteer = JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz'))));
+  const title = 'Kita und Verwaltungsgebäude Emmy-Lanzke-Haus Dunantstr. 3-5 Kita-Krippe Dunantstraße 3A+B, Sicherheit Brandschutztüren';
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer });
+  expect(record.locations.map(location => location.label).sort()).toEqual(['Dunantstraße 3 A+B', 'Dunantstraße 3-5']);
+  expect(record.locations.every(location => location.geometry === undefined && location.evidence.text === title)).toBe(true);
+});
+
+test('keeps the actual petitioners postal address textual rather than placing the petition measure there', () => {
+  const { readFileSync } = require('node:fs');
+  const { gunzipSync } = require('node:zlib');
+  const path = require('node:path');
+  const gazetteer = JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz'))));
+  const title = 'Petition Nr. 02 / 1. Halbjahr 2019 Schriftliche Eingabe der Herren Gregor Bischoff und Gerd Reincke, Herrenhäuser Kirchweg 12, 30167 Hannover zum Thema „Entkopplung der Ampelschaltung am Industrieweg und die Entkopplung aller betreffenden Ampelschaltungen im Stadtgebiet“';
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer });
+  expect(record.locations).toEqual([{ kind: 'address', label: 'Herrenhäuser Kirchweg 12', evidence: { source: 'title', text: title } }]);
+  expect(record.locationAssessment.reasons).toContain('non_traffic_address');
+});
+
+test('keeps a genuine house-address measure after the petition topic marker mapped', () => {
+  const title = 'Petition Nr. 02 Schriftliche Eingabe der Herren Beispiel und Muster zum Thema Radverkehr in der Limmerstraße 12';
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toMatchObject([{ kind: 'address', label: 'Limmerstraße 12',
+    geometry: { type: 'Point', coordinates: [9.712, 52.37] }, evidence: { source: 'title', text: title } }]);
+  expect(record.locationAssessment.reasons).not.toContain('non_traffic_address');
 });

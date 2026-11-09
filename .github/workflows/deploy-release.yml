@@ -281,6 +281,8 @@ jobs:
             echo "dry_run=${{ inputs.dry_run }}"
             echo "profiles=release-site,pages,e2e,system-it,location-brief-golden,document-render"
             echo "failsafe.includes=**/*IT.java"
+            echo "pages_output_dir=.build/release-pages-qa"
+            echo "release_site_dir=_site"
           } > out/qa/release-acceptance-contract.txt
           git status --short > out/qa/release-worktree-before-qa.txt
 
@@ -296,12 +298,14 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-acceptance-evidence
+          include-hidden-files: true
           path: |
             out/qa/
             coverage/
             playwright-report/
             test-results/
             _site/build-manifest.json
+            .build/release-pages-qa/build-manifest.json
             _site/vendor/THIRD_PARTY_NOTICES.json
             _site/vendor/third-party-notices.json
             _site/vendor/sbom.cdx.json

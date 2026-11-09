@@ -1067,15 +1067,17 @@ test.each(['official', 'derived', 'relation'])('assesses retained legacy %s evid
   expect(after.manifest.refreshFailure).toBeUndefined();
   expect(retained).toMatchObject({ title: next.records[0].title, relatedTo: priorRecord.relatedTo,
     locationAssessment: {
-      status: evidenceKind === 'relation' ? 'unresolved' : 'partial',
+      status: 'partial',
       reasons: expect.arrayContaining(['document_text_unavailable']),
     } });
-  expect(retained.locations).toEqual(before.records[0].locations || []);
+  expect(retained.locations).toEqual(evidenceKind === 'derived' ? before.records[0].locations : [{
+    kind: 'street', label: 'Limmerstraße', mapped: true, evidence: { source: 'title', text: priorRecord.title },
+  }]);
   expect(retained.locationAssessment.truncated).toBe(evidenceKind === 'derived');
   expect(retained.locationAssessment.sources.includes('official')).toBe(evidenceKind === 'official');
   expect(retained.locationAssessment.sources.includes('document')).toBe(evidenceKind === 'derived');
   expect(after.features.features.filter(feature => feature.properties.recordId === priorRecord.id))
-    .toEqual(before.features.features.filter(feature => feature.properties.recordId === priorRecord.id));
+    .toEqual(expect.arrayContaining(before.features.features.filter(feature => feature.properties.recordId === priorRecord.id)));
 });
 
 test('keeps complete title-derived feature labels when newly unavailable detail evidence retains prior locations', async () => {
@@ -1433,4 +1435,79 @@ test('never transfers a retained prefix point to a corrected range and leaves re
   expect(second.records).toEqual(first.records);
   expect(second.features.features).toEqual(first.features.features);
   expect(second.manifest.generatedAt).toBe(first.manifest.generatedAt);
+});
+
+test('reassesses an available prior title even when its old snapshot has no recognized title locations', async () => {
+  const previous = catalogue('hannover');
+  previous.locationRevision = 4;
+  const original = previous.records[1];
+  original.id = 'hannover-sim:0579-2023';
+  original.title = 'Bebauungsplan Nr. 650, Teilaufhebung als Maßnahme der Innenentwicklung – Eintrachtweg 1-15 – Aufstellungsbeschluss, Beschluss über die frühzeitige Beteiligung der Öffentlichkeit';
+  original.locations = [];
+  original.relatedTo = previous.records[0].id;
+  await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), history: { pending: false, interrupted: false },
+    records: [previous.records[0], { ...original, title: 'Neue Listenfassung ohne Ortsbezug', locationEvidenceUnavailable: true }] };
+  await refresh({ cities: ['hannover'], collect: () => incoming });
+  const after = await readRisSnapshot(directory, 'hannover');
+  const corrected = after.records.find(record => record.id === original.id);
+  expect(corrected.title).toBe('Neue Listenfassung ohne Ortsbezug');
+  expect(corrected).not.toHaveProperty('locationTitleEvidence');
+  expect(corrected.locations).toEqual([{ kind: 'address', label: 'Eintrachtweg 1-15', mapped: false,
+    evidence: { source: 'title', text: original.title } }]);
+  expect(corrected.relatedTo).toBe(original.relatedTo);
+  expect(after.manifest.generatedAt).toBe(FALLBACK.toISOString());
+});
+
+test('reassesses every distinct retained regional title quotation independently with its original scope and map identity', async () => {
+  const previous = regionalCatalogue();
+  previous.locationRevision = 4;
+  const regional = previous.records[2];
+  regional.title = 'Verkehrssicherheit Ohestraße 6 in Hannover';
+  const quotes = ['Radverkehr Ohestraße 6 in Hannover', 'Radverkehr Am Spielfelde 13 A in Hannover'];
+  regional.locations = [
+    { kind: 'address', label: 'Ohestraße 6', evidence: { source: 'title', text: quotes[0] },
+      geometry: { type: 'Point', coordinates: [9.724028, 52.366419] }, attribution: 'Original verified address A' },
+    { kind: 'address', label: 'Am Spielfelde 13 A', evidence: { source: 'title', text: quotes[1] },
+      geometry: { type: 'Point', coordinates: [9.707019, 52.362972] }, attribution: 'Original verified address B' },
+  ];
+  regional.locationAssessment = { status: 'mapped', sources: ['title'], reasons: [], truncated: false };
+  await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const before = await readRisSnapshot(directory, 'hannover');
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), history: { pending: false, interrupted: false },
+    records: previous.records.map(record => ({ ...record, title: 'Aktualisierte Listenmetadaten', locationEvidenceUnavailable: true })) };
+  await refresh({ cities: ['hannover'], collect: () => incoming });
+  const after = await readRisSnapshot(directory, 'hannover');
+  const corrected = after.records.find(record => record.id === regional.id);
+  expect(corrected.locations).toEqual([
+    { kind: 'address', label: 'Ohestraße 6', evidence: { source: 'title', text: quotes[0] }, mapped: true },
+    { kind: 'address', label: 'Am Spielfelde 13 A', evidence: { source: 'title', text: quotes[1] }, mapped: true },
+  ]);
+  expect(corrected.locationAssessment.sources).toEqual(['title']);
+  expect(corrected.locationAssessment.reasons).toContain('document_text_unavailable');
+  expect(after.features.features.filter(feature => feature.properties.recordId === regional.id))
+    .toEqual(before.features.features.filter(feature => feature.properties.recordId === regional.id));
+  expect(after.manifest.generatedAt).toBe(FALLBACK.toISOString());
+});
+
+test('does not restore a revision 4 petitioners contact point when retaining unavailable details', async () => {
+  const previous = catalogue('hannover');
+  previous.locationRevision = 4;
+  const record = previous.records[1];
+  record.id = 'hannover-sim:0271-2020';
+  record.title = 'Petition Nr. 02 / 1. Halbjahr 2019 Schriftliche Eingabe der Herren Gregor Bischoff und Gerd Reincke, Herrenhäuser Kirchweg 12, 30167 Hannover zum Thema „Entkopplung der Ampelschaltung am Industrieweg und die Entkopplung aller betreffenden Ampelschaltungen im Stadtgebiet“';
+  record.locations = [{ kind: 'address', label: 'Herrenhäuser Kirchweg 12',
+    evidence: { source: 'title', text: record.title }, geometry: { type: 'Point', coordinates: [9.71127, 52.391688] } }];
+  record.locationAssessment = { status: 'mapped', sources: ['title'], reasons: [], truncated: false };
+  const prior = await writeRisSnapshot(directory, 'hannover', previous, { now: FALLBACK });
+  const incoming = { ...previous, generatedAt: NOW.toISOString(), history: { pending: false, interrupted: false },
+    records: [previous.records[0], { ...record, locationEvidenceUnavailable: true }] };
+  await refresh({ cities: ['hannover'], collect: () => incoming });
+  const after = await readRisSnapshot(directory, 'hannover');
+  const retained = after.records.find(item => item.id === record.id);
+  expect(retained.locations).toEqual([{ kind: 'address', label: 'Herrenhäuser Kirchweg 12', mapped: false,
+    evidence: { source: 'title', text: record.title } }]);
+  expect(retained.locationAssessment.reasons).toEqual(expect.arrayContaining(['document_text_unavailable', 'non_traffic_address']));
+  expect(after.features.features.some(feature => feature.properties.recordId === record.id)).toBe(false);
+  expect(after.manifest.generatedAt).toBe(prior.generatedAt);
 });

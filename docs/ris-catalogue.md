@@ -267,11 +267,20 @@ Schritt: Sie bewertet vorhandene Titel, gespeicherte Belege und amtliche Lagen g
 das aktuelle geprüfte Ortsverzeichnis. Begrenzte Belege werden entsprechend bezeichnet.
 
 Hausnummern einschließlich Zusätzen, Listen und Angaben wie `12-14`, `12 bis 14`
-oder `12/14` bleiben als Adressbezug mit ihrer Fundstelle erhalten. Eine Kartenposition
+oder `12/14` sowie Buchstabenbereiche/-verbindungen wie `20 A-F` und `3 A+B`
+bleiben vollständig als Adressbezug mit ihrer Fundstelle erhalten. Eine Kartenposition
 entsteht nur aus dem vollständigen passenden Adressschlüssel im geprüften
 Ortsverzeichnis; ein unbekannter Bereich wird weder auf seine erste Hausnummer noch
 auf den ganzen Straßenverlauf gelegt. `Nr.12` und `Hausnr. 12` werden ebenfalls
-erkannt. Bei Regionsvorlagen muss die unmittelbare Stadtzuordnung im selben Satz
+erkannt. Die in amtlichen Titeln belegten Verfahrens-/Sachuntertitel und ausgeglichenen
+Planungstitel-Trennstriche beenden eine vollständige Adresse; unbekannte Endpunkte
+bleiben ungeklärt. Postleitzahl, Stadtteil und die belegten nachfolgenden Titelzusätze
+werden nicht als weitere Hausnummern gelesen. Eine klar bezeichnete Anschrift der
+Verfasser einer schriftlichen Petition vor „zum Thema“ bleibt als Adressangabe
+erhalten, erhält aber keine Lage der beantragten Maßnahme. Eine tatsächlich nach
+dieser Themenmarkierung benannte Maßnahmenadresse bleibt verortbar. Auch die
+Übernahme älterer Kartenbelege setzt diese Unterscheidung nicht außer Kraft.
+Bei Regionsvorlagen muss die unmittelbare Stadtzuordnung im selben Satz
 auch zur vollständigen Adressangabe passen. Ortsprüfrevision 5 bewertet dafür ältere
 Bestände erneut, auch wenn ein erfolgreicher Katalogabruf einzelne Detailseiten nicht
 erneut liefern konnte. Bereits mit Revision 4 veröffentlichte, unverändert übernommene

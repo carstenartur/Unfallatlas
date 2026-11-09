@@ -11,7 +11,7 @@ const zlib = require('node:zlib');
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const { readRisSnapshot, writeRisSnapshot, enumerateSnapshotAssets, RIS_FALLBACK_MAX_AGE_MS } = require('../server/political-context/services/risSnapshot');
-const { enrichRisLocations } = require('../server/political-context/services/risLocation');
+const { enrichRisLocations, isPetitionerContactAddress } = require('../server/political-context/services/risLocation');
 const { validLocationGeometry } = require('../js/ua.ris-catalogue').snapshotFormat;
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
 const { createRisSourceCheckpoint } = require('../server/political-context/services/risSourceCheckpoint');
@@ -348,13 +348,14 @@ function snapshotInputs({ records, features }) {
   });
 }
 
-function reassessRetainedLocations(records, city, gazetteer, { identifiedTitlesOnly = false } = {}) {
+function reassessRetainedLocations(records, city, gazetteer) {
   const inputs = records.map(record => {
     const document = [...new Set((record.locations || []).filter(location => location.evidence.source === 'document')
       .map(location => location.evidence.text))];
     return {
       ...record, locationEvidence: document,
-      ...(identifiedTitlesOnly ? { title: record.locations?.find(location => location.evidence.source === 'title')?.evidence.text || '' } : {}),
+      locationTitleEvidence: [...new Set((record.locations || []).filter(location => location.evidence.source === 'title')
+        .map(location => location.evidence.text))],
       // Stored quotations do not establish full document availability.
       locationEvidenceTruncated: document.length > 0 || record.locationAssessment?.truncated === true,
       locationEvidenceUnavailable: record.locationEvidenceUnavailable === true || !document.length
@@ -368,7 +369,7 @@ function reassessRetainedLocations(records, city, gazetteer, { identifiedTitlesO
         && old.evidence.source === location.evidence.source && old.evidence.text === location.evidence.text);
       // Keep the verified map evidence and its credit for unchanged matches.
       // A corrected range or a newly rejected marker must not inherit a point.
-      if (!prior?.geometry) return location;
+      if (!prior?.geometry || isPetitionerContactAddress(location)) return location;
       restoredAddress ||= location.kind === 'address';
       return { ...location, geometry: prior.geometry, ...(prior.mapLabel ? { mapLabel: prior.mapLabel } : {}) };
     });
@@ -487,7 +488,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   }
   const gazetteer = await loadGazetteer(city);
   const records = enrichRisLocations(inputs.filter(record => !retainedDetails.has(record.id)), { city, gazetteer, maxLocationsPerRecord: Infinity });
-  const reassessed = new Map(reassessRetainedLocations([...retainedAssessmentSources.values()], city, gazetteer, { identifiedTitlesOnly: true })
+  const reassessed = new Map(reassessRetainedLocations([...retainedAssessmentSources.values()], city, gazetteer)
     .map(record => [record.id, record]));
   for (const record of retainedDetails.values()) {
     const assessment = reassessed.get(record.id);
