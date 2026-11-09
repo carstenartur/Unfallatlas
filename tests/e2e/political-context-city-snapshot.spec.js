@@ -60,7 +60,10 @@ test('Hannover searches the published index and exports the linked SIM documents
     return route.abort();
   });
   await openPublicWerkbank(page, 'city=Hannover');
-  expect(requests).toEqual([]);
+  const catalogueCount = page.locator('#panelBody #risCatalogueCount');
+  await expect(catalogueCount).toBeVisible();
+  await expect(catalogueCount).toHaveText('Ratsvorgänge im veröffentlichten Katalog: 2 · Teilbestand');
+  expect(requests).toEqual([{ file: 'hannover.json', method: 'GET' }]);
 
   await page.locator('#btnPolCtxOpen').click();
   await page.locator('#polCtxSearchInput').fill('Lindener Stichkanal');
@@ -150,7 +153,10 @@ test('Bonn loads the optional map layer and offers official links in its popup',
   const layer = page.getByRole('checkbox', { name: 'Ratsvorgänge', exact: true });
   await expect(layer).toBeVisible();
   await expect(layer).not.toBeChecked();
-  expect(requests).toEqual([]);
+  const catalogueCount = page.locator('#panelBody #risCatalogueCount');
+  await expect(catalogueCount).toBeVisible();
+  await expect(catalogueCount).toHaveText('Ratsvorgänge im veröffentlichten Katalog: 1 · Teilbestand');
+  expect(requests).toEqual([{ file: 'bonn.json', method: 'GET' }]);
   await layer.check();
   await page.locator('.ua-ris-point').click();
   const popup = page.locator('.leaflet-popup');
