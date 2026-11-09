@@ -4,11 +4,14 @@ const fs = require('fs');
 const path = require('path');
 const L = require('leaflet');
 
+const listDefaults = { listOpen: false, listCollapsed: false, query: '', sourceLevels: [], searchCursor: null, searchGeneration: null };
 const defaults = {
+  ...listDefaults,
   selectionOnly: false, recordId: null, section: 'history', collapsed: false,
   eventsPage: 0, relationsPage: 0, relatedPage: 0, locationsPage: 0,
 };
 const workedView = {
+  ...listDefaults,
   selectionOnly: true, recordId: 'region-hannover-ris:2026/123', section: 'relations', collapsed: true,
   eventsPage: 2, relationsPage: 3, relatedPage: 4, locationsPage: 5,
 };

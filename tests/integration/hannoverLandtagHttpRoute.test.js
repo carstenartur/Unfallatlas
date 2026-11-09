@@ -43,9 +43,9 @@ afterAll(async () => {
   }
   await fs.rm(directory, { recursive: true, force: true });
 });
-async function query(context) {
+async function query(context, sourceLevels) {
   return fetch(base + '/api/political-context/search', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ city: 'Hannover', searchTerms: ['Eilenriede'], context }) });
+    body: JSON.stringify({ city: 'Hannover', searchTerms: ['Eilenriede'], context, sourceLevels }) });
 }
 test('public Hannover route honours exact bounded Landtag filters and retains source status/provenance', async () => {
   const response = await query({ landtagNumber: '19/8980', landtagYear: 2025 });
@@ -58,6 +58,17 @@ test('public Hannover route honours exact bounded Landtag filters and retains so
   expect(result.meta.sourceStatuses[0]).toMatchObject({ source: 'landtag-catalogue', status: 'partial' });
   expect(result.meta.queryLog[0].query).toContain('19/8980');
 }, 15000);
+test('the exact Landtag route respects an explicit level selection without leaking a cached result', async () => {
+  const context = { landtagNumber: '19/8980', landtagYear: 2025 };
+  const state = await query(context, ['state']);
+  expect(state.status).toBe(200);
+  expect((await state.json()).references.map(value => value.sourceContext.level)).toEqual(['state']);
+  const region = await query(context, ['region']);
+  expect(region.status).toBe(200);
+  const result = await region.json();
+  expect(result.references).toEqual([]);
+  expect(result.meta.searchStatus).toBe('incomplete');
+});
 test.each([{ landtagYear: 1981 }, { landtagYear: '2025' }, { landtagNumber: 'https://evil.example' }])('public route rejects invalid filter %j before source acquisition', async context => {
   const response = await query(context);
   expect(response.status).toBe(400);

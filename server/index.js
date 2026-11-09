@@ -37,6 +37,7 @@ const { runAssessmentV2, VALID_MODES, activeProviderName } = require('./ai/aiAss
 const { sharedQueue: aiJobQueue } = require('./ai/jobs/aiJobQueue.js');
 const { search: politicalContextSearch } = require('./political-context/services/portalSearchService.js');
 const { createRisSnapshotSearch } = require('./political-context/services/risSnapshotSearch.js');
+const RisSources = require('../js/ua.ris-sources.js');
 const { listSupportedCities }            = require('./political-context/registry/cityPortalRegistry.js');
 const cityRegistry                       = require('./cities/cityRegistry.js');
 const { SUPPORT_LEVELS, hasSupport, describeSupport } =
@@ -662,7 +663,7 @@ app.get('/api/political-context/supported', (_req, res) => {
  *   500 – Interner Fehler
  */
 app.post('/api/political-context/search', politicalContextRateLimit, async (req, res) => {
-  const { city, searchTerms, context, maxResults, page, snapshot } = req.body || {};
+  const { city, searchTerms, context, maxResults, page, snapshot, sourceLevels } = req.body || {};
 
   if (!city || typeof city !== 'string' || !city.trim()) {
     return sendError(res, {
@@ -688,6 +689,12 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
       code: 'SEARCH_TERMS_EMPTY',
       message: 'searchTerms enthält keine gültigen Suchbegriffe.'
     });
+  }
+
+  let levels;
+  try { levels = RisSources.parseLevels(sourceLevels); }
+  catch (error) {
+    return sendError(res, { category: CATEGORIES.INVALID_REQUEST, code: 'RIS_SOURCE_LEVELS_INVALID', message: error.message });
   }
 
   const landtagFiltered = context && typeof context === 'object' &&
@@ -753,27 +760,29 @@ app.post('/api/political-context/search', politicalContextRateLimit, async (req,
       searchTerms: sanitizedTerms,
       context: (context && typeof context === 'object') ? context : {},
       maxResults: resolvedMax,
+      ...(levels.length ? { sourceLevels: levels } : {}),
       ...(page == null ? {} : { page, snapshot })
     };
     // Hannover's historical Domino search route now returns 404. Use the
     // validated SIM catalogue when prepared, with its actual coverage status.
-    if ((search.city.toLowerCase() === 'hannover' && !landtagFiltered) || page != null) {
+    if (((search.city.toLowerCase() === 'hannover' || levels.length) && !landtagFiltered) || page != null) {
       const result = await searchPublishedRis(search);
       if(page != null && !result)throw Object.assign(new Error('Der Ratsdatenstand für die Suchfortsetzung ist nicht mehr verfügbar.'),{code:'RIS_SNAPSHOT_REFERENCE_MISMATCH'});
       return res.json(result || {
         references: [],
         meta: {
           city: search.city, searchTerms: sanitizedTerms, searchedAt: new Date().toISOString(),
-          totalFound: 0, supported: true, searchStatus: 'incomplete', providerKey: 'hannover-sim',
-          sourceUrl: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/Suche.xsp',
-          warnings: ['Für Hannover ist in dieser Installation kein Ratsdatenstand verfügbar.']
+          totalFound: 0, supported: true, searchStatus: 'incomplete',
+          providerKey: search.city.toLowerCase() === 'hannover' ? 'hannover-sim' : 'ris-snapshot',
+          ...(search.city.toLowerCase() === 'hannover' ? { sourceUrl: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/Suche.xsp' } : {}),
+          warnings: [`Für ${search.city} ist in dieser Installation kein veröffentlichter Ratsdatenstand verfügbar.`]
         }
       });
     }
     const result = await politicalContextSearch(search);
     return res.json(result);
   } catch (err) {
-    if (err.code === 'RIS_SNAPSHOT_CURSOR_INVALID' || err.code === 'RIS_SNAPSHOT_REFERENCE_MISMATCH') return sendError(res, {category:CATEGORIES.INVALID_REQUEST,code:err.code,message:err.message});
+    if (['RIS_SNAPSHOT_CURSOR_INVALID', 'RIS_SNAPSHOT_REFERENCE_MISMATCH', 'RIS_SOURCE_LEVELS_INVALID'].includes(err.code)) return sendError(res, {category:CATEGORIES.INVALID_REQUEST,code:err.code,message:err.message});
     console.error('[political-context/search] Fehler:', err.message);
     return sendError(res, {
       category: CATEGORIES.INTERNAL_ERROR,

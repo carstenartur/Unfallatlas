@@ -18,8 +18,13 @@ function loadState(href) {
 }
 
 describe('UA.cleanUrlIfNeeded', () => {
+  const listQuery = {
+    risList: '1', risListCollapsed: '1', risQuery: 'Leine, Radweg', risLevels: 'region,state',
+    risSearchPage: 'ris2.eyJ2IjoxfQ.' + 'a'.repeat(64), risSearchSnapshot: 'b'.repeat(64),
+  };
+
   test('accepts all RIS view parameters without redirecting or discarding the shared document', () => {
-    const href = 'http://localhost/werkbank_v2.html?city=Hannover&mapLayer=ris&risSelectionOnly=1&risRecord=region-hannover-ris%3A123&risView=relations&risCollapsed=1&risEventsPage=2&risRelationsPage=3&risRelatedPage=4&risLocationsPage=5';
+    const href = 'http://localhost/werkbank_v2.html?city=Hannover&mapLayer=ris&risSelectionOnly=1&risRecord=region-hannover-ris%3A123&risView=relations&risCollapsed=1&risEventsPage=2&risRelationsPage=3&risRelatedPage=4&risLocationsPage=5&' + new URLSearchParams(listQuery);
     const win = loadState(href);
 
     expect(win.UA.cleanUrlIfNeeded()).toBe(false);
@@ -31,6 +36,7 @@ describe('UA.cleanUrlIfNeeded', () => {
       city: 'Hannover', kat: '2', mapLayer: 'slope,traffic,ris', risSelectionOnly: '1',
       risRecord: 'region-hannover-ris:2026/123+Anfrage A', risView: 'locations', risCollapsed: '1',
       risEventsPage: '2', risRelationsPage: '3', risRelatedPage: '4', risLocationsPage: '5',
+      ...listQuery,
     });
     const win = loadState(`http://localhost/werkbank_v2.html?${query}`);
 
@@ -40,6 +46,7 @@ describe('UA.cleanUrlIfNeeded', () => {
       city: 'Hannover', severity: '2', mapLayer: 'slope,traffic,ris', risSelectionOnly: '1',
       risRecord: 'region-hannover-ris:2026/123+Anfrage A', risView: 'locations', risCollapsed: '1',
       risEventsPage: '2', risRelationsPage: '3', risRelatedPage: '4', risLocationsPage: '5',
+      ...listQuery,
     });
   });
 

@@ -13,7 +13,7 @@
   };
   const SOURCE_LEVELS = { 'hannover-sim': 'city', 'region-hannover-ris': 'region',
     'region-hannover-bekanntmachungen': 'region', 'niedersachsen-landtag': 'state', 'bonn-oparl': 'city' };
-  const LEVELS = { city: 'Stadt', region: 'Region', state: 'Land' };
+  const LEVELS = { city: 'Stadt', region: 'Region', state: 'Land', federal: 'Deutschland', eu: 'EU' };
   const DOCUMENT_KINDS = { proposal: 'Vorlage / Antrag', answer: 'Antwort', agenda: 'Tagesordnung', minutes: 'Protokoll', other: 'Sonstiges' };
   const DOCUMENT_KIND_NAMES = {
     proposal: /^(?:vorlage|antrag|änderungsantrag|anfrage|beschlussdrucksache|beschlussvorlage|beschlussempfehlung)$/i,
@@ -56,8 +56,38 @@
     return link;
   }
 
+  function sourceRecord(record) {
+    if (record.source) return record;
+    // A reference can name a provider through its exact stable-ID namespace.
+    // Its URL, title and the currently selected city do not establish a level.
+    const separator = typeof record.id === 'string' ? record.id.indexOf(':') : -1;
+    if (separator < 1) return record;
+    const source = record.id.slice(0, separator);
+    const known = typeof UA.RisSources?.levelOf === 'function'
+      ? UA.RisSources.levelOf({ source }) : SOURCE_LEVELS[source];
+    return known ? { ...record, source } : record;
+  }
+
+  function sourceLevel(record) {
+    const resolved = sourceRecord(record);
+    if (typeof UA.RisSources?.levelOf === 'function') return UA.RisSources.levelOf(resolved);
+    return Object.hasOwn(LEVELS, resolved.sourceContext?.level) ? resolved.sourceContext.level : SOURCE_LEVELS[resolved.source] || null;
+  }
+
   function sourceLabel(record) {
-    return SOURCE_LABELS[record.source] || record.sourceContext?.publisher || record.source || 'Quelle nicht angegeben';
+    const resolved = sourceRecord(record);
+    if (typeof UA.RisSources?.sourceLabel === 'function') return UA.RisSources.sourceLabel(resolved);
+    return SOURCE_LABELS[resolved.source] || resolved.sourceContext?.publisher || resolved.source || 'Quelle nicht angegeben';
+  }
+
+  function levelBadge(parent, record, description = 'Quellenebene') {
+    const level = sourceLevel(record);
+    const sharedLabel = UA.RisSources?.levels?.find(item => item.id === level)?.label;
+    const label = sharedLabel || LEVELS[level] || 'Ebene nicht angegeben';
+    const badge = append(parent, 'span', label, 'ris-record-view__level');
+    badge.dataset.level = level || 'unknown';
+    badge.setAttribute('aria-label', `${description}: ${label}`);
+    return badge;
   }
 
   function headerQualifiers(record, kind) {
@@ -66,13 +96,12 @@
     const key = value => String(value).trim().replace(/\s+/g, ' ').toLocaleLowerCase('de');
     const source = sourceLabel(record);
     const seen = new Set([kind, source, ...source.split('·')].map(key));
-    if (SOURCE_LEVELS[record.source] === context.level) seen.add(key(LEVELS[context.level]));
     // Suppress a coarse category only when the displayed type already states it.
     // Unrecognized or differing document metadata remains visible.
     if ([kind, context.documentKind].some(value => value && DOCUMENT_KIND_NAMES[context.status]?.test(value.trim()))) {
       seen.add(key(DOCUMENT_KINDS[context.status]));
     }
-    return [LEVELS[context.level], context.publisher, context.issuer, context.documentKind, DOCUMENT_KINDS[context.status]]
+    return [context.publisher, context.issuer, context.documentKind, DOCUMENT_KINDS[context.status]]
       .filter(value => {
         if (!value || seen.has(key(value))) return false;
         seen.add(key(value));
@@ -91,14 +120,16 @@
     return node;
   }
 
-  function evidence(parent, value, label = 'Beleg aus der Quelle') {
+  function evidence(parent, value, label = 'Beleg aus der Quelle', collapsed = false) {
     if (!value) {
       append(parent, 'p', 'Quellenbeleg nicht dokumentiert.', 'ris-record-view__gap');
       return;
     }
-    const block = append(parent, 'div', null, 'ris-record-view__evidence');
-    append(block, 'p', label, 'ris-record-view__evidence-label');
+    const block = append(parent, collapsed ? 'details' : 'div', null,
+      `ris-record-view__evidence${collapsed ? ' ris-record-view__evidence--disclosure' : ''}`);
+    append(block, collapsed ? 'summary' : 'p', label, 'ris-record-view__evidence-label');
     append(block, 'blockquote', value);
+    return block;
   }
 
   function button(parent, label, action) {
@@ -140,6 +171,7 @@
 
     const header = append(root, 'header', null, 'ris-record-view__header');
     const eyebrow = append(header, 'div', null, 'ris-record-view__eyebrow');
+    levelBadge(eyebrow, record);
     const kind = record.type || record.sourceContext?.documentKind || 'Ratsvorgang';
     append(eyebrow, 'span', kind, 'ris-record-view__kind');
     if (record.number) append(eyebrow, 'span', record.number, 'ris-record-view__number');
@@ -223,6 +255,14 @@
       });
     }
 
+    const origin = append(panels.get('relations'), 'aside', null, 'ris-record-view__origin');
+    origin.setAttribute('aria-label', 'Ausgangsvorgang');
+    const originLabel = append(origin, 'div', null, 'ris-record-view__eyebrow');
+    append(originLabel, 'span', 'Ausgangsvorgang');
+    levelBadge(originLabel, record);
+    append(origin, 'h4', record.title || 'Ratsvorgang ohne Titel', 'ris-record-view__origin-title');
+    append(origin, 'p', [record.number, sourceLabel(record)].filter(Boolean).join(' · '), 'ris-record-view__metadata');
+
     function renderHistory(parent, result) {
       const events = (result.events || []).map((item, index) => ({ item, index }));
       const dated = events.filter(({ item }) => item.date).sort((a, b) => a.item.date.localeCompare(b.item.date) || a.index - b.index);
@@ -234,12 +274,13 @@
         list.setAttribute('aria-label', label);
         for (const { item } of items) {
           const step = append(list, 'li', null, 'ris-process-step');
-          date(append(step, 'div', null, 'ris-process-step__date'), item.date);
-          append(step, 'h5', item.body || 'Gremium nicht angegeben', 'ris-process-step__body');
-          append(step, 'p', item.outcome || 'Ergebnis nicht dokumentiert', item.outcome ? 'ris-process-step__outcome' : 'ris-record-view__gap');
-          evidence(step, item.evidence);
-          const link = externalLink(step, item.url, 'Amtlicher Sitzungsbeleg');
-          if (link) append(step, 'span', new URL(link.href).hostname.replace(/^www\./, ''), 'ris-record-view__source-host');
+          const facts = append(step, 'div', null, 'ris-process-step__summary');
+          date(append(facts, 'div', null, 'ris-process-step__date'), item.date);
+          append(facts, 'h5', item.body || 'Gremium nicht angegeben', 'ris-process-step__body');
+          append(facts, 'p', item.outcome || 'Ergebnis nicht dokumentiert', item.outcome ? 'ris-process-step__outcome' : 'ris-record-view__gap');
+          const proof = evidence(step, item.evidence, 'Quellenbeleg ansehen', true) || step;
+          const link = externalLink(proof, item.url, 'Amtlicher Sitzungsbeleg');
+          if (link) append(proof, 'span', new URL(link.href).hostname.replace(/^www\./, ''), 'ris-record-view__source-host');
         }
       }
     }
@@ -255,9 +296,18 @@
       const roles = { answer: 'Antwort', proposal: 'Vorlage / Antrag', amendment: 'Änderungsantrag' };
       for (const item of result.relationships || []) {
         const row = append(list, 'li', null, 'ris-record-view__card');
-        append(row, 'p', [item.type === 'mentions' ? 'Im Dokument erwähnt' : 'Amtlicher Querverweis', roles[item.targetRole]].filter(Boolean).join(' · '), 'ris-record-view__eyebrow');
+        const target = { id: item.targetId };
+        const path = append(row, 'div', null, 'ris-record-view__relation-path');
+        levelBadge(path, record, 'Quellenebene des Ausgangsvorgangs');
+        const connector = append(path, 'span', null, 'ris-record-view__relation-connector');
+        append(connector, 'span', '→', 'ris-record-view__relation-arrow').setAttribute('aria-hidden', 'true');
+        append(connector, 'span', item.type === 'mentions' ? 'Im Dokument erwähnt' : 'Amtlicher Querverweis', 'ris-record-view__relation-type');
+        levelBadge(path, target, 'Quellenebene des Ziels');
         append(row, 'h5', item.label || 'Verweis ohne Titel');
-        evidence(row, item.evidence);
+        const targetSource = sourceLevel(target) ? sourceLabel(target) : '';
+        const targetFacts = [roles[item.targetRole], targetSource].filter(Boolean);
+        if (targetFacts.length) append(row, 'p', targetFacts.join(' · '), 'ris-record-view__metadata');
+        evidence(row, item.evidence, 'Beleg für diesen Verweis', true);
         const controls = append(row, 'div', null, 'ris-record-view__actions');
         openRecordButton(controls, item.targetId, item.label);
         externalLink(controls, item.targetUrl, 'Amtlichen Verweis öffnen');
@@ -268,6 +318,7 @@
       const list = append(parent, 'ul', null, 'ris-record-view__cards');
       for (const related of result.records || []) {
         const row = append(list, 'li', null, 'ris-record-view__card');
+        levelBadge(append(row, 'div', null, 'ris-record-view__eyebrow'), related);
         append(row, 'h5', related.title || 'Vorgang ohne Titel');
         append(row, 'p', [related.type, related.number, related.date && dateLabel(related.date)].filter(Boolean).join(' · '), 'ris-record-view__metadata');
         append(row, 'p', `Quelle: ${sourceLabel(related)}`, 'ris-record-view__metadata');

@@ -22,6 +22,7 @@ const { enrichAllWithAiGating }         = require('./aiGatingService.js');
 const { sharedCache: searchCache, buildKey: buildCacheKey } =
   require('./portalSearchCache.js');
 const { normalizeSourceStatuses } = require('./politicalSourceContext');
+const RisSources = require('../../../js/ua.ris-sources');
 
 const VALID_SEARCH_STATUS = new Set([
   'results-found',
@@ -192,7 +193,9 @@ async function search(params) {
     expandVariants  = true,
     useCache        = true,
     cache           = searchCache,
+    sourceLevels,
   } = params || {};
+  const levels = RisSources.parseLevels(sourceLevels);
 
   const searchedAt = new Date().toISOString();
   const cacheUsable = Boolean(useCache && cache && typeof cache.get === 'function');
@@ -227,7 +230,7 @@ async function search(params) {
     : 'unknown';
 
   const cacheKey = cacheUsable
-    ? buildCacheKey({ city, searchTerms, context, maxResults, expandVariants })
+    ? buildCacheKey({ city, searchTerms, context, maxResults, expandVariants, sourceLevels: levels })
     : null;
   if (cacheKey) {
     const cached = cache.get(cacheKey);
@@ -254,13 +257,19 @@ async function search(params) {
   });
   const { rawResults, providerMeta } = unwrapProviderResult(providerValue);
 
-  const normalized = normalizeAll(rawResults, providerKey);
+  const normalized = normalizeAll(rawResults, providerKey)
+    .filter(record => !levels.length || levels.includes(RisSources.levelOf(record)));
   const scored = scoreAndSort(normalized, searchTerms, context);
   const withTraffic = enrichAllWithTrafficRelevance(scored);
   const withGating  = enrichAllWithAiGating(withTraffic, context);
   const trimmed = withGating.slice(0, Math.max(0, maxResults));
   const fallbackStatus = fallbackSearchStatus(normalized);
   const evidenceMeta = normalizeProviderMeta(providerMeta, fallbackStatus);
+  if (levels.length && !trimmed.length && ['results-found', 'partial-results'].includes(evidenceMeta.searchStatus)) {
+    evidenceMeta.searchStatus = 'incomplete';
+    evidenceMeta.truncated = true;
+    evidenceMeta.warnings.push('Die abgefragten Quellen liefern keine belegten Treffer für die gewählten Ebenen.');
+  }
 
   const result = {
     references: trimmed,

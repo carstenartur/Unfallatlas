@@ -113,8 +113,80 @@ describe('shared council record presentation', () => {
       sourceContext: { level: 'region', publisher: 'Gemeinsames Archiv', issuer: 'Gemeinsames Archiv',
         documentKind: '  TAGESORDNUNG  ', status: 'agenda' } });
     expect(element.querySelector('.ris-record-view__source').textContent).toBe('Quelle: Gemeinsames Archiv');
-    expect(element.querySelector('.ris-record-view__metadata').textContent).toBe('Region');
+    expect(element.querySelector('.ris-record-view__level')?.textContent).toBe('Region');
+    expect(element.querySelector('.ris-record-view__header .ris-record-view__metadata')).toBeNull();
     expect(element.querySelector('.ris-record-view__kind').textContent).toBe('Tagesordnung');
+  });
+
+  // Break caught: hiding the source level or treating an unknown provider as a city by default.
+  test.each([
+    [{ source: 'hannover-sim' }, 'city', 'Stadt'],
+    [{ source: 'region-hannover-ris' }, 'region', 'Region'],
+    [{ source: 'niedersachsen-landtag' }, 'state', 'Land'],
+    [{ source: 'bundestag', sourceContext: { level: 'federal', publisher: 'Deutscher Bundestag' } }, 'federal', 'Deutschland'],
+    [{ source: 'eu-parlament', sourceContext: { level: 'eu', publisher: 'Europäisches Parlament' } }, 'eu', 'EU'],
+    [{ id: 'unbekannter-bestand:1', source: 'unbekannter-bestand' }, 'unknown', 'Ebene nicht angegeben'],
+  ])('shows a distinct %s level badge without inferring a process status', (fields, level, label) => {
+    const { element } = mount({ ...BASE_RECORD, ...fields, events: [] });
+    const header = element.querySelector('.ris-record-view__header');
+    const badge = header.querySelector('.ris-record-view__level');
+    expect(badge?.textContent).toBe(label);
+    expect(badge?.dataset.level).toBe(level);
+    expect(badge?.getAttribute('aria-label')).toBe(`Quellenebene: ${label}`);
+    expect(header.textContent).not.toMatch(/beschlossen|in Beratung|abgeschlossen/);
+  });
+
+  // Break caught: leaving long quotations in the initial view or losing the full official evidence while compacting it.
+  test('keeps event facts visible and puts the exact evidence and official link in a closed disclosure', async () => {
+    const quoted = 'Der Ausschuss vertagt die Beratung bis zur Vorlage weiterer Unterlagen. '.repeat(30);
+    const { element } = mount({ ...BASE_RECORD, events: [{
+      ...event('2026-06-20', 'Regionsversammlung', 'Vertagt'), evidence: quoted,
+    }] });
+    await flush();
+    const step = element.querySelector('.ris-process-step');
+    const disclosure = step.querySelector('details');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure?.open).toBe(false);
+    expect(disclosure?.querySelector('summary')?.textContent).toBe('Quellenbeleg ansehen');
+    expect(disclosure?.querySelector('blockquote')?.textContent).toBe(quoted);
+    expect(disclosure?.querySelector('a')?.href).toBe(SOURCE + 'to020?TOLFDNR=1');
+    for (const selector of ['time', '.ris-process-step__body', '.ris-process-step__outcome']) {
+      expect(step.querySelector(selector)?.closest('details')).toBeNull();
+    }
+    expect(step.querySelector('time').dateTime).toBe('2026-06-20');
+    expect(step.querySelector('.ris-process-step__body').textContent).toBe('Regionsversammlung');
+    expect(step.querySelector('.ris-process-step__outcome').textContent).toBe('Vertagt');
+  });
+
+  // Break caught: presenting a same-family record as a directed reference, or inheriting the origin's level for unknown targets.
+  test('anchors typed references to the selected record and identifies only known target providers', async () => {
+    UA.RisCatalogue.loadRecordRelationships.mockResolvedValue(page('relationships', [
+      { type: 'related', targetId: 'niedersachsen-landtag:doc:123', targetUrl: 'https://www.landtag-niedersachsen.de/dokumente/123',
+        targetRole: 'answer', label: 'Antwort des Landes', evidence: 'Die Quelle verweist auf Drucksache 123.' },
+      { type: 'mentions', targetId: 'fremdes-archiv:123', targetUrl: SOURCE + 'vo020?VOLFDNR=123',
+        targetRole: null, label: 'Eine Drucksache des Landes', evidence: 'In der Quelle erwähnt.' },
+    ]));
+    UA.RisCatalogue.loadRelatedRecords.mockResolvedValue(page('records', [
+      { ...BASE_RECORD, id: 'hannover-sim:doc:456', source: 'hannover-sim', title: 'Zusammenhängendes Dokument der Stadt' },
+    ]));
+    const view = mount(BASE_RECORD, { section: 'relations' });
+    await flush();
+    const origin = view.element.querySelector('[aria-label="Ausgangsvorgang"]');
+    expect(origin?.textContent || '').toContain(BASE_RECORD.title);
+    expect(origin?.querySelector('.ris-record-view__level')?.dataset.level).toBe('region');
+    const direct = view.element.querySelector('[aria-label="Direkte Querverweise"]');
+    const paths = [...direct.querySelectorAll('.ris-record-view__relation-path')];
+    expect(paths).toHaveLength(2);
+    expect([...paths[0].querySelectorAll('.ris-record-view__level')].map(node => node.dataset.level)).toEqual(['region', 'state']);
+    expect(paths[0].textContent).toContain('Amtlicher Querverweis');
+    expect(paths[0].querySelector('.ris-record-view__relation-arrow')?.textContent).toBe('→');
+    expect([...paths[1].querySelectorAll('.ris-record-view__level')].map(node => node.dataset.level)).toEqual(['region', 'unknown']);
+    expect(paths[1].textContent).toContain('Im Dokument erwähnt');
+    expect(paths[1].textContent).toContain('Ebene nicht angegeben');
+    const related = view.element.querySelector('[aria-label="Verknüpfte Vorgänge"]');
+    expect(related.querySelector('.ris-record-view__level')?.dataset.level).toBe('city');
+    expect(related.querySelector('.ris-record-view__relation-arrow')).toBeNull();
+    expect(related.textContent).not.toMatch(/Antwort auf|Nachfolger|beschlossen|verweist auf/);
   });
 
   // Break caught: treating a shared page as a request to replay all preceding pages.

@@ -80,19 +80,28 @@ describe('UA.MapScene', () => {
       registry.layers.ris = { registry };
       const ctx = {
         contextOverlays: registry,
-        risView: { selectionOnly: true, recordId: 'region:A', section: 'locations', relatedPage: 3 },
+        risView: { selectionOnly: true, recordId: 'region:A', section: 'locations', relatedPage: 3,
+          listOpen: true, listCollapsed: false, query: 'Schulweg, Brücke', sourceLevels: ['city', 'region', 'state'] },
       };
       const scene = UA.MapScene.fromCtx(ctx);
       expect(scene.contextOverlays).toEqual({ active: { slope: true, traffic: false, ris: true } });
       expect(scene.risView).toEqual({
         selectionOnly: true, recordId: 'region:A', section: 'locations', collapsed: false,
         eventsPage: 0, relationsPage: 0, relatedPage: 3, locationsPage: 0,
+        listOpen: true, listCollapsed: false, query: 'Schulweg, Brücke', sourceLevels: ['city', 'region', 'state'],
+        searchCursor: null, searchGeneration: null,
       });
       expect(() => JSON.stringify(scene)).not.toThrow();
       ctx.contextOverlays.active.ris = false;
       ctx.risView.recordId = 'region:B';
+      ctx.risView.listOpen = false;
+      ctx.risView.query = 'Andere Suche';
+      ctx.risView.sourceLevels.push('eu');
       expect(scene.contextOverlays.active.ris).toBe(true);
       expect(scene.risView.recordId).toBe('region:A');
+      expect(scene.risView.listOpen).toBe(true);
+      expect(scene.risView.query).toBe('Schulweg, Brücke');
+      expect(scene.risView.sourceLevels).toEqual(['city', 'region', 'state']);
     });
 
     test('returns default scene for null ctx', () => {

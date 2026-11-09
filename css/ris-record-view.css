@@ -1,18 +1,19 @@
-/* Vertical chronology inspired by Ratsatlas Bonn; independently implemented. */
+/* Map/list/document workspace and process line inspired by Ratsatlas Bonn.
+   See docs/licenses/ratsatlas-bonn-MIT.txt and docs/ris-catalogue.md. */
 .ris-details {
   --ris-ink: #202536;
   --ris-muted: #535d6c;
   --ris-accent: #532b78;
   --ris-line: #d9cce4;
   position: fixed;
-  inset-block-start: 1rem;
+  inset-block-start: 4.75rem;
   inset-inline-end: 1rem;
   z-index: 1300;
   display: flex;
   flex-direction: column;
-  width: min(42rem, calc(100vw - 2rem));
-  height: min(54rem, calc(100vh - 2rem));
-  height: min(54rem, calc(100dvh - 2rem));
+  width: min(34rem, calc(100vw - 2rem));
+  height: calc(100vh - 5.75rem);
+  height: calc(100dvh - 5.75rem);
   min-width: 0;
   min-height: 0;
   max-width: calc(100vw - 2rem);
@@ -40,8 +41,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 12px 16px;
+  gap: 8px 12px;
+  padding: 10px 14px;
   background: #f8f5fb;
   border-bottom: 1px solid #e7e0ed;
 }
@@ -162,7 +163,7 @@
   overflow-wrap: anywhere;
 }
 
-.ris-record-view__header { padding: 22px 24px 18px; }
+.ris-record-view__header { padding: 18px 22px 14px; }
 
 .ris-record-view__eyebrow {
   display: flex;
@@ -191,8 +192,8 @@
 }
 
 .ris-record-view__title {
-  margin: 0 0 14px;
-  font-size: clamp(1.2rem, 2.6vw, 1.55rem);
+  margin: 0 0 12px;
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
   font-weight: 750;
   line-height: 1.3;
   text-wrap: pretty;
@@ -473,4 +474,235 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ris-details__body { scroll-behavior: auto; }
+}
+
+/* Shared workspace: the map stays interactive beside the list and document. */
+.ris-workspace-launcher {
+  position: fixed;
+  inset-block-start: max(12px, env(safe-area-inset-top));
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: 1150;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 10px 17px;
+  border: 1px solid #d7cce4;
+  border-radius: 24px;
+  background: rgb(255 255 255 / 96%);
+  color: #49236d;
+  box-shadow: 0 3px 16px rgb(29 21 45 / 16%);
+  font: 700 .88rem/1.3 system-ui, sans-serif;
+  cursor: pointer;
+}
+.ris-workspace-launcher[aria-expanded="true"] { background: #593282; color: #fff; border-color: #593282; }
+.ris-workspace-launcher:focus-visible { outline: 3px solid #1d5fd0; outline-offset: 3px; }
+
+.ris-browser {
+  position: fixed;
+  inset: 4.75rem auto 1rem 1rem;
+  z-index: 1300;
+  flex-direction: column;
+  width: min(23rem, calc(100vw - 2rem));
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d6d0df;
+  border-radius: 16px;
+  background: #fff;
+  color: #202536;
+  box-shadow: 0 8px 32px rgb(24 16 36 / 17%);
+  font: .87rem/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.ris-browser [hidden] { display: none; }
+.ris-browser *, .ris-browser *::before, .ris-browser *::after { box-sizing: border-box; }
+.ris-browser :where(button, input, select, summary, a):focus-visible { outline: 3px solid #1d5fd0; outline-offset: 2px; }
+.ris-browser button, .ris-browser select {
+  min-height: 44px;
+  max-width: 100%;
+  border: 1px solid #d5cede;
+  border-radius: 8px;
+  background: #fff;
+  color: #42225f;
+  padding: 8px 10px;
+  font: 650 .8rem/1.35 system-ui, sans-serif;
+  cursor: pointer;
+}
+.ris-browser button:hover { background: #f4eef9; border-color: #ac95c1; }
+.ris-browser button:disabled { color: #6c7280; background: #f5f5f7; cursor: wait; }
+.ris-browser__toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid #e7e0ed;
+  background: #f8f5fb;
+}
+.ris-browser__toolbar h2 { margin: 0; font-size: 1rem; letter-spacing: -.015em; }
+.ris-browser__eyebrow { display: block; color: #6a577c; font-size: .72rem; font-weight: 600; }
+.ris-browser__toolbar-actions { display: flex; gap: 5px; }
+.ris-browser__toolbar-actions button { padding: 8px; font-size: .72rem; }
+.ris-browser__body { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.ris-browser__search { flex: 0 0 auto; padding: 14px 14px 8px; }
+.ris-browser__search > label { display: block; margin-bottom: 7px; font-size: .8rem; }
+.ris-browser__search-row { display: flex; gap: 6px; }
+.ris-browser__search-row input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid #c7bfce;
+  background: #fff;
+  color: #202536;
+  font: inherit;
+  border-radius: 8px;
+}
+.ris-browser__search-row button, .ris-browser__footer button { color: #fff; background: #593282; border-color: #593282; }
+.ris-browser__search-row button:hover, .ris-browser__footer button:hover { color: #fff; background: #452466; }
+.ris-browser__filter-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; gap: 12px; margin-top: 8px; }
+.ris-browser__filter-row label { color: #596273; font-size: .8rem; }
+.ris-browser__filter-row select { width: 100%; min-width: 0; font-weight: 600; }
+.ris-browser__hint { margin: 9px 0 0; color: #596273; font-size: .73rem; line-height: 1.5; }
+.ris-browser__basis { margin-top: 8px; font-size: .73rem; color: #596273; overflow-wrap: anywhere; }
+.ris-browser__basis:empty { display: none; }
+.ris-browser__status { flex: 0 0 auto; padding: 7px 14px 10px; font-size: .76rem; color: #4e4160; }
+.ris-browser__status:empty { padding: 0; }
+.ris-browser__results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0 10px 12px;
+}
+.ris-browser__coverage { margin: 0 4px 10px; font-size: .73rem; color: #596273; }
+.ris-browser__coverage summary, .ris-result__legacy-details summary { min-height: 44px; padding-block: 11px; cursor: pointer; }
+.ris-browser__coverage p { margin: 6px 0; }
+.ris-browser__empty { margin: 12px 4px; color: #596273; }
+.ris-browser__footer { flex: 0 0 auto; border-top: 1px solid #e7e0ed; padding: 9px 14px 12px; background: #faf9fc; }
+.ris-browser__footer span { display: block; margin-bottom: 7px; color: #596273; font-size: .72rem; }
+.ris-browser__footer button { width: 100%; }
+.ris-browser__pager { display: flex; flex-wrap: wrap; gap: 7px; margin: 16px 3px 4px; }
+.ris-browser__pager button { flex: 1 1 120px; }
+.ris-browser.ris-browser--collapsed { inset-block-start: auto; height: auto; width: min(23rem, calc(100vw - 2rem)); }
+.ris-browser--collapsed .ris-browser__toolbar { border-bottom: 0; }
+body.ris-list-open:not(.ris-list-collapsed) #panel { display: none; }
+body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--collapsed) { width: min(32rem, calc(100vw - 27rem)); }
+
+.ris-result { margin: 0 0 8px; padding: 12px; border: 1px solid #e1dce8; border-radius: 11px; background: #fff; overflow-wrap: anywhere; }
+.ris-result:hover { border-color: #b29bc9; background: #fcfaff; }
+.ris-result[aria-current="true"] { border-color: #8761ab; background: #f0e8f8; box-shadow: inset 3px 0 #69408d; }
+.ris-result__heading { display: flex; flex-wrap: wrap; gap: 6px 9px; align-items: center; }
+.ris-result__kind { color: #596273; font-size: .72rem; }
+.ris-result .ris-result__title {
+  display: block;
+  width: 100%;
+  margin: 6px 0 4px;
+  min-height: 44px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #202536;
+  font: 700 .91rem/1.45 system-ui, sans-serif;
+  text-align: start;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.ris-result .ris-result__title:hover { color: #58317d; text-decoration: underline; text-underline-offset: 3px; }
+.ris-result__meta, .ris-result__source, .ris-result__location { margin: 4px 0; font-size: .72rem; color: #596273; }
+.ris-result__source { color: #514360; }
+.ris-result__snippet { margin: 7px 0; color: #596273; font-size: .77rem; line-height: 1.5; }
+.ris-result__actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid #e7e0ed; margin-top: 9px; padding-top: 3px; }
+.ris-result__selection { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: .74rem; font-weight: 500; cursor: pointer; }
+.ris-result__selection input { width: 18px; height: 18px; margin: 0; accent-color: #69408d; }
+.ris-result__actions a { display: inline-flex; align-items: center; min-height: 44px; color: #5a347c; font-size: .75rem; text-underline-offset: 3px; }
+.ris-result__legacy-details { font-size: .78rem; }
+
+.ris-record-view__level {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid #ded4e8;
+  background: #eee5f7;
+  color: #57317c;
+  font-size: .72rem;
+  font-weight: 750;
+  line-height: 1.4;
+}
+.ris-record-view__level[data-level="region"] { color: #176354; background: #e7f4ef; border-color: #b9ded1; }
+.ris-record-view__level[data-level="state"] { color: #225c91; background: #e8f1fb; border-color: #bfd7ec; }
+.ris-record-view__level[data-level="federal"] { color: #715015; background: #fff4da; border-color: #e8d39b; }
+.ris-record-view__level[data-level="eu"] { color: #244a9d; background: #ecf0fe; border-color: #bfcdf0; }
+.ris-record-view__level[data-level="unknown"] { color: #586170; background: #f0f2f5; border-color: #d7dce3; font-weight: 550; }
+.ris-process-step__summary { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; }
+.ris-process-step__summary .ris-process-step__date { grid-row: 1 / span 2; padding-top: 2px; }
+.ris-process-step__summary .ris-process-step__date time { white-space: nowrap; }
+.ris-process-step__summary .ris-process-step__body { margin: 0 0 3px; }
+.ris-process-step__summary .ris-process-step__outcome, .ris-process-step__summary .ris-record-view__gap { grid-column: 2; margin: 2px 0 0; }
+.ris-record-view__evidence--disclosure { padding: 0; margin: 5px 0 0; border: 0; background: transparent; }
+.ris-record-view__evidence--disclosure > summary { min-height: 44px; margin: 0; padding: 11px 0; cursor: pointer; font-size: .76rem; }
+.ris-record-view__evidence--disclosure > summary:focus-visible { outline: 3px solid #1d5fd0; outline-offset: 2px; }
+.ris-record-view__evidence--disclosure[open] { padding: 0 12px 12px; background: #f7f4fa; border-left: 2px solid #d9cce4; }
+.ris-record-view__evidence--disclosure .ris-record-view__link { margin-top: 9px; }
+.ris-record-view__origin { padding: 13px 15px; margin: 0 0 20px; border: 1px solid #cdbbdd; border-left: 4px solid #69408d; border-radius: 10px; background: #f6f1fa; }
+.ris-record-view__origin-title { margin: 6px 0; color: #202536; font-size: .94rem; line-height: 1.45; }
+.ris-record-view__origin .ris-record-view__metadata { margin-bottom: 0; }
+.ris-record-view__relation-path { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: 8px; margin-bottom: 12px; }
+.ris-record-view__relation-path .ris-record-view__level { max-width: 9rem; }
+.ris-record-view__relation-connector { display: flex; flex-direction: column; align-items: center; text-align: center; color: #6a577c; }
+.ris-record-view__relation-arrow { font-size: 1.3rem; line-height: 1; }
+.ris-record-view__relation-type { font-size: .7rem; line-height: 1.4; }
+.ris-details__back { order: -1; }
+
+@media (min-width: 641px) and (max-width: 1100px) {
+  .ris-workspace-launcher { inset-inline-start: auto; inset-inline-end: 5rem; transform: none; }
+}
+
+@media (min-width: 641px) and (max-width: 760px) {
+  .ris-workspace-launcher { width: 44px; padding: 10px; justify-content: center; }
+  .ris-workspace-launcher span { display: none; }
+}
+
+@media (max-width: 980px) {
+  body.ris-list-open.ris-document-open #polCtxPanel { display: none !important; }
+  body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--collapsed) { width: min(38rem, calc(100vw - 2rem)); }
+  body.ris-list-open:not(.ris-list-collapsed) .ris-details--collapsed { display: none; }
+  .ris-details__toolbar { gap: 7px; }
+}
+
+@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
+  .ris-workspace-launcher { inset-inline-start: 12px; transform: none; }
+  .ris-browser { inset: 4.4rem 8px max(8px, env(safe-area-inset-bottom)); width: auto; border-radius: 12px; }
+  .ris-browser__toolbar { padding: 9px 11px; }
+  .ris-browser__search { padding: 10px 12px 5px; }
+  .ris-browser__hint { display: none; }
+  .ris-browser__footer { padding: 7px 12px 10px; }
+  .ris-browser__status { padding: 5px 12px 8px; }
+  .ris-browser.ris-browser--collapsed { inset-block-start: auto; width: min(23rem, calc(100vw - 16px)); }
+  .ris-details { inset: 4.4rem 8px max(8px, env(safe-area-inset-bottom)); height: auto; }
+  body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--collapsed) { width: auto; }
+  body.ris-document-open #panel { display: none; }
+  .ris-details__toolbar { display: flex; padding: 8px 10px; }
+  .ris-details__toolbar h2 { flex: 1; margin: 0; }
+  .ris-details__actions { flex-basis: 100%; width: 100%; }
+  .ris-details__back { order: 0; }
+  .ris-details.ris-details--collapsed { inset-block-start: max(8px, env(safe-area-inset-top)); width: min(16rem, calc(100vw - 8.5rem)); }
+  .ris-details--collapsed .ris-details__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ris-details--collapsed .ris-details__actions button { padding-inline: 2px; overflow-wrap: normal; }
+  .ris-details--collapsed .ris-details__back { display: none; }
+  body:has(#risDetails.ris-details--collapsed:not([hidden])) .ris-workspace-launcher {
+    inset-inline-start: auto; inset-inline-end: 5rem; width: 44px; padding: 10px; justify-content: center;
+  }
+  body:has(#risDetails.ris-details--collapsed:not([hidden])) .ris-workspace-launcher span { display: none; }
+  .ris-process-step__summary { column-gap: 8px; }
+  .ris-process-step__summary .ris-process-step__body { font-size: .88rem; }
+  .ris-record-view__relation-path { grid-template-columns: minmax(0, auto) minmax(4rem, 1fr) minmax(0, auto); gap: 6px; }
+  .ris-record-view__relation-path .ris-record-view__level { max-width: 6.5rem; font-size: .7rem; }
 }

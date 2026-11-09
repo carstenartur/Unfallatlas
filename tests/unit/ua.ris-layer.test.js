@@ -1078,20 +1078,18 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(UA.RisLayer.showLocation).toHaveBeenCalledWith(ctx, expect.objectContaining({ id: 'A' }), { geometryId: 'second' }, expect.any(Function));
   });
 
-  test('research opens and pages unmapped relatives without eagerly requesting the relation group', async () => {
+  test('research delegates relatives and their paging to the shared document view', async () => {
     const entry = { ...records[0], snapshot: { city: 'bonn', sha256: 'c'.repeat(64), mapSha256: 'c'.repeat(64) } };
-    UA.RisCatalogue.loadRelatedRecords = jest.fn().mockResolvedValueOnce({ records: [records[3]], nextPage: 1, complete: true })
-      .mockResolvedValueOnce({ records: [records[2]], nextPage: null, complete: true });
+    UA.RisCatalogue.loadRelatedRecords = jest.fn();
+    UA.RisDetails = { open: jest.fn() };
     UA.refreshContextOverlays(ctx);
     const panel = await openSearch(ctx, entry);
+    const open = panel.querySelector('[data-ris-open-record]');
+    expect(open).not.toBeNull();
+    open.click();
+    expect(UA.RisDetails.open).toHaveBeenCalledWith(ctx, entry.id, { trigger: open });
     expect(UA.RisCatalogue.loadRelatedRecords).not.toHaveBeenCalled();
-    const button = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Verknüpfte Vorgänge anzeigen');
-    expect(button).toBeDefined(); button.click(); await flush();
-    expect(panel.textContent).toContain(records[3].title);
-    button.click(); await flush();
-    expect(UA.RisCatalogue.loadRelatedRecords).toHaveBeenLastCalledWith('Bonn', 'A', 1, { snapshot: entry.snapshot });
-    expect(panel.textContent).toContain(records[2].title);
-    expect(button.hidden).toBe(true);
+    expect(panel.style.display).toBe('flex');
   });
 
   test('research search pages preserve checked results, query and snapshot, and ignore a superseded query', async () => {
@@ -1102,14 +1100,14 @@ describe('Ratsvorgänge in the V2 map', () => {
     panel.querySelector('.polCtxCheck').checked = true;
     const button = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Suchtreffer laden');
     expect(button).toBeDefined();
-    UA.PoliticalContext.search = jest.fn().mockResolvedValueOnce({ references: [entry, { ...records[2], snapshot }], meta: { nextPage: 2, snapshot, searchStatus: 'results-found' } });
+    UA.PoliticalContext.search = jest.fn().mockResolvedValueOnce({ references: [entry, { ...records[2], snapshot }], meta: { supported: true, nextPage: 2, snapshot, searchStatus: 'results-found' } });
     button.click(); await flush();
     expect(UA.PoliticalContext.search).toHaveBeenCalledWith(expect.objectContaining({ city: 'Bonn', searchTerms: ['Endenicher Straße'], page: 1, snapshot }));
     expect(panel.querySelectorAll('.polCtxCheck')).toHaveLength(2);
     expect(panel.querySelector('.polCtxCheck').checked).toBe(true);
     const pending = deferred(); UA.PoliticalContext.search.mockReturnValueOnce(pending.promise)
       .mockResolvedValueOnce({ references: [records[1]], meta: { supported: true, searchStatus: 'results-found' } });
-    button.click(); await flush();
+    [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Suchtreffer laden').click(); await flush();
     document.getElementById('polCtxSearchInput').value = 'Neue Suche';
     await UA.PoliticalContext._runSearch(ctx);
     pending.resolve({ references: [records[3]], meta: { nextPage: null, snapshot } }); await flush();
@@ -1156,14 +1154,14 @@ describe('Ratsvorgänge in the V2 map', () => {
     const panel = await openSearch(ctx, { ...records[0], snapshot }, { nextPage: first, snapshot });
     const button = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Suchtreffer laden');
     expect(button).toBeDefined();
-    UA.PoliticalContext.search = jest.fn().mockResolvedValueOnce({ references: [], meta: { nextPage: second, snapshot, complete: false } })
-      .mockResolvedValueOnce({ references: [{ ...records[2], snapshot }], meta: { nextPage: null, snapshot } });
+    UA.PoliticalContext.search = jest.fn().mockResolvedValueOnce({ references: [], meta: { supported: true, nextPage: second, snapshot, complete: false } })
+      .mockResolvedValueOnce({ references: [{ ...records[2], snapshot }], meta: { supported: true, nextPage: null, snapshot } });
     button.click(); await flush();
     expect(UA.PoliticalContext.search).toHaveBeenLastCalledWith(expect.objectContaining({ page: first, snapshot }));
-    expect(button.hidden).toBe(false);
-    button.click(); await flush();
+    const nextButton = [...panel.querySelectorAll('button')].find(b => b.textContent === 'Weitere Suchtreffer laden');
+    expect(nextButton).toBeDefined(); nextButton.click(); await flush();
     expect(UA.PoliticalContext.search).toHaveBeenLastCalledWith(expect.objectContaining({ page: second, snapshot }));
-    expect(button.hidden).toBe(true);
+    expect([...panel.querySelectorAll('button')].some(b => b.textContent === 'Weitere Suchtreffer laden')).toBe(false);
     expect(panel.textContent).toContain(records[2].title);
   });
 

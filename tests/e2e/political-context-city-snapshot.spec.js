@@ -70,7 +70,7 @@ test('Hannover searches the published index and exports the linked SIM documents
   await page.locator('#polCtxBtnSearch').click();
   const results = page.locator('#polCtxResults');
   await expect(results.locator('.polCtxRef')).toHaveCount(2);
-  await expect(results).toContainText('Gehört zu Drucksache 1047/2026');
+  await expect(results).toContainText('Verknüpft mit 1047/2026');
   await expect(results.getByRole('link').nth(1)).toHaveAttribute('href', answer.url);
   for (const checkbox of await results.getByRole('checkbox').all()) await checkbox.check();
   await page.locator('#polCtxBtnAdopt').click();
@@ -114,10 +114,13 @@ test('Hannover opens the selected junction from a search result with several pla
   await page.locator('#polCtxSearchInput').fill('Kötnerholzweg');
   await page.locator('#polCtxBtnSearch').click();
   const results = page.locator('#polCtxResults');
-  await expect(results.getByRole('button', { name: /^Auf Karte zeigen:/ })).toHaveCount(2);
-  await results.getByRole('button', { name: `Auf Karte zeigen: ${junction}`, exact: true }).click();
+  await results.getByRole('button', { name: 'Verlauf und Zusammenhänge: Querungen in Linden verbessern', exact: true }).click();
+  const detail = page.locator('#risDetails');
+  await detail.getByRole('tab', { name: 'Orte', exact: true }).click();
+  await expect(detail.getByRole('button', { name: /^Auf Karte zeigen:/ })).toHaveCount(2);
+  await detail.getByRole('button', { name: `Auf Karte zeigen: ${junction}`, exact: true }).click();
 
-  await expect(page.locator('#polCtxPanel')).toBeHidden();
+  await expect(detail.locator('.ris-details__body')).toBeHidden();
   await expect(page.locator('.ua-ris-point')).toBeFocused();
   const popup = page.locator('.leaflet-popup');
   await expect(popup).toContainText(`Kreuzung · ${junction}`);
@@ -324,15 +327,26 @@ test('partitioned catalogue keeps a dense mobile map lazy and pages documents, r
   await page.locator('#polCtxSearchInput').fill('Schulweg');
   await page.locator('#polCtxBtnSearch').click();
   const results = page.locator('#polCtxResults');
-  await test.step('page search 15 to 30 through its opaque cursor while retaining selection', async () => {
+  let selectedId;
+  await test.step('replace bounded search pages while retaining the chosen report reference', async () => {
     await expect(results.locator('.polCtxRef')).toHaveCount(15);
     const selected = results.getByRole('checkbox').first();
+    selectedId = await selected.getAttribute('data-id');
     await selected.check();
+    const firstIds = await results.locator('.polCtxRef').evaluateAll(cards => cards.map(card => card.dataset.referenceId));
     await results.getByRole('button', { name: 'Weitere Suchtreffer laden', exact: true }).click();
-    await expect(results.locator('.polCtxRef')).toHaveCount(30);
-    await expect(selected).toBeChecked();
+    await expect.poll(() => results.locator('.polCtxRef').evaluateAll(cards => cards.map(card => card.dataset.referenceId)))
+      .not.toEqual(firstIds);
+    await expect(results.locator('.polCtxRef')).toHaveCount(15);
+    await expect(results.locator(`.polCtxRef[data-reference-id="${selectedId}"]`)).toHaveCount(0);
+    await expect(page.locator('#polCtxSelectionCount')).toContainText('1 für den Bericht ausgewählt');
+    await results.getByRole('button', { name: 'Zur ersten Suchseite', exact: true }).click();
+    await expect(results.locator(`.polCtxRef[data-reference-id="${selectedId}"] .polCtxCheck`)).toBeChecked();
+    await results.getByRole('button', { name: 'Weitere Suchtreffer laden', exact: true }).click();
+    await expect(results.locator(`.polCtxRef[data-reference-id="${selectedId}"]`)).toHaveCount(0);
   });
   await page.locator('#polCtxBtnAdopt').click();
   await expect.poll(() => page.evaluate(() => window.UA.getRuntimeContext().politicalReferences?.length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.UA.getRuntimeContext().politicalReferences?.[0]?.id)).toBe(selectedId);
   expect(errors).toEqual([]);
 });

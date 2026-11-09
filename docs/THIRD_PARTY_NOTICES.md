@@ -1,13 +1,18 @@
 # Third-party browser dependencies
 
-## Process-view design reference
+## Council-document workspace design reference
 
-The RIS record view takes visual inspiration from the per-record process line in
-[Ratsatlas Bonn](https://github.com/daimpad/ratsatlas-bonn/tree/bcefc9e9e5931689ba10da55ebe56c92f01761d6)
-by Damian Paderta, notably `site/app.js` (`stepHtml`) and `site/style.css` at
-commit `bcefc9e9e5931689ba10da55ebe56c92f01761d6`.
-The renderer and its catalogue integration are implemented independently here;
-no Bonn-specific procedural phases or legal assumptions are imported.
+The RIS workspace uses the coordinated map, list and record-detail interaction and
+per-record process line in
+[Ratsatlas Bonn](https://github.com/daimpad/ratsatlas-bonn/tree/52fe9cad6d66ad9dc5df96deb645b175f5543cac)
+by Damian Paderta as its design reference, notably `site/app.js` (panel handling,
+`select` and `stepHtml`) and `site/style.css` at
+commit `52fe9cad6d66ad9dc5df96deb645b175f5543cac`.
+The earlier process-line implementation referenced commit
+`bcefc9e9e5931689ba10da55ebe56c92f01761d6`.
+The renderer and its catalogue integration are implemented independently here for
+bounded cross-city data and linked source levels; no Bonn-specific committees,
+procedural phases or legal assumptions are imported.
 The upstream project uses the MIT License, copyright © 2026 Damian Paderta;
 its [complete license notice](licenses/ratsatlas-bonn-MIT.txt) is retained with
 this attribution. This design reference does not add a runtime vendor dependency

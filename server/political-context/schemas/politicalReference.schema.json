@@ -24,7 +24,9 @@
           "enum": [
             "city",
             "region",
-            "state"
+            "state",
+            "federal",
+            "eu"
           ]
         },
         "publisher": {

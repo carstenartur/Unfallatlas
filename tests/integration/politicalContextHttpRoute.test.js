@@ -4,6 +4,9 @@
 const { spawn } = require('child_process');
 const net = require('net');
 const path = require('path');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const { writeRisSnapshot } = require('../../server/political-context/services/risSnapshot');
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -28,11 +31,28 @@ describe('production political-context HTTP route', () => {
   let baseUrl;
   let stdout = '';
   let stderr = '';
+  let fixtureDirectory;
 
   beforeAll(async () => {
     const port = await freePort();
     baseUrl = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, [path.join(ROOT, 'server', 'start.js')], {
+    fixtureDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'political-http-levels-'));
+    const source = 'https://www.bonn.sitzung-online.de/public/';
+    await writeRisSnapshot(fixtureDirectory, 'bonn', { sources: [source],
+      coverage: { from: null, to: null, bodies: [], warnings: [], complete: true },
+      records: [['a-city', 'city'], ['b-state', 'state'], ['c-state', 'state']].map(([id, level]) => ({
+        id, title: `Schulweg ${id}`, type: 'Antrag', number: id, date: null, gremium: null,
+        source: 'fixture-source', url: source + id, sourceContext: { level, publisher: 'Amtliche Testquelle',
+          issuer: null, documentKind: 'Antrag', status: 'proposal', publicationDate: null, documentDate: null, meetingDate: null },
+      })) }, { schemaVersion: 2 });
+    // Redirect only the on-disk source location; the route and immutable reader
+    // run unchanged against a real published fixture, without touching _site.
+    const preload = path.join(fixtureDirectory, 'published-source.cjs');
+    await fs.writeFile(preload, `const api = require(${JSON.stringify(path.join(ROOT, 'server/political-context/services/risSnapshotSearch.js'))});
+const create = api.createRisSnapshotSearch;
+api.createRisSnapshotSearch = () => create(${JSON.stringify(fixtureDirectory)});
+`);
+    child = spawn(process.execPath, ['--require', preload, path.join(ROOT, 'server', 'start.js')], {
       cwd: ROOT,
       env: {
         ...process.env,
@@ -72,14 +92,16 @@ describe('production political-context HTTP route', () => {
   }, 30_000);
 
   afterAll(async () => {
-    if (!child || child.exitCode != null) return;
-    child.kill('SIGTERM');
-    const exited = new Promise(resolve => child.once('exit', resolve));
-    await Promise.race([exited, delay(5_000)]);
-    if (child.exitCode == null) {
-      child.kill('SIGKILL');
-      await Promise.race([exited, delay(2_000)]);
+    if (child && child.exitCode == null) {
+      child.kill('SIGTERM');
+      const exited = new Promise(resolve => child.once('exit', resolve));
+      await Promise.race([exited, delay(5_000)]);
+      if (child.exitCode == null) {
+        child.kill('SIGKILL');
+        await Promise.race([exited, delay(2_000)]);
+      }
     }
+    if (fixtureDirectory) await fs.rm(fixtureDirectory, { recursive: true, force: true });
   });
 
   test('accepts the real POST route instead of returning 404/405', async () => {
@@ -117,6 +139,35 @@ describe('production political-context HTTP route', () => {
       expect(response.status).toBe(400);
       expect(await response.json()).toMatchObject({ code: 'RIS_SNAPSHOT_CURSOR_INVALID' });
     }
+  });
+
+  test('rejects malformed political level filters before source acquisition', async () => {
+    for (const sourceLevels of [null, 'state', ['unknown'], ['state', 'unknown']]) {
+      const response = await fetch(`${baseUrl}/api/political-context/search`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ city: 'Musterstadt', searchTerms: ['Schulweg'], sourceLevels })
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ code: 'RIS_SOURCE_LEVELS_INVALID' });
+    }
+  });
+
+  test('published city searches keep selected levels and bind them to HTTP continuations', async () => {
+    const params = { city: 'Bonn', searchTerms: ['Schulweg'], maxResults: 1, sourceLevels: ['state'] };
+    const query = body => fetch(`${baseUrl}/api/political-context/search`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const firstResponse = await query(params);
+    expect(firstResponse.status).toBe(200);
+    const first = await firstResponse.json();
+    expect(first.references.map(value => value.id)).toEqual(['b-state']);
+    const continuation = { ...params, page: first.meta.nextPage, snapshot: first.meta.snapshot };
+    const secondResponse = await query(continuation);
+    expect(secondResponse.status).toBe(200);
+    expect((await secondResponse.json()).references.map(value => value.id)).toEqual(['c-state']);
+    const changed = await query({ ...continuation, sourceLevels: ['city'] });
+    expect(changed.status).toBe(400);
+    expect(await changed.json()).toMatchObject({ code: 'RIS_SNAPSHOT_CURSOR_INVALID' });
   });
 
   test('validates POST payloads through the production handler', async () => {
