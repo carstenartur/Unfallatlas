@@ -1064,3 +1064,31 @@ test('keeps a genuine house-address measure after the petition topic marker mapp
     geometry: { type: 'Point', coordinates: [9.712, 52.37] }, evidence: { source: 'title', text: title } }]);
   expect(record.locationAssessment.reasons).not.toContain('non_traffic_address');
 });
+
+test.each([
+  ['Kreisstraße', 'Juni 2023 haben die Hagedorn Hannover GmbH und das HWG ihre neuen Standorte in der Kreisstraße 20+20A bezogen.', 'Kreisstraße 20+20 A'],
+  ['Siegmundstraße', 'Am 12.03.2026 um ca. 11.30 Uhr kam es zu starker Rauchentwicklung aus dem Schornstein der Firma Schwandt GmbH Bau- und Möbeltischlerei Siegmundstraße 1+2.', 'Siegmundstraße 1+2'],
+  ['Georgstraße', 'Die nun vorliegende Interessensbekundung der F1rst Immobiliengesellschaft, die als Entwicklungsdienstleister für die Centrum Holding agiert und der Verwaltung bereits in diversen anderen Projekten die kompetente und qualitative Umsetzung komplexer Projekte und Entwicklungsvorhaben bewiesen hat (Kröpcke-Center, Karmarschstr. 20 – 22, Bahnhofstr. 8, Georgstr. 10 + 14), konnte aus der Akquisition gewonnen werden.', 'Georgstraße 10+14'],
+  ['Arnswaldtstraße', 'Mit dieser Drucksache informiert die Verwaltung über den Ankauf des Grundstücks Marienstraße 37 - 41, Arnswaldtstraße 24 + 26.', 'Arnswaldtstraße 24+26'],
+])('retains the entire numeric plus compound from the actual %s document quotation', (streetName, quote, label) => {
+  const { readFileSync } = require('node:fs');
+  const { gunzipSync } = require('node:zlib');
+  const path = require('node:path');
+  const gazetteer = JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz'))));
+  const [record] = enrichRisLocations([{ title: 'Dokument zur Verkehrssicherheit', locationEvidence: [quote] }], { city: 'hannover', gazetteer });
+  const matches = record.locations.filter(location => location.label.startsWith(`${streetName} `));
+  expect(matches).toEqual([{ kind: 'address', label, evidence: { source: 'document', text: quote } }]);
+});
+
+test('uses only the complete verified key for a numeric plus compound', () => {
+  const [record] = enrichRisLocations([{ title: 'Radverkehr Limmerstraße 12+14' }], { city: 'hannover', gazetteer: {
+    ...addressGazetteer, addresses: { limmer: { '12': [9.712, 52.37], '12+14': [9.716, 52.37] } },
+  } });
+  expect(record.locations).toMatchObject([{ label: 'Limmerstraße 12+14', geometry: { type: 'Point', coordinates: [9.716, 52.37] } }]);
+});
+
+test('does not use separately known house points for an unknown complete numeric plus key', () => {
+  const title = 'Radverkehr Limmerstraße 12+14';
+  const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([{ kind: 'address', label: 'Limmerstraße 12+14', evidence: { source: 'title', text: title } }]);
+});

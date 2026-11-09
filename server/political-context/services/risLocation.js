@@ -20,7 +20,7 @@ const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispi
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
 const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
 const ADDRESS_PREFIX = /^\s+(?:(?:nr\.?|hausnr\.?|hausnummern?)\s*)?/u;
-const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*(-|–|/|bis\\s+)\\s*(${ADDRESS_NUMBER})|\\s*([-–+])\\s*([a-z]{1,2})(?!\\p{L}))?(?![\\p{L}\\p{N}/+–-])`, 'u');
+const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*([-–/+]|bis\\s+)\\s*(${ADDRESS_NUMBER})|\\s*([-–+])\\s*([a-z]{1,2})(?!\\p{L}))?(?![\\p{L}\\p{N}/+–-])`, 'u');
 const ADDRESS_SEPARATOR = /^(?:\s*,\s*|\s+und\s+)(?=\d)/u;
 const ADDRESS_CONTINUATION = /^\s*(?:[-–/+]|bis\b|,\s*\d|und\s+\d)/u;
 const TITLE_ADDRESS_SUFFIX = /^\s+[-–]\s*(?:(?:modifizierter\s+)?einleitungsbeschluss|auslegungsbeschluss|aufstellungs(?:- und einleitungs)?beschluss|satzungsbeschluss|beschluss|dachsanierung|entscheidung zur belegung|erneuerung sportboden|aus mitteln|vormals as solar)\b/u;

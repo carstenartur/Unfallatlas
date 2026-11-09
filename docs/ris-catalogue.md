@@ -266,8 +266,8 @@ und einen vorhandenen Fehler-/Ablaufvermerk. Eine neue Ortsprüfrevision ist ein
 Schritt: Sie bewertet vorhandene Titel, gespeicherte Belege und amtliche Lagen gegen
 das aktuelle geprüfte Ortsverzeichnis. Begrenzte Belege werden entsprechend bezeichnet.
 
-Hausnummern einschließlich Zusätzen, Listen und Angaben wie `12-14`, `12 bis 14`
-oder `12/14` sowie Buchstabenbereiche/-verbindungen wie `20 A-F` und `3 A+B`
+Hausnummern einschließlich Zusätzen, Listen und Angaben wie `12-14`, `12 bis 14`,
+`12/14` oder `12+14` sowie Buchstabenbereiche/-verbindungen wie `20 A-F` und `3 A+B`
 bleiben vollständig als Adressbezug mit ihrer Fundstelle erhalten. Eine Kartenposition
 entsteht nur aus dem vollständigen passenden Adressschlüssel im geprüften
 Ortsverzeichnis; ein unbekannter Bereich wird weder auf seine erste Hausnummer noch
