@@ -91,6 +91,9 @@
   });
 
   function readableFilterValue(key, value) {
+    if (typeof value === "boolean" && key.startsWith("include") && FILTER_LABELS[key]) {
+      return value ? "gewähltes Auswahlkriterium" : "kein eigenes Auswahlkriterium";
+    }
     if (typeof value === "boolean") return value ? "einbezogen" : "nicht einbezogen";
     const text = String(value == null ? "" : value);
     const mappings = {

@@ -163,6 +163,51 @@ describe('UA.loadReferenceDocuments – global + city merging', () => {
     const titles = r.structured.references.documents.map(d => d.title);
     expect(titles).toContain("Global A");
   });
+
+  test('includes the documented Hannover junction in the report independently of the RIS view', async () => {
+    const cityData = require('../../templates/references_hannover.json');
+    const fetchImpl = makeFetch({ 'references_hannover.json': cityData });
+    global.fetch = fetchImpl;
+    UA = loadUA(fetchImpl);
+    const bounds = (south, west, north, east) => ({
+      getSouthWest: () => ({ lat: south, lng: west }),
+      getNorthEast: () => ({ lat: north, lng: east }),
+      contains: ([lat, lon]) => lat >= south && lat <= north && lon >= west && lon <= east
+    });
+    const selection = bounds(52.391108, 9.719819, 52.391889, 9.721093);
+    const manuallySelected = [
+      { title: 'Manuell übernommene Drucksache', url: 'https://example.org/ris/another' },
+      { title: 'Übernommener Änderungsantrag', url: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1865-2024',
+        snapshot: { sha256: 'b'.repeat(64) } }
+    ];
+    const risView = { query: 'Weidendamm, Nord, Nordstadt', sourceLevels: ['federal'], searchCursor: 'old-page' };
+    const ctx = {
+      ...makeCtx(UA, 'Hannover'), selectionBounds: selection, risView,
+      areaNameOverride: 'Engelbosteler Damm / Haltenhoffstraße / Bodestraße',
+      politicalReferences: manuallySelected
+    };
+    const automatic = await UA.computeExportReport({ ...ctx, politicalReferences: [] });
+    expect(automatic.structured.politicalReferences.map(ref => ref.number)).toEqual(['15-1865/2024', '1411/2024 E1']);
+
+    const report = await UA.computeExportReport(ctx);
+    const supplement = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1411-2024E1';
+    expect(report.structured.politicalReferences).toEqual([
+      manuallySelected[0],
+      expect.objectContaining({ ...manuallySelected[1], number: '15-1865/2024', scope: 'export-area', reason: expect.stringContaining('Fußquerungen') }),
+      expect.objectContaining({ number: '1411/2024 E1', url: supplement, scope: 'export-area', reason: expect.stringContaining('allen Knotenpunktarmen') })
+    ]);
+    expect(report.text).toContain('Bisherige politische Befassung');
+    expect(report.text).toContain('1411/2024 E1');
+    expect(report.html).toContain(`href="${supplement}"`);
+    expect(ctx.politicalReferences).toEqual(manuallySelected);
+    expect(ctx.politicalReferences[1]).not.toHaveProperty('scope');
+    expect(ctx.risView).toEqual(risView);
+
+    const elsewhere = await UA.computeExportReport({ ...ctx, selectionBounds: bounds(52.391108, 9.7207, 52.391889, 9.721093) });
+    expect(elsewhere.structured.politicalReferences).toEqual(manuallySelected);
+    const viewportOnly = await UA.computeExportReport({ ...ctx, selectionBounds: null, map: { getBounds: () => selection } });
+    expect(viewportOnly.structured.politicalReferences).toEqual(manuallySelected);
+  });
 });
 
 // ---- DARK_FIGURE_NOTE sources array ----

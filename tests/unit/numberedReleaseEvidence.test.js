@@ -95,7 +95,10 @@ test('production PDF and Word appendix use a concise clickable map label, never 
   const cohorts = api.buildCohorts({}, ctx, {}, root);
   let definition, blob;
   const UA = {
-    captureExportMapImage: async () => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    createDocumentMapContext: context => ({ ctx: context, close() {} }),
+    captureDocumentMap: async () => ({
+      image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    }),
   };
   root.pdfMake = {
     createPdf: d => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the Hannover RIS location reference from open LGLN geodata."""
+"""Regenerate Hannover location references or rail context from open LGLN geodata."""
 
 import argparse
 from collections import defaultdict
@@ -458,14 +458,17 @@ def address_index(street_keys):
     return result
 
 
-def write_dataset(path, dataset):
+def write_dataset(path, dataset, *, compressed=True):
     raw = json.dumps(dataset, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
     temporary = None
     try:
         with NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as output:
             temporary = Path(output.name)
-            with gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=0, compresslevel=9) as archive:
-                archive.write(raw)
+            if compressed:
+                with gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=0, compresslevel=9) as archive:
+                    archive.write(raw)
+            else:
+                output.write(raw + b"\n")
         if temporary.stat().st_size > MAX_ARTIFACT_BYTES:
             raise ValueError(f"Gazetteer exceeds the {MAX_ARTIFACT_BYTES:,}-byte gzip limit")
         temporary.chmod(0o644)
@@ -475,10 +478,37 @@ def write_dataset(path, dataset):
             temporary.unlink(missing_ok=True)
 
 
+def tram_context():
+    lines = []
+    for feature in page_features("AX_Bahnstrecke", (100, 4000), bbox=BBOX, srsName=CRS):
+        if feature.findtext(f"{{{ADV}}}bahnkategorie") in {"1200", "1201"}:
+            lines.extend(curves(feature))
+    if not lines:
+        raise ValueError("No Hannover Stadtbahn or Straßenbahn geometries in the ATKIS response")
+    return {
+        "schemaVersion": 1,
+        "city": "hannover",
+        "source": {
+            "label": "LGLN, ATKIS Basis-DLM, Stadt- und Straßenbahn (CC BY 4.0), bearbeitet",
+            "url": METADATA,
+            "licenseUrl": LICENSE_URL,
+            "retrievedAt": date.today().isoformat(),
+        },
+        "lines": lines,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=OUTPUT, help="destination gzip JSON (default: %(default)s)")
+    parser.add_argument("--tram-context-output", type=Path, help="write the Stadtbahn and Straßenbahn lines instead")
     args = parser.parse_args()
+    if args.tram_context_output:
+        dataset = tram_context()
+        write_dataset(args.tram_context_output, dataset, compressed=False)
+        print(f"Wrote {len(dataset['lines'])} lines to {args.tram_context_output}")
+        return
+
     entries, approach_axes, wunstorfer = street_entries()
     addresses = address_index({entry["streetKey"] for entry in entries})
     entries.append(bridge_entry(approach_axes, wunstorfer))

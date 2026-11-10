@@ -948,21 +948,6 @@
     return Promise.resolve(UA.computeExportReport(ctx)).then(report => ({ ctx, report, cohorts: report?.structured?.evidenceCohorts }));
   }
 
-  function evidenceContext(ctx, cohorts) {
-    const pointsById = new Map(list(rootContext(ctx)?.allPts).map(point => [point.__uaEvidenceDisplayId, point]));
-    const completePoints = list(cohorts?.completeEvidenceCohort?.accidentIds).map(id => pointsById.get(id)).filter(Boolean);
-    return Object.assign(Object.create(Object.getPrototypeOf(ctx) || Object.prototype), rootContext(ctx), {
-      allPts: completePoints,
-      filteredAll: completePoints,
-      filteredCapped: completePoints,
-      viewportPts: completePoints,
-      visibleViewportPts: completePoints,
-      selectionPts: completePoints,
-      __uaEvidenceRows: cohorts?.completeEvidenceCohort?.rows || [],
-      __uaEvidenceLabelsActive: true,
-    });
-  }
-
   function evidenceReport(report, cohorts) {
     const structured = buildEvidenceStructured(cohorts, report?.structured || {});
     return {
@@ -979,72 +964,68 @@
     };
   }
 
-  function sourcePointsByEvidenceId(ctx) {
-    return new Map(list(rootContext(ctx)?.allPts)
-      .filter(point => clean(point?.__uaEvidenceDisplayId))
-      .map(point => [point.__uaEvidenceDisplayId, point]));
-  }
-
-  function wait(rootValue, milliseconds) {
-    return new Promise(resolve => (rootValue?.setTimeout || setTimeout)(resolve, milliseconds));
-  }
-
-  async function captureEvidenceMaps(UA, rootValue, ctx, cohorts) {
-    if (typeof UA?.captureExportMapImage !== 'function') {
+  async function captureEvidenceMaps(UA, ctx, cohorts, { includeOverview = true } = {}) {
+    if (typeof UA?.captureDocumentMap !== 'function') {
       throw new Error('Kartenaufnahme für die Beweisanlage ist nicht verfügbar.');
     }
-    const map = rootContext(ctx)?.map;
-    if (!map || typeof map.fitBounds !== 'function') {
+    if (!ctx?.map || typeof ctx.map.fitBounds !== 'function') {
       throw new Error('Karte oder Auswahlgrenzen für die Beweisanlage fehlen.');
     }
-    const pointById = sourcePointsByEvidenceId(ctx);
     const rows = list(cohorts?.completeEvidenceCohort?.rows);
     if (!rows.length) throw new Error('Das vollständige Gebietskollektiv ist leer.');
-    let center = null;
-    let zoom = null;
-    try { center = map.getCenter?.(); zoom = map.getZoom?.(); } catch (_) { /* restored only when available */ }
+    const documentMap = UA.createDocumentMapContext(ctx);
+    const captureCtx = documentMap.ctx;
+    const map = captureCtx.map;
+    const center = map.getCenter?.();
+    const zoom = map.getZoom?.();
 
-    const capture = async (mapRef, title, bounds, selectedRows) => {
+    const capture = async (mapRef, title, bounds, selectedRows, labelRows) => {
       if (!bounds) throw new Error(`Kartengrenzen für ${mapRef} fehlen.`);
       map.fitBounds([[bounds.south, bounds.west], [bounds.north, bounds.east]], {
-        animate: false, padding: [24, 24], maxZoom: 19,
+        animate: false, padding: [100, 32], maxZoom: 19,
       });
-      await wait(rootValue, 450);
-      const exportPoints = selectedRows.map(row => pointById.get(row.displayId)).filter(Boolean);
-      if (exportPoints.length !== selectedRows.length) {
-        const missing = selectedRows.filter(row => !pointById.has(row.displayId)).map(row => row.displayId);
+      const missing = selectedRows.filter(row => !Number.isFinite(row.lat) || !Number.isFinite(row.lon)).map(row => row.displayId);
+      if (missing.length) {
         throw new Error(`Kartenpunkte für folgende Unfall-IDs fehlen: ${missing.join(', ')}.`);
       }
-      const captureCtx = evidenceContext(ctx, cohorts);
-      const image = await UA.captureExportMapImage(captureCtx, {
-        evidenceLabels: true,
-        evidenceRows: selectedRows,
-        exportPoints,
+      const capture = await UA.captureDocumentMap(captureCtx, {
+        evidenceRows: labelRows ? selectedRows : [],
+        exportPoints: selectedRows.map(row => ({ lat: row.lat, lon: row.lon, props: { ukategorie: row.severity } })),
+        exportBounds: bounds,
         heatmapExportOpacity: 0,
       });
-      if (!clean(image).startsWith('data:image/png;base64,')) {
+      if (!clean(capture.image).startsWith('data:image/png;base64,')) {
         throw new Error(`Kartenaufnahme ${mapRef} lieferte kein gültiges PNG.`);
       }
-      return { mapRef, title, bounds, accidentIds: selectedRows.map(row => row.displayId), image };
+      return { ...capture, mapRef, title, bounds, accidentIds: selectedRows.map(row => row.displayId) };
     };
 
     try {
-      const images = [await capture('E0', 'Übersicht – vollständiges Gebietskollektiv', cohorts.bounds, rows)];
+      const images = [];
+      if (includeOverview) {
+        images.push(await capture('E0', 'Übersicht – vollständiges Gebietskollektiv', cohorts.bounds, rows, rows.length <= 18));
+      }
+      const rowsById = new Map(rows.map(row => [row.displayId, row]));
       for (const partition of list(cohorts?.detailMapPartitions)) {
-        const ids = new Set(list(partition.accidentIds));
-        const selectedRows = rows.filter(row => ids.has(row.displayId));
+        const selectedRows = list(partition.accidentIds).map(id => rowsById.get(id));
+        if (!selectedRows.length || selectedRows.some(row => !row)) {
+          throw new Error(`Die Unfallliste für Detailkarte ${partition.mapRef} ist unvollständig.`);
+        }
         images.push(await capture(
           partition.mapRef,
-          `Detail ${partition.mapRef} – ${selectedRows[0]?.displayId || ''} bis ${selectedRows[selectedRows.length - 1]?.displayId || ''}`,
+          `Detailkarte ${partition.mapRef} – nummerierte Unfallorte`,
           partition.bounds,
-          selectedRows
+          selectedRows,
+          true
         ));
       }
       return images;
     } finally {
       try {
-        if (center && Number.isFinite(zoom)) map.setView(center, zoom, { animate: false });
-      } catch (_) { /* preserve the export error */ }
+        if (captureCtx === ctx && center && Number.isFinite(zoom)) map.setView(center, zoom, { animate: false });
+      } finally {
+        documentMap.close();
+      }
     }
   }
 
@@ -1068,7 +1049,8 @@
   async function exportEvidencePdf(UA, rootValue, ctx, report, cohorts) {
     await UA.ensureExportLibraries?.();
     if (!rootValue?.pdfMake) throw new Error('pdfMake ist nicht verfügbar.');
-    const maps = await captureEvidenceMaps(UA, rootValue, ctx, cohorts);
+    const maps = await captureEvidenceMaps(UA, ctx, cohorts);
+    const sourceNote = map => (UA._buildMapSourceNoteLines?.(ctx, map) || []).join(' ');
     const completeCount = cohorts.completeEvidenceCohort.count;
     const discoveryCount = cohorts.discoveryCohort.count;
     const content = [
@@ -1078,13 +1060,15 @@
       { text: `Vollständiges Gebietskollektiv: ${completeCount} veröffentlichte Unfälle mit Personenschaden. Entdeckungsteilmenge unter aktiven Suchfiltern: ${discoveryCount}.`, margin: [0, 6, 0, 4] },
       { text: 'Die Suchfilter dienen der Mustererkennung und Priorisierung. Sie begrenzen weder den Antrag noch diese Beweisanlage. A### ist eine Dokumentkennung und keine amtliche Unfallnummer.', italics: true, margin: [0, 0, 0, 10] },
       { image: maps[0].image, fit: [515, 350], alignment: 'center' },
-      { text: `Abbildung 1: ${maps[0].title}; dargestellt und nummeriert: ${completeCount} Unfälle.`, style: 'caption' },
+      { text: `Abbildung 1: ${maps[0].title}, dargestellt sind ${completeCount} Unfälle. Die Unfall-IDs stehen auf den Detailkarten.`, style: 'caption' },
+      { text: sourceNote(maps[0]), style: 'caption' },
     ];
     maps.slice(1).forEach((map, index) => {
       content.push(
         { text: map.title, style: 'heading', pageBreak: 'before' },
         { image: map.image, fit: [515, 350], alignment: 'center' },
         { text: `Abbildung ${index + 2}: ${map.mapRef}; Unfall-IDs: ${map.accidentIds.join(', ')}.`, style: 'caption' },
+        { text: sourceNote(map), style: 'caption' },
       );
     });
     content.push(
@@ -1159,7 +1143,7 @@
   async function exportEvidenceWord(UA, rootValue, ctx, report, cohorts) {
     await UA.ensureExportLibraries?.();
     if (!rootValue?.docx || !rootValue?.saveAs) throw new Error('Word-Exportbibliotheken sind nicht verfügbar.');
-    const maps = await captureEvidenceMaps(UA, rootValue, ctx, cohorts);
+    const maps = await captureEvidenceMaps(UA, ctx, cohorts);
     const {
       Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun,
       Table, TableRow, TableCell, WidthType, BorderStyle, PageOrientation, ExternalHyperlink,
@@ -1201,7 +1185,10 @@
     maps.forEach((map, index) => {
       if (index > 0) children.push(new Paragraph({ pageBreakBefore: true, text: map.title, heading: HeadingLevel.HEADING_2 }));
       children.push(new Paragraph({ children: [wordImageRun(UA, rootValue, ImageRun, map, index + 1)], alignment: AlignmentType.CENTER, keepNext: true }));
-      children.push(new Paragraph({ children: [new TextRun({ text: `Abbildung ${index + 1}: ${map.title}; Unfall-IDs: ${map.accidentIds.join(', ')}.`, italics: true, size: 16 })], alignment: AlignmentType.CENTER }));
+      const details = index ? `Unfall-IDs ${map.accidentIds.join(', ')}.` : `${rows.length} Unfälle. Die Unfall-IDs stehen auf den Detailkarten.`;
+      children.push(new Paragraph({ children: [new TextRun({ text: `Abbildung ${index + 1}: ${map.title}. ${details}`, italics: true, size: 16 })], alignment: AlignmentType.CENTER }));
+      const sourceNote = (UA._buildMapSourceNoteLines?.(ctx, map) || []).join(' ');
+      if (sourceNote) children.push(new Paragraph({ text: sourceNote }));
     });
     children.push(
       new Paragraph({ text: 'Vollständige Unfallliste', heading: HeadingLevel.HEADING_2, pageBreakBefore: true }),
@@ -1348,10 +1335,8 @@
     return true;
   }
 
-  function annotateMapImage(rootValue, ctx, dataUrl, options) {
-    const rows = list(options?.evidenceRows || ctx?.__uaEvidenceRows || ctx?.__uaEvidenceCohorts?.completeEvidenceCohort?.rows);
-    if (!rows.length || !rootValue?.document || typeof rootValue.Image !== 'function') return Promise.resolve(dataUrl);
-    return new Promise(resolve => {
+  function annotateMapImage(rootValue, ctx, dataUrl, rows) {
+    return new Promise((resolve, reject) => {
       const image = new rootValue.Image();
       image.onload = () => {
         try {
@@ -1363,44 +1348,56 @@
           const mapSize = ctx?.map?.getSize?.() || { x: canvas.width, y: canvas.height };
           const sx = canvas.width / Math.max(1, Number(mapSize.x) || canvas.width);
           const sy = canvas.height / Math.max(1, Number(mapSize.y) || canvas.height);
-          context.font = 'bold 11px sans-serif';
+          context.font = 'bold 17px sans-serif';
           context.textAlign = 'center';
           context.textBaseline = 'middle';
+          const lanes = [[], []];
           for (const row of rows) {
-            if (!Number.isFinite(row.lat) || !Number.isFinite(row.lon)) continue;
-            let point;
-            try { point = ctx.map.latLngToContainerPoint([row.lat, row.lon]); } catch (_) { continue; }
+            const point = ctx.map.latLngToContainerPoint([row.lat, row.lon]);
             const x = point.x * sx;
-            const y = point.y * sy - 11;
-            const width = Math.max(28, context.measureText(row.displayId).width + 8);
-            context.fillStyle = row.discoveryMatch ? '#fff2a8' : '#ffffff';
-            context.strokeStyle = '#111111';
-            context.lineWidth = 2;
-            context.fillRect(x - width / 2, y - 8, width, 16);
-            context.strokeRect(x - width / 2, y - 8, width, 16);
-            context.fillStyle = '#111111';
-            context.fillText(row.displayId, x, y);
+            lanes[x < canvas.width / 2 ? 0 : 1].push({
+              x, y: point.y * sy, row, width: context.measureText(row.displayId).width + 16
+            });
+          }
+          lanes.forEach((labels, side) => {
+            labels.sort((a, b) => a.y - b.y || a.x - b.x || a.row.displayId.localeCompare(b.row.displayId));
+            const top = 44;
+            const bottom = canvas.height - 25;
+            const spacing = Math.min(30, (bottom - top) / Math.max(1, labels.length - 1));
+            let nextY = top;
+            for (const [index, label] of labels.entries()) {
+              label.boxX = side === 0 ? 12 + label.width / 2 : canvas.width - 12 - label.width / 2;
+              label.boxY = Math.max(nextY, Math.min(label.y, bottom - (labels.length - index - 1) * spacing));
+              nextY = label.boxY + spacing;
+            }
+          });
+          const labels = lanes.flat();
+          for (const label of labels) {
+            context.beginPath();
+            context.moveTo(label.x, label.y);
+            context.lineTo(label.boxX, label.boxY);
+            context.strokeStyle = '#fff';
+            context.lineWidth = 3;
+            context.stroke();
+            context.strokeStyle = '#374151';
+            context.lineWidth = 1;
+            context.stroke();
+          }
+          for (const { boxX, boxY, width, row } of labels) {
+            context.fillStyle = row.discoveryMatch ? '#fff2a8' : '#fff';
+            context.strokeStyle = '#374151';
+            context.lineWidth = 1.5;
+            context.fillRect(boxX - width / 2, boxY - 11, width, 22);
+            context.strokeRect(boxX - width / 2, boxY - 11, width, 22);
+            context.fillStyle = '#111827';
+            context.fillText(row.displayId, boxX, boxY);
           }
           resolve(canvas.toDataURL('image/png'));
-        } catch (_) { resolve(dataUrl); }
+        } catch (error) { reject(error); }
       };
-      image.onerror = () => resolve(dataUrl);
+      image.onerror = () => reject(new Error('Die nummerierte Unfallkarte konnte nicht gelesen werden.'));
       image.src = dataUrl;
     });
-  }
-
-  function installCaptureHook(UA, rootValue) {
-    const original = UA?.captureMapImage;
-    if (typeof original !== 'function' || original._uaEvidenceLabelsWrapped) return typeof original === 'function';
-    const wrapped = async function numberedEvidenceCapture(ctx, options) {
-      const dataUrl = await original.apply(this, arguments);
-      const enabled = options?.evidenceLabels === true || ctx?.__uaEvidenceLabelsActive === true;
-      return enabled ? annotateMapImage(rootValue, ctx, dataUrl, options || {}) : dataUrl;
-    };
-    wrapped._uaEvidenceLabelsWrapped = true;
-    wrapped._uaOriginal = original;
-    UA.captureMapImage = wrapped;
-    return true;
   }
 
   function installLiveLabels(UA, rootValue) {
@@ -1442,7 +1439,6 @@
     const bind = () => {
       wrapAccidentViews(UA);
       installReportHook(UA, rootValue);
-      installCaptureHook(UA, rootValue);
       wrapAiApi(UA);
       ensurePanel(UA, rootValue);
       rebindStageOneButtons(UA, rootValue);
@@ -1471,6 +1467,8 @@
     buildCohorts,
     buildEvidenceStructured,
     buildAppendix,
+    captureEvidenceMaps,
+    annotateMapImage,
     partitionRows,
     appendixCsv,
     appendixGeoJson,
@@ -1494,7 +1492,6 @@
       attachIdsToExistingDetails,
       wrapAiApi,
       annotateMapImage,
-      evidenceContext,
       evidenceReport,
       captureEvidenceMaps,
       exportEvidencePdf,

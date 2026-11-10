@@ -190,6 +190,56 @@
     return out;
   }
 
+  // Same-origin fallback for marked Hannover areas. Rail axes are contextual
+  // evidence only and supply no information about signals, speeds or causes.
+  let mappedHannoverTracks;
+
+  function segmentHitsBounds(a, b, bounds) {
+    let start = 0;
+    let end = 1;
+    for (let axis = 0; axis < 2; axis++) {
+      const delta = b[axis] - a[axis];
+      if (delta === 0) {
+        if (a[axis] < bounds[axis] || a[axis] > bounds[axis + 2]) return false;
+        continue;
+      }
+      const lower = (bounds[axis] - a[axis]) / delta;
+      const upper = (bounds[axis + 2] - a[axis]) / delta;
+      start = Math.max(start, Math.min(lower, upper));
+      end = Math.min(end, Math.max(lower, upper));
+      if (start > end) return false;
+    }
+    return true;
+  }
+
+  async function findHannoverTrackSource(bounds) {
+    if (!Array.isArray(bounds) || bounds.length !== 4 || !bounds.every(Number.isFinite) ||
+        bounds[0] >= bounds[2] || bounds[1] >= bounds[3]) return null;
+    if (!mappedHannoverTracks) {
+      mappedHannoverTracks = (async () => {
+        const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          ? AbortSignal.timeout(4000) : undefined;
+        const response = await fetch('data/mobility/hannover-tram-context.json', { signal });
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data?.schemaVersion !== 1 || data.city !== 'hannover' || !Array.isArray(data.lines) ||
+            data.lines.length > 4000 || !data.source?.label ||
+            new URL(data.source.url).origin !== 'https://numis.niedersachsen.de') return null;
+        return data;
+      })().catch(() => null);
+    }
+    const pending = mappedHannoverTracks;
+    const data = await pending;
+    if (!data) {
+      if (mappedHannoverTracks === pending) mappedHannoverTracks = undefined;
+      return null;
+    }
+    const isCoordinate = value => Array.isArray(value) && value.length === 2 && value.every(Number.isFinite);
+    const hit = data.lines.some(line => Array.isArray(line) && line.every(isCoordinate) &&
+      line.some((point, index) => index > 0 && segmentHitsBounds(line[index - 1], point, bounds)));
+    return hit ? data.source : null;
+  }
+
   // ----------------------------------------------------------------
   // Regelmatrix. Jede Regel beschreibt:
   //   - id           : eindeutiger Schlüssel (für matchedRules)
@@ -355,13 +405,7 @@
     // Ursache ist…") und macht die kontextuelle Inferenz transparent.
     let rationale = "";
     if (matchedRules.length > 0) {
-      const ctxList = Array.from(cSet)
-        .filter(k => k && !["haeufung_bei_naesse","haeufung_bei_dunkelheit","haeufung_stosszeiten"].includes(k))
-        .join(", ");
-      const ctxSentence = ctxList
-        ? `Aufgrund des Ortskontexts (${ctxList}) sind insbesondere folgende Ursachen zu prüfen.`
-        : "Aufgrund der erkannten Unfallmuster sind folgende Ursachen zu prüfen.";
-      rationale = "Die Unfalldaten belegen die Häufung, nicht jedoch abschließend die konkrete Ursache. " + ctxSentence;
+      rationale = "Die Unfalldaten zeigen eine Häufung. Die folgenden Prüfungen sollen die möglichen Ursachen am Standort klären.";
     }
 
     return { ...buckets, rationale, matchedRules };
@@ -370,6 +414,7 @@
   UA.contextMeasures = {
     classifyPatterns,
     detectContexts,
+    findHannoverTrackSource,
     deriveContextualMeasures,
     MASK_TO_BASE_PATTERN,
     KNOWN_CONTEXT_KEYS,

@@ -269,7 +269,7 @@ describe('Export QA – map modes and attribution', () => {
     expect(pdfText).toContain('Die dargestellten Punkte entsprechen exakt den in der Tabelle aufgeführten Unfällen (n = 4).');
     expect(pdfText).toContain(`Kartenmodus: ${mapInfo.modeLabel}.`);
     expect(pdfText).toContain(expectedSourceText);
-    expect(pdfText).toContain('Punkte: rot = Getötete, orange = Schwerverletzte, gelb = Leichtverletzte (mit weißem Rand für Sichtbarkeit).');
+    expect(pdfText).toContain('Punkte nach Unfallschwere: rot = mit Getöteten, orange = mit Schwerverletzten, gelb = mit Leichtverletzten.');
     if (mapInfo.orthophoto) {
       expect(pdfText).toContain('Sichtbarer Hinweis: Orthofoto/Luftbild zeigt lediglich visuellen Kontext');
       expect(pdfText).toContain('Empfehlung: Detailprüfung empfohlen');

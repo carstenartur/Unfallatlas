@@ -910,13 +910,13 @@
   }
 
   function interpretMask(mask) {
-    if (mask === 1) return "Überrepräsentation von 🚲-Alleinunfällen kann auf Infrastruktur-Risiken (z. B. Schienenquerungen, Kanten/Spurrinnen, Belagswechsel, Engstellen) hindeuten.";
-    if (mask === 2) return "Überrepräsentation von 🚶-Alleinunfällen kann auf Querungsdefizite, Sichtbehinderungen oder Stolperstellen hinweisen.";
+    if (mask === 1) return "In dieser Gruppe ist ausschließlich die Kategorie Rad erfasst. Die Unfallhergänge können zeigen, ob etwa Gleisquerungen, Belagswechsel oder die Radverkehrsführung eine Rolle spielen.";
+    if (mask === 2) return "In dieser Gruppe ist ausschließlich die Kategorie Fuß erfasst. Die Unfallhergänge können zeigen, ob etwa Querungen, Sichtverhältnisse oder die Wegeführung eine Rolle spielen.";
     if (mask === 5) return "Überrepräsentation von 🚲+🚗 deutet häufig auf Konflikte an Knotenpunkten/Abbiegesituationen, Sichtbeziehungen und Führung des Radverkehrs hin.";
     if (mask === 6) return "Überrepräsentation von 🚗+🚶 weist oft auf Querungsdefizite, Sichtbeziehungen oder hohes Geschwindigkeitsniveau hin.";
     if (mask === 3) return "Überrepräsentation von 🚲+🚶 kann auf enge Führungen, gemeinsame Flächen oder fehlende Trennung hinweisen.";
     if (mask === 7) return "Überrepräsentation von 🚲+🚗+🚶 spricht für komplexe Konfliktlagen an Knotenpunkten bzw. stark frequentierten Querungen.";
-    if (mask === 16) return "Überrepräsentation von 🚛-Alleinunfällen (Gkfz) kann auf ungeeignete Straßengeometrie, Schleppkurven-Probleme oder Ladungssicherungsdefizite hinweisen.";
+    if (mask === 16) return "In dieser Gruppe ist ausschließlich die Kategorie Güterkraftfahrzeug erfasst. Die Unfallhergänge können zeigen, welche Rolle etwa die Straßengeometrie oder die Fahrbeziehungen spielen.";
     if (mask === 17) return "Überrepräsentation von 🚲+🚛 (Rad+Gkfz) ist besonders gefährlich – häufig Abbiegeunfälle mit totem Winkel. Maßnahmen: Abbiegeassistent, Spiegel, getrennte Signalphasen, Radwegeführung an Knotenpunkten prüfen.";
     if (mask === 18) return "Überrepräsentation von 🚶+🚛 (Fuß+Gkfz) ist besonders gefährlich – häufig Abbiege-/Rangierunfälle. Maßnahmen: Sichtfelder, Schleppkurven, Fußgängerführung und separate Signalphasen prüfen.";
     if (mask === 20) return "Überrepräsentation von 🚗+🚛 kann auf Engstellen, ungeeignete Fahrbahnbreiten oder Überholprobleme hinweisen.";
@@ -1081,7 +1081,7 @@
    * Load references_global.json plus (if citySlug is given) references_<city>.json,
    * merge the two document lists, and deduplicate by (title+author).
    * City-specific entries win over global entries on collision.
-   * Returns { documents: [...] } or null if nothing could be loaded.
+   * Keep local political cases separate from general reference documents.
    */
   async function loadReferenceDocuments(citySlug) {
     const globalData = await _fetchRefFile("templates/references_global.json");
@@ -1090,8 +1090,6 @@
     const globalDocs = (globalData && Array.isArray(globalData.documents)) ? globalData.documents : [];
     const cityDocs   = (cityData   && Array.isArray(cityData.documents))   ? cityData.documents   : [];
 
-    if (globalDocs.length === 0 && cityDocs.length === 0) return null;
-
     // Deduplicate: city entries override global entries with the same title+author key.
     const dedupKey = (d) => `${(d.title || "").trim().toLowerCase()}|${(d.author || "").trim().toLowerCase()}`;
     const cityKeys = new Set(cityDocs.map(dedupKey));
@@ -1099,7 +1097,31 @@
       ...globalDocs.filter(d => !cityKeys.has(dedupKey(d))),
       ...cityDocs
     ];
-    return { documents: merged };
+    return {
+      referenceDocuments: merged.length ? { documents: merged } : null,
+      localPoliticalCases: cityData?.localPoliticalCases
+    };
+  }
+
+  function politicalReferencesForArea(selected, cases, bounds) {
+    if (!bounds || !Array.isArray(cases)) return selected;
+
+    const references = [...selected];
+    for (const { location, references: localReferences } of cases) {
+      const { lat, lon } = location || {};
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || !bounds.contains([lat, lon]) || !Array.isArray(localReferences)) continue;
+
+      for (const ref of localReferences) {
+        const existingIndex = references.findIndex(entry => entry.url === ref.url || (ref.id && entry.id === ref.id));
+        if (existingIndex === -1) {
+          references.push({ ...ref, scope: 'export-area' });
+        } else {
+          const existing = references[existingIndex];
+          references[existingIndex] = { ...ref, ...existing, reason: existing.reason || ref.reason, scope: 'export-area' };
+        }
+      }
+    }
+    return references;
   }
 
   // --------------------
@@ -1120,9 +1142,9 @@
 
   /**
    * Match admin fields from Nominatim against a city's Gremien config.
-   * Returns the best matching committee, or a fallback hint.
+   * Returns a unique committee, or a fallback hint if labels disagree.
    *
-   * @param {Object} adminData - Fields from Nominatim (suburb, city_district, borough, quarter, postcode)
+   * @param {Object} adminData - City and administrative fields from Nominatim
    * @param {Object} gremienConfig - Config from gremien_{city}.json
    * @returns {{ gremium: string|null, typ: string|null, kontakt: string|null, confidence: string, hinweis: string }}
    */
@@ -1131,32 +1153,73 @@
       return { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
     }
 
-    const zuordnung = gremienConfig.zuordnung || [];
-    for (const z of zuordnung) {
-      const match = z.match || {};
-      for (const [field, values] of Object.entries(match)) {
-        const adminVal = adminData[field];
-        // Support both string and array for match values
-        const valArray = Array.isArray(values) ? values : [values];
-        if (adminVal && valArray.includes(adminVal)) {
-          return {
-            gremium: z.gremium || null,
-            typ: gremienConfig.gremiumTyp || null,
-            kontakt: z.kontakt || null,
-            confidence: "hoch",
-            hinweis: gremienConfig.hinweis || ""
-          };
-        }
-      }
-    }
-
-    return {
+    const fallback = {
       gremium: null,
       typ: gremienConfig.gremiumTyp || null,
       kontakt: null,
       confidence: "unbekannt",
       hinweis: gremienConfig.fallback || "Zuständiges Gremium bitte lokal ermitteln."
     };
+    if (gremienConfig.stadt && adminData.city && adminData.city !== gremienConfig.stadt) {
+      return fallback;
+    }
+
+    const matches = (gremienConfig.zuordnung || []).filter(z =>
+      Object.entries(z.match || {}).some(([field, values]) => {
+        const adminValue = adminData[field];
+        const allowed = Array.isArray(values) ? values : [values];
+        return adminValue && allowed.includes(adminValue);
+      })
+    );
+    if (matches.length !== 1) return fallback;
+
+    const [entry] = matches;
+    return {
+      gremium: entry.gremium || null,
+      typ: gremienConfig.gremiumTyp || null,
+      kontakt: entry.kontakt || null,
+      confidence: "hoch",
+      hinweis: gremienConfig.hinweis || ""
+    };
+  }
+
+  async function loadDistrictBoundaries(path) {
+    if (!path) return null;
+    try {
+      const response = await fetch(path);
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data?.type === "FeatureCollection" && Array.isArray(data.features) && data.features.length ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function districtForSelection(features, sw, ne) {
+    const midLon = (sw.lng + ne.lng) / 2;
+    const midLat = (sw.lat + ne.lat) / 2;
+    function containsSelection(rings) {
+      let contains = false;
+      for (const ring of rings) {
+        for (let i = 1; i < ring.length; i++) {
+          const [ax, ay] = ring[i - 1];
+          const [bx, by] = ring[i];
+          // A boundary near the selection is ambiguous. Check the envelope
+          // of each segment conservatively before testing the midpoint.
+          if (Math.max(ax, bx) >= sw.lng && Math.min(ax, bx) <= ne.lng &&
+              Math.max(ay, by) >= sw.lat && Math.min(ay, by) <= ne.lat) return false;
+          if ((ay > midLat) !== (by > midLat) &&
+              midLon < ax + (bx - ax) * (midLat - ay) / (by - ay)) contains = !contains;
+        }
+      }
+      return contains;
+    }
+    const districts = features.filter(({ geometry }) => {
+      if (geometry?.type === "Polygon") return containsSelection(geometry.coordinates);
+      if (geometry?.type === "MultiPolygon") return geometry.coordinates.some(containsSelection);
+      return false;
+    });
+    return districts.length === 1 ? districts[0].properties?.district : null;
   }
 
   // --------------------
@@ -1497,10 +1560,40 @@
   UA.accidentDetailTable = accidentDetailTable;
   UA.topDeviations = topDeviations;
 
+  function railCrossingMotion(ctx, points, source, areaName) {
+    if (!source) return null;
+    const canCheckInvolvement = typeof UA.matchesInvolvementFilter === "function" &&
+      ["incBikeEl", "incPedEl", "incCarEl", "incMotoEl"].every(key => ctx.ui?.[key]);
+    const driving = points.filter(({ props }) => {
+      const mask = maskFromProps(props);
+      return (mask & 1) !== 0 && String(props.utyp1) === "1" &&
+        (!canCheckInvolvement || UA.matchesInvolvementFilter(ctx, mask));
+    });
+    if (!driving.length) return null;
+    const count = driving.length.toLocaleString("de-DE");
+    const seriouslyInjured = driving.filter(p => String(p.props.ukategorie) === "2").length;
+    const fatal = driving.filter(p => String(p.props.ukategorie) === "1").length;
+    const outcomes = [];
+    if (seriouslyInjured) outcomes.push(`${seriouslyInjured} ${seriouslyInjured === 1 ? "Unfall" : "Unfälle"} mit Schwerverletzten`);
+    if (fatal) outcomes.push(`${fatal} ${fatal === 1 ? "Unfall" : "Unfälle"} mit Getöteten`);
+    const severity = outcomes.length ? `, darunter ${outcomes.join(" und ")}` : "";
+    return {
+      intro: "Die Verwaltung wird gebeten, die folgenden Schritte mit der Unfallkommission und dem Betreiber der Gleisinfrastruktur abzustimmen.",
+      requests: [
+        `Die Gleisquerungen im Bereich ${areaName} untersuchen. Dabei Unfallhergänge, Fahrlinien und Querungswinkel des Radverkehrs sowie Schienenrillen und Belagsübergänge prüfen.`,
+        "Die vorhandenen Rad- und Fußfurten, Abbiegebeziehungen und Signalphasen auf Konflikte prüfen.",
+        "Innerhalb von drei Monaten über kurzfristige Sicherungen und Varianten für eine sichere Rad- und Fußführung berichten. Bestehende Beschlüsse und Planungen einbeziehen und Zuständigkeit, Zeitplan und Wirkungskontrolle benennen."
+      ],
+      rationale: `Im Untersuchungsbereich sind Stadt- oder Straßenbahngleise kartiert. Die Auswahl enthält ${count} ${driving.length === 1 ? "Fahrunfall" : "Fahrunfälle"} mit Radbeteiligung${severity}. Die konkrete Unfallursache ist anhand der Hergänge und bei einer Vor-Ort-Prüfung zu klären.`,
+      source
+    };
+  }
+
   // --------------------
   // Public API: UA.computeExportReport(ctx)
   // --------------------
   UA.computeExportReport = async function computeExportReport(ctx) {
+    const markedBounds = ctx.selectionBounds;
     const bounds = boundsForExport(ctx);
     
     const center = bounds.getCenter ? bounds.getCenter() : null;
@@ -1585,8 +1678,11 @@
 
     // Load reference documents
     let refDocs = null;
+    let politicalReferences = ctx.politicalReferences || [];
     try {
-      refDocs = await loadReferenceDocuments(citySlug);
+      const { referenceDocuments, localPoliticalCases } = await loadReferenceDocuments(citySlug);
+      refDocs = referenceDocuments;
+      politicalReferences = politicalReferencesForArea(politicalReferences, localPoliticalCases, markedBounds);
     } catch (e) {
       console.warn("Reference documents loading failed:", e);
     }
@@ -1603,10 +1699,14 @@
     let gremiumMatch = { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
     try {
       const gremienConfig = await loadGremienData(citySlug);
-      if (gremienConfig && loc && loc.admin) {
-        gremiumMatch = matchGremium(loc.admin, gremienConfig);
-      } else if (gremienConfig) {
-        gremiumMatch = matchGremium({}, gremienConfig);
+      if (gremienConfig) {
+        const districts = markedBounds ? await loadDistrictBoundaries(gremienConfig.stadtbezirksgrenzen) : null;
+        if (districts) {
+          gremiumMatch = matchGremium({ city_district: districtForSelection(districts.features, sw, ne) }, gremienConfig);
+          if (gremiumMatch.gremium && districts.source) gremiumMatch.source = districts.source;
+        } else {
+          gremiumMatch = matchGremium(loc?.admin || {}, gremienConfig);
+        }
       }
     } catch (e) {
       console.warn("Gremien matching failed:", e);
@@ -1642,11 +1742,11 @@
     // which may want to feed pre-fetched context into the prompt.
     // Computed early so the recommendedMeasures filter can read its summary.
     const includeOsmContext = !ctx.exportOptions || ctx.exportOptions.includeOsmContext !== false;
+    const osmContextOverride = ctx.exportOptions?.osmContextOverride;
     let osmContext = null;
     if (includeOsmContext && UA.osmContext && typeof UA.osmContext.fetchOsmContext === "function") {
-      const override = ctx.exportOptions && ctx.exportOptions.osmContextOverride;
-      if (override !== undefined) {
-        osmContext = override;
+      if (osmContextOverride !== undefined) {
+        osmContext = osmContextOverride;
       } else {
         try {
           osmContext = await UA.osmContext.fetchOsmContext({
@@ -1658,6 +1758,20 @@
         }
       }
     }
+
+    const hasLocalOsm = Boolean(osmContext?.summary && !osmContext.quality?.error && osmContext.quality?.elementCount !== 0);
+    let trackSource = null;
+    if (includeMeasures && includeOsmContext && markedBounds) {
+      if (hasLocalOsm && Number(osmContext.contexts?.tramTrackWays) > 0) {
+        trackSource = { label: "OpenStreetMap-Mitwirkende, Stadt- und Straßenbahngleise (ODbL 1.0)", url: "https://www.openstreetmap.org/copyright" };
+      } else if (citySlug === "hannover" && osmContextOverride === undefined) {
+        trackSource = await UA.contextMeasures?.findHannoverTrackSource?.([sw.lng, sw.lat, ne.lng, ne.lat]);
+      }
+    }
+    const railMotion = railCrossingMotion(ctx, filteredPts, trackSource, explicitAreaName || "des markierten Kartenausschnitts");
+    const measureAssessmentNote = includeMeasures && !hasLocalOsm && !railMotion
+      ? "Vor-Ort-Prüfung erforderlich. Der verfügbare Ortskontext reicht für eine belastbare Maßnahmenrangfolge aus dem Katalog nicht aus."
+      : null;
 
     // ---- Economic impact (PR-C / B2): annual external cost via BASt-like factors ----
     // Only computed when the modal toggle "Volkswirtschaftliche Kosten" is on
@@ -1707,17 +1821,17 @@
     if (UA.contextMeasures && typeof UA.contextMeasures.detectContexts === "function") {
       const ovr = ctx.exportOptions && ctx.exportOptions.contextTypes;
       activeContexts = UA.contextMeasures.detectContexts(osmContext, ovr);
+      if (trackSource && !ovr) activeContexts.add("straßenbahn_schienen");
     }
 
     let recommendedMeasures = null;
-    if (includeMeasures && UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
+    if (includeMeasures && hasLocalOsm && !railMotion && UA.measures && UA.measures.loadCatalog && UA.measures.recommendMeasures) {
       try {
         const detectedPatterns = (dev.focus || []).map(r => Number(r.mask)).filter(Number.isFinite);
         if (detectedPatterns.length > 0) {
           const catalog = await UA.measures.loadCatalog(citySlug);
           recommendedMeasures = UA.measures.recommendMeasures(detectedPatterns, catalog, {
             limit: 5,
-            economicImpact: economicImpact,
             osmContext: osmContext,
             activeContexts: activeContexts
           });
@@ -1749,6 +1863,8 @@
         console.warn("Measure recommendation failed:", e);
       }
     }
+    const causesMeasures = includeMeasures && !measureAssessmentNote && !railMotion
+      ? buildCausesMeasuresSection(dev.focus, recommendedMeasures) : [];
 
     // Orts- und musterbezogene Empfehlungen (UA.contextMeasures). Wird
     // *vor* dem TEXT-Rendering berechnet, damit die kontext-spezifischen
@@ -1758,7 +1874,7 @@
     // Objekt wird unten zusätzlich in `structured.contextualMeasures`
     // durchgereicht.
     let contextualMeasures = null;
-    if (UA.contextMeasures && typeof UA.contextMeasures.deriveContextualMeasures === "function") {
+    if (includeMeasures && UA.contextMeasures && typeof UA.contextMeasures.deriveContextualMeasures === "function") {
       try {
         // classifyPatterns liest aus structured.deviations + severity +
         // weather + heatmap. Hier rekonstruieren wir die nötigen Felder
@@ -1766,7 +1882,7 @@
         // zusammengesetzt, siehe `const structured = { … }`).
         const stubForClassifier = {
           deviations: { focus: dev.focus || [] },
-          severity: { bySev: sev.bySev || {} }
+          severity: { bySev: crossTable.rows.find(row => row.mask === 1) }
           // weather/heatmap-Eskalationen werden bewusst weggelassen,
           // solange computeExportReport sie nicht im selben Schema in
           // structured ablegt — die Fallback-Pfade in classifyPatterns
@@ -1807,9 +1923,7 @@
       BOUNDS: bStr,
       local_total: dev.local.total.toLocaleString(),
       baseline_total: dev.baseline.total.toLocaleString(),
-      severity_summary: ((sev.bySev["1"] || 0) > 0
-        ? `Im Ausschnitt wurden ${sev.bySev["1"]} Getötete, ${sev.bySev["2"] || 0} Schwerverletzte und ${sev.bySev["3"] || 0} Leichtverletzte registriert.`
-        : `Im Ausschnitt wurden ${sev.bySev["2"] || 0} Schwerverletzte und ${sev.bySev["3"] || 0} Leichtverletzte registriert.`),
+      severity_summary: `Die Unfallzahlen nach Schwere lauten ${sev.bySev["1"] || 0} mit Getöteten, ${sev.bySev["2"] || 0} mit Schwerverletzten und ${sev.bySev["3"] || 0} mit Leichtverletzten.`,
       date: new Date().toLocaleDateString("de-DE"),
       DATE: new Date().toLocaleDateString("de-DE"),
       link: window.location.href,
@@ -1847,6 +1961,9 @@
     const tIntro = introResult.content;
     const isGen2Intro = introResult.isGen2;
     const tBesch = beschResult.content;
+    const usesDefaultResolution = !tBesch || ["base_resolution", "beschluss"].some(name =>
+      DEFAULT_TEMPLATES[name]?.trim() === tBesch.trim());
+    const motion = usesDefaultResolution ? railMotion : null;
     // PR-QA Task 8: Marker-Zeile aus dem internal-note-Template entfernen, damit
     // `[Interner Hinweis – vor Versand entfernen]` nicht im offiziellen Antrag landet.
     const tHinw = stripInternalMarkerHeader(hinwResult.content);
@@ -1870,11 +1987,18 @@
       lines.push(`Lage/Adresse (Mittelpunkt): ${loc.details || loc.label}`);
       lines.push(`OSM: ${loc.osmUrl}`);
     }
+    if (gremiumMatch.source) lines.push(`Gremienzuordnung: ${gremiumMatch.source.label} (${gremiumMatch.source.url})`);
 
     if (!isGen2Intro) {
       lines.push(`Datum: ${vars.date}`);
     }
     lines.push("");
+
+    if (motion) {
+      lines.push("Beschlussvorschlag:", motion.intro,
+        ...motion.requests.map((request, i) => `${i + 1}) ${request}`),
+        "", "Begründung:", motion.rationale, `${motion.source.label} (${motion.source.url})`, "");
+    }
 
     // Task 2 – KURZBEWERTUNG (Executive Summary). Build deterministically
     // from the structured fields we already computed; renders in TEXT/HTML/
@@ -1942,7 +2066,7 @@
       }
       lines.push("");
       // Task 4 – URSACHEN UND MASSNAHMEN-Block direkt nach den Abweichungen.
-      const _causes = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+      const _causes = causesMeasures;
       if (_causes.length > 0) {
         lines.push("URSACHEN UND MASSNAHMEN (kurz):");
         for (const c of _causes) {
@@ -2061,6 +2185,8 @@
       }
       lines.push("");
     }
+
+    if (measureAssessmentNote) lines.push(measureAssessmentNote, "");
 
     // Orts- und musterbezogene Empfehlungen — VOR der allgemeinen
     // Maßnahmenliste, damit der Antrag mit den passenden Vorschlägen
@@ -2219,9 +2345,9 @@
     // Nummer/URL auch referenceType (feinere Klassifikation), reason
     // (Begründung der Relevanz), snippet (Textauszug) und source
     // (Provider-Kürzel, transparenter Quellenhinweis).
-    if (ctx.politicalReferences && ctx.politicalReferences.length > 0) {
+    if (politicalReferences.length > 0) {
       lines.push("Bisherige politische Befassung:");
-      for (const ref of ctx.politicalReferences) {
+      for (const ref of politicalReferences) {
         lines.push(`- ${ref.title || "Ohne Titel"}`);
         if (ref.referenceType && ref.referenceType !== ref.type) {
           lines.push(`  Klassifikation: ${ref.referenceType}`);
@@ -2300,8 +2426,9 @@
       lines.push("");
     }
 
-    lines.push(tpl(tBesch, vars).trim());
-    lines.push("");
+    if (!motion) {
+      lines.push(tpl(tBesch, vars).trim(), "");
+    }
     // Task 6: Interner Hinweis ("automatisiert erzeugt (Vorentwurf)") wird
     // nicht mehr ausgegeben – `tHinw` ist nun leer (templates/hinweis.txt /
     // outro_internal_note.txt sind absichtlich entleert). Nur falls ein
@@ -2644,7 +2771,7 @@
 
     // Task 4 – HTML-Sektion "Ursachen und Maßnahmen".
     const _causesHtml = (() => {
-      const cm = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+      const cm = causesMeasures;
       if (cm.length === 0) return "";
       const rowsHtml = cm.map(c => {
         // Cross-Reference per Maßnahmen-Nummer, falls verfügbar (siehe TEXT-Block).
@@ -2684,6 +2811,8 @@
           
         </div>
 
+        ${motion ? `<h3>Beschlussvorschlag</h3><p>${UA.escHtml(motion.intro)}</p><ol>${motion.requests.map(request => `<li>${UA.escHtml(request)}</li>`).join("")}</ol><p>${UA.escHtml(motion.rationale)}</p><p><a href="${UA.escHtml(motion.source.url)}" target="_blank" rel="noopener">${UA.escHtml(motion.source.label)}</a></p>` : ""}
+
         <div style="margin-top:12px; padding:10px 12px; background:#f6f7fb; border-left:4px solid #2a4a8a; border-radius:4px;">
           <div style="font-weight:950; font-size:14px;">KURZBEWERTUNG</div>
           <div style="margin-top:4px;">${UA.escHtml(_executiveSummary.classification)}</div>
@@ -2711,6 +2840,7 @@
         </table>
 
         ${_causesHtml}
+        ${measureAssessmentNote ? `<p>${UA.escHtml(measureAssessmentNote)}</p>` : ""}
 
         <div style="margin-top:12px; font-weight:900;">Unfälle pro Jahr (im Ausschnitt)</div>
         <table class="report">
@@ -2762,10 +2892,9 @@
         ${refDocsHtmlSection}
 
         ${(() => {
-          const polRefs = ctx.politicalReferences;
-          if (!polRefs || !polRefs.length) return '';
+          if (!politicalReferences.length) return '';
           let html = `<div style="margin-top:12px; font-weight:900;">Bisherige politische Befassung</div><ul style="margin-top:6px;">`;
-          for (const ref of polRefs) {
+          for (const ref of politicalReferences) {
             const meta = [];
             if (ref.type) meta.push(UA.escHtml(ref.type));
             if (ref.date) meta.push(UA.escHtml(ref.date));
@@ -2959,12 +3088,14 @@
       yearTable: yr,
       poi: poiAnalysis,
       references: refDocs,
-      politicalReferences: ctx.politicalReferences || [],
+      politicalReferences,
       patterns: matchedPatterns,
       crossTable,
       accidentDetails,
       economicImpact,
       recommendedMeasures,
+      measureAssessmentNote,
+      motion,
       timeClusters: timeClusters,
       yearlyTrend,
       heatmap,
@@ -2979,7 +3110,7 @@
     // Strukturdaten ableiten – deterministisch, ohne neue Analyse.
     structured.executiveSummary = buildExecutiveSummary(structured, { mode: exportMode });
     // Task 4: URSACHEN UND MASSNAHMEN-Mapping aus dev.focus + Maßnahmenkatalog.
-    structured.causesMeasures = buildCausesMeasuresSection(dev.focus, recommendedMeasures);
+    structured.causesMeasures = causesMeasures;
     // Goldstandard-Sektion 8: Priorisierung nach Umsetzungshorizont
     // (Kurzfristig 0–3 Monate / Mittelfristig 3–12 Monate / Langfristig
     // >12 Monate). Bereits oben für TEXT/HTML berechnet (`_prioritization`),

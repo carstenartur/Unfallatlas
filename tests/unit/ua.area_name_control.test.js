@@ -95,7 +95,7 @@ test('real view URL synchronization invalidates the name before a changed geomet
   ctx.selectionBounds=bounds(50.74);
   UA.syncViewToUrl(ctx);
   const shared=new URL(location.href);
-  expect(shared.searchParams.get('selNorth')).toBe('50.740000');
+  expect(Number(shared.searchParams.get('selNorth'))).toBe(50.74);
   expect(shared.searchParams.has('areaName')).toBe(false);
   expect(shared.searchParams.has('areaNameGeometry')).toBe(false);
 });

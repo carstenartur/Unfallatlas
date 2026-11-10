@@ -322,7 +322,7 @@
     // Load after the pattern and AI adapters so it can bind one canonical
     // numbered A### cohort into report, map, appendix and both AI stages.
     evidenceCohort: injectOptionalModuleAfterDomReady(
-      'js/ua.evidence_cohort.js?v=2026-08-16',
+      'js/ua.evidence_cohort.js?v=2026-11-10-report-maps',
       'data-ua-evidence-cohort'
     ),
   });

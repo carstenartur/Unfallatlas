@@ -111,16 +111,42 @@ describe('UA.report_v2 – map/table consistency helpers', () => {
       const overviewParams = new URL(overviewUrl).searchParams;
       const clusterParams = new URL(clusterUrl).searchParams;
 
-      expect(overviewParams.get('selSouth')).toBe('52.300000');
-      expect(clusterParams.get('selSouth')).toBe('52.371000');
-      expect(clusterParams.get('selWest')).toBe('9.731000');
-      expect(clusterParams.get('selNorth')).toBe('52.372000');
-      expect(clusterParams.get('selEast')).toBe('9.732000');
+      expect(Number(overviewParams.get('selSouth'))).toBe(52.3);
+      expect(Number(clusterParams.get('selSouth'))).toBe(52.371);
+      expect(Number(clusterParams.get('selWest'))).toBe(9.731);
+      expect(Number(clusterParams.get('selNorth'))).toBe(52.372);
+      expect(Number(clusterParams.get('selEast'))).toBe(9.732);
       expect(clusterParams.get('centerLat')).toBe('52.371500');
       expect(clusterParams.get('centerLon')).toBe('9.731500');
       expect(clusterParams.get('zoom')).toBe('18');
       expect(clusterParams.get('mapMode')).toBe('hybrid');
       expect(clusterParams.get('orthophotoOpacity')).toBe('85');
+    });
+
+    test('cluster links keep edge cases inside the exact bounding box without including a point just outside', () => {
+      const bounds = { south: 52.3915007, west: 9.7203007, north: 52.3915994, east: 9.7203994 };
+      const points = [
+        { lat: 52.3915007, lon: 9.7203007 },
+        { lat: 52.3915994, lon: 9.7203994 },
+        { lat: 52.3915995, lon: 9.7203501 },
+      ];
+      const params = new URL(UA.buildWerkbankUrl({}, { bounds })).searchParams;
+      const parsedBounds = Object.fromEntries(['south', 'west', 'north', 'east'].map(key => [
+        key, Number(params.get('sel' + key[0].toUpperCase() + key.slice(1)))
+      ]));
+      expect(UA._countPointsInBounds(points, parsedBounds)).toBe(2);
+    });
+
+    test('all-combinations links bypass AND and SOLO while preserving non-involvement context filters', () => {
+      const ctx = {
+        involvementMode: 'and',
+        contextFilters: { trafficClasses: new Set(['medium']), onlyMatchedWays: true },
+      };
+      const params = new URL(UA.buildWerkbankUrl(ctx, { allCombinations: true })).searchParams;
+      expect(params.get('involvementMode')).toBe('or');
+      expect(params.get('includeCar')).toBe('1');
+      expect(params.get('ctxTraffic')).toBe('medium');
+      expect(params.get('ctxOnlyMatched')).toBe('1');
     });
 
     test('two distinct cluster overrides yield two distinct URLs (no duplicates)', () => {

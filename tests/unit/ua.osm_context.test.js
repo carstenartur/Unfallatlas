@@ -315,6 +315,24 @@ describe('UA.osmContext', () => {
       expect(out.quality.error).toBe('boom');
     });
 
+    test('does not use partial Overpass data to assess the local infrastructure', async () => {
+      const fakeFetch = async () => ({
+        ok: true,
+        async json() {
+          return {
+            elements: [{ type: 'way', tags: { highway: 'primary', maxspeed: '50' } }],
+            remark: 'runtime error: Query timed out',
+          };
+        },
+      });
+      const out = await UA.osmContext.fetchOsmContext(
+        { south: 52, west: 9.7, north: 52.5, east: 9.9 },
+        { fetch: fakeFetch, endpoint: 'https://example.test/overpass' }
+      );
+      expect(out.quality.error).toContain('keine vollständige Antwort');
+      expect(out.summary).toBeUndefined();
+    });
+
     test('bounds the complete Overpass body read, not only response headers', async () => {
       jest.useFakeTimers();
       try {

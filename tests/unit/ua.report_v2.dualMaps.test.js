@@ -327,4 +327,68 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
     expect(texts.some(
       t => /^Nur Unfälle mit Beteiligung \u2039/.test(t))).toBe(false);
   });
+
+  test('PDF maps use the full area cohort and the uncapped selection cohort from a scoped document context', async () => {
+    const bounds = {
+      getSouth: () => 52.36, getWest: () => 9.72,
+      getNorth: () => 52.38, getEast: () => 9.74,
+      getSouthWest: () => ({ lat: 52.36, lng: 9.72 }),
+      getNorthEast: () => ({ lat: 52.38, lng: 9.74 }),
+    };
+    const bike = { lat: 52.37, lon: 9.73, props: { istrad: '1' } };
+    const anotherBike = { lat: 52.372, lon: 9.731, props: { istrad: '1' } };
+    const car = { lat: 52.37, lon: 9.732, props: { istpkw: '1' } };
+    const outside = { lat: 52.39, lon: 9.73, props: { istrad: '1' } };
+    const ctx = makeCtx({
+      selectionBounds: bounds,
+      allPts: [bike, anotherBike, outside],
+      selectionPts: [bike, anotherBike],
+      viewportPts: [bike, outside],
+      __analysisScopeOriginalCtx: { allPts: [bike, anotherBike, car, outside] },
+    });
+    UA.captureExportMapImage = jest.fn(async () => PNG_DATAURL);
+    UA._captureDetailMap = jest.fn(async () => PNG_DATAURL);
+    UA._captureClusterMaps = jest.fn(async () => []);
+
+    const report = reportDataWithFilters({ includeCyclist: true });
+    report.structured.accidentDetails.total = 2;
+    const definition = await runPdfExport(ctx, report, { includeMap: true });
+    expect(UA.captureExportMapImage.mock.calls.map(([, options]) => options.exportPoints)).toEqual([
+      [bike, anotherBike, car], [bike, anotherBike],
+    ]);
+    const texts = collectTexts(definition.content);
+    expect(texts.some(text => /vor Beteiligungsfilter.*n = 3/.test(text))).toBe(true);
+    expect(texts.some(text => /Teilmenge der 2 Unfälle aus Abbildung 2/.test(text))).toBe(true);
+  });
+
+  test('primary PDF includes a numbered map for every evidence partition', async () => {
+    const bounds = { south: 52.36, west: 9.72, north: 52.38, east: 9.74 };
+    const rows = [
+      { displayId: 'A001', mapRef: 'E2', lat: 52.37, lon: 9.73, severity: 2 },
+      { displayId: 'A002', mapRef: 'E1', lat: 52.371, lon: 9.731, severity: 3 },
+    ];
+    const ctx = makeCtx();
+    ctx.map.fitBounds = jest.fn();
+    const report = reportDataWithFilters({});
+    report.structured.evidenceCohorts = {
+      bounds,
+      completeEvidenceCohort: { rows },
+      detailMapPartitions: [
+        { mapRef: 'E1', bounds, accidentIds: ['A002'] },
+        { mapRef: 'E2', bounds, accidentIds: ['A001'] },
+      ],
+    };
+    UA.captureExportMapImage = jest.fn(async () => PNG_DATAURL);
+    UA.EvidenceCohort = {
+      ...require('../../js/ua.evidence_cohort'),
+      annotateMapImage: jest.fn(async (_window, _ctx, dataUrl) => dataUrl),
+    };
+
+    const definition = await runPdfExport(ctx, report, { includeMap: true });
+    const figures = definition.content.filter(node => node.stack?.some(item => item.id?.startsWith('evidence-map-')));
+    expect(figures.map(node => node.stack[1].id)).toEqual(['evidence-map-E1', 'evidence-map-E2']);
+    expect(figures.map(node => node.stack[2].text)).toEqual(['Unfall-IDs A002.', 'Unfall-IDs A001.']);
+    const numberedCaptures = UA.captureExportMapImage.mock.calls.filter(([, options]) => options.evidenceRows);
+    expect(numberedCaptures.map(([, options]) => options.exportPoints.map(p => p.props.ukategorie))).toEqual([[3], [2]]);
+  });
 });

@@ -30,28 +30,33 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
   });
 
-  test.each([
-    'js/ua.ai_proposal.js',
-    'js/ua.report_v2.js',
-  ])('%s uses the verified RIS rollout version', asset => {
-    expect(html).toContain(`${asset}?v=${asset === 'js/ua.report_v2.js' ? '2026-11-08-frozen-export-scope' : '2026-11-07-ris'}`);
+  test('AI proposals use the verified RIS rollout version', () => {
+    expect(html).toContain('js/ua.ai_proposal.js?v=2026-11-07-ris"');
+  });
+
+  test.each(['js/ua.export_v2.js', 'js/ua.report_v2.js', 'js/ua.context_measures.js', 'js/ua.osm_context.js'])
+  ('%s refreshes application exports and local evidence', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-10-antrag-quality"`);
   });
 
   test.each([
-    'css/ua.css', 'js/ua.app_v2.js', 'js/ua.context_road_layer.js', 'js/ua.data_paths.js',
+    'css/ua.css', 'js/ua.app_v2.js', 'js/ua.context_road_layer.js',
     'js/ua.hannover_layers.js', 'js/ua.map_scene.js', 'js/ua.map_scene_url_codec.js',
     'js/ua.tour.js',
   ])('%s refreshes the mobility layers and compact map controls', asset => {
     expect(html).toContain(`${asset}?v=2026-11-09-mobility"`);
   });
 
-  test.each(['js/ua.map_v2.js', 'js/ua.map_layer_registry.js', 'js/ua.state.js'])('%s refreshes CARTO and layer configuration', asset => {
+  test.each(['js/ua.map_layer_registry.js', 'js/ua.state.js'])('%s refreshes CARTO and layer configuration', asset => {
     expect(html).toContain(`${asset}?v=2026-11-10-carto"`);
   });
 
-  test('both canonical template and export assets load the current defaults', () => {
+  test.each(['js/ua.map_v2.js', 'js/ua.data_paths.js', 'js/ua.ui.js'])('%s refreshes document map rendering and links', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-10-report-maps"`);
+  });
+
+  test('the canonical template asset loads the current defaults', () => {
     expect(html).toContain('js/ua.export_template_defaults.js?v=2026-11-08-method-limits"');
-    expect(html).toContain('js/ua.export_v2.js?v=2026-11-08-frozen-export-scope"');
   });
 
   test.each(['js/ua.area_name_control.js'])('%s refreshes confirmed research scope', asset => {
@@ -76,8 +81,8 @@ describe('Werkbank deployment asset versions', () => {
       ? '2026-11-09-ris-workspace' : '2026-11-08-ris-view'}"`);
   });
 
-  test.each(['js/ua.ris-layer.js', 'js/ua.ui.js'])('%s refreshes the RIS catalogue count', asset => {
-    expect(html).toContain(`${asset}?v=${asset === 'js/ua.ris-layer.js' ? '2026-11-09-ris-workspace' : '2026-11-09-ris-count'}"`);
+  test('the RIS layer refreshes the catalogue count', () => {
+    expect(html).toContain('js/ua.ris-layer.js?v=2026-11-09-ris-workspace"');
   });
 
   test('shared spatial budgets and partitions load before their consumers', () => {
@@ -115,13 +120,13 @@ describe('Werkbank deployment asset versions', () => {
 test.each(['ua.core', 'ua.context_layers', 'ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  const version = name === 'ua.core' ? '2026-11-08-provenance-context-copy' : '2026-11-08-context';
+  const version = name === 'ua.core' ? '2026-11-10-antrag-quality' : '2026-11-08-context';
   expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
   const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
   for (const name of ['ua.artifact_provenance', 'ua.export_provenance', 'ua.kml_export_provenance', 'ua.document_export_provenance']) {
-    const version = name === 'ua.export_provenance' ? '2026-11-08-provenance-context-copy' : name === 'ua.document_export_provenance' ? '2026-11-08-frozen-export-scope' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
+    const version = name === 'ua.export_provenance' ? '2026-11-08-provenance-context-copy' : name === 'ua.document_export_provenance' ? '2026-11-10-antrag-quality' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
     expect(core).toContain(`${name}.js?v=${version}`);
   }
 });

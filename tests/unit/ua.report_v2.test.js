@@ -1086,7 +1086,7 @@ describe('UA.report_v2 - Export Functions', () => {
 
         // fitBounds should have been called with animate: false for the detail map
         expect(fitBoundsSpy).toHaveBeenCalledWith(
-          ctx.selectionBounds,
+          [[52.37, 9.72], [52.38, 9.74]],
           expect.objectContaining({ animate: false })
         );
         // setView should restore the original position

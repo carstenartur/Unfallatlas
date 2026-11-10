@@ -6,6 +6,8 @@
   UA._exportLibrariesLoading = null;
 
   function reportSubject(reportData) {
+    const structured = reportData?.structured?.motion?.subject || reportData?.structured?.subject;
+    if (typeof structured === "string" && structured.trim()) return structured.trim();
     const subjectFrom = value => {
       const lines = String(value || "").split(/\r?\n/);
       const index = lines.findIndex(line => /^\s*Betreff\s*:/i.test(line));
@@ -93,12 +95,176 @@
     "Empfohlene Maßnahmen",
     "POI-Analyse",
     "Bezugsdokumente:",
+    "Bisherige politische Befassung:",
+    "Beteiligungskombination × Schweregrad:",
+    "Einzelunfälle im Bereich:",
     "Beschlussvorschlag:",
+    "Begründung:",
+    "Hinweis zur Datenquelle / Lizenz:",
+    "VOLLSTÄNDIGE NUMMERIERTE UNFALLBEWEISANLAGE",
     "Hinweis (intern)",
     "Datenquelle",
     "Datenerfassung",
     "Kontextdaten"
   ];
+
+  const EVIDENCE_HEADERS = ["ID", "Jahr", "Schwere", "Beteiligte", "Tag / Zeit", "Fahrbahn", "Lage", "Suchfilter", "Karte"];
+  const MOTION_NUMBERING = "motion-requests";
+  const FACTOR_READING = "Der Faktor gibt das Verhältnis des lokalen Anteils eines Beteiligungsmusters zum Anteil im Stadtgebiet an. Werte über 1 zeigen einen höheren lokalen Anteil. Die 95 %-Konfidenzintervalle beschreiben die Unsicherheit des lokalen Anteils. „n. s.“ kennzeichnet Werte ohne statistisch nachweisbare Abweichung.";
+  const EVIDENCE_PDF_LAYOUT = {
+    hLineWidth: (row, node) => row === 1 ? 0.8 : row === node.table.body.length ? 0 : 0.35,
+    hLineColor: row => row === 1 ? "#7891A0" : "#C7D0D7",
+    vLineWidth: () => 0,
+    paddingLeft: () => 4,
+    paddingRight: () => 4,
+    paddingTop: () => 1,
+    paddingBottom: () => 1
+  };
+
+  function readMotionSection(lines, heading) {
+    const index = lines.findIndex(line => line.trim().startsWith(heading));
+    if (index < 0) return [];
+    const inline = lines[index].trim().slice(heading.length).trim();
+    const result = inline ? [inline] : [];
+    for (const line of lines.slice(index + 1)) {
+      const content = line.trim();
+      if (POST_SACHVERHALT_STOP_HEADERS.some(header => content.startsWith(header))) break;
+      if (content) result.push(content);
+    }
+    return result;
+  }
+
+  function motionSections(sd, lines, hasMap) {
+    const { intro, requests, rationale, source } = sd?.motion || {};
+    const structuredRequests = Array.isArray(requests) ? requests.filter(text => typeof text === "string" && text.trim()) : [];
+    const withoutMapReference = text => hasMap ? text : text.replace(/den in Anlage 1 dargestellten Bereich/g, "den ausgewählten Bereich");
+    const reason = typeof rationale === "string" && rationale.trim()
+      ? [rationale]
+      : readMotionSection(lines, "Begründung:");
+    if (structuredRequests.length) {
+      return {
+        paragraphs: [intro || "Die Verwaltung wird um folgende Schritte gebeten."],
+        requests: structuredRequests.map(withoutMapReference),
+        reason,
+        source
+      };
+    }
+    const paragraphs = readMotionSection(lines, "Beschlussvorschlag:").map(withoutMapReference);
+    if (!paragraphs.length) {
+      paragraphs.push("Die Verwaltung wird gebeten, innerhalb von drei Monaten die Verkehrssicherheit im ausgewählten Bereich fachlich zu prüfen, kurzfristige Sicherungsmaßnahmen vorzulegen und über die geplante Wirkungskontrolle zu berichten.");
+    }
+    const listStart = paragraphs.findIndex(line => /^1[.)]\s/.test(line));
+    const numbered = listStart >= 0 ? paragraphs.slice(listStart) : [];
+    const isOrderedList = numbered.length > 0 && numbered.every((line, i) => new RegExp(`^${i + 1}[.)]\\s`).test(line));
+    return {
+      paragraphs: isOrderedList ? paragraphs.slice(0, listStart) : paragraphs,
+      requests: isOrderedList ? numbered.map(line => line.replace(/^\d+[.)]\s+/, "")) : [],
+      reason,
+      source
+    };
+  }
+
+  function reportLink(href) {
+    if (typeof href !== "string" || !href.trim()) return null;
+    try {
+      const url = new URL(href, window.location?.href);
+      return /^https?:$/.test(url.protocol) ? url.href : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function numberedEvidence(sd) {
+    const appendix = sd?.accidentEvidenceAppendix;
+    const cohorts = sd?.evidenceCohorts;
+    const rows = appendix?.rows ?? cohorts?.completeEvidenceCohort?.rows;
+    if (!Array.isArray(rows)) return null;
+    const discoveryCount = rows.filter(row => row.discoveryMatch === true).length;
+    const reportingPeriod = cohorts?.reportingPeriod;
+    const period = reportingPeriod?.from && reportingPeriod?.to
+      ? (reportingPeriod.from === reportingPeriod.to ? String(reportingPeriod.from) : `${reportingPeriod.from}–${reportingPeriod.to}`)
+      : "";
+    return {
+      rows,
+      discoveryCount,
+      period,
+      complete: appendix?.complete !== false && appendix?.truncated !== true && cohorts?.status !== "not-assessable"
+        && (appendix?.total == null || appendix.total === rows.length),
+      link: reportLink(appendix?.numberedMapUrl || cohorts?.numberedMapUrl),
+      sourceNote: appendix?.sourceNote,
+      limitations: Array.isArray(appendix?.limitations) ? appendix.limitations : []
+    };
+  }
+
+  function evidenceCountText(evidence) {
+    const count = evidence.rows.length.toLocaleString("de-DE");
+    const filteredCount = evidence.discoveryCount.toLocaleString("de-DE");
+    const period = evidence.period ? ` (${evidence.period})` : "";
+    if (!evidence.complete) {
+      return `Die Liste enthält ${count} veröffentlichte Unfälle mit Personenschaden${period}. Ihre Vollständigkeit konnte nicht bestätigt werden.`;
+    }
+    const events = evidence.rows.length === 1 ? "ist 1 Unfall" : `sind ${count} Unfälle`;
+    return `Im ausgewählten Gebiet${period} ${events} mit Personenschaden veröffentlicht. Die Suchfilter heben davon ${filteredCount} hervor.`;
+  }
+
+  function evidenceTable(evidence, mapRefs, anchorPrefix) {
+    const includeMapRefs = mapRefs.size > 0;
+    const headers = includeMapRefs ? EVIDENCE_HEADERS : EVIDENCE_HEADERS.slice(0, -1);
+    const rows = evidence.rows.map(row => {
+      const hour = row.hour == null ? "—" : `${String(row.hour).padStart(2, "0")}:00`;
+      const coordinates = Number.isFinite(row.lat) && Number.isFinite(row.lon)
+        ? `${row.lat.toFixed(5)}\n${row.lon.toFixed(5)}`
+        : "—";
+      return [
+        { text: row.displayId, href: reportLink(row.mapDeepLink) },
+        String(row.year ?? "—"),
+        row.severityLabel || "—",
+        row.involvementLabel || "—",
+        `${row.weekdayLabel || "—"}\n${hour}`,
+        (row.roadConditionLabel || "—").replaceAll("/", " / "),
+        coordinates,
+        row.discoveryMatch === true ? "Ja" : "Nein",
+        ...(includeMapRefs ? [mapRefs.has(row.mapRef) ? { text: row.mapRef, anchor: `${anchorPrefix}${row.mapRef}` } : "—"] : [])
+      ];
+    });
+    return { headers, rows };
+  }
+
+  function evidenceAnnexIntro(evidence, hasMap) {
+    const mapHint = hasMap ? " Die Spalte Karte verweist auf die jeweiligen Kartenblätter in Anlage 1." : "";
+    return [
+      evidenceCountText(evidence),
+      `A### bezeichnet eine Dokumentkennung. In der Spalte Suchfilter steht „Ja“ bei den durch die Filter hervorgehobenen Fällen. Die Koordinaten geben die veröffentlichte Lage als Breiten- und Längengrad an.${mapHint}`
+    ];
+  }
+
+  function motionAnnexes(evidence, hasMap, analysisAnnexNumber) {
+    return [
+      ...(hasMap ? ["1 Karten"] : []),
+      ...(evidence ? [`${1 + Number(hasMap)} Unfallliste`] : []),
+      `${analysisAnnexNumber} Auswertung und Methodik`
+    ].join(" · ");
+  }
+
+  function motionPoliticalNote(sd, options, analysisAnnexNumber) {
+    if (!options.includeReferences || !Array.isArray(sd?.politicalReferences) || !sd.politicalReferences.length) return [];
+    const citations = sd.politicalReferences.filter(ref => ref.scope === "export-area" && ref.number && reportLink(ref.url)).slice(0, 2);
+    const label = citations.length ? "Politische Vorbefassung: " : "Politische Vorbefassung siehe ";
+    return [{ text: label }, ...citations.flatMap((ref, i) => [
+      ...(i ? [{ text: " · " }] : []),
+      { text: `DS ${ref.number}`, href: reportLink(ref.url) }
+    ]), { text: citations.length ? ` (Anlage ${analysisAnnexNumber}).` : `Anlage ${analysisAnnexNumber}.` }];
+  }
+
+  function methodLineForMotion(line) {
+    return String(line)
+      .replace(/nummerierte completeEvidenceCohort/g, "nummerierte Unfallliste")
+      .replace(/Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet\./g,
+        "Die Wilson-95-%-Intervalle und die Signifikanzkennzeichnung sind ohne Korrektur für Mehrfachtests berechnet.")
+      .replace(/stadtweite Baseline/g, "stadtweite Referenz")
+      .replace(/Sichtbar- und Markierungszahlen werden aus derselben ungekappte Filterpopulation und den exakten geometrischen Grenzen berechnet; Renderlimit und technischer Ladepuffer verändern diese Fallzahlen nicht\./g,
+        "Die Fallzahlen berücksichtigen alle gefilterten Unfälle innerhalb der Auswahlgrenzen, auch wenn die Karte nur einen Teil davon anzeigt.");
+  }
 
   // =====================================================================
   // Lazy Loading Utilities for Export Libraries
@@ -643,8 +809,11 @@
         // Allow callers (e.g. cluster maps) to restrict the severity overlay
         // to a specific subset of points so the visible markers exactly match
         // the table count below the map (Tasks 4, 5, 6).
-        const beginOpts = (options && Array.isArray(options.exportPoints))
-          ? { points: options.exportPoints }
+        const beginOpts = Array.isArray(options.exportPoints)
+          ? {
+              points: options.exportPoints,
+              rebuildHeat: ctx.documentRasterAvailable !== undefined && options.heatmapExportOpacity !== 0
+            }
           : undefined;
         token = UA.beginExportMapMode(ctx, beginOpts);
       }
@@ -671,6 +840,146 @@
       }
     }
   };
+
+  // A document has its own map so live markers, heat, and viewport updates
+  // cannot change the population or the position of an exported figure.
+  UA.createDocumentMapContext = function createDocumentMapContext(ctx) {
+    const L = window.L;
+    const live = ctx.map;
+    const doc = window.document;
+    if (ctx.documentRasterAvailable !== undefined || !L?.Map || !(live instanceof L.Map) || !doc?.body) {
+      return { ctx, close() {} };
+    }
+    const container = doc.createElement("div");
+    container.setAttribute("aria-hidden", "true");
+    container.style.cssText = "position:fixed;left:-2000px;top:0;width:1050px;height:650px;pointer-events:none";
+    doc.body.appendChild(container);
+    let map;
+    try {
+      const state = ctx.baseMapState;
+      const layers = state ? [state.standardLayer, state.orthophotoLayer, state.labelLayer] : [];
+      if (!state) live.eachLayer(layer => layers.push(layer));
+      const raster = layers.filter(layer => layer instanceof L.TileLayer && live.hasLayer(layer) && layer.options.opacity !== 0);
+      // leaflet-image expects the tile and map zooms to match. Leaflet's live
+      // view can scale the last native tiles at higher zooms.
+      const maxZoom = Math.min(live.getMaxZoom(), ...raster.map(layer => layer.options.maxNativeZoom ?? layer.options.maxZoom ?? 19), 22);
+      const renderer = L.canvas();
+      const redraw = renderer._redraw;
+      renderer._redraw = function () {
+        // A zoom change can leave a queued draw after Leaflet removes the canvas.
+        if (this._ctx) redraw.call(this);
+      };
+      map = L.map(container, {
+        renderer, maxZoom, zoomControl: false, attributionControl: false,
+        zoomAnimation: false, fadeAnimation: false, crs: live.options.crs
+      }).setView(live.getCenter(), Math.min(live.getZoom(), maxZoom));
+      for (const layer of raster) {
+        const options = { ...layer.options };
+        const clone = layer instanceof L.TileLayer.WMS
+          ? L.tileLayer.wms(layer._url, { ...options, ...layer.wmsParams })
+          : L.tileLayer(layer._url, options);
+        clone.addTo(map);
+      }
+      return {
+        ctx: { ...ctx, map, heatLayer: null, contextOverlays: null, documentRasterAvailable: raster.length > 0 },
+        close() {
+          try { map.remove(); } finally { container.remove(); }
+        }
+      };
+    } catch (error) {
+      try { map?.remove(); } finally { container.remove(); }
+      throw error;
+    }
+  };
+
+  function drawSchematicMap(ctx, points, bounds) {
+    const map = ctx.map;
+    const size = map.getSize();
+    const canvas = window.document.createElement("canvas");
+    canvas.width = size.x;
+    canvas.height = size.y;
+    const drawing = canvas.getContext("2d");
+    drawing.fillStyle = "#f8fafc";
+    drawing.fillRect(0, 0, size.x, size.y);
+    drawing.strokeStyle = "#e2e8f0";
+    drawing.beginPath();
+    for (let x = 0; x < size.x; x += 50) { drawing.moveTo(x, 0); drawing.lineTo(x, size.y); }
+    for (let y = 0; y < size.y; y += 50) { drawing.moveTo(0, y); drawing.lineTo(size.x, y); }
+    drawing.stroke();
+    if (bounds) {
+      const nw = map.latLngToContainerPoint([bounds.north, bounds.west]);
+      const se = map.latLngToContainerPoint([bounds.south, bounds.east]);
+      drawing.strokeStyle = "#2563eb";
+      drawing.lineWidth = 2;
+      drawing.strokeRect(nw.x, nw.y, se.x - nw.x, se.y - nw.y);
+    }
+    for (const p of points) {
+      const { x, y } = map.latLngToContainerPoint([p.lat, p.lon]);
+      drawing.beginPath();
+      drawing.arc(x, y, 6, 0, Math.PI * 2);
+      drawing.fillStyle = UA.SEVERITY_COLORS?.[p.props?.ukategorie] || "#64748b";
+      drawing.strokeStyle = "#fff";
+      drawing.lineWidth = 2;
+      drawing.fill();
+      drawing.stroke();
+    }
+    drawing.fillStyle = "#0f172a";
+    drawing.font = "bold 17px sans-serif";
+    drawing.fillText("Schematische Unfallkarte ohne Basiskarte", 14, 24);
+    if (bounds) {
+      drawing.font = "15px sans-serif";
+      drawing.fillText(
+        `WGS 84   SW ${bounds.south.toFixed(6)}, ${bounds.west.toFixed(6)}   NO ${bounds.north.toFixed(6)}, ${bounds.east.toFixed(6)}`,
+        14, size.y - 14
+      );
+    }
+    drawing.font = "bold 17px sans-serif";
+    drawing.textAlign = "right";
+    drawing.fillText("N ↑", size.x - 14, 24);
+    return canvas.toDataURL("image/png");
+  }
+
+  UA.captureDocumentMap = async function captureDocumentMap(ctx, options = {}) {
+    const { map } = ctx;
+    const bounds = options.exportBounds;
+    const isolated = ctx.documentRasterAvailable !== undefined;
+    const frame = isolated && bounds ? window.L.rectangle(
+      [[bounds.south, bounds.west], [bounds.north, bounds.east]],
+      { color: "#2563eb", weight: 2, fill: false, interactive: false }
+    ).addTo(map) : null;
+    let image;
+    let schematic = false;
+    try {
+      if (ctx.documentRasterAvailable !== false) {
+        try {
+          image = await UA.captureExportMapImage(ctx, options);
+        } catch (error) {
+          if (!isolated) throw error;
+          console.warn("Rasterkartenaufnahme fehlgeschlagen; schematische Karte wird erzeugt:", error);
+          // The remaining figures use the same unavailable raster provider.
+          ctx.documentRasterAvailable = false;
+        }
+      }
+      if (!image) {
+        image = drawSchematicMap(ctx, options.exportPoints || [], bounds);
+        schematic = true;
+      }
+      if (options.evidenceRows?.length) {
+        image = await UA.EvidenceCohort.annotateMapImage(window, ctx, image, options.evidenceRows);
+      }
+      const center = map.getCenter?.();
+      return { image, schematic, center: center && { lat: center.lat, lon: center.lng }, zoom: map.getZoom?.() };
+    } finally {
+      frame?.remove();
+    }
+  };
+
+  function fitDocumentMap(ctx, bounds, { padding = 30, maxZoom } = {}) {
+    if (!bounds || typeof ctx.map.fitBounds !== "function") return;
+    ctx.map.fitBounds([[bounds.south, bounds.west], [bounds.north, bounds.east]], {
+      animate: false, padding: [padding, padding], maxZoom
+    });
+  }
 
   // =====================================================================
   // Word Document Export (using docx.js)
@@ -702,16 +1011,9 @@
     const origZoom = ctx.map.getZoom();
 
     try {
-      // Zoom to selection bounds without animation to avoid capturing mid-animation
-      ctx.map.fitBounds(ctx.selectionBounds, { animate: false });
-
-      // Wait for tiles to load and the map to re-render
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Use export-styled capture so individual accident points are visible
-      // on the detail map (Tasks 1, 5).
-      const imageData = await UA.captureExportMapImage(ctx, options);
-      return imageData;
+      const bounds = options?.exportBounds || boundsToBbox(ctx.selectionBounds);
+      fitDocumentMap(ctx, bounds);
+      return await UA.captureDocumentMap(ctx, { ...options, exportBounds: bounds });
     } finally {
       // Always restore original map state
       try {
@@ -740,15 +1042,14 @@
   async function captureClusterMaps(ctx, options, opts) {
     if (!ctx || !ctx.map) return [];
     if (typeof UA.computeClusterMapTargets !== "function") return [];
-    let points = (ctx.viewportPts && ctx.viewportPts.length)
-      ? ctx.viewportPts
-      : (ctx.allPts || []);
+    let points = Array.isArray(options?.exportPoints) ? options.exportPoints
+      : ((ctx.viewportPts && ctx.viewportPts.length) ? ctx.viewportPts : (ctx.allPts || []));
 
     // When the user has drawn a selection rectangle, restrict the cluster
     // analysis to points inside that rectangle. Without this filter,
     // computeClusterMapTargets could pick hotspots from a different part of
     // the viewport that are completely unrelated to the marked area.
-    if (ctx.selectionBounds && typeof ctx.selectionBounds.contains === "function") {
+    if (!Array.isArray(options?.exportPoints) && ctx.selectionBounds && typeof ctx.selectionBounds.contains === "function") {
       points = points.filter(p =>
         Number.isFinite(p?.lat) && Number.isFinite(p?.lon) &&
         ctx.selectionBounds.contains([p.lat, p.lon])
@@ -764,42 +1065,21 @@
     try {
       for (const t of targets) {
         try {
-          // Prefer fitBounds on the cluster's actual bounding box so the map
-          // shows exactly the cluster area – never an unrelated part of the
-          // city (Task 7). A small padding keeps edge markers visible.
-          let actualZoom = t.zoom;
-          if (t.bounds && typeof window !== "undefined" && window.L
-              && Number.isFinite(t.bounds.south)) {
-            const ll = window.L.latLngBounds(
-              [t.bounds.south, t.bounds.west],
-              [t.bounds.north, t.bounds.east]
-            );
-            // maxZoom guard avoids over-zooming for single-point clusters
-            // where bounds collapse to a point.
-            ctx.map.fitBounds(ll, { animate: false, padding: [16, 16], maxZoom: t.zoom });
-            try { actualZoom = ctx.map.getZoom(); } catch { /* fall back to planned t.zoom */ }
+          if (t.bounds && typeof ctx.map.fitBounds === "function") {
+            fitDocumentMap(ctx, t.bounds, { maxZoom: t.zoom });
           } else {
             ctx.map.setView([t.lat, t.lon], t.zoom, { animate: false });
           }
-          // Tile load + Leaflet render tick.
-          await new Promise(r => setTimeout(r, 500));
-          // Render only the cluster's own points as severity markers so the
-          // visible n exactly matches the table (Task 5 / Task 6 verification
-          // sentence).
-          const captureOpts = { ...options };
-          if (Array.isArray(t.points) && t.points.length) {
-            captureOpts.exportPoints = t.points;
-          }
-          const image = await UA.captureExportMapImage(ctx, captureOpts);
+          const members = Array.isArray(t.points) ? t.points : [];
+          const capture = await UA.captureDocumentMap(ctx, { ...options, exportPoints: members, exportBounds: t.bounds });
           out.push({
+            ...capture,
             label: t.label,
-            image,
             total: t.total,
             lat: t.lat,
             lon: t.lon,
-            zoom: actualZoom,
             bounds: t.bounds || null,
-            points: Array.isArray(t.points) ? t.points : []
+            points: members
           });
         } catch (err) {
           if (isMapRenderReadinessFailure(err)) throw err;
@@ -831,7 +1111,16 @@
   }
   UA.mapVerificationSentence = mapVerificationSentence;
 
-  function buildMapSourceNoteLines(ctx) {
+  function reportMapCount(n, cohorts) {
+    return cohorts?.completeEvidenceCohort?.rows?.length
+      ? `Dargestellte Unfälle unter aktiven Filtern (n = ${n}).`
+      : mapVerificationSentence(n);
+  }
+
+  function buildMapSourceNoteLines(ctx, capture) {
+    if (capture?.schematic) {
+      return ["Schematische Unfallkarte ohne Basiskarte. Der Kartenhintergrund war für diese Aufnahme nicht verfügbar."];
+    }
     const info = (typeof UA.getActiveMapLayerInfo === 'function')
       ? UA.getActiveMapLayerInfo(ctx)
       : null;
@@ -875,8 +1164,8 @@
   }
   UA._buildMapSourceNoteLines = buildMapSourceNoteLines;
 
-  function pushDocxMapSourceNote(children, ctx, spacingAfter = 200) {
-    const text = buildMapSourceNoteLines(ctx).join(' ');
+  function pushDocxMapSourceNote(children, ctx, spacingAfter = 200, capture) {
+    const text = buildMapSourceNoteLines(ctx, capture).join(' ');
     if (!text) return;
     const ParagraphCtor = (typeof window !== 'undefined' && window.docx && window.docx.Paragraph)
       ? window.docx.Paragraph
@@ -889,8 +1178,8 @@
     }));
   }
 
-  function pushPdfMapSourceNote(docDefinition, ctx, marginBottom = 8) {
-    const text = buildMapSourceNoteLines(ctx).join(' ');
+  function pushPdfMapSourceNote(docDefinition, ctx, marginBottom = 8, capture) {
+    const text = buildMapSourceNoteLines(ctx, capture).join(' ');
     if (!text) return;
     docDefinition.content.push({
       text,
@@ -933,12 +1222,13 @@
     if (filters && filters.includeMotorcycle) codes.push("Krad");
     if (filters && filters.includeGkfz)       codes.push("Lkw");
     if (filters && filters.includeSonstig)    codes.push("Sonst");
-    const hasRestriction =
-      codes.length > 0 && codes.length < INVOLVEMENT_CATEGORY_COUNT;
-    const prose = (codes.length > 0
-      && typeof UA.formatParticipantCombinationForExport === "function")
-      ? UA.formatParticipantCombinationForExport(codes)
-      : codes.join(" + ");
+    const hasRestriction = codes.length > 0 && (
+      codes.length < INVOLVEMENT_CATEGORY_COUNT || ["and", "solo"].includes(filters?.involvementMode)
+    );
+    const mode = filters?.involvementMode;
+    const labels = codes.map(code => typeof UA.formatParticipantCombinationForExport === "function"
+      ? UA.formatParticipantCombinationForExport([code]) : code);
+    const prose = labels.join(mode === "or" ? " oder " : " + ");
     return { codes, hasRestriction, prose };
   }
   UA._activeInvolvementSelection = activeInvolvementSelection;
@@ -973,16 +1263,16 @@
    * @param {object} ctx
    * @returns {Array}
    */
-  function getAllCombinationPointsInBounds(ctx) {
-    if (!ctx || !Array.isArray(ctx.allPts)) return [];
-    const bbox = exportBoundsFromCtx(ctx);
+  function getAllCombinationPointsInBounds(ctx, bbox = exportBoundsFromCtx(ctx)) {
+    const source = UA.EvidenceCohort?.rootContext?.(ctx) || ctx?.__analysisScopeOriginalCtx || ctx;
+    if (!Array.isArray(source?.allPts)) return [];
     // Defensive: an unbounded "alle Kombinationen"-Karte würde quer über
     // die Stadt streuen und dem Lesegremium falsche Maßstäbe vermitteln;
     // ohne nutzbare Export-Bounds liefern wir lieber gar nichts und der
     // Aufrufer überspringt die Karte (try/catch um den Capture-Block).
     if (!bbox) return [];
     const out = [];
-    for (const p of ctx.allPts) {
+    for (const p of source.allPts) {
       if (!p || !p.props) continue;
       if (typeof UA.matchesNonInvolvementFilters === "function"
           && !UA.matchesNonInvolvementFilters(ctx, p.props)) continue;
@@ -996,6 +1286,25 @@
     return out;
   }
   UA._getAllCombinationPointsInBounds = getAllCombinationPointsInBounds;
+
+  function reportMapPlan(ctx, filters) {
+    const bounds = boundsToBbox(ctx.exportSourceManifest?.scenario?.bounds) || exportBoundsFromCtx(ctx);
+    const selection = activeInvolvementSelection({ involvementMode: ctx.involvementMode, ...filters });
+    let selected = ctx.selectionBounds && Array.isArray(ctx.selectionPts) ? ctx.selectionPts
+      : (ctx.visibleViewportPts || ctx.filteredAll || ctx.viewportPts || []);
+    if (ctx.exportSourceManifest && Array.isArray(ctx.allPts)) {
+      selected = ctx.allPts.filter(p => typeof UA.matchesInvolvementFilter !== "function"
+        || UA.matchesInvolvementFilter(ctx, UA.maskFromProps(p.props)));
+    }
+    const points = selected.filter(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon)
+      && (!bounds || (p.lat >= bounds.south && p.lat <= bounds.north && p.lon >= bounds.west && p.lon <= bounds.east)));
+    return {
+      bounds,
+      selection,
+      points,
+      allPoints: selection.hasRestriction ? getAllCombinationPointsInBounds(ctx, bounds) : null
+    };
+  }
 
   /**
    * Count points whose coordinates fall inside a {south,west,north,east}
@@ -1027,12 +1336,7 @@
    */
   function exportBoundsFromCtx(ctx) {
     if (!ctx) return null;
-    const lb = ctx.selectionBounds || (ctx.map && typeof ctx.map.getBounds === "function" ? ctx.map.getBounds() : null);
-    if (!lb || typeof lb.getSouthWest !== "function" || typeof lb.getNorthEast !== "function") return null;
-    const sw = lb.getSouthWest();
-    const ne = lb.getNorthEast();
-    if (!sw || !ne || !Number.isFinite(sw.lat) || !Number.isFinite(sw.lng) || !Number.isFinite(ne.lat) || !Number.isFinite(ne.lng)) return null;
-    return { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng };
+    return boundsToBbox(ctx.selectionBounds || ctx.map?.getBounds?.());
   }
   UA._exportBoundsFromCtx = exportBoundsFromCtx;
 
@@ -1245,10 +1549,14 @@
   function boundsToBbox(b) {
     if (!b) return null;
     if (typeof b.getSouth === "function") {
-      return {
+      b = {
         south: b.getSouth(), west: b.getWest(),
         north: b.getNorth(), east: b.getEast()
       };
+    } else if (typeof b.getSouthWest === "function" && typeof b.getNorthEast === "function") {
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      b = { south: sw?.lat, west: sw?.lng, north: ne?.lat, east: ne?.lng };
     }
     if (Number.isFinite(b.south) && Number.isFinite(b.west)
         && Number.isFinite(b.north) && Number.isFinite(b.east)) {
@@ -1290,6 +1598,7 @@
     if (t === "Bezirksverordnetenversammlung" || t === "BVV" ||
         normalized === "Bezirksverordnetenversammlung" || normalized === "BVV") return "BVV-Antrag";
     if (t === "Bezirksrat" || normalized === "Bezirksrat") return "Bezirksratsantrag";
+    if (normalized === "Stadtbezirksrat") return "Stadtbezirksratsantrag";
     if (t === "Bezirksvertretung" || normalized === "Bezirksvertretung") return "Antrag an die Bezirksvertretung";
     return "Antrag zur Verkehrssicherheit";
   }
@@ -1310,9 +1619,10 @@
       default:             return null;
     }
   }
-  function osmCoverageNoteDocx(coverage) {
+  function osmCoverageNoteDocx(coverage, formalMotion) {
     if (!coverage) return null;
     if (!coverage.present) {
+      if (formalMotion) return "Die räumlichen Voraussetzungen der Prüfoptionen konnten anhand der verfügbaren OpenStreetMap-Daten nicht überprüft werden.";
       const why = coverage.error ? ` (${coverage.error})` : "";
       return `OSM-Kontext nicht abgerufen${why}: Maßnahmen-Voraussetzungen wurden mangels Daten NICHT geprüft – die unten gelisteten Vorschläge können daher räumliche Voraussetzungen verletzen.`;
     }
@@ -1360,7 +1670,27 @@
     }
 
     const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun,
-            Table, TableRow, TableCell, WidthType, BorderStyle, ExternalHyperlink } = window.docx;
+            Table, TableRow, TableCell, WidthType, BorderStyle, TableLayoutType, ExternalHyperlink,
+            InternalHyperlink, Bookmark, Footer, PageNumber, LevelFormat } = window.docx;
+
+    function linkedWordRun({ text, href, anchor }, runOptions = {}) {
+      const value = replaceEmojisForDocx(String(text ?? ""));
+      if (href && ExternalHyperlink) {
+        return new ExternalHyperlink({ link: href, children: [new TextRun({ text: value, ...runOptions, style: "Hyperlink" })] });
+      }
+      if (anchor && InternalHyperlink) {
+        return new InternalHyperlink({ anchor, children: [new TextRun({ text: value, ...runOptions, style: "Hyperlink" })] });
+      }
+      return new TextRun({ text: value, ...runOptions });
+    }
+
+    function motionParagraph(text, options = {}) {
+      const content = textWithLinks(String(text));
+      const runs = Array.isArray(content)
+        ? content.map(part => linkedWordRun({ text: part.text, href: part.link }))
+        : [linkedWordRun({ text: content })];
+      return new Paragraph({ children: runs, spacing: { after: 100 }, keepLines: true, ...options });
+    }
 
     // ---------------------------------------------------------------
     // PR-QA „DOCX-Härtung": eindeutige docPr-IDs + altText pro Bild.
@@ -1440,8 +1770,7 @@
     //    Tabellen auch auf Folgeseiten ihre Spaltenbeschriftung behalten.
     //  - gleichmäßige bzw. gewichtete Spaltenverteilung fördert Zellumbruch
     //    in schmalen Spalten, ohne hier zusätzliche Row-Optionen zu setzen.
-    function _twipsForCols(numCols, weights) {
-      const total = 9000; // ≈ A4 (210 mm) Portrait usable width in twips
+    function _twipsForCols(numCols, weights, total = 9000) {
       if (Array.isArray(weights) && weights.length === numCols) {
         const sum = weights.reduce((a, b) => a + b, 0) || numCols;
         return weights.map(w => Math.max(400, Math.round(total * w / sum)));
@@ -1453,22 +1782,30 @@
 
     function makeDocxTable(headers, dataRows, rowHighlights, opts) {
       const numCols = headers.length;
-      const colWidths = _twipsForCols(numCols, opts && opts.colWeights);
+      const compact = opts?.compact;
+      const colWidths = _twipsForCols(numCols, opts?.colWeights, compact ? 9800 : 9000);
       const makeRow = (cells, bold, highlight, isHeader) =>
         new TableRow({
           tableHeader: !!isHeader,
           cantSplit: true,
-          children: cells.map((text, ci) => {
+          children: cells.map((value, ci) => {
+            const cell = value && typeof value === "object" ? value : { text: value };
+            const runOptions = { bold, ...(compact ? { size: 18 } : {}) };
+            const lines = String(cell.text ?? "").split("\n");
             return new TableCell({
               borders: cellBorder,
               width: { size: colWidths[ci] || colWidths[0], type: WidthType.DXA },
-              children: [new Paragraph({ children: [new TextRun({ text: replaceEmojisForDocx(text), bold })] })],
-              ...(highlight ? { shading: { fill: "FFFFCC" } } : {})
+              children: lines.map(text => new Paragraph({
+                children: [linkedWordRun({ ...cell, text }, runOptions)],
+                ...(compact ? { spacing: { after: 0 } } : {})
+              })),
+              ...(highlight ? { shading: { fill: "FFFFCC" } } : (compact && isHeader ? { shading: { fill: "E9EEF2" } } : {}))
             });
           })
         });
       return new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: compact ? { size: 9800, type: WidthType.DXA } : { size: 100, type: WidthType.PERCENTAGE },
+        ...(compact ? { layout: TableLayoutType.FIXED, margins: { top: 32, bottom: 32, left: 48, right: 48 } } : {}),
         columnWidths: colWidths,
         rows: [
           makeRow(headers, true, false, true),
@@ -1552,6 +1889,12 @@
 
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
+    const evidence = numberedEvidence(sd);
+    const formalMotion = Boolean(evidence || sd?.motion);
+    const hasMap = Boolean(options.includeMap && ctx.map);
+    const analysisAnnexNumber = 1 + Number(hasMap) + Number(Boolean(evidence));
+    const renderedEvidenceMapRefs = new Set();
+    const setup = formalMotion ? [] : children;
 
     // Task 5: Dedup-Guard. Renderpfad pro Sektion höchstens einmal ausgeben.
     // Aktuell rendert dieser Code jede Sektion exakt einmal aus structured;
@@ -1590,66 +1933,59 @@
     const docTitle = deriveDocTitle(gremiumMeta.typ);
 
     // ---- 2. Dokumentkopf ----
-    children.push(
-      new Paragraph({
-        text: docTitle.toUpperCase(),
-        heading: HeadingLevel.HEADING_1,
-        alignment: AlignmentType.CENTER
-      })
-    );
-
-    // Sublines: An, Stadt, Bereich, Datum, Betreff
     const metaCity    = (sd && sd.meta && sd.meta.city)     || CITY_RAW;
     const metaArea    = (sd && sd.meta && sd.meta.areaName) || "(Kartenausschnitt)";
     const metaDate    = (sd && sd.meta && sd.meta.date)     || today;
-    const metaToWhom  = gremiumMeta.gremium || "zuständiges Gremium prüfen";
-
-    const headerLines = [
-      ["An:", metaToWhom],
-      ["Stadt:", metaCity],
-      ["Bereich:", metaArea],
-      ["Datum:", metaDate],
-      ["Betreff:", replaceEmojisForDocx(reportSubject(reportData))]
-    ];
-    for (const [label, value] of headerLines) {
+    const metaToWhom  = gremiumMeta.gremium || "Zuständiges Gremium vor Einreichung prüfen";
+    const subject = replaceEmojisForDocx(reportSubject(reportData));
+    if (formalMotion) {
       children.push(new Paragraph({
-        children: [
-          new TextRun({ text: `${label} `, bold: true }),
-          new TextRun({ text: value })
-        ],
-        spacing: { before: 80, after: 80 }
+        children: [new TextRun({ text: docTitle.toUpperCase(), bold: true, color: "254B61", size: 20 })],
+        keepNext: true, spacing: { after: 100 }
       }));
+      children.push(new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        children: [new TextRun({ text: subject, color: "163B50", size: 36, bold: true })],
+        keepNext: true, keepLines: true, spacing: { before: 0, after: 100 }
+      }));
+      children.push(new Paragraph({
+        text: [metaToWhom, metaCity, metaDate, ...(sd?.meta?.areaName && !subject.includes(metaArea) ? [metaArea] : [])].join(" · "),
+        spacing: { after: 220 }
+      }));
+    } else {
+      children.push(new Paragraph({ text: docTitle.toUpperCase(), heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }));
+      const headerLines = [["An:", metaToWhom], ["Stadt:", metaCity], ["Bereich:", metaArea], ["Datum:", metaDate], ["Betreff:", subject]];
+      for (const [label, value] of headerLines) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: `${label} `, bold: true }), new TextRun({ text: value })],
+          spacing: { before: 80, after: 80 }
+        }));
+      }
+      children.push(new Paragraph({ text: "---------------------------------", alignment: AlignmentType.CENTER, spacing: { before: 100, after: 200 } }));
     }
-
-    children.push(new Paragraph({
-      text: "---------------------------------",
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 100, after: 200 }
-    }));
 
     // ---- 3. Rahmendaten (metadata box) ----
     const metaLink    = (sd && sd.meta && sd.meta.link) || "";
     const IS_LINK = true;
     const kvRahmen = [
-      ["Dokumenttyp", docTitle, false],
-      gremiumMeta.gremium   ? ["Gremium",              gremiumMeta.gremium,   false]   : null,
-      gremiumMeta.typ       ? ["Gremiumstyp",          gremiumMeta.typ,       false]   : null,
+      !formalMotion         ? ["Dokumenttyp",          docTitle,              false]   : null,
+      !formalMotion && gremiumMeta.gremium ? ["Gremium", gremiumMeta.gremium, false] : null,
+      !formalMotion && gremiumMeta.typ ? ["Gremiumstyp", gremiumMeta.typ, false] : null,
       gremiumMeta.kontakt   ? ["Kontakt",               gremiumMeta.kontakt,   false]   : null,
-      metaArea              ? ["Bereich",               metaArea,              false]   : null,
-      metaCity              ? ["Stadt",                 metaCity,              false]   : null,
-      metaDate              ? ["Exportdatum",           metaDate,              false]   : null,
+      !formalMotion && metaArea ? ["Bereich", metaArea, false] : null,
+      !formalMotion && metaCity ? ["Stadt", metaCity, false] : null,
+      !formalMotion && metaDate ? ["Exportdatum", metaDate, false] : null,
       metaLink              ? ["Werkbank-Link",         "Werkbank-Link öffnen", IS_LINK, metaLink] : null,
       gremiumMeta.hinweis   ? ["Zuständigkeitshinweis", gremiumMeta.hinweis,   false]   : null
     ].filter(Boolean);
 
     if (kvRahmen.length > 0) {
-      children.push(new Paragraph({
+      setup.push(new Paragraph({
         text: "Rahmendaten",
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 200, after: 100 }
       }));
-      children.push(makeKVTable(kvRahmen));
-      children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      setup.push(makeKVTable(kvRahmen));
     }
 
     // ---- 4. Aktive Filter ----
@@ -1689,27 +2025,27 @@
     if (filters.dayType != null) filterRows.push(["Wochentag", fmtFilterValue("dayType", filters.dayType), false]);
 
     if (filterRows.length > 0) {
-      children.push(new Paragraph({
+      setup.push(new Paragraph({
         text: "Aktive Filter",
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 200, after: 100 }
       }));
-      children.push(makeKVTable(filterRows));
-      children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+      setup.push(makeKVTable(filterRows));
     }
 
     // ---- 4b. Hinweis zur Zählweise (PR 2 / Spec-Item 4) ----
     // Direkt nach dem „Aktive Filter"-Block, damit Lesende beim Übergang
     // zu den eigentlichen Inhalten wissen, worauf sich alle folgenden
     // Fallzahlen beziehen. Optisch als kursive Info-Box gestaltet.
-    children.push(new Paragraph({
-      children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[0], bold: true, italics: true })],
-      spacing: { before: 100, after: 60 }
-    }));
-    children.push(new Paragraph({
-      children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[1], italics: true })],
-      spacing: { after: 200 }
-    }));
+    if (!evidence) {
+      setup.push(new Paragraph({
+        children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[0], bold: true, italics: true })],
+        spacing: { before: 100, after: 60 }
+      }), new Paragraph({
+        children: [new TextRun({ text: HINWEIS_ZAEHLWEISE_LINES[1], italics: true })],
+        spacing: { after: 200 }
+      }));
+    }
 
     // ---- 4c. Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
     // Spiegelt structured.methodikScope (drei Sätze) als kompakter
@@ -1717,18 +2053,17 @@
     // structured.meta.activeFilterScope / patternAnalysisScope /
     // baselineScope hinterlegten Definitionen für Lesende zusammen.
     if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
-      children.push(new Paragraph({
-        text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+      setup.push(new Paragraph({
+        text: sd.methodikScope.title || "Methodik – Auswertungsbereich",
         heading: HeadingLevel.HEADING_3,
         spacing: { before: 100, after: 80 }
       }));
       for (const ln of sd.methodikScope.lines) {
-        children.push(new Paragraph({
-          children: [new TextRun({ text: String(ln) })],
+        setup.push(new Paragraph({
+          children: [new TextRun({ text: formalMotion ? methodLineForMotion(ln) : String(ln) })],
           spacing: { after: 60 }
         }));
       }
-      children.push(new Paragraph({ text: "", spacing: { after: 120 } }));
     }
 
     // ---- 4d. Figure-Caption-Counter (PR 2 / Spec-Item 4) ----
@@ -1738,52 +2073,53 @@
     // dem ImageRun ein.
     const figCounter = makeFigureCounter();
 
-    // ---- 4a. ANTRAG / BESCHLUSSVORSCHLAG (Layout-PR „Semantische
-    // Dokumentstruktur"): Verwaltungsdokumente führen den Antragstext
-    // direkt nach dem Dokumentkopf, damit das Lesegremium ohne Suchen
-    // erkennt, worüber abgestimmt werden soll. Der ausführliche
-    // Wortlaut bleibt zusätzlich am Ende erhalten (BESCHLUSSVORSCHLAG-
-    // Block via sectionGuard nicht mehr doppelt gerendert).
-    {
-      const beschlussLeadDocx = extractSection(textLines, "Beschlussvorschlag:");
-      const beschlussTextDocx = (Array.isArray(beschlussLeadDocx) ? beschlussLeadDocx : [])
-        .map(l => String(l || "").trim())
-        .filter(Boolean);
-      children.push(new Paragraph({
-        text: "ANTRAG / BESCHLUSSVORSCHLAG",
-        heading: HeadingLevel.HEADING_2,
-        keepNext: true,
-        spacing: { before: 300, after: 150 }
-      }));
-      if (beschlussTextDocx.length > 0) {
-        for (const line of beschlussTextDocx) {
-          children.push(new Paragraph({ text: line, spacing: { after: 120 } }));
-        }
-      } else {
-        children.push(new Paragraph({
-          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
-          spacing: { after: 200 }
-        }));
-      }
-      // markiere die spätere Sektion als bereits gerendert, damit kein
-      // doppelter „BESCHLUSSVORSCHLAG"-Block am Dokumentende erscheint.
-      sectionGuard("BESCHLUSSVORSCHLAG");
+    const motion = motionSections(sd, textLines, hasMap);
+    children.push(new Paragraph({
+      text: formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG",
+      heading: HeadingLevel.HEADING_2,
+      keepNext: true,
+      spacing: { before: 160, after: 100 }
+    }));
+    for (const line of motion.paragraphs) children.push(motionParagraph(line));
+    for (const request of motion.requests) {
+      children.push(motionParagraph(request, { numbering: { reference: MOTION_NUMBERING, level: 0 } }));
     }
 
-    // ---- 4a-2. BEGRÜNDUNG (Sammelüberschrift) ----
-    // Layout-PR „Semantische Dokumentstruktur": Sachverhalt, Statistik,
-    // Bewertung und Maßnahmen sind zusammen die Begründung des Antrags.
-    // Eine sichtbare Heading-2-Klammer macht das im PDF/DOCX explizit
-    // sichtbar – sonst wirkt die Aufzählung wie unzusammenhängende
-    // Einzelblöcke.
     children.push(new Paragraph({
-      text: "BEGRÜNDUNG",
+      text: formalMotion ? "Begründung" : "BEGRÜNDUNG",
       heading: HeadingLevel.HEADING_2,
-      spacing: { before: 300, after: 100 }
+      keepNext: true,
+      spacing: { before: 160, after: 100 }
     }));
+    if (evidence) children.push(motionParagraph(evidenceCountText(evidence)));
+    for (const line of motion.reason) children.push(motionParagraph(line));
+    for (const source of [motion.source, sd?.meta?.gremium?.source]) {
+      if (!source?.label) continue;
+      children.push(new Paragraph({
+        children: [linkedWordRun({ text: source.label, href: reportLink(source.url) }, { size: 18 })],
+        spacing: { after: 80 }
+      }));
+    }
+    const priorWork = motionPoliticalNote(sd, options, analysisAnnexNumber);
+    if (formalMotion && priorWork.length) {
+      children.push(new Paragraph({ children: priorWork.map(part => linkedWordRun(part, { size: 18 })), spacing: { after: 80 } }));
+    }
+    if (formalMotion) {
+      children.push(new Paragraph({ children: [
+        new TextRun({ text: "Anlagen  ", bold: true, size: 18, color: "435766" }),
+        new TextRun({ text: motionAnnexes(evidence, hasMap, analysisAnnexNumber), size: 18, color: "435766" })
+      ], spacing: { before: 80, after: 80 } }));
+    }
+    const firstAnnexIndex = children.length;
+    if (formalMotion) {
+      children.push(new Paragraph({
+        text: `Anlage ${analysisAnnexNumber} – Auswertung und Methodik`,
+        heading: HeadingLevel.HEADING_1, pageBreakBefore: true, keepNext: true, spacing: { after: 140 }
+      }), ...setup);
+    }
 
     // ---- 4b. KURZBEWERTUNG (Task 2) ----
-    if (sd && sd.executiveSummary) {
+    if (!formalMotion && sd && sd.executiveSummary) {
       const es = sd.executiveSummary;
       children.push(new Paragraph({
         text: "KURZBEWERTUNG",
@@ -1854,16 +2190,19 @@
       );
 
       // Severity table
-      children.push(new Paragraph({ text: "Verletzungsschwere im Ausschnitt:", spacing: { after: 100 } }));
+      children.push(new Paragraph({
+        text: evidence ? "Unfälle nach schwerster Folge unter den Suchfiltern" : "Verletzungsschwere im Ausschnitt:",
+        keepNext: true, spacing: { after: 100 }
+      }));
       const sev = sd.severity;
       const sevTotal = sev ? sev.total : 0;
       const fmtPct = (n, total) => total ? ((n / total) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
       children.push(makeDocxTable(
         ["Kategorie", "Anzahl", "Anteil"],
         [
-          ["1 – Getötete",       String((sev && sev.bySev["1"]) || 0), fmtPct((sev && sev.bySev["1"]) || 0, sevTotal)],
-          ["2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPct((sev && sev.bySev["2"]) || 0, sevTotal)],
-          ["3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPct((sev && sev.bySev["3"]) || 0, sevTotal)]
+          [evidence ? "Unfälle mit Getöteten" : "1 – Getötete", String((sev && sev.bySev["1"]) || 0), fmtPct((sev && sev.bySev["1"]) || 0, sevTotal)],
+          [evidence ? "Unfälle mit Schwerverletzten" : "2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPct((sev && sev.bySev["2"]) || 0, sevTotal)],
+          [evidence ? "Unfälle mit Leichtverletzten" : "3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPct((sev && sev.bySev["3"]) || 0, sevTotal)]
         ]
       ));
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
@@ -1871,7 +2210,7 @@
       // Deviations table
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
         const isPolitical = sd.meta && sd.meta.mode === "political";
-        children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", spacing: { after: 100 } }));
+        children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", keepNext: true, spacing: { after: 100 } }));
         const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
         const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2).replace(".", ",")}`);
         const devRows = sd.deviations.focus.map(r => {
@@ -1884,7 +2223,7 @@
           }
           const ciLowPct = r.ciLow != null ? (r.ciLow * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const factorStr = r.factor.toFixed(2).replace(".", ",") + "×" + (r.isSignificant === false ? " (n.s.)" : "");
+          const factorStr = formatFactorDe(r.factor) + "×" + (r.isSignificant === false ? " (n. s.)" : "");
           return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         const headers = isPolitical
@@ -1902,15 +2241,11 @@
             ? [2.0, 0.8, 1.0, 1.0, 1.6]
             : [1.8, 0.7, 0.9, 0.9, 0.9, 1.6]
         }));
-        // PR-QA „Begriffliche Inkonsistenzen": Kurze Erklärung des
-        // Faktor-Werts, damit Leser:innen ohne statistischen Hintergrund
-        // verstehen, was „Faktor 2,18" bedeutet.
         if (!isPolitical) {
           children.push(new Paragraph({
             children: [
               new TextRun({ text: "Lesart: ", bold: true }),
-              new TextRun({ text: "„Faktor 2,18" }),
-              new TextRun({ text: "× bedeutet, dass das jeweilige Beteiligungsmuster im untersuchten Bereich rund 2,18-mal so häufig vorkommt wie im Stadtdurchschnitt. Werte > 1 = überrepräsentiert, Werte < 1 = unterrepräsentiert. Die 95 %-Konfidenzintervalle zeigen die statistische Unsicherheit bei kleinen Fallzahlen." })
+              new TextRun({ text: FACTOR_READING })
             ],
             spacing: { after: 100 }
           }));
@@ -2059,6 +2394,10 @@
         }
       }
 
+      if (options.includeMeasures !== false && sd.measureAssessmentNote) {
+        children.push(motionParagraph(sd.measureAssessmentNote));
+      }
+
       // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
       // Items 4–8). Direkt VOR „EMPFOHLENE MASSNAHMEN" — Antrag soll mit
       // den passenden Prüfaufträgen beginnen, nicht mit Standardmaßnahmen.
@@ -2104,7 +2443,7 @@
           spacing: { before: 400, after: 200 }
         }));
         // OSM-Datenstand-Hinweis vor der Liste, kursiv hervorgehoben.
-        const cov = osmCoverageNoteDocx(sd.recommendedMeasures.osmCoverage);
+        const cov = osmCoverageNoteDocx(sd.recommendedMeasures.osmCoverage, formalMotion);
         if (cov) {
           children.push(new Paragraph({
             children: [new TextRun({ text: `OSM-Datenstand: ${cov}`, italics: true })],
@@ -2232,7 +2571,7 @@
       }
 
       // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
-      if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
+      if (!evidence && sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
         const view = (typeof UA !== "undefined" && UA.resolveAccidentView)
           ? UA.resolveAccidentView(sd.accidentDetails.viewId)
           : null;
@@ -2298,7 +2637,7 @@
           }
         }
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
-      } else if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+      } else if (!evidence && sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
         // Fallback for legacy data without groups
         children.push(new Paragraph({
           text: "EINZELUNFÄLLE IM BEREICH",
@@ -2328,12 +2667,20 @@
     }
 
     // ---- 7. Map section (if enabled) ----
-    if (options.includeMap) {
+    const mapsStart = children.length;
+    if (hasMap) {
+      const plan = reportMapPlan(ctx, filters);
+      const mapOptions = { ...options, exportPoints: plan.points, exportBounds: plan.bounds };
+      const documentMap = UA.createDocumentMapContext(ctx);
+      const mapCtx = documentMap.ctx;
+      const cohorts = sd?.evidenceCohorts;
       try {
+        fitDocumentMap(mapCtx, plan.bounds, { maxZoom: mapCtx.map.getZoom() });
         children.push(
           new Paragraph({
-            text: "KARTENAUSSCHNITT",
+            text: formalMotion ? "Anlage 1 – Karten" : "KARTENAUSSCHNITT",
             heading: HeadingLevel.HEADING_2,
+            ...(formalMotion ? { pageBreakBefore: true, keepNext: true } : {}),
             spacing: { before: 400, after: 200 }
           })
         );
@@ -2349,30 +2696,22 @@
           spacing: { after: 160 }
         }));
 
-        // Layout-Pass / Spec-Item 6: Parent-Count für Caption-Cross-References
-        // („Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle aus
-        // Abbildung K."). M = Gesamtfallzahl im Ausschnitt mit denselben
-        // Fallback-Quellen wie der Verifikationssatz weiter unten.
-        const docxParentN =
-          (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
-          : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
-            : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : null));
-
-        // Doppelte Karten (Antrags-PR „Aussagekraft"):
-        // Bei aktiver Beteiligungs-Restriktion (1..5 von 6 Kategorien
-        // ausgewählt) rendern wir vor der Auswahl-Karte zusätzlich eine
-        // „Übersichtskarte – alle Beteiligungs-Kombinationen". So sieht
-        // das Lesegremium auf einen Blick die Gesamtsituation und kann
-        // die Restriktion der nachfolgenden Auswahl-Karte einordnen.
-        const docxSelection = activeInvolvementSelection(filters);
+        const docxSelection = plan.selection;
+        const addMapLink = (capture, overrides = {}) => children.push(new Paragraph({
+          children: [new ExternalHyperlink({
+            link: buildWerkbankUrl(ctx, { center: capture.center, zoom: capture.zoom, bounds: plan.bounds, ...overrides }),
+            children: [new TextRun({ text: "In Werkbank öffnen", style: "Hyperlink" })]
+          })],
+          spacing: { after: 80 }
+        }));
         let docxSelectionFigIndex = 1;
         if (docxSelection.hasRestriction) {
           try {
-            const allCombPts = getAllCombinationPointsInBounds(ctx);
-            const allCombImage = await UA.captureExportMapImage(ctx, {
-              ...options,
-              exportPoints: allCombPts
+            const allCombPts = plan.allPoints;
+            const allCombCapture = await UA.captureDocumentMap(mapCtx, {
+              ...mapOptions, exportPoints: allCombPts
             });
+            const allCombImage = allCombCapture.image;
             let allCombRun;
             try {
               allCombRun = pngImageRun(
@@ -2403,9 +2742,10 @@
               alignment: AlignmentType.CENTER,
               spacing: { after: 80 }
             }));
-            pushDocxMapSourceNote(children, ctx, 80);
+            pushDocxMapSourceNote(children, ctx, 80, allCombCapture);
+            addMapLink(allCombCapture, { allCombinations: true });
             children.push(new Paragraph({
-              text: mapVerificationSentence(allCombPts.length),
+              text: `Unfälle im selben Gebiet vor Beteiligungsfilter (n = ${allCombPts.length}).`,
               italics: true,
               spacing: { after: 200 }
             }));
@@ -2417,7 +2757,8 @@
           }
         }
 
-        const mapImageData = await UA.captureExportMapImage(ctx, options);
+        const mainCapture = await UA.captureDocumentMap(mapCtx, mapOptions);
+        const mapImageData = mainCapture.image;
 
         let mainMapRun;
         try {
@@ -2477,36 +2818,13 @@
             spacing: { after: 200 }
           })
         );
-        pushDocxMapSourceNote(children, ctx, 120);
+        pushDocxMapSourceNote(children, ctx, 120, mainCapture);
+        addMapLink(mainCapture);
 
-        // Verification sentence (Task 6) – n MUST be the canonical
-        // Einzelunfall-Tabellen-Zählung („Tabelle" im Verifikationssatz).
-        // Bei aktiver Beteiligungs-Restriktion zeigt die Auswahl-Karte
-        // jedoch nur die Beteiligungs-gefilterten Punkte (= ctx.viewportPts
-        // im Export-bbox), nicht die volle Tabellen-Population. Wir
-        // schalten dann auf den tatsächlichen Karten-Zähler (selectionN)
-        // um, damit der Verifikationssatz weiterhin das hält, was die
-        // Karte zeigt; bei "alle Kombinationen" bleibt es beim Tabellen-
-        // Total wie bisher.
-        const exportBboxForCounts = exportBoundsFromCtx(ctx);
-        const selectionN = docxSelection.hasRestriction
-          ? countPointsInBounds(ctx.viewportPts || [], exportBboxForCounts)
-          : null;
-        const overviewN = docxSelection.hasRestriction
-          ? selectionN
-          : ((sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
-            : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
-              : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0)));
-        // Parent-N für Subset-Cross-References (Detail/Cluster).
-        // Verweist immer auf die Auswahl-Karte (= zuletzt gesetzte
-        // figCounter-Index in docxSelectionFigIndex). Unter Restriktion
-        // ist das die Beteiligungs-gefilterte Population, sonst die
-        // Tabellen-/all-Kombinationen-Population.
-        const docxParentNForSubset = docxSelection.hasRestriction
-          ? selectionN
-          : docxParentN;
+        const overviewN = plan.points.length;
+        const docxParentNForSubset = overviewN;
         children.push(new Paragraph({
-          text: mapVerificationSentence(overviewN),
+          text: reportMapCount(overviewN, cohorts),
           italics: true,
           spacing: { after: docxSelection.hasRestriction ? 80 : 200 }
         }));
@@ -2523,7 +2841,9 @@
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
-            const detailImageData = await (UA._captureDetailMap || captureDetailMap)(ctx, options);
+            const detailResult = await (UA._captureDetailMap || captureDetailMap)(mapCtx, mapOptions);
+            const detailCapture = typeof detailResult === "string" ? { image: detailResult } : detailResult;
+            const detailImageData = detailCapture.image;
             let detailRun;
             try {
               detailRun = pngImageRun(
@@ -2554,8 +2874,7 @@
               spacing: { after: 100 }
             }));
             // Verification sentence for detail map (Task 6).
-            const detailBbox = boundsToBbox(ctx.selectionBounds);
-            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            const detailN = plan.points.length;
             // PR 2 / Spec-Item 4: numbered figure caption.
             // Layout-Pass: Subset-Cross-Reference auf die Auswahl-Karte
             // (Abbildung 1, oder Abbildung 2 wenn zusätzlich eine
@@ -2571,9 +2890,10 @@
               })],
               spacing: { after: 80 }
             }));
-            pushDocxMapSourceNote(children, ctx, 80);
+            pushDocxMapSourceNote(children, ctx, 80, detailCapture);
+            addMapLink(detailCapture);
             children.push(new Paragraph({
-              text: mapVerificationSentence(detailN),
+              text: reportMapCount(detailN, cohorts),
               italics: true,
               spacing: { after: docxSelection.hasRestriction ? 80 : 200 }
             }));
@@ -2596,7 +2916,7 @@
         //   – a unique heading "<label> – n Unfälle (Zoom z)" matching the table
         //   – the verification sentence below the image
         try {
-          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(ctx, options);
+          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(mapCtx, mapOptions);
           for (const cm of clusterMaps) {
             // Task 5: do not render a cluster map if the visible point count
             // would not match the stated total.
@@ -2652,9 +2972,10 @@
               })],
               spacing: { after: 80 }
             }));
-            pushDocxMapSourceNote(children, ctx, 80);
+            pushDocxMapSourceNote(children, ctx, 80, cm);
+            addMapLink(cm, { bounds: cm.bounds, center: cm.center || { lat: cm.lat, lon: cm.lon } });
             children.push(new Paragraph({
-              text: mapVerificationSentence(cm.total),
+              text: reportMapCount(cm.total, cohorts),
               italics: true,
               spacing: { after: docxSelection.hasRestriction ? 80 : 200 }
             }));
@@ -2670,8 +2991,30 @@
           if (isMapRenderReadinessFailure(clusterErr)) throw clusterErr;
           console.warn("Cluster maps capture failed (graceful fallback):", clusterErr);
         }
+        if (cohorts?.detailMapPartitions?.length) {
+          const maps = await UA.EvidenceCohort.captureEvidenceMaps(UA, mapCtx, cohorts, { includeOverview: false });
+          for (const evidenceMap of maps) {
+            const { mapRef, image, title, accidentIds } = evidenceMap;
+            const fig = figCounter.next(`${title} (n = ${accidentIds.length})`);
+            children.push(new Paragraph({
+              children: [pngImageRun(image, fitImageToMax(image, DOCX_MAP_MAX), {
+                title, description: `Unfall-IDs ${accidentIds.join(", ")}`
+              })],
+              alignment: AlignmentType.CENTER,
+              keepNext: true
+            }));
+            children.push(new Paragraph({
+              children: [new Bookmark({ id: `evidence_map_${mapRef}`, children: [new TextRun(fig.caption)] })],
+              alignment: AlignmentType.CENTER,
+              keepNext: true
+            }));
+            children.push(new Paragraph({ text: `Unfall-IDs ${accidentIds.join(", ")}.`, spacing: { after: 60 } }));
+            pushDocxMapSourceNote(children, ctx, 100, evidenceMap);
+            renderedEvidenceMapRefs.add(mapRef);
+          }
+        }
       } catch (e) {
-        if (isMapRenderReadinessFailure(e)) throw e;
+        if (isMapRenderReadinessFailure(e) || cohorts?.detailMapPartitions?.length) throw e;
         console.error("Map capture failed:", e);
         children.push(
           new Paragraph({
@@ -2680,8 +3023,11 @@
             spacing: { after: 200 }
           })
         );
+      } finally {
+        documentMap.close();
       }
     }
+    const mapSection = formalMotion ? children.splice(mapsStart) : [];
 
     // ---- 8. POI section (if enabled and data available) ----
     if (options.includePOIs) {
@@ -2936,41 +3282,6 @@
       }));
     }
 
-    // ---- 9. BESCHLUSSVORSCHLAG section (Wortlaut, Wiederholung) ----
-    // Layout-PR „Semantische Dokumentstruktur": der Antrag wurde bereits
-    // unter „ANTRAG / BESCHLUSSVORSCHLAG" oben am Dokument geführt.
-    // Diese Sektion wird daher per sectionGuard übersprungen, damit der
-    // Wortlaut nicht doppelt erscheint.
-    if (!sectionGuard("BESCHLUSSVORSCHLAG")) {
-      children.push(
-        new Paragraph({
-          text: "BESCHLUSSVORSCHLAG",
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 400, after: 200 }
-        })
-      );
-
-      const beschlussSection = extractSection(textLines, "Beschlussvorschlag:");
-      if (beschlussSection.length > 0) {
-        for (const line of beschlussSection) {
-          children.push(
-            new Paragraph({
-              text: line,
-              spacing: { after: 100 }
-            })
-          );
-        }
-      } else {
-        // Default text if not found
-        children.push(
-          new Paragraph({
-            text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
-            spacing: { after: 200 }
-          })
-        );
-      }
-    }
-
     // ---- 10. FACHLICHE BEZÜGE section (if enabled) ----
     if (options.includeReferences) {
       const refs = sd && sd.references;
@@ -3094,7 +3405,7 @@
     );
 
     // ---- 12. Werkbank-Link ("→ In Werkbank öffnen") ----
-    if (metaLink && ExternalHyperlink) {
+    if (!formalMotion && metaLink && ExternalHyperlink) {
       children.push(new Paragraph({
         children: [
           new ExternalHyperlink({
@@ -3104,22 +3415,62 @@
         ],
         spacing: { before: 200, after: 100 }
       }));
-    } else if (metaLink) {
+    } else if (!formalMotion && metaLink) {
       children.push(new Paragraph({
         text: `→ In Werkbank öffnen: ${metaLink}`,
         spacing: { before: 200, after: 100 }
       }));
     }
 
-    // Karten, Tabellen und fachliche Bezüge sind bereits an ihrer fachlich
-    // passenden Stelle enthalten. Ein leerer Platzhalter-Anhang würde nur eine
-    // nahezu leere Seite erzeugen und wird deshalb nicht angelegt.
+    const evidenceSection = [];
+    if (evidence) {
+      const annexName = evidence.complete ? "Vollständige Unfallliste" : "Nummerierte Unfallliste";
+      evidenceSection.push(new Paragraph({
+        text: `Anlage ${1 + Number(hasMap)} – ${annexName}`,
+        heading: HeadingLevel.HEADING_1, pageBreakBefore: true, keepNext: true,
+        spacing: { after: 140 }
+      }));
+      for (const line of evidenceAnnexIntro(evidence, renderedEvidenceMapRefs.size > 0)) evidenceSection.push(motionParagraph(line));
+      if (evidence.link) {
+        evidenceSection.push(new Paragraph({
+          children: [linkedWordRun({ text: "Nummerierte Karte in der Werkbank öffnen", href: evidence.link })],
+          spacing: { after: 130 }
+        }));
+      }
+      if (evidence.rows.length) {
+        const { headers, rows } = evidenceTable(evidence, renderedEvidenceMapRefs, "evidence_map_");
+        evidenceSection.push(makeDocxTable(headers, rows, undefined, {
+          compact: true, colWeights: [33, 26, 64, 95, 52, 63, 54, 44, 30].slice(0, headers.length)
+        }));
+      }
+      for (const line of [evidence.sourceNote, ...evidence.limitations].filter(Boolean)) {
+        evidenceSection.push(motionParagraph(line, { spacing: { before: 70, after: 30 } }));
+      }
+    }
+    if (formalMotion) children.splice(firstAnnexIndex, 0, ...mapSection, ...evidenceSection);
 
     // Create document
     const doc = new Document({
+      ...(formalMotion ? {
+        title: subject,
+        description: docTitle,
+        styles: { default: { document: { run: { size: 22, language: { value: "de-DE" } } } } }
+      } : {}),
+      ...(motion.requests.length ? {
+        numbering: { config: [{ reference: MOTION_NUMBERING, levels: [{
+          level: 0, format: LevelFormat.DECIMAL, text: "%1.", alignment: AlignmentType.START,
+          style: { paragraph: { indent: { left: 380, hanging: 380 } } }
+        }] }] }
+      } : {}),
       sections: [{
-        properties: {},
-        children: children
+        properties: formalMotion ? {
+          page: { size: { width: 11906, height: 16838 }, margin: { top: 940, right: 1000, bottom: 990, left: 1000 } }
+        } : {},
+        ...(formalMotion ? { footers: { default: new Footer({ children: [new Paragraph({
+          children: [new TextRun({ children: ["Unfallwerkbank · Seite ", PageNumber.CURRENT, " von ", PageNumber.TOTAL_PAGES], size: 17, color: "435766" })],
+          alignment: AlignmentType.RIGHT
+        })] }) } } : {}),
+        children
       }]
     });
 
@@ -3174,9 +3525,6 @@
     }
     
     // UI filters (if available)
-    // override.allCombinations=true forces all six involvement checkboxes
-    // to "1" so the link reproduces the all-combinations Übersichtskarte
-    // even when the live UI has restricted involvement filters set.
     const allCombOverride = ovr.allCombinations === true;
     if (ctx.ui) {
       if (ctx.ui.severityEl) params.set("severity", ctx.ui.severityEl.value);
@@ -3187,23 +3535,27 @@
       if (ctx.ui.maxPointsEl) params.set("maxPoints", ctx.ui.maxPointsEl.value);
       if (ctx.ui.viewportPaddingEl) params.set("viewportPaddingPct", ctx.ui.viewportPaddingEl.value);
       if (ctx.ui.heatRadiusEl) params.set("heatRadius", ctx.ui.heatRadiusEl.value);
-      if (ctx.ui.incBikeEl) params.set("includeCyclist",    allCombOverride ? 1 : (ctx.ui.incBikeEl.checked ? 1 : 0));
-      if (ctx.ui.incPedEl)  params.set("includePedestrian", allCombOverride ? 1 : (ctx.ui.incPedEl.checked  ? 1 : 0));
-      if (ctx.ui.incCarEl)  params.set("includeCar",        allCombOverride ? 1 : (ctx.ui.incCarEl.checked  ? 1 : 0));
-      if (ctx.ui.incMotoEl) params.set("includeMotorcycle", allCombOverride ? 1 : (ctx.ui.incMotoEl.checked ? 1 : 0));
-      if (ctx.ui.incGkfzEl) params.set("includeGkfz",       allCombOverride ? 1 : (ctx.ui.incGkfzEl.checked ? 1 : 0));
-      if (ctx.ui.incSonEl)  params.set("includeSonstig",    allCombOverride ? 1 : (ctx.ui.incSonEl.checked  ? 1 : 0));
     }
-    
-    // Involvement mode
-    if (ctx.involvementMode) {
-      params.set("involvementMode", ctx.involvementMode);
+    const involvementFields = {
+      includeCyclist: "incBikeEl", includePedestrian: "incPedEl", includeCar: "incCarEl",
+      includeMotorcycle: "incMotoEl", includeGkfz: "incGkfzEl", includeSonstig: "incSonEl"
+    };
+    for (const [key, field] of Object.entries(involvementFields)) {
+      const input = ctx.ui?.[field];
+      if (allCombOverride || input) params.set(key, allCombOverride || input.checked ? 1 : 0);
     }
+    if (allCombOverride || ctx.involvementMode) {
+      params.set("involvementMode", allCombOverride ? "or" : ctx.involvementMode);
+    }
+    const { slopeClasses, trafficClasses, onlyMatchedWays } = ctx.contextFilters || {};
+    if (slopeClasses?.size) params.set("ctxSlope", [...slopeClasses].sort().join(","));
+    if (trafficClasses?.size) params.set("ctxTraffic", [...trafficClasses].sort().join(","));
+    if (onlyMatchedWays) params.set("ctxOnlyMatched", "1");
     
     // Display modes
     if (ctx.showCluster !== undefined) params.set("showCluster", ctx.showCluster ? 1 : 0);
     if (ctx.showHeatmap !== undefined) params.set("showHeatmap", ctx.showHeatmap ? 1 : 0);
-    if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", ctx.showOnlyAboveAverage ? 1 : 0);
+    if (ctx.showOnlyAboveAverage !== undefined) params.set("showOnlyAboveAverage", "0");
     if (ctx.mapMode) params.set("mapMode", ctx.mapMode);
     if (Number.isFinite(Number(ctx.orthophotoOpacity))) {
       params.set("orthophotoOpacity", Math.round(Number(ctx.orthophotoOpacity) * 100));
@@ -3226,20 +3578,16 @@
       params.set("zoom", ctx.map.getZoom());
     }
 
-    // Selection / cluster bounds. An explicit override.bounds wins so cluster
-    // maps publish their own bbox (selSouth/selWest/selNorth/selEast – Task 1).
-    const b = ovr.bounds;
-    if (b && Number.isFinite(b.south) && Number.isFinite(b.west)
-        && Number.isFinite(b.north) && Number.isFinite(b.east)) {
-      params.set("selSouth", Number(b.south).toFixed(6));
-      params.set("selWest",  Number(b.west).toFixed(6));
-      params.set("selNorth", Number(b.north).toFixed(6));
-      params.set("selEast",  Number(b.east).toFixed(6));
-    } else if (ctx.selectionBounds) {
-      params.set("selSouth", ctx.selectionBounds.getSouth().toFixed(6));
-      params.set("selWest", ctx.selectionBounds.getWest().toFixed(6));
-      params.set("selNorth", ctx.selectionBounds.getNorth().toFixed(6));
-      params.set("selEast", ctx.selectionBounds.getEast().toFixed(6));
+    const b = boundsToBbox(ovr.bounds || ctx.selectionBounds);
+    if (b) {
+      // Do not round a point-defined boundary inward. Use the smallest
+      // representable neighbourhood for collapsed axes so the UI accepts it.
+      const dLat = b.south === b.north ? Number.EPSILON * Math.max(1, Math.abs(b.south)) : 0;
+      const dLon = b.west === b.east ? Number.EPSILON * Math.max(1, Math.abs(b.west)) : 0;
+      params.set("selSouth", String(Math.max(-90, b.south - dLat)));
+      params.set("selWest",  String(Math.max(-180, b.west - dLon)));
+      params.set("selNorth", String(Math.min(90, b.north + dLat)));
+      params.set("selEast",  String(Math.min(180, b.east + dLon)));
     }
     
     // Build full URL
@@ -3529,6 +3877,20 @@
 
     // Use structured data if available
     const sd = reportData.structured || null;
+    const evidence = numberedEvidence(sd);
+    const formalMotion = Boolean(evidence || sd?.motion);
+    const hasMap = Boolean(options.includeMap && ctx.map);
+    const analysisAnnexNumber = 1 + Number(hasMap) + Number(Boolean(evidence));
+    const renderedEvidenceMapRefs = new Set();
+
+    function linkedPdfRun({ text, href, anchor }, fontSize) {
+      return {
+        text: replaceEmojisForPDF(String(text ?? "")),
+        ...(fontSize ? { fontSize } : {}),
+        ...(href ? { link: href, color: "#174F71", decoration: "underline" } : {}),
+        ...(anchor ? { linkToDestination: anchor, color: "#174F71", decoration: "underline" } : {})
+      };
+    }
 
     // Task 5: Dedup-Guard für PDF (siehe DOCX-Variante).
     const renderedSections = new Set();
@@ -3577,13 +3939,14 @@
       return {
         table: {
           headerRows: 1,
+          ...(opts?.keepRowsTogether ? { dontBreakRows: true, keepWithHeaderRows: 1 } : {}),
           widths,
           body: [
             headers.map(h => ({ text: h, bold: true, fillColor: "#EEEEEE", fontSize })),
             ...dataRows.map((row, i) => row.map(cell => wrapCell(cell, !!(rowHighlights && rowHighlights[i]))))
           ]
         },
-        layout: "lightHorizontalLines",
+        layout: opts?.layout || "lightHorizontalLines",
         margin: [0, 4, 0, 10]
       };
     }
@@ -3635,13 +3998,18 @@
     const docDefinition = {
       pageSize: "A4",
       pageBreakBefore(currentNode, nodeContainer) {
-        return currentNode.id === "hour-heatmap-heading" &&
-          !nodeContainer.getFollowingNodesOnPage().some(node => node.id === "hour-heatmap-first-data");
+        if (currentNode.id === "analysis-annex-heading") {
+          return nodeContainer.getPreviousNodesOnPage().some(node => node.text || node.image || node.svg);
+        }
+        if (currentNode.id === "hour-heatmap-heading") {
+          return !nodeContainer.getFollowingNodesOnPage().some(node => node.id === "hour-heatmap-first-data");
+        }
+        return currentNode.headlineLevel === 2 && !nodeContainer.getFollowingNodesOnPage().length;
       },
       // Reduced left/right margins (was 60/60) so wide tables — especially the
       // Einzelunfall-Detailtabelle with 7+ columns — fit within the printable
       // area instead of overflowing the page edge.
-      pageMargins: [40, 60, 40, 60],
+      pageMargins: formalMotion ? [40, 46, 40, 48] : [40, 60, 40, 60],
       content: [],
       styles: {
         // ---- Layout-Pass: kanonische Style-Namen ----
@@ -3695,6 +4063,11 @@
           fontSize: 10,
           color: "#222222"
         },
+        motionType: { fontSize: 10, bold: true, color: "#254B61", margin: [0, 0, 0, 5] },
+        motionTitle: { fontSize: 21, bold: true, color: "#163B50", margin: [0, 0, 0, 6] },
+        motionMeta: { fontSize: 10, color: "#435766", margin: [0, 0, 0, 12] },
+        motionBody: { fontSize: 11, lineHeight: 1.18, margin: [0, 0, 0, 5] },
+        motionNote: { fontSize: 9, lineHeight: 1.12, margin: [0, 1, 0, 5] },
 
         // ---- Legacy-Aliase (siehe Kommentar oben) ----
         header: {
@@ -3731,53 +4104,56 @@
         font: "Roboto"
       }
     };
+    const setup = formalMotion ? [] : docDefinition.content;
 
     // ---- Title / Cover ----
     // Derive document title from structured data (same logic as Word export)
     const gremiumMeta = sd && sd.meta && sd.meta.gremium ? sd.meta.gremium : {};
     const docTitle = deriveDocTitle(gremiumMeta.typ);
 
-    docDefinition.content.push({
-      text: docTitle.toUpperCase(),
-      style: "header"
-    });
-
-    // Sublines: An, Stadt, Bereich, Datum, Betreff
     const metaCity   = (sd && sd.meta && sd.meta.city)     || CITY_RAW;
     const metaArea   = (sd && sd.meta && sd.meta.areaName) || "(Kartenausschnitt)";
     const metaDate   = (sd && sd.meta && sd.meta.date)     || today;
-    const metaToWhom = gremiumMeta.gremium || "zuständiges Gremium prüfen";
-
-    const headerLines = [
-      ["An:", metaToWhom],
-      ["Stadt:", metaCity],
-      ["Bereich:", metaArea],
-      ["Datum:", metaDate],
-      ["Betreff:", replaceEmojisForPDF(reportSubject(reportData))]
-    ];
-    for (const [label, value] of headerLines) {
+    const metaToWhom = gremiumMeta.gremium || "Zuständiges Gremium vor Einreichung prüfen";
+    const subject = replaceEmojisForPDF(reportSubject(reportData));
+    if (formalMotion) {
+      docDefinition.language = "de-DE";
+      docDefinition.displayTitle = true;
+      docDefinition.info = { title: subject, subject: docTitle };
+      docDefinition.footer = (page, total) => ({
+        text: `Unfallwerkbank · Seite ${page} von ${total}`, alignment: "right", fontSize: 8,
+        color: "#435766", margin: [40, 13, 40, 0]
+      });
+      docDefinition.content.push(
+        { text: docTitle.toUpperCase(), style: "motionType" },
+        { text: subject, style: "motionTitle", fontSize: 19, headlineLevel: 1 },
+        { text: [metaToWhom, metaCity, metaDate, ...(sd?.meta?.areaName && !subject.includes(metaArea) ? [metaArea] : [])].join(" · "), style: "motionMeta" }
+      );
+    } else {
+      docDefinition.content.push({ text: docTitle.toUpperCase(), style: "header" });
+      const headerLines = [["An:", metaToWhom], ["Stadt:", metaCity], ["Bereich:", metaArea], ["Datum:", metaDate], ["Betreff:", subject]];
+      for (const [label, value] of headerLines) {
+        docDefinition.content.push({
+          text: [{ text: `${label} `, bold: true }, { text: value }],
+          style: "normal", margin: [0, 2, 0, 2]
+        });
+      }
       docDefinition.content.push({
-        text: [{ text: `${label} `, bold: true }, { text: value }],
-        style: "normal",
-        margin: [0, 2, 0, 2]
+        canvas: [{ type: 'line', x1: 0, y1: 0, x2: 450, y2: 0, lineWidth: 0.5, lineColor: '#888888' }],
+        margin: [0, 5, 0, 15]
       });
     }
-
-    docDefinition.content.push({
-      canvas: [{ type: 'line', x1: 0, y1: 0, x2: 450, y2: 0, lineWidth: 0.5, lineColor: '#888888' }],
-      margin: [0, 5, 0, 15]
-    });
 
     // ---- Rahmendaten table ----
     const metaLink = (sd && sd.meta && sd.meta.link) || "";
     const kvRahmen = [
-      ["Dokumenttyp", docTitle],
-      gremiumMeta.gremium  ? ["Gremium",              gremiumMeta.gremium]  : null,
-      gremiumMeta.typ      ? ["Gremiumstyp",          gremiumMeta.typ]      : null,
+      !formalMotion        ? ["Dokumenttyp",          docTitle]            : null,
+      !formalMotion && gremiumMeta.gremium ? ["Gremium", gremiumMeta.gremium] : null,
+      !formalMotion && gremiumMeta.typ ? ["Gremiumstyp", gremiumMeta.typ] : null,
       gremiumMeta.kontakt  ? ["Kontakt",               gremiumMeta.kontakt]  : null,
-      metaArea             ? ["Bereich",               metaArea]             : null,
-      metaCity             ? ["Stadt",                 metaCity]             : null,
-      metaDate             ? ["Exportdatum",           metaDate]             : null,
+      !formalMotion && metaArea ? ["Bereich", metaArea] : null,
+      !formalMotion && metaCity ? ["Stadt", metaCity] : null,
+      !formalMotion && metaDate ? ["Exportdatum", metaDate] : null,
       // PR-QA „Werkbank-Link in Tabelle": kurzer Linktext statt
       // vollständigem URL — pdfmake-Hyperlink über `link:` + Zellinhalt.
       metaLink             ? ["Werkbank-Link",
@@ -3787,10 +4163,10 @@
     ].filter(Boolean);
 
     if (kvRahmen.length > 0) {
-      docDefinition.content.push({ text: "Rahmendaten", style: "subheader" });
+      setup.push({ text: "Rahmendaten", style: "subheader" });
       // Narrow label column + flexible value column so long values like the
       // Werkbank-Link don't push the whole table off-page.
-      docDefinition.content.push(makePdfTable(
+      setup.push(makePdfTable(
         ["Feld", "Wert"],
         kvRahmen,
         undefined,
@@ -3829,8 +4205,8 @@
     if (filters.dayType != null) filterRows.push(["Wochentag", UA.formatFilterValue("dayType", filters.dayType)]);
 
     if (filterRows.length > 0) {
-      docDefinition.content.push({ text: "Aktive Filter", style: "subheader" });
-      docDefinition.content.push(makePdfTable(
+      setup.push({ text: "Aktive Filter", style: "subheader" });
+      setup.push(makePdfTable(
         ["Filter", "Wert"],
         filterRows,
         undefined,
@@ -3842,10 +4218,12 @@
     // Layout-Pass: als echte noteBox (light-gray, padded) statt als loser
     // kursiver Text — damit der Hinweis visuell als Block erkennbar ist
     // und vom Antragstext klar abgesetzt wird.
-    docDefinition.content.push(makePdfNoteBox([
-      { text: HINWEIS_ZAEHLWEISE_LINES[0], style: "noteBox", bold: true, margin: [0, 0, 0, 3] },
-      { text: HINWEIS_ZAEHLWEISE_LINES[1], style: "noteBox" }
-    ]));
+    if (!evidence) {
+      setup.push(makePdfNoteBox([
+        { text: HINWEIS_ZAEHLWEISE_LINES[0], style: "noteBox", bold: true, margin: [0, 0, 0, 3] },
+        { text: HINWEIS_ZAEHLWEISE_LINES[1], style: "noteBox" }
+      ]));
+    }
 
     // ---- Methodik – Scope der Auswertung (PR 2 / Spec-Item 6) ----
     if (sd && sd.methodikScope && Array.isArray(sd.methodikScope.lines) && sd.methodikScope.lines.length > 0) {
@@ -3853,15 +4231,15 @@
       // container pdfMake may carry only the final word of the last sentence
       // (for example "Wochentag).") onto the next page immediately before
       // the Antrag heading, which is visually misleading and hard to scan.
-      docDefinition.content.push({
+      setup.push({
         unbreakable: true,
         stack: [
           {
-            text: sd.methodikScope.title || "Methodik – Scope der Auswertung",
+            text: sd.methodikScope.title || "Methodik – Auswertungsbereich",
             style: "subsectionHeader"
           },
           ...sd.methodikScope.lines.map(ln => ({
-            text: String(ln),
+            text: formalMotion ? methodLineForMotion(ln) : String(ln),
             style: "body"
           }))
         ],
@@ -3871,41 +4249,17 @@
 
     // PR 2 / Spec-Item 4: per-export figure-caption counter (PDF side).
     const pdfFigCounter = makeFigureCounter();
-    // Layout-Pass / Spec-Item 6: Parent-Count für Caption-Cross-References
-    // ("Die N dargestellten Unfälle sind eine Teilmenge der M Unfälle aus
-    // Abbildung 1."). M = Gesamtfallzahl im Ausschnitt
-    // (= structured.accidentDetails.total mit Fallback auf totalAccidents).
-    const pdfParentN =
-      (sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total))
-        ? sd.accidentDetails.total
-        : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents : null);
 
-    // ---- ANTRAG / BESCHLUSSVORSCHLAG (oben, Layout-PR) ----
-    // Verwaltungsdokumente führen den Antragstext direkt nach dem
-    // Dokumentkopf — siehe Begleit-Kommentar im DOCX-Export. Der
-    // ausführliche Wortlaut bleibt zusätzlich am Ende erhalten,
-    // wird aber per sectionGuard nicht mehr doppelt gerendert.
-    {
-      const beschlussLeadPdf = extractSection(textLines, "Beschlussvorschlag:");
-      const beschlussLinesPdf = (Array.isArray(beschlussLeadPdf) ? beschlussLeadPdf : [])
-        .map(l => String(l || "").trim())
-        .filter(Boolean);
-      docDefinition.content.push({
-        text: "ANTRAG / BESCHLUSSVORSCHLAG",
-        style: "subheader"
-      });
-      if (beschlussLinesPdf.length > 0) {
-        for (const line of beschlussLinesPdf) {
-          const content = textWithLinks(line);
-          docDefinition.content.push({ text: content, style: "normal" });
-        }
-      } else {
-        docDefinition.content.push({
-          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
-          style: "normal"
-        });
-      }
-      sectionGuard("BESCHLUSSVORSCHLAG");
+    const motion = motionSections(sd, textLines, hasMap);
+    const motionParagraph = text => ({ text: textWithLinks(replaceEmojisForPDF(text)), style: formalMotion ? "motionBody" : "normal" });
+    docDefinition.content.push({
+      text: formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG",
+      style: formalMotion ? "sectionHeader" : "subheader",
+      headlineLevel: 2
+    });
+    docDefinition.content.push(...motion.paragraphs.map(motionParagraph));
+    if (motion.requests.length) {
+      docDefinition.content.push({ ol: motion.requests.map(motionParagraph), margin: [2, 0, 0, 3] });
     }
 
     // ---- BEGRÜNDUNG / KURZBEWERTUNG (Task 2) ----
@@ -3916,7 +4270,21 @@
     // "Schwerpunkt der Häufung: …") at the top of the following page.
     // That continuation has no local heading and is as misleading as the
     // formerly orphaned final Methodik line.
-    if (sd && sd.executiveSummary) {
+    if (formalMotion) {
+      docDefinition.content.push({ text: "Begründung", style: "sectionHeader", headlineLevel: 2 });
+      if (evidence) docDefinition.content.push(motionParagraph(evidenceCountText(evidence)));
+      docDefinition.content.push(...motion.reason.map(motionParagraph));
+      for (const source of [motion.source, sd?.meta?.gremium?.source]) {
+        if (!source?.label) continue;
+        docDefinition.content.push({ ...linkedPdfRun({ text: source.label, href: reportLink(source.url) }), style: "motionNote" });
+      }
+      const priorWork = motionPoliticalNote(sd, options, analysisAnnexNumber);
+      if (priorWork.length) docDefinition.content.push({ text: priorWork.map(part => linkedPdfRun(part)), style: "motionNote" });
+      docDefinition.content.push({
+        text: [{ text: "Anlagen  ", bold: true }, { text: motionAnnexes(evidence, hasMap, analysisAnnexNumber) }],
+        style: "motionNote", color: "#435766", margin: [0, 6, 0, 0]
+      });
+    } else if (sd && sd.executiveSummary) {
       const es = sd.executiveSummary;
       const executiveSummaryStack = [
         { text: "BEGRÜNDUNG", style: "subheader" },
@@ -3943,6 +4311,11 @@
         text: "BEGRÜNDUNG",
         style: "subheader"
       });
+    }
+    if (!formalMotion) docDefinition.content.push(...motion.reason.map(motionParagraph));
+    const firstAnnexIndex = docDefinition.content.length;
+    if (formalMotion) {
+      docDefinition.content.push({ text: `Anlage ${analysisAnnexNumber} – Auswertung und Methodik`, id: "analysis-annex-heading", style: "motionTitle", headlineLevel: 1 }, ...setup);
     }
 
     // ---- SACHVERHALT section ----
@@ -3983,16 +4356,16 @@
       const sev = sd.severity;
       const sevTotal = sev ? sev.total : 0;
       const severityRows = [
-        ["1 – Getötete",       String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
-        ["2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
-        ["3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
+        [evidence ? "Unfälle mit Getöteten" : "1 – Getötete", String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
+        [evidence ? "Unfälle mit Schwerverletzten" : "2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
+        [evidence ? "Unfälle mit Leichtverletzten" : "3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
       ];
       docDefinition.content.push({
         unbreakable: true,
         stack: [
           { text: "STATISTIK", style: "subheader" },
-          { text: "Verletzungsschwere im Ausschnitt:", style: "normal" },
-          makePdfTable(["Kategorie", "Anzahl", "Anteil"], severityRows)
+          { text: evidence ? "Unfälle nach schwerster Folge unter den Suchfiltern" : "Verletzungsschwere im Ausschnitt:", style: "normal" },
+          makePdfTable(["Kategorie", "Anzahl", "Anteil"], severityRows, undefined, evidence ? { widths: ["*", 78, 78] } : undefined)
         ]
       });
 
@@ -4000,21 +4373,21 @@
       if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
         const isPolitical = sd.meta && sd.meta.mode === "political";
         const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2).replace(".", ",")}`);
-        docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal" });
+        docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal", headlineLevel: 2 });
         const devRows = sd.deviations.focus.map(r => {
           const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
           const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
           // QA-PR „Export-Semantik": Prosa-Label statt SVG-Icons.
-          const muster = (typeof UA.formatParticipantCombinationForExport === "function")
+          const muster = r.textLabel || (typeof UA.formatParticipantCombinationForExport === "function"
             ? UA.formatParticipantCombinationForExport(r.mask)
-            : (r.textLabel || r.label);
+            : r.label);
           if (isPolitical) {
             // Task 9/10: politisches Wording, kein 95%-KI.
             return [muster, String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
           }
           const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
           const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const factorStr = r.factor.toFixed(2).replace(".", ",") + "x" + (r.isSignificant === false ? " (n.s.)" : "");
+          const factorStr = formatFactorDe(r.factor) + "×" + (r.isSignificant === false ? " (n. s.)" : "");
           return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
         });
         if (isPolitical) {
@@ -4034,12 +4407,10 @@
             undefined,
             { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
           ));
-          // PR-QA „Begriffliche Inkonsistenzen": Lesehilfe für Faktor-Wert.
           docDefinition.content.push({
             text: [
               { text: "Lesart: ", bold: true },
-              { text: "„Faktor 2,18×" },
-              { text: " bedeutet, dass das Beteiligungsmuster im untersuchten Bereich rund 2,18-mal so häufig vorkommt wie im Stadtdurchschnitt. Werte > 1 = überrepräsentiert, Werte < 1 = unterrepräsentiert. Die 95 %-Konfidenzintervalle zeigen die statistische Unsicherheit bei kleinen Fallzahlen." }
+              { text: FACTOR_READING }
             ],
             style: "small",
             margin: [0, 2, 0, 6]
@@ -4135,7 +4506,7 @@
       if (options.includeCosts !== false && sd.economicImpact && sd.economicImpact.total > 0) {
         const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
         const ei = sd.economicImpact;
-        docDefinition.content.push({ text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)", style: "subheader" });
+        docDefinition.content.push({ text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)", style: "subheader", headlineLevel: 2 });
         const eiRows = [
           ["Getötete", String(ei.counts.fatal), fmt(ei.breakdown.fatal)],
           ["Schwerverletzte", String(ei.counts.severe), fmt(ei.breakdown.severe)],
@@ -4158,6 +4529,10 @@
         if (ei.disclaimer) {
           docDefinition.content.push({ text: ei.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
         }
+      }
+
+      if (options.includeMeasures !== false && sd.measureAssessmentNote) {
+        docDefinition.content.push(motionParagraph(sd.measureAssessmentNote));
       }
 
       // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
@@ -4198,7 +4573,7 @@
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
         const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         docDefinition.content.push({ text: "EMPFOHLENE MASSNAHMEN", style: "subheader" });
-        const cov = osmCoverageNoteDocx(sd.recommendedMeasures.osmCoverage);
+        const cov = osmCoverageNoteDocx(sd.recommendedMeasures.osmCoverage, formalMotion);
         if (cov) {
           docDefinition.content.push({
             text: `OSM-Datenstand: ${cov}`,
@@ -4296,7 +4671,7 @@
         renderBucketPdf("Langfristig (>12 Monate)", sd.prioritization.langfristig);
       }
 
-      if (sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
+      if (!evidence && sd.accidentDetails && sd.accidentDetails.groups && sd.accidentDetails.groups.length > 0) {
         // Resolve accident-view strategy + columns from the structured payload,
         // mirroring the DOCX branch above. Without these the per-row producer
         // and `makePdfTable(cols, …)` call below reference undefined names and
@@ -4356,7 +4731,7 @@
             });
           }
         }
-      } else if (sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
+      } else if (!evidence && sd.accidentDetails && sd.accidentDetails.rows && sd.accidentDetails.rows.length > 0) {
         // Fallback for legacy data without groups.
         // Phase 1.1: Statt eines 8-Spalters splitten wir in zwei kompakte
         // Tabellen ("Zeit/Ort" + "Beteiligung/Zustand"), korreliert über
@@ -4406,11 +4781,22 @@
     }
 
     // ---- Map section (if enabled) ----
-    if (options.includeMap) {
+    const mapsStart = docDefinition.content.length;
+    if (hasMap) {
+      const plan = reportMapPlan(ctx, filters);
+      const mapOptions = { ...options, exportPoints: plan.points, exportBounds: plan.bounds };
+      const documentMap = UA.createDocumentMapContext(ctx);
+      const mapCtx = documentMap.ctx;
+      const cohorts = sd?.evidenceCohorts;
+      const mapUrl = (capture, overrides = {}) => buildWerkbankUrl(ctx, {
+        center: capture.center, zoom: capture.zoom, bounds: plan.bounds, ...overrides
+      });
       try {
+        fitDocumentMap(mapCtx, plan.bounds, { maxZoom: mapCtx.map.getZoom() });
         docDefinition.content.push({
-          text: "KARTENAUSSCHNITT",
-          style: "sectionHeader"
+          text: formalMotion ? "Anlage 1 – Karten" : "KARTENAUSSCHNITT",
+          style: formalMotion ? "motionTitle" : "sectionHeader",
+          ...(formalMotion ? { pageBreak: "before", headlineLevel: 1 } : {})
         });
 
         // Layout-Pass / Spec-Item 6 + 7: erklärender Absatz vor der Bilderfolge.
@@ -4422,34 +4808,21 @@
           style: "body"
         });
 
-        const werkbankUrl = buildWerkbankUrl(ctx);
-
-        // Doppelte Karten (PDF-Pendant): bei aktiver Beteiligungs-Restriktion
-        // wird zuerst eine „Übersichtskarte – alle Beteiligungs-Kombinationen"
-        // gerendert, danach die „Auswahl-Karte". Vergleiche DOCX-Branch
-        // weiter oben für die ausführliche Begründung.
-        const pdfSelection = activeInvolvementSelection(filters);
+        const pdfSelection = plan.selection;
         let pdfSelectionFigIndex = 1;
         if (pdfSelection.hasRestriction) {
           try {
-            const allCombPts = getAllCombinationPointsInBounds(ctx);
-            const allCombImage = await UA.captureExportMapImage(ctx, {
-              ...options,
-              exportPoints: allCombPts
+            const allCombPts = plan.allPoints;
+            const allCombCapture = await UA.captureDocumentMap(mapCtx, {
+              ...mapOptions, exportPoints: allCombPts
             });
-            // Eigener Werkbank-Link für die alle-Kombinationen-Karte:
-            // override.allCombinations=true setzt alle sechs Beteiligungs-
-            // Checkboxen in der URL auf 1, sodass das Klicken auf das Bild
-            // die unrestringierte Übersicht reproduziert (statt eine Karte
-            // zu öffnen, die einen anderen Punktbestand zeigt als das
-            // Bild im PDF).
-            const allCombUrl = buildWerkbankUrl(ctx, { allCombinations: true });
+            const allCombUrl = mapUrl(allCombCapture, { allCombinations: true });
             const allCombFig = pdfFigCounter.next("Übersichtskarte – alle Beteiligungs-Kombinationen im aktuellen Kartenausschnitt");
             docDefinition.content.push({
               unbreakable: true,
               stack: [
                 {
-                  image: allCombImage,
+                  image: allCombCapture.image,
                   fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
                   alignment: "center",
                   margin: [0, 10, 0, 6],
@@ -4464,12 +4837,12 @@
               ]
             });
             docDefinition.content.push({
-              text: mapVerificationSentence(allCombPts.length),
+              text: `Unfälle im selben Gebiet vor Beteiligungsfilter (n = ${allCombPts.length}).`,
               style: "small",
               italics: true,
               margin: [0, 4, 0, 8]
             });
-            pushPdfMapSourceNote(docDefinition, ctx, 8);
+            pushPdfMapSourceNote(docDefinition, ctx, 8, allCombCapture);
             pdfSelectionFigIndex = allCombFig.index + 1;
           } catch (allCombErr) {
             if (isMapRenderReadinessFailure(allCombErr)) throw allCombErr;
@@ -4477,7 +4850,9 @@
           }
         }
 
-        const mapImageData = await UA.captureExportMapImage(ctx, options);
+        const mainCapture = await UA.captureDocumentMap(mapCtx, mapOptions);
+        const mapImageData = mainCapture.image;
+        const werkbankUrl = mapUrl(mainCapture);
 
         // Layout-PR „Bildverzerrung beheben" / Spec-Items 1+2:
         //  - pdfMake-`fit:[w,h]` erhält die Aspektrate des PNG-Originals
@@ -4512,7 +4887,7 @@
             }
           ]
         });
-        pushPdfMapSourceNote(docDefinition, ctx, 6);
+        pushPdfMapSourceNote(docDefinition, ctx, 6, mainCapture);
 
         // Add "In Werkbank öffnen" link
         docDefinition.content.push({
@@ -4526,36 +4901,17 @@
 
         docDefinition.content.push({
           text: [
-            "Legende: Die Karte zeigt die aktuelle Ansicht mit allen konfigurierten Filtern.\n",
-            "Punkte: rot = Getötete, orange = Schwerverletzte, gelb = Leichtverletzte (mit weißem Rand für Sichtbarkeit).\n",
-            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Lkw]=Lkw/Gkfz, [Sonst]=Sonstige.\n",
-            "POIs wie Schulen und Kitas sind hervorgehoben."
+            "Legende: Der blaue Rahmen kennzeichnet das Auswertungsgebiet.\n",
+            "Punkte nach Unfallschwere: rot = mit Getöteten, orange = mit Schwerverletzten, gelb = mit Leichtverletzten.\n",
+            "Kategorien: [Rad]=Fahrrad, [Fuss]=Fußgänger, [PKW]=PKW, [Krad]=Motorrad, [Lkw]=Lkw/Gkfz, [Sonst]=Sonstige."
           ].join(""),
           style: "small"
         });
 
-        // Verification sentence (Task 6) – n MUST be the canonical
-        // Einzelunfall-Tabellen-Zählung (siehe DOCX-Branch oben für die
-        // ausführliche Begründung).
-        // Bei aktiver Beteiligungs-Restriktion zeigt die Auswahl-Karte
-        // nur die Beteiligungs-gefilterten Punkte (= ctx.viewportPts im
-        // Export-bbox). Verifikationssatz und Subset-Parent-N richten
-        // sich dann nach diesem tatsächlichen Karten-Zähler statt nach
-        // dem Tabellen-Total (= alle-Kombinationen-Zahl).
-        const exportBboxForCounts = exportBoundsFromCtx(ctx);
-        const selectionN = pdfSelection.hasRestriction
-          ? countPointsInBounds(ctx.viewportPts || [], exportBboxForCounts)
-          : null;
-        const overviewN = pdfSelection.hasRestriction
-          ? selectionN
-          : ((sd && sd.accidentDetails && Number.isFinite(sd.accidentDetails.total)) ? sd.accidentDetails.total
-            : (sd && Number.isFinite(sd.totalAccidents) ? sd.totalAccidents
-              : (Array.isArray(ctx.viewportPts) ? ctx.viewportPts.length : 0)));
-        const pdfParentNForSubset = pdfSelection.hasRestriction
-          ? selectionN
-          : pdfParentN;
+        const overviewN = plan.points.length;
+        const pdfParentNForSubset = overviewN;
         docDefinition.content.push({
-          text: mapVerificationSentence(overviewN),
+          text: reportMapCount(overviewN, cohorts),
           style: "small",
           italics: true,
           margin: [0, 4, 0, pdfSelection.hasRestriction ? 2 : 8]
@@ -4574,19 +4930,10 @@
         // Detail map: zoom to selection bounds if available
         if (ctx.selectionBounds) {
           try {
-            const detailImageData = await (UA._captureDetailMap || captureDetailMap)(ctx, options);
-            // Unique URL for detail map: explicit selSouth/West/North/East
-            // and centered on the selection (Tasks 1, 3).
-            const detailBbox = boundsToBbox(ctx.selectionBounds);
-            const detailCenter = detailBbox ? {
-              lat: (detailBbox.south + detailBbox.north) / 2,
-              lon: (detailBbox.west + detailBbox.east) / 2
-            } : null;
-            const detailWerkbankUrl = buildWerkbankUrl(ctx, {
-              bounds: detailBbox,
-              center: detailCenter
-            });
-            const detailN = countPointsInBounds(ctx.viewportPts || [], detailBbox);
+            const detailResult = await (UA._captureDetailMap || captureDetailMap)(mapCtx, mapOptions);
+            const detailCapture = typeof detailResult === "string" ? { image: detailResult } : detailResult;
+            const detailWerkbankUrl = mapUrl(detailCapture);
+            const detailN = plan.points.length;
             // Layout-PR „Bildverzerrung beheben": einheitliche Box
             // (PDF_MAP_MAX) für alle Map-Typen; Bild + Caption als
             // unbreakable-Stack (Spec-Items 1, 2, 3, 5).
@@ -4599,7 +4946,7 @@
               stack: [
                 { text: "Detailansicht – markierter Bereich", style: "subsectionHeader" },
                 {
-                  image: detailImageData,
+                  image: detailCapture.image,
                   fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
                   alignment: "center",
                   margin: [0, 10, 0, 6],
@@ -4612,7 +4959,7 @@
                 }
               ]
             });
-            pushPdfMapSourceNote(docDefinition, ctx, 4);
+            pushPdfMapSourceNote(docDefinition, ctx, 4, detailCapture);
             docDefinition.content.push({
               text: "In Werkbank öffnen",
               link: detailWerkbankUrl,
@@ -4622,7 +4969,7 @@
               margin: [0, 5, 0, 4]
             });
             docDefinition.content.push({
-              text: mapVerificationSentence(detailN),
+              text: reportMapCount(detailN, cohorts),
               style: "small",
               italics: true,
               margin: [0, 0, 0, pdfSelection.hasRestriction ? 2 : 8]
@@ -4649,7 +4996,7 @@
         //   – heading "<label> – n Unfälle (Zoom z)" (matches the table)
         //   – verification sentence "Die dargestellten Punkte … (n = X)." (Task 6)
         try {
-          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(ctx, options);
+          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(mapCtx, mapOptions);
           for (const cm of clusterMaps) {
             // Task 5: only render a cluster map when the visible point count
             // matches the stated total. This is the explicit consistency
@@ -4665,10 +5012,9 @@
               continue;
             }
 
-            const clusterUrl = buildWerkbankUrl(ctx, {
+            const clusterUrl = mapUrl(cm, {
               bounds: cm.bounds,
-              center: { lat: cm.lat, lon: cm.lon },
-              zoom: cm.zoom
+              center: cm.center || { lat: cm.lat, lon: cm.lon }
             });
             // Layout-PR „Bildverzerrung beheben": einheitliche Box +
             // unbreakable-Stack — Header, Bild und Caption bleiben zusammen.
@@ -4697,7 +5043,7 @@
                 }
               ]
             });
-            pushPdfMapSourceNote(docDefinition, ctx, 4);
+            pushPdfMapSourceNote(docDefinition, ctx, 4, cm);
             docDefinition.content.push({
               text: "In Werkbank öffnen",
               link: clusterUrl,
@@ -4707,7 +5053,7 @@
               margin: [0, 5, 0, 4]
             });
             docDefinition.content.push({
-              text: mapVerificationSentence(cm.total),
+              text: reportMapCount(cm.total, cohorts),
               style: "small",
               italics: true,
               margin: [0, 0, 0, pdfSelection.hasRestriction ? 2 : 8]
@@ -4725,15 +5071,35 @@
           if (isMapRenderReadinessFailure(clusterErr)) throw clusterErr;
           console.warn("Cluster maps capture failed for PDF (graceful fallback):", clusterErr);
         }
+        if (cohorts?.detailMapPartitions?.length) {
+          const maps = await UA.EvidenceCohort.captureEvidenceMaps(UA, mapCtx, cohorts, { includeOverview: false });
+          for (const evidenceMap of maps) {
+            const { mapRef, image, title, accidentIds } = evidenceMap;
+            const fig = pdfFigCounter.next(`${title} (n = ${accidentIds.length})`);
+            docDefinition.content.push({
+              unbreakable: true,
+              stack: [
+                { image, fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height], alignment: "center", margin: [0, 10, 0, 6] },
+                { id: `evidence-map-${mapRef}`, text: fig.caption, style: "caption", alignment: "center" },
+                { text: `Unfall-IDs ${accidentIds.join(", ")}.`, style: "small", margin: [0, 4, 0, 4] },
+                ...buildMapSourceNoteLines(ctx, evidenceMap).map(text => ({ text, style: "small", italics: true }))
+              ]
+            });
+            renderedEvidenceMapRefs.add(mapRef);
+          }
+        }
       } catch (e) {
-        if (isMapRenderReadinessFailure(e)) throw e;
+        if (isMapRenderReadinessFailure(e) || cohorts?.detailMapPartitions?.length) throw e;
         console.error("Map capture failed for PDF:", e);
         docDefinition.content.push({
           text: "[Kartenerstellung fehlgeschlagen]",
           style: "small"
         });
+      } finally {
+        documentMap.close();
       }
     }
+    const mapSection = formalMotion ? docDefinition.content.splice(mapsStart) : [];
 
     // ---- POI section (if enabled) ----
     if (options.includePOIs) {
@@ -4893,7 +5259,7 @@
     if (sd && sd.osmContext && sd.osmContext.summary) {
       const oc = sd.osmContext;
       const s = oc.summary;
-      docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
+      docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader", headlineLevel: 2 });
       const ocBody = [];
       if (s.dominantMaxspeed != null) {
         ocBody.push([
@@ -4943,7 +5309,7 @@
         docDefinition.content.push({ text: "", margin: [0, 0, 0, 6] });
       }
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
-      docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader" });
+      docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader", headlineLevel: 2 });
       docDefinition.content.push({
         // QA-PR „Export-Semantik": verwaltungstauglicher Hinweis statt
         // technischer Fehlerstring.
@@ -4954,32 +5320,6 @@
       });
     }
 
-    // ---- BESCHLUSSVORSCHLAG section (Wortlaut, Wiederholung) ----
-    // Siehe DOCX-Export: durch sectionGuard wird hier nicht erneut
-    // gerendert, wenn der Antrag bereits oben am Dokument steht.
-    if (!sectionGuard("BESCHLUSSVORSCHLAG")) {
-      docDefinition.content.push({
-        text: "BESCHLUSSVORSCHLAG",
-        style: "subheader"
-      });
-
-      const beschlussSection = extractSection(textLines, "Beschlussvorschlag:");
-      if (beschlussSection.length > 0) {
-        for (const line of beschlussSection) {
-          const content = textWithLinks(line);
-          docDefinition.content.push({
-            text: content,
-            style: "normal"
-          });
-        }
-      } else {
-        docDefinition.content.push({
-          text: "Der Bezirksrat fordert die Verwaltung auf, innerhalb von 3 Monaten den markierten Bereich verkehrssicherheitsfachlich zu prüfen und kurzfristig umsetzbare Maßnahmen vorzuschlagen bzw. umzusetzen. Die Wirksamkeit der Maßnahmen ist nach 12 Monaten anhand der Unfallatlas-Daten zu evaluieren.",
-          style: "normal"
-        });
-      }
-    }
-
     // ---- FACHLICHE BEZÜGE section (if enabled) ----
     if (options.includeReferences) {
       const refs = sd && sd.references;
@@ -4987,7 +5327,7 @@
       if ((refs && refs.documents && refs.documents.length > 0) || refsSection.length > 0) {
         docDefinition.content.push({
           text: "FACHLICHE BEZÜGE",
-          style: "subheader"
+          style: "subheader", headlineLevel: 2
         });
 
         if (refs && refs.documents && refs.documents.length > 0) {
@@ -5080,10 +5420,6 @@
       }
     }
 
-    // Kein Platzhalter-Anhang: Karten, Tabellen und fachliche Bezüge sind
-    // bereits im Hauptdokument enthalten. So entstehen keine isolierten,
-    // inhaltsarmen Seiten am Dokumentende.
-
     // ---- DATENQUELLE section ----
     docDefinition.content.push({
       text: "DATENQUELLE",
@@ -5094,6 +5430,32 @@
       text: "Unfallatlas / Open-Data-Downloads. Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2-0).",
       style: "normal"
     });
+
+    const evidenceSection = [];
+    if (evidence) {
+      const annexName = evidence.complete ? "Vollständige Unfallliste" : "Nummerierte Unfallliste";
+      evidenceSection.push({
+        text: `Anlage ${1 + Number(hasMap)} – ${annexName}`,
+        style: "motionTitle", headlineLevel: 1, pageBreak: "before"
+      });
+      evidenceSection.push(...evidenceAnnexIntro(evidence, renderedEvidenceMapRefs.size > 0).map(motionParagraph));
+      if (evidence.link) {
+        evidenceSection.push({ ...linkedPdfRun({ text: "Nummerierte Karte in der Werkbank öffnen", href: evidence.link }), style: "motionNote" });
+      }
+      if (evidence.rows.length) {
+        const { headers, rows } = evidenceTable(evidence, renderedEvidenceMapRefs, "evidence-map-");
+        const dataRows = rows.map(row =>
+          row.map(cell => typeof cell === "object" ? linkedPdfRun(cell, 9) : cell));
+        evidenceSection.push(makePdfTable(headers, dataRows, undefined, {
+          widths: [31, 25, 68, "*", 50, 65, 52, 41, 24].slice(0, headers.length),
+          keepRowsTogether: true, layout: EVIDENCE_PDF_LAYOUT
+        }));
+      }
+      for (const line of [evidence.sourceNote, ...evidence.limitations].filter(Boolean)) {
+        evidenceSection.push({ ...motionParagraph(line), style: "motionNote" });
+      }
+    }
+    if (formalMotion) docDefinition.content.splice(firstAnnexIndex, 0, ...mapSection, ...evidenceSection);
 
     // Generate and download PDF
     const citySlug = CITY_RAW

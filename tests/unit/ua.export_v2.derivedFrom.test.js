@@ -134,6 +134,7 @@ describe('UA.computeExportReport – derivedFrom enrichment + cross-reference re
     load('ua.filters.js');
     load('ua.accident_views.js');
     load('ua.measures.js');
+    load('ua.osm_context.js');
 
     mockWindow.fetch = async () => ({ ok: false, json: async () => ({}), text: async () => '' });
     mockWindow.L = { latLngBounds: () => {} };
@@ -175,6 +176,9 @@ describe('UA.computeExportReport – derivedFrom enrichment + cross-reference re
 
   function buildCtxAndCatalog() {
     UA.reverseGeocode = async () => null;
+    UA.osmContext.fetchOsmContext = async () => UA.osmContext.aggregate([
+      { type: 'way', tags: { highway: 'primary', maxspeed: '50' } }
+    ]);
     // Catalog with target pattern = 1 (Rad allein, see ua.filters.js).
     UA.measures.loadCatalog = async () => ({
       version: 1,

@@ -270,7 +270,7 @@
         moduleUrl("ua.export_provenance.js?v=2026-11-08-provenance-context-copy"),
         moduleUrl("ua.accident_year_provenance.js?v=2026-07-23"),
         moduleUrl("ua.kml_export_provenance.js?v=2026-11-08-typed-context-export"),
-        moduleUrl("ua.document_export_provenance.js?v=2026-11-08-frozen-export-scope"),
+        moduleUrl("ua.document_export_provenance.js?v=2026-11-10-antrag-quality"),
       ];
       const documentAdapters = [
         moduleUrl("ua.document_export_prewarm.js?v=2026-07-22"),
