@@ -192,7 +192,7 @@ road-surface accuracy. Out-of-grid, insufficient-sample and short-geometry
 outcomes remain unavailable. These are not 79104-way Hannover production results.
 No accident→way matching was performed, and the artifacts say so explicitly.
 
-## Concrete quality finding 24855098
+## Historical quality finding 24855098 (8 November 2026)
 
 [OSM way 24855098](https://www.openstreetmap.org/way/24855098), version 8 from
 2023-11-16T09:50:15Z, is an ordinary `highway=residential` part of Am Lindener
@@ -216,6 +216,27 @@ Rejecting it would require a new reviewed calibration rule, rather than simply
 applying an existing threshold. Therefore no new statistical method or invented
 threshold was added. Exact tags, geometry, output, samples, maximum drop and
 score explanation are preserved in `lindener/quality-anomaly-audit.json`.
+
+### Software confidence correction (10 November 2026)
+
+The outputs above remain the historical observation. The estimator now treats
+its existing residual-MAD bands as confidence ceilings: at most `high` through
+0.25 m, at most `medium` above 0.25 m through 0.75 m, and at most `low` above
+0.75 m. Fine source resolution, many samples or good road matching cannot
+override that fit limitation. Elevated residuals carry the explicit neutral
+reason `elevated_profile_residual`, including readable profile/runtime wording.
+The numerical estimator and uncertainty formula are unchanged; this correction
+does not suppress a gradient solely for a large residual or diagnose its cause.
+
+Controlled symmetric synthetic profiles reproduce the additive-score defect
+and cover both band boundaries, 5 versus 101 samples, runtime evidence
+propagation and bridge rejection. The committed original-data normal/structure
+references are checked separately. The actual anomalous original height rows
+are not in the committed reference fixtures, so no rerun of Way 24855098 or new
+original-data measurement is claimed. Its recorded MAD would place it in the
+new `low` band, but that is a consequence of the software rule, not an observed
+new profile result. Manual original-DGM/QGIS review, vertical-datum confirmation,
+scientific calibration and production activation remain open.
 
 ## Narrow implementation changes and tests
 

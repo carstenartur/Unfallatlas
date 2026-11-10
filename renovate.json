@@ -74,7 +74,7 @@
       "enabled": false
     },
     {
-      "description": "pdfmake 0.3.x ist ein Major-Bump mit Breaking Changes an der vfs_fonts-Auslieferung und am Standard-Font-Loader. Der Werkbank-Export-Pfad (js/ua.report_v2.js exportToPDF) lädt vfs_fonts statisch und nutzt Roboto als Default — das funktioniert mit 0.2.x stabil. Das Major-Update wurde in Issue/Renovate-Dashboard #156 evaluiert und zurückgestellt. Wenn pdfmake 0.3.x adoptiert werden soll, muss zuvor die vfs_fonts-Bundling-Strategie (vgl. server/ und Frontend) angepasst werden. Bis dahin: Major-Updates ignorieren, Patch/Minor weiter zulassen.",
+      "description": "pdfmake 0.3.x ist bereits integriert; PR #748 aktualisierte den geprüften Exportbestand auf 0.3.14. Künftige Major-Updates bleiben einer bewussten Migration vorbehalten: VFS-/Roboto-Laden, Browser-/Server-Export, Exact-Copy-Recipe und Provenienz müssen zusammen geprüft werden. Diese Regel hält zukünftige Major-Updates zurück; Patch-/Minor-Updates bleiben zulässig.",
       "matchPackageNames": ["pdfmake"],
       "matchUpdateTypes": ["major"],
       "enabled": false

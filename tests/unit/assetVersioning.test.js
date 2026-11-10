@@ -117,7 +117,8 @@ describe('Werkbank deployment asset versions', () => {
 test.each(['ua.context_layers', 'ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  expect(html.includes(`js/${name}.js?v=2026-11-08-context`)).toBe(true);
+  const version = name === 'ua.elevation_provider' ? '2026-11-10-profile-quality' : '2026-11-08-context';
+  expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
   const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
