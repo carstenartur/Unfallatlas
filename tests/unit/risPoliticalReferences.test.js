@@ -136,8 +136,8 @@ test('shows the named places and their evidence in a search result, including te
 });
 
 test.each([
-  ['unresolved', ['no_specific_location'], false, /Kein eindeutiger Ortsbezug/],
-  ['unavailable', ['gazetteer_unavailable'], false, /Keine geeigneten Geodaten/],
+  ['unresolved', ['no_specific_location'], false, /Der Karte noch nicht zugeordnet/],
+  ['unavailable', ['gazetteer_unavailable'], false, /Keine passenden Geodaten/],
   ['partial', ['document_text_unavailable', 'location_limit'], true, /Teilweise auf der Karte verortet/],
 ])('shows the %s assessment even without a list of named locations', async (status, reasons, truncated, explanation) => {
   require('../../js/ua.utils.js');

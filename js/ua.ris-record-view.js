@@ -571,15 +571,15 @@
       const assessment = record.locationAssessment;
       const labels = {
         mapped: 'Auf der Karte verortet', partial: 'Teilweise auf der Karte verortet',
-        unresolved: 'Kein eindeutiger Ortsbezug für die Karte', unavailable: 'Keine geeigneten Geodaten für die Ortsprüfung',
+        unresolved: 'Der Karte noch nicht zugeordnet', unavailable: 'Keine passenden Geodaten für diese Ortsprüfung',
       };
       const reasons = {
-        gazetteer_unavailable: 'Für diese Stadt fehlen geeignete Geodaten.',
+        gazetteer_unavailable: 'Für die geprüften Angaben stehen keine passenden Geodaten zur Verfügung.',
         document_text_unavailable: 'Der Dokumenttext war nicht vollständig verfügbar.',
         evidence_truncated: 'Der geprüfte Dokumenttext ist begrenzt.',
         location_limit: 'Es konnten nicht alle erkannten Orte übernommen werden.',
         unverified_name: 'Ein Ortsname ist nicht eindeutig oder nicht ausreichend belegt.',
-        no_specific_location: 'Die geprüften Angaben enthalten keinen eindeutig zuordenbaren Ort.',
+        no_specific_location: 'Die automatische Ortsprüfung hat in den geprüften Angaben keinen eindeutigen Ort erkannt.',
         unmapped_location: 'Mindestens eine genannte Lage ist noch ungeklärt.',
         non_traffic_address: 'Eine Adresse ohne Verkehrsbezug wird nur als Ortsangabe angezeigt.',
       };
