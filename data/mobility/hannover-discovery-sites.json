@@ -40,5 +40,48 @@
         "precision": "month"
       }
     ]
+  },
+  {
+    "id": "hannover-bruehlstrasse-escherstrasse",
+    "label": "Brühlstraße / Escherstraße",
+    "bounds": {
+      "south": 52.37552874272362,
+      "west": 9.72648054178715,
+      "north": 52.375906457276386,
+      "east": 9.72709925821285
+    },
+    "networkSite": {
+      "id": "j:60655478",
+      "coordinates": [
+        52.3757176,
+        9.7267899
+      ]
+    },
+    "changes": [
+      {
+        "kind": "council-decision",
+        "label": "15-1243/2021 · Der Stadtbezirksrat Mitte beschloss die Aufpflasterung der Fuß- und Radquerung. Die Schließung der Wendeschleife lehnte er ab.",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1243-2021",
+        "date": "2021-06-07",
+        "precision": "documented-by",
+        "number": "15-1243/2021"
+      },
+      {
+        "kind": "implementation-status",
+        "label": "15-2403/2022 F1 · Die Verwaltung meldete den Beginn der Planung für die Aufpflasterung.",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2403-2022F1",
+        "date": "2022-09-26",
+        "precision": "documented-by",
+        "number": "15-2403/2022 F1"
+      },
+      {
+        "kind": "implementation-status",
+        "label": "15-2377/2023 F1 · Wegen Personalengpässen ruhte die weitere Bearbeitung. Die Verwaltung konnte zu diesem Zeitpunkt keinen Umsetzungstermin nennen.",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2377-2023F1",
+        "date": "2023-12-04",
+        "precision": "documented-by",
+        "number": "15-2377/2023 F1"
+      }
+    ]
   }
 ]

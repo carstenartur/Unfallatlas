@@ -6,6 +6,16 @@ Jeder geladene Unfallpunkt wird höchstens einem Netzobjekt zugeordnet. Die Werk
 
 Das Netzregister wird bei vollständigem Stadt-Unfalldatensatz geladen. Der öffentliche Build enthält die Daten und funktioniert mit den vorhandenen Browserfunktionen. Geteilte Links enthalten die Kennung des Netzobjekts, die Netzrevision, die Suchkriterien und das genaue Rechteck. Ist die verlinkte Revision nicht verfügbar, lässt sich das markierte Umfeld weiterhin betrachten.
 
+## Einen Treffer einordnen
+
+Die Detailansicht vergleicht den ausgewählten Knoten, die Querung oder den Abschnitt mit allen anderen Netzstellen desselben Typs in der Stadt. Für jede Stelle gelten dieselben Suchfilter. Angezeigt werden die Zahl der Stellen mit mehr beziehungsweise gleich vielen zugeordneten Unfällen sowie die Unfälle mit schweren und mit tödlichen Folgen am gewählten Ort. Auch Stellen ohne passende Fälle gehen in den Vergleich ein. Unterschiedliche Verkehrsmengen, die Länge der Abschnitte und die Bauform können die Fallzahlen beeinflussen.
+
+Für Querungen können ausdrücklich kartierte OSM-Angaben zu Markierung, Beleuchtung, Signalisierung und Mittelinsel vorliegen. Im Netztyp-Filter lassen sich unbeleuchtete und unmarkierte Querungen auswählen, auch zusammen mit der Suche nach Stellen ohne zugeordneten Fall. Fehlende Angaben bleiben offen. Das optionale Merkmals-Paket verwendet dieselbe Netzrevision wie die Geometrie.
+
+Die Detailansicht zeigt vorhandene geprüfte Verkehrszählungen und Modellwerte mit Einheit und Zeitraum. Für Hannover werden zusätzlich die über die Kartenebene lokal eingelesenen VMZ-Radzählstellen im ausgewählten Rechteck mit ihren gemeldeten Werten aus den gewählten Jahren angezeigt. Tages- und Monatswerte einer Station beschreiben den Verkehr an diesem Zählpunkt. Eine Unfallrate für die gesamte Kreuzung erfordert zusätzliche richtungs- und zeitraumbezogene Verkehrsmengen.
+
+Für Brühlstraße / Escherstraße sind der Beschluss zur Aufpflasterung von 2021 und die Antworten zum Planungsstand von 2022 und 2023 hinterlegt. Der Generator ordnet solche geprüften Quellen über `networkSite.id` und die genaue Geometrie aus der städtischen Datei `<stadt>-discovery-sites.json` zu. Ändert sich der Bezugspunkt, wird die Zuordnung bis zur erneuten Prüfung ausgelassen. Das Datum einer Auskunft bezeichnet den damals berichteten Stand.
+
 ## Eine weitere Stadt hinzufügen
 
 Der Katalog unter `data/mobility/review-network/` enthält die freigeschalteten Städte. Der Generator erstellt den Eintrag, den Index und die komprimierten Teile in einem Durchlauf. Der Stadtschlüssel entspricht den vorhandenen Unfalldaten, etwa `frankfurt_am_main`. Eingaben sind ein datierter OSM-XML-Auszug und ein WGS84-Grenzdatensatz mit Herkunft und Lizenz.

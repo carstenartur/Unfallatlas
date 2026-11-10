@@ -100,6 +100,10 @@
   function resolveAreaName(ctx, structured) {
     const explicit = explicitAreaName(ctx, structured);
     if (explicit) return { name: explicit, quality: 'confirmed', source: 'explicit' };
+    const network = structured?.siteNetwork;
+    if (network?.status === 'available' && network.site?.id && network.site?.revision && clean(network.label)) {
+      return { name: clean(network.label), quality: 'confirmed', source: 'review-network' };
+    }
     const city = clean(structured?.meta?.city || structured?.meta?.cityRaw || ctx?.CITY_RAW || ctx?.city)
       || 'der ausgewählten Kommune';
     const b = selection();
@@ -116,7 +120,7 @@
     if (!previous && !explicitAreaName(ctx, structured) && !selection()) return report;
     const resolved = resolveAreaName(ctx, structured);
     structured.meta.areaNameQuality = resolved;
-    if (previous && !explicitAreaName(ctx, structured)) structured.meta.reverseGeocodedMidpointLabel = previous;
+    if (previous && resolved.quality !== 'confirmed') structured.meta.reverseGeocodedMidpointLabel = previous;
     structured.meta.areaName = resolved.name;
     if (previous && previous !== resolved.name) {
       for (const key of ['text', 'html']) {
@@ -151,6 +155,7 @@
         areaName: structured?.meta?.areaName || null, date: structured?.meta?.date || null,
         link: structured?.meta?.link || null, filters: structured?.meta?.filters || null,
         involvementMode: structured?.meta?.involvementMode || null },
+      ...(structured?.motion?.discoveryEvidence || structured?.motion?.priorWork?.length ? { selectedSiteMotion: structured.motion } : {}),
       officialAccidentFacts: { total: finite(sev.total), fatal: finite(by['1']),
         serious: finite(by['2']), slight: finite(by['3']), other: finite(by.other) },
       patternCompositionComparison: {
@@ -248,6 +253,7 @@
     const instruction = [
       '', 'VERBINDLICHER VERGLEICHS- UND MEHRWERTAUFTRAG:',
       'Stelle deterministische und KI-Analyse gegenüber; bestätige zuerst Fakten und Methodik.',
+      ...(contract.deterministicDigest.selectedSiteMotion ? ['Bewahre den ausgewählten Prüfauftrag und seine Fallgruppe. Vergleiche andere Unfallmuster gesondert. Belege jede vorgeschlagene Änderung an Prüfauftrag oder Fallgruppe.'] : []),
       'Liefere mindestens drei quellengebundene Synthesen aus mehreren Evidenzschichten.',
       'Priorisiere; nenne Gegenhypothesen, Prüfbedarf, Voraussetzungen, Zielkonflikte und Erfolgskriterien.',
       'Recherchiere politische/administrative Vorbefassung und vermeide Doppelanträge.',

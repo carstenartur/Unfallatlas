@@ -61,6 +61,11 @@
       cache: 'no-cache',
       path: ({ city }) => 'data/mobility/review-network/' + slug(city) + '/index.json',
     }),
+    reviewNetworkCrossings: Object.freeze({
+      compression: COMPRESSION.GZIP_ONLY,
+      cache: 'no-cache',
+      path: ({ city }) => 'data/mobility/review-network/' + slug(city) + '/crossings.json',
+    }),
     reviewNetworkPart: Object.freeze({
       compression: COMPRESSION.GZIP_ONLY,
       cache: 'no-cache',
@@ -266,7 +271,7 @@
   const semanticFilingGatePromise = filingReadinessPromise.then(loaded => {
     if (!loaded) return false;
     return injectOptionalModuleAfterDomReady(
-      'js/ua.semantic_filing_gate.js?v=2026-08-20-1',
+      'js/ua.semantic_filing_gate.js?v=2026-11-10-site-evidence',
       'data-ua-semantic-filing-gate'
     );
   });
@@ -313,7 +318,7 @@
       'data-ua-ai-political-evidence'
     ),
     aiPoliticalReferenceBridge: injectOptionalModuleAfterDomReady(
-      'js/ua.ai_political_reference_bridge.js?v=2026-11-08-method-limits',
+      'js/ua.ai_political_reference_bridge.js?v=2026-11-10-site-evidence',
       'data-ua-ai-political-reference-bridge'
     ),
     // Load last so it can extend the completed evidence chain. This adapter

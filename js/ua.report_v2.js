@@ -164,6 +164,13 @@
     };
   }
 
+  function councilSourceRuns(sd) {
+    return (sd?.motion?.priorWork || []).map(record => ({
+      text: record.number ? `DS ${record.number} (${sourceDate(record.date)})` : `Amtlicher Beleg vom ${sourceDate(record.date)}`,
+      href: reportLink(record.url),
+    })).filter(source => source.href);
+  }
+
   function reportLink(href) {
     if (typeof href !== "string" || !href.trim()) return null;
     try {
@@ -2208,6 +2215,13 @@
       if (!source?.label) continue;
       children.push(new Paragraph({
         children: [linkedWordRun({ text: source.label, href: reportLink(source.url) }, { size: 18 })],
+        spacing: { after: 80 }
+      }));
+    }
+    const councilSources = councilSourceRuns(sd);
+    if (councilSources.length) {
+      children.push(new Paragraph({
+        children: councilSources.flatMap((part, i) => [...(i ? [new TextRun(" · ")] : []), linkedWordRun(part, { size: 18 })]),
         spacing: { after: 80 }
       }));
     }
@@ -4396,6 +4410,10 @@
       for (const source of [motion.source, sd?.meta?.gremium?.source]) {
         if (!source?.label) continue;
         docDefinition.content.push({ ...linkedPdfRun({ text: source.label, href: reportLink(source.url) }), style: "motionNote" });
+      }
+      const councilSources = councilSourceRuns(sd);
+      if (councilSources.length) {
+        docDefinition.content.push({ text: councilSources.flatMap((part, i) => [...(i ? [" · "] : []), linkedPdfRun(part)]), style: "motionNote" });
       }
       const priorWork = motionPoliticalNote(sd, options, analysisAnnexNumber);
       if (priorWork.length) docDefinition.content.push({ text: priorWork.map(part => linkedPdfRun(part)), style: "motionNote" });

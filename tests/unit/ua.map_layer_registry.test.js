@@ -52,6 +52,16 @@ describe('map layer registry and map modes', () => {
     ]);
   });
 
+  test('requests the LGLN imagery layer advertised by the WMS and credits the year of access', () => {
+    const [source] = UA.resolveRegionalOrthophotoCandidates('Hannover');
+    expect(source.id).toBe('niedersachsen-orthophoto');
+    const layer = UA.createMapLayer(source);
+    expect(layer.opts.layers).toBe('ni_dop20');
+    expect(layer.opts.attribution).toContain('LGLN (' + new Date().getFullYear() + ')');
+    expect(layer.opts.attribution).toContain('https://creativecommons.org/licenses/by/4.0/');
+    expect(source.license).toContain('CC BY 4.0');
+  });
+
   test('applies hybrid mode with orthophoto and labels', () => {
     const config = document.createElement('meta');
     config.name = 'unfallwerkbank-carto-basemaps-key';

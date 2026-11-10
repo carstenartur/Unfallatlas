@@ -101,15 +101,17 @@
       layerType: 'orthophoto',
       technicalType: 'WMS',
       url: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms',
-      layers: 'dop20',
+      layers: 'ni_dop20',
       format: 'image/png',
       transparent: false,
       minZoom: 0,
       maxZoom: 20,
       projection: 'EPSG:3857',
       scope: 'state:ni',
-      attribution: 'Quelle: LGLN Niedersachsen',
-      license: 'Datenlizenz Deutschland – Namensnennung – Version 2.0',
+      // LGLN requires the year of access in the credit, independently of the flight date.
+      attribution: 'LGLN (' + new Date().getFullYear() + ')',
+      license: 'CC BY 4.0',
+      licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
       metadataUrl: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms?SERVICE=WMS&REQUEST=GetCapabilities',
       officialForExport: true,
       usageConstraint: 'Für amtliche Berichte geeignet',
@@ -231,7 +233,9 @@
     } else {
       setDefinedOption(options, 'maxZoom', INTERACTIVE_MAX_ZOOM);
     }
-    setDefinedOption(options, 'attribution', definition.attribution);
+    setDefinedOption(options, 'attribution', definition.licenseUrl
+      ? `${definition.attribution} · <a href="${definition.licenseUrl}">${definition.license}</a>`
+      : definition.attribution);
     setDefinedOption(options, 'pane', definition.pane);
     return options;
   }

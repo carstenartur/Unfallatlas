@@ -27,6 +27,19 @@ describe('UA.aiPoliticalReferenceBridge', () => {
     jest.restoreAllMocks();
   });
 
+  test('preserves a confirmed network name in the report title and digest', async () => {
+    const ctx = {};
+    const title = 'Sichere Querung Teststraße / Parkweg';
+    installWith({ ctx, state: {}, report: { text: title, structured: {
+      meta: { areaName: 'Teststraße / Parkweg', city: 'Hannover' },
+      siteNetwork: { status: 'available', site: { id: 'j:17', revision: 'test' }, label: 'Teststraße / Parkweg' },
+    } } });
+    const report = await window.UA.computeExportReport(ctx);
+    expect(report.structured.meta.areaName).toBe('Teststraße / Parkweg');
+    expect(report.structured.meta.areaNameQuality.source).toBe('review-network');
+    expect(report.text).toBe(title);
+  });
+
   test('copies suitable political proceedings into structured.references for the server AI', async () => {
     const ctx = { __uaPoliticalResearchPromise: Promise.resolve() };
     const state = {

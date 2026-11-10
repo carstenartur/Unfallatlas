@@ -251,25 +251,48 @@
       history.append(item);
     }
     const details = el('details');
-    details.append(el('summary', '', 'Dokumentierte Änderungen'), history);
+    details.append(el('summary', '', changes.some(change => change.kind === 'council-decision') ? 'Beschlüsse und Umsetzungsstand' : 'Dokumentierte Änderungen'), history);
     container.append(details);
   }
 
-  function exposureText(points) {
+  function exposureText(points, query) {
     const modes = { motor_vehicle: 'Kfz', bicycle: 'Rad', pedestrian: 'Fuß' };
     const counts = new Set();
     const models = new Set();
+    const observations = new Map();
     let proxy = false;
     for (const { props } of points) {
       proxy ||= props?.traffic_measurement_type === 'proxy';
       const mode = props?.traffic_evidence?.observation?.mode;
       if (!Object.hasOwn(modes, mode) || !UA.trafficProvider?.hasUsableTypedEvidence(props, { mode })) continue;
-      (props.traffic_measurement_type === 'count' ? counts : models).add(modes[mode]);
+      const observation = props.traffic_evidence.observation;
+      if (observation.year < (query.fromYear ?? 0) || observation.year > (query.toYear ?? Infinity)) continue;
+      const measured = props.traffic_measurement_type === 'count';
+      (measured ? counts : models).add(modes[mode]);
+      const id = JSON.stringify([observation.sourceId, observation.observationId]);
+      observations.set(id, [measured ? 'Messwert' : 'Modellwert', modes[mode], observation.year, observation.period,
+        number.format(observation.value) + ' ' + observation.unit, observation.direction, observation.sourceId].filter(Boolean).join(' · '));
     }
     const parts = [counts.size ? `Zugeordnete Zählwerte für ${[...counts].join(', ')}.` : 'Keine zugeordneten Verkehrszählwerte.'];
     if (models.size) parts.push(`Verkehrsmodell für ${[...models].join(', ')}.`);
     if (proxy) parts.push('OSM-Straßenklassen dienen der Einordnung.');
+    parts.push(...[...observations.values()].sort().slice(0, 5));
+    if (observations.size > 5) parts.push('Weitere Beobachtungen: ' + (observations.size - 5) + '.');
     return parts.join(' ');
+  }
+
+  function exposureChanged(ctx) {
+    const state = panels.get(ctx);
+    const selection = state?.selection;
+    if (!selection || !state.exposure?.isConnected) return;
+    const { site, points, areaPoints, bounds, query } = selection;
+    state.exposure.replaceChildren(el('p', '', exposureText(site ? points : (areaPoints || []), query)));
+    for (const station of UA.HannoverLayers?.stationReadings?.(ctx, bounds, query) || []) {
+      const line = el('p');
+      line.append(sourceLink(station.name, station.url), ' · ' + station.text + ' (VMZ, Station im Rechteck)');
+      state.exposure.append(line);
+    }
+    state.exposure.append(el('p', '', 'Ein Risiko je Fahrt erfordert das Verkehrsaufkommen für dieselben Wege, Verkehrsarten und Zeiträume. Einzelne Messwerte reichen dafür nicht aus.'));
   }
 
   function showSelection(ctx, state, selection) {
@@ -320,10 +343,21 @@
         + ' · ' + countText(pattern.points.length, 'Fall', 'Fälle')
         + ' · ' + countText(pattern.recentPoints.length, 'Fall', 'Fälle') + ' im jüngsten Jahr dieses Musters (' + pattern.recentYear + ')'
         + '. Violette Ringe kennzeichnen die Musterfälle.'));
+      if (ctx.ui?.btnOpenExport && !networkStatus) {
+        state.detail.append(button('Antragsentwurf für diese Stelle öffnen', () => ctx.ui.btnOpenExport.click()));
+      }
     } else if (!networkStatus) {
       state.detail.append(el('p', '', 'Für diese Auswahl ist kein wiederkehrendes Muster mit mindestens drei Fällen aus zwei Jahren belegt.'));
     }
-    state.detail.append(el('p', 'site-discovery-note', exposureText(site ? points : selection.areaPoints)));
+    if (site && ctx.reviewNetworkResult && UA.ReviewNetwork?.compareSites) {
+      const predicate = selection.query.mapFilters ? point => matchesMapFilters(ctx, point) : undefined;
+      const comparison = UA.ReviewNetwork.compareSites(ctx.reviewNetworkResult, site.id, selection.query, predicate);
+      const features = ctx.reviewNetworkResult.network.sites.get(site.id)?.crossingFeatures;
+      for (const line of UA.ReviewNetwork.comparisonLines(comparison, features)) state.detail.append(el('p', '', line));
+    }
+    state.exposure = el('div', 'site-discovery-note');
+    state.detail.append(state.exposure);
+    exposureChanged(ctx);
 
     state.history = el('div');
     renderHistory(state.history, changes);
@@ -470,6 +504,18 @@
     state.more.textContent = networkMode ? 'Weitere Netzstellen' : 'Weitere Prüfbereiche';
   }
 
+  function showCrossingCoverage(state, network) {
+    const available = Number.isInteger(network.documentedCrossings) && network.documentedCrossings > 0;
+    for (const option of state.networkKind.options) {
+      if (['unlit', 'unmarked'].includes(option.value)) option.disabled = !available;
+    }
+    if (!state.crossingCoverage) return;
+    state.crossingCoverage.textContent = available
+      ? 'Für ' + number.format(network.documentedCrossings) + ' von ' + number.format(network.counts.crossing)
+        + ' Querungen liegen einzelne OSM-Merkmale vor. Fehlende Angaben sind unbekannt.'
+      : 'Für diese Netzrevision sind derzeit keine zusätzlichen Querungsmerkmale geladen.';
+  }
+
   function updateNetwork(ctx, state, allowLoad) {
     const complete = ctx.accidentDataCoverage?.complete === true;
     if (complete && allowLoad && !state.networkRequest && UA.ReviewNetwork?.load) {
@@ -480,6 +526,12 @@
         if (state.networkRequest !== request || ctx.CITY_RAW !== city) return null;
         state.network = network || null;
         dataChanged(ctx);
+        network?.crossingContextReady?.then(() => {
+          if (state.network !== network || ctx.CITY_RAW !== city) return;
+          if (ctx.discoveryFocus?.site && state.selection) restoreNetworkSelection(ctx, state, ctx.discoveryFocus, false);
+          showCrossingCoverage(state, network);
+          if (!state.panel.hidden && state.mode.value === 'network') refreshCandidates(ctx, state);
+        });
         return ctx.reviewNetworkResult || null;
       });
     }
@@ -506,7 +558,9 @@
       const source = el('p', 'site-discovery-note');
       source.append(countText(network.sites.size, 'Netzstelle', 'Netzstellen') + ' · ',
         sourceLink(network.source.label, network.source.url), ' · ' + sourceDate(network.source.date));
-      state.networkMeta.append(coverage, source);
+      state.crossingCoverage = el('p', 'site-discovery-note');
+      state.networkMeta.append(coverage, source, state.crossingCoverage);
+      showCrossingCoverage(state, network);
     }
     return true;
   }
@@ -629,6 +683,7 @@
     const mode = selectControl('siteDiscoveryMode', 'Suchmodus', [['areas', 'Prüfbereiche'], ['network', 'Netzregister']]);
     const networkKind = selectControl('siteDiscoveryNetworkKind', 'Netztyp', [
       ['all', 'Alle'], ...['junction', 'crossing', 'segment'].map(kind => [kind, kindLabels[kind]]),
+      ['unlit', 'Querung · unbeleuchtet (OSM)'], ['unmarked', 'Querung · ohne Markierung (OSM)'],
     ]);
     const networkGrid = el('div', 'site-discovery-criteria');
     networkGrid.append(mode.wrapper, networkKind.wrapper);
@@ -734,5 +789,5 @@
     }
   }
 
-  UA.SiteDiscoveryUI = Object.freeze({ bind, selectCluster, selectionChanged, dataChanged });
+  UA.SiteDiscoveryUI = Object.freeze({ bind, selectCluster, selectionChanged, dataChanged, exposureChanged });
 })();

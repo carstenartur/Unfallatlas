@@ -169,6 +169,12 @@ test('local VMZ import deduplicates stations and displays the latest reported ze
     .toBe('https://www.vmz-niedersachsen.de/region-hannover/radzaehler/wheel-counter-123/');
   expect(UA.DataResources.fetchJson).not.toHaveBeenCalled();
 
+  const bounds = { south: 52.35, north: 52.37, west: 9.70, east: 9.72 };
+  expect(UA.HannoverLayers.stationReadings(ctx, bounds, { fromYear: 2026, toYear: 2026 }))
+    .toEqual([expect.objectContaining({ name: station.properties.name, text: expect.stringMatching(/25\.10\.2026.*0/) })]);
+  expect(UA.HannoverLayers.stationReadings(ctx, bounds, { toYear: 2025 })).toEqual([]);
+  expect(UA.HannoverLayers.stationReadings(ctx, { ...bounds, west: 9.72 }, {})).toEqual([]);
+
   toggle(control, 'bikeCounts');
   expect(markers()).toHaveLength(0);
   toggle(control, 'bikeCounts');

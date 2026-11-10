@@ -120,7 +120,7 @@
         : focus.length
           ? 'Explorative Abweichung in der Beteiligungsmuster-Zusammensetzung; kein räumlicher oder amtlicher Unfallschwerpunkt ist belegt.'
           : 'Keine belastbare lokale Abweichung der Beteiligungsmuster erkennbar; räumliche und amtliche Einstufungen sind gesondert zu prüfen.';
-    return { ...deepSafe(obj(summary)), classification, urgency: significant ? 'Zeitnahe fachliche Prüfung empfohlen; aus dem Zusammensetzungsbefund folgt noch keine konkrete Ursache oder Maßnahme.' : 'Beobachtung und fachliche Prüfung nach Datenlage; keine automatische Maßnahmenfreigabe.' };
+    return { ...deepSafe(obj(summary)), classification: structured?.motion?.discoveryEvidence && summary?.selectedHeading || classification, urgency: significant ? 'Zeitnahe fachliche Prüfung empfohlen; aus dem Zusammensetzungsbefund folgt noch keine konkrete Ursache oder Maßnahme.' : 'Beobachtung und fachliche Prüfung nach Datenlage; keine automatische Maßnahmenfreigabe.' };
   }
   function safeReport(report) {
     if (!report || typeof report !== 'object') return report;

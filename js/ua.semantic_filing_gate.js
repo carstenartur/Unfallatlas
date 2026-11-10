@@ -501,13 +501,14 @@
     return value.split(before).join(after);
   }
 
-  function normalisedSummaryBullets(bullets, classification) {
-    const supported = classification.patternComposition === 'supported-anomaly';
+  function normalisedSummaryBullets(bullets, rows) {
     return list(bullets).map(value => {
       const text = clean(value);
       if (!/^Schwerpunktmuster\b/i.test(text)) return text;
       const remainder = text.replace(/^Schwerpunktmuster\s*/i, '').replace(/\.$/, '');
-      const prefix = supported
+      const label = remainder.split(':')[0].trim();
+      const matching = rows.filter(row => [row.textLabel, row.label].some(value => value && clean(value) === label));
+      const prefix = matching.length === 1 && rowIsSignificant(matching[0])
         ? 'Signifikante Abweichung der Musterzusammensetzung'
         : 'Explorative Abweichung der Musterzusammensetzung';
       return `${prefix} ${remainder}; Anteilvergleich, keine absolute Unfallrate.`;
@@ -541,8 +542,8 @@
     const classification = semantic.classification;
     const nextSummary = {
       ...previousSummary,
-      classification: semantic.recommendedExecutiveSummary,
-      bullets: normalisedSummaryBullets(previousSummary.bullets, classification),
+      classification: sourceStructured.motion?.discoveryEvidence && previousSummary.selectedHeading || semantic.recommendedExecutiveSummary,
+      bullets: normalisedSummaryBullets(previousSummary.bullets, focusRows(report)),
       urgency: recommendedUrgency(classification),
     };
 

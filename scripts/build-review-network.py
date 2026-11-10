@@ -20,10 +20,12 @@ import math
 import os
 from pathlib import Path
 import re
+import sys
 from tempfile import TemporaryDirectory
 from xml.etree import ElementTree
 
 
+MOBILITY_DATA = Path(__file__).resolve().parents[1] / 'data/mobility'
 SCHEMA_VERSION = 1
 MAX_PART_BYTES = 160 * 1024
 ROWS_PER_PART = 4000
@@ -271,9 +273,31 @@ def clean_label(text):
     return ' '.join(text.split())[:160]
 
 
+def crossing_features(tags):
+    markings = tags.get('crossing:markings')
+    crossing = tags.get('crossing')
+    features = []
+    if markings == 'no' or (not markings and crossing == 'unmarked'):
+        features.append('unmarked')
+    elif markings in ('yes', 'zebra', 'lines', 'ladder') or (not markings and crossing == 'marked'):
+        features.append('marked')
+    if tags.get('lit') in ('yes', 'no'):
+        features.append('lit' if tags['lit'] == 'yes' else 'unlit')
+    if tags.get('crossing:signals') == 'no':
+        features.append('unsignalled')
+    elif tags.get('crossing:signals') == 'yes' or (not tags.get('crossing:signals') and crossing == 'traffic_signals'):
+        features.append('signals')
+    if tags.get('crossing:island') == 'no':
+        features.append('noisland')
+    elif tags.get('crossing:island') == 'yes' or (not tags.get('crossing:island') and crossing == 'island'):
+        features.append('island')
+    return features
+
+
 def read_osm(path):
     nodes = Nodes()
     crossing_nodes = set()
+    features_by_element = {}
     roads = {}
     crossing_ways = {}
     open_osm = gzip.open if path.suffix == '.gz' else open
@@ -290,8 +314,13 @@ def read_osm(path):
                     node_id = int(element.attrib['id'])
                     if node_id > 0:
                         nodes.add(node_id, float(element.attrib['lon']), float(element.attrib['lat']))
-                        if len(element) and node_is_crossing({tag.get('k'): tag.get('v') for tag in element}):
-                            crossing_nodes.add(node_id)
+                        if len(element):
+                            tags = {tag.get('k'): tag.get('v') for tag in element}
+                            if node_is_crossing(tags):
+                                crossing_nodes.add(node_id)
+                                features = crossing_features(tags)
+                                if features:
+                                    features_by_element[f'c:n:{node_id}'] = features
                 elif element.tag == 'way':
                     tags = {tag.get('k'): tag.get('v') for tag in element if tag.tag == 'tag'}
                     is_crossing = way_is_crossing(tags)
@@ -304,8 +333,11 @@ def read_osm(path):
                                 roads[way_id] = refs, clean_label(tags.get('name') or tags.get('ref') or '')
                             else:
                                 crossing_ways[way_id] = refs
+                                features = crossing_features(tags)
+                                if features:
+                                    features_by_element[f'c:w:{way_id}'] = features
             root.clear()
-    return nodes, roads, crossing_nodes, crossing_ways
+    return nodes, roads, crossing_nodes, crossing_ways, features_by_element
 
 
 def known_runs(refs, nodes):
@@ -426,11 +458,15 @@ def segment_sites(runs, roads, junctions, boundary):
                         yield [f'{span_id}:{fragment_no}:{piece_no}', 'segment', label, [str(way_id)], coordinates]
 
 
-def crossing_sites(crossing_nodes, crossing_ways, nodes, road_nodes, roads, boundary):
+def crossing_sites(crossing_nodes, crossing_ways, nodes, road_nodes, roads, boundary, features_by_element):
+    way_features = defaultdict(set)
     point_ways = {ref: set() for ref in crossing_nodes if boundary.covers(nodes.get(ref))}
     for way_id, refs in crossing_ways.items():
         anchors = {ref for ref in refs if ref in road_nodes or ref in point_ways}
         if anchors:
+            # A way crossing several road nodes does not identify which crossing carries its tags.
+            if len(anchors) == 1:
+                way_features[next(iter(anchors))].update(features_by_element.get(f'c:w:{way_id}', []))
             for ref in anchors:
                 point_ways.setdefault(ref, set()).add(way_id)
             continue
@@ -442,6 +478,16 @@ def crossing_sites(crossing_nodes, crossing_ways, nodes, road_nodes, roads, boun
                 yield [f'c:w:{way_id}:{fragment_no}', 'crossing', 'Querung', [str(way_id)],
                        flat_coordinates([midpoint(fragment)])]
     for node_id, crossing_ids in point_ways.items():
+        site_id = f'c:n:{node_id}'
+        if way_features.get(node_id):
+            tags = way_features[node_id].union(features_by_element.get(site_id, []))
+            merged = []
+            for alternatives in [('unmarked', 'marked'), ('lit', 'unlit'),
+                                 ('signals', 'unsignalled'), ('island', 'noisland')]:
+                agreed = tags.intersection(alternatives)
+                if len(agreed) == 1:
+                    merged.extend(agreed)
+            features_by_element[site_id] = merged
         street_ids = road_nodes.get(node_id, set())
         label = named_roads(street_ids, roads, 'Querung')
         yield [f'c:n:{node_id}', 'crossing', label, [str(i) for i in sorted(street_ids | crossing_ids)],
@@ -449,15 +495,22 @@ def crossing_sites(crossing_nodes, crossing_ways, nodes, road_nodes, roads, boun
 
 
 def network_sites(osm, boundary):
-    nodes, roads, crossing_nodes, crossing_ways = read_osm(osm)
+    nodes, roads, crossing_nodes, crossing_ways, features_by_element = read_osm(osm)
     runs, road_nodes, junctions = road_topology(roads, nodes, boundary)
     sites = list(segment_sites(runs, roads, junctions, boundary))
     for node_id in junctions:
         way_ids = road_nodes[node_id]
         sites.append([f'j:{node_id}', 'junction', named_roads(way_ids, roads, 'Knotenpunkt'),
                       [str(i) for i in sorted(way_ids)], flat_coordinates([nodes.get(node_id)])])
-    sites.extend(crossing_sites(crossing_nodes, crossing_ways, nodes, road_nodes, roads, boundary))
-    return sorted(sites, key=lambda row: row[0])
+    sites.extend(crossing_sites(crossing_nodes, crossing_ways, nodes, road_nodes, roads, boundary, features_by_element))
+    sites.sort(key=lambda row: row[0])
+    features = {}
+    for site_id, kind, *_ in sites:
+        if kind == 'crossing':
+            key = site_id.rsplit(':', 1)[0] if site_id.startswith('c:w:') else site_id
+            if features_by_element.get(key):
+                features[site_id] = features_by_element[key]
+    return sites, features
 
 
 def part_payloads(rows, revision):
@@ -519,6 +572,8 @@ def publish_network(output, stage, index):
         destination = output / index['city']
         destination.mkdir(exist_ok=True)
         filenames = [f'{part}.json.gz' for part in index['parts']] + ['index.json']
+        if index.get('crossingContext'):
+            filenames.append('crossings.json.gz')
         files = [(stage / filename, destination / filename) for filename in filenames]
         replace_outputs(stage, files + [(stage / 'catalog.json', catalog_file)])
         for old in destination.glob('*.json.gz'):
@@ -529,7 +584,7 @@ def publish_network(output, stage, index):
         os.close(descriptor)
 
 
-def write_network(output, city, source, boundary_source, sites):
+def write_network(output, city, source, boundary_source, sites, features, case_history):
     counts = dict.fromkeys(('segment', 'junction', 'crossing'), 0)
     counts.update(Counter(site[1] for site in sites))
     if not counts['segment']:
@@ -550,9 +605,36 @@ def write_network(output, city, source, boundary_source, sites):
                 (stage / f'{parts[-1]}.json.gz').write_bytes(payload)
         index = {'schemaVersion': SCHEMA_VERSION, 'city': city, 'revision': revision,
                  'source': source, 'boundarySource': boundary_source, 'parts': parts, 'counts': counts}
+        if case_history:
+            index['caseHistory'] = case_history
+        if features:
+            index['crossingContext'] = True
+            payload = packed_json({'revision': revision, 'features': features})
+            (stage / 'crossings.json.gz').write_bytes(gzip.compress(payload, mtime=0))
         (stage / 'index.json').write_bytes(packed_json(index) + b'\n')
         publish_network(output, stage, index)
     return index
+
+
+def network_case_history(path, sites):
+    if not path.is_file():
+        return []
+    geometry = {site[0]: site[4] for site in sites}
+    history = []
+    seen = set()
+    for area in json.loads(path.read_text(encoding='utf-8')):
+        binding = area.get('networkSite')
+        if not binding:
+            continue
+        site_id = binding['id']
+        if site_id not in geometry or geometry[site_id] != binding['coordinates']:
+            print(f'Skipping case history for changed or removed network site {site_id}', file=sys.stderr)
+            continue
+        if site_id in seen:
+            raise ValueError(f'Duplicate case history for network site {site_id}')
+        seen.add(site_id)
+        history.append({'id': site_id, 'coordinates': geometry[site_id], 'changes': area['changes']})
+    return history
 
 
 def main():
@@ -560,7 +642,8 @@ def main():
     parser.add_argument('--city', required=True, help='Unfallwerkbank city key, for example frankfurt_am_main')
     parser.add_argument('--osm', type=Path, required=True, help='Local OSM XML snapshot (.osm or .osm.gz)')
     parser.add_argument('--boundary', type=Path, required=True, help='City or district boundary GeoJSON')
-    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'data/mobility/review-network')
+    parser.add_argument('--output', type=Path, default=MOBILITY_DATA / 'review-network')
+    parser.add_argument('--site-history', type=Path, help='Optional reviewed discovery sites for this city')
     parser.add_argument('--source-label', default='© OpenStreetMap contributors (ODbL 1.0)')
     parser.add_argument('--source-url', required=True, help='OSM extract download URL')
     parser.add_argument('--source-license-url', default=OSM_LICENSE)
@@ -589,8 +672,12 @@ def main():
                            'sha256': hashlib.sha256(boundary_bytes).hexdigest()}
         if not all(boundary_source.values()):
             parser.error('Boundary source label, URL and license URL are required in GeoJSON or via flags')
-        sites = network_sites(args.osm, Boundary(geojson))
-        index = write_network(args.output, args.city, source, boundary_source, sites)
+        sites, features = network_sites(args.osm, Boundary(geojson))
+        history_file = args.site_history or (MOBILITY_DATA / f'{args.city}-discovery-sites.json')
+        if args.site_history and not history_file.is_file():
+            raise ValueError(f'Site history not found: {history_file}')
+        history = network_case_history(history_file, sites)
+        index = write_network(args.output, args.city, source, boundary_source, sites, features, history)
     except (OSError, ValueError, KeyError, ElementTree.ParseError) as error:
         parser.error(str(error))
     print(packed_json(index).decode('utf-8'))

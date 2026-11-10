@@ -137,6 +137,7 @@ test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennunge
     intro: 'Die Verwaltung wird gebeten, innerhalb von drei Monaten zu berichten.',
     requests: ['Schienenquerungen und Sichtbeziehungen örtlich untersuchen.', 'Zeitplan und Wirkungskontrolle vorlegen.'],
     rationale: 'Die kodierten Unfallarten begründen eine Prüfung am Knoten.',
+    priorWork: [{ label: 'Bezirksratsbeschluss zum Fußweg', number: '1/2023', date: '2023-12-04', url: 'https://example.test/ris/123' }],
   };
   await window.UA.exportToWord({ CITY_RAW: 'Hannover' }, data);
   const blob = window.saveAs.mock.calls[0][0];
@@ -148,6 +149,12 @@ test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennunge
   expect(firstAnnexIndex).toBeGreaterThan(0);
   const front = xml.slice(0, firstAnnexIndex);
   expect(front).toMatch(/Beschlussvorschlag[\s\S]+Schienenquerungen und Sichtbeziehungen örtlich untersuchen\.[\s\S]+Begründung[\s\S]+Die kodierten Unfallarten/);
+  expect(front).toContain('DS 1/2023 (04.12.2023)');
+  expect(rels).toContain('Target="https://example.test/ris/123"');
+  const pdf = await exportPdf(loadReport(), data);
+  const pdfFront = pdf.content.slice(0, pdf.content.findIndex(node => node.text === 'Anlage 1 – Vollständige Unfallliste'));
+  expect(pdfFront.flatMap(node => Array.isArray(node.text) ? node.text.map(run => run.link) : [])).toContain('https://example.test/ris/123');
+  expect(visibleText(pdfFront)).toContain('04.12.2023');
   expect(front).toContain('53 Unfälle mit Personenschaden');
   expect(front).toContain('Suchfilter heben davon 45 hervor');
   expect(front).not.toMatch(/Die sichere Querung untersuchen|Rahmendaten|Aktive Filter|A001/);

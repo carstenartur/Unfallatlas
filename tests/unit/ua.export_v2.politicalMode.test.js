@@ -85,6 +85,18 @@ describe('political-mode + summary helpers', () => {
       expect(es.urgency).toMatch(/Beobachtungsmodus/);
     });
 
+    test('qualifies the reported factor according to its own row before any render adapters run', () => {
+      const structured = {
+        deviations: { focus: [
+          { factor: 1.68, isSignificant: false, textLabel: 'Pkw + Krad' },
+          { factor: 1.64, isSignificant: true, textLabel: 'Pkw' },
+        ] },
+        severity: { total: 74, bySev: { '3': 74 } },
+      };
+      const summary = UA.buildExecutiveSummary(structured, { mode: 'technical' });
+      expect(summary.bullets[1]).toMatch(/^Explorative Abweichung.*Pkw \+ Krad/);
+    });
+
     test('political-mode bullet uses the factor band wording', () => {
       const structured = {
         deviations: { focus: [{ factor: 2.0, isSignificant: true, mask: 1, textLabel: '[Rad]' }] },

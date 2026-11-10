@@ -27,13 +27,13 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each([
-    'js/ua.context_road_layer.js', 'js/ua.hannover_layers.js', 'js/ua.map_scene_url_codec.js', 'js/ua.tour.js',
+    'js/ua.context_road_layer.js', 'js/ua.map_scene_url_codec.js', 'js/ua.tour.js',
   ])('%s refreshes the mobility layers and compact map controls', asset => {
     expect(html).toContain(`${asset}?v=2026-11-09-mobility"`);
   });
 
-  test('refreshes the CARTO registry', () => {
-    expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-10-carto"');
+  test('refreshes the map registry with the verified LGLN imagery layer', () => {
+    expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-10-lgln"');
   });
 
   test('site discovery is available from the ordinary Werkbank entry point', () => {
@@ -46,6 +46,11 @@ describe('Werkbank deployment asset versions', () => {
     }
     expect(scripts.indexOf('js/ua.site_discovery.js')).toBeLessThan(scripts.indexOf('js/ua.report_v2.js'));
     expect(scripts.indexOf('js/ua.facility_context.js')).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
+  });
+
+  test.each(['ua.bootstrap', 'ua.data_paths', 'ua.site_discovery', 'ua.review_network', 'ua.site_discovery_ui', 'ua.hannover_layers', 'ua.export_v2', 'ua.report_v2'])
+  ('%s loads the local evidence and motion update', asset => {
+    expect(html).toContain('js/' + asset + '.js?v=2026-11-10-site-evidence"');
   });
 
   test('loads optional review-network support before site selection and document export', () => {
@@ -63,7 +68,7 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`js/${asset}.js?v=2026-11-10-site-discovery"`);
   });
 
-  test.each(['ua.state', 'ua.data_paths', 'ua.ui', 'ua.review_network', 'ua.site_discovery_ui', 'ua.export_v2', 'ua.report_v2'])
+  test.each(['ua.state', 'ua.ui'])
   ('%s refreshes the optional review network', asset => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-10-review-network"');
   });
@@ -105,7 +110,7 @@ describe('Werkbank deployment asset versions', () => {
   test('lazy AI political evidence refreshes the confirmed research context', () => {
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.ai_political_evidence.js?v=2026-11-08-area-research');
-    expect(paths).toContain('js/ua.ai_political_reference_bridge.js?v=2026-11-08-method-limits');
+    expect(paths).toContain('js/ua.ai_political_reference_bridge.js?v=2026-11-10-site-evidence');
   });
 
   test('loads the RIS URL and document views with the traffic-situation contract', () => {

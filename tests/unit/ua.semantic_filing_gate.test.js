@@ -415,3 +415,20 @@ describe('semantic filing preflight', () => {
     expect(UA.computeExportReport).toBe(reportAdapter);
   });
 });
+
+test('the significance of a different row cannot be attributed to the largest factor', () => {
+  const UA = loadGate();
+  const top = 'Schwerpunktmuster Pkw + Krad: Faktor 1,68.';
+  const next = 'Schwerpunktmuster Pkw: Faktor 1,64.';
+  const raw = facts({
+    focus: [
+      { mask: 12, textLabel: 'Pkw + Krad', factor: 1.68, isSignificant: false },
+      { mask: 4, textLabel: 'Pkw', factor: 1.64, isSignificant: true },
+    ],
+    bullets: [top, next],
+  });
+  const report = UA.semanticFilingGate.normaliseReport({ ...raw, text: top + '\n' + next });
+  expect(report.structured.executiveSummary.bullets[0]).toMatch(/^Explorative Abweichung.*Pkw \+ Krad/);
+  expect(report.structured.executiveSummary.bullets[1]).toMatch(/^Signifikante Abweichung.*Pkw:/);
+  expect(report.text).toContain(report.structured.executiveSummary.bullets[0]);
+});

@@ -247,6 +247,7 @@
     const yt = (structured && structured.yearlyTrend) || null;
     const top = focus[0] || null;
     const total = sev.total || 0;
+    const selection = structured?.motion?.discoveryEvidence;
 
     // 1) Klassifikation: Unfallschwerpunkt? Wir definieren hier:
     //    - "auffälliger Unfallschwerpunkt" wenn ein Fokus-Muster mit
@@ -270,11 +271,18 @@
     // 2) Bullets (2–4): aus existierenden Feldern. Bei dünner Datenlage
     //    weniger Bullets statt "k. A."-Bullets (Open-Question-Default).
     const bullets = [];
-    bullets.push(`Insgesamt ${total} polizeilich erfasste Unfälle mit Personenschaden im markierten Bereich.`);
+    if (selection) {
+      const cases = selection.count === 1 ? "1 Fall" : `${selection.count} Fälle`;
+      bullets.push(selection.site ? `${cases} des gewählten Musters am Netzobjekt räumlich zugeordnet.`
+        : `${cases} des gewählten Musters im markierten Bereich.`);
+    }
+    bullets.push(selection ? `Unter den Auswertungsfiltern sind im markierten Gebiet insgesamt ${total} Unfälle mit Personenschaden erfasst.`
+      : `Insgesamt ${total} polizeilich erfasste Unfälle mit Personenschaden im markierten Bereich.`);
     if (top && Number.isFinite(top.factor)) {
       const factorPhrase = formatFactorPolitical(top.factor, { mode });
       const lbl = top.textLabel || top.label || "auffälliges Muster";
-      bullets.push(`Schwerpunktmuster ${lbl}: ${factorPhrase}.`);
+      const strength = top.isSignificant === true ? "Signifikante" : "Explorative";
+      bullets.push(`${strength} Abweichung der Musterzusammensetzung ${lbl}: ${factorPhrase}. Verglichen werden die Anteile im Gebiet und in der Stadt.`);
     }
     if (yt && yt.classification) {
       const tq = trendQualifierText(yt.classification);
@@ -301,7 +309,9 @@
       urgency = "Beobachtungsmodus – regelmäßige Auswertung mit Unfallatlas-Daten.";
     }
 
-    return { classification, bullets: limited, urgency };
+    const selectedHeading = selection ? `Prüfmuster für ${selection.place}: ${selection.label}.` : null;
+    return { classification: selectedHeading || classification, bullets: limited, urgency,
+      ...(selectedHeading ? { selectedHeading } : {}) };
   }
   UA.buildExecutiveSummary = buildExecutiveSummary;
 
@@ -1526,6 +1536,111 @@
     };
   }
 
+  const PATTERN_EXAMINATIONS = {
+    turning: {
+      check: "Unfallskizzen mit den Abbiegebeziehungen, den Sichtfeldern und, falls vorhanden, den Signalphasen am Unfallort abgleichen.",
+      options: "Bei bestätigtem Konflikt freie Sicht und eine veränderte Führung vergleichen. An signalisierten Stellen auch eine zeitliche Trennung der betroffenen Verkehrsströme untersuchen.",
+    },
+    1: {
+      check: "Aus den Unfallskizzen Fahrwege und Kontrollverlust rekonstruieren. Belag, Linienführung und Zustand zum Unfallzeitpunkt ermitteln.",
+      options: "Bei übereinstimmenden Ortsbefunden eine Instandsetzung des Belags mit einer Änderung der Führung vergleichen.",
+    },
+    4: {
+      check: "Anhand der Unfallskizzen die Querungswege und Sichtbeziehungen ermitteln. Querungsbedarf, Wartezeiten und tatsächlich nutzbare Lücken vor Ort erheben.",
+      options: "Für den belegten Querungsbedarf bessere Sicht, eine kürzere Querung oder eine gesicherte Querungsstelle vergleichen.",
+    },
+    5: {
+      check: "Unfallskizzen, Parkvorgänge sowie die zum Unfallzeitpunkt zulässigen Halte- und Lieferbereiche abgleichen.",
+      options: "Wenn Halten oder Parken den Konflikt mitbestimmt, eine andere Lage der Stell- und Lieferflächen und mehr seitlichen Abstand vergleichen.",
+    },
+    6: {
+      check: "Fahrtrichtungen, Fahrtstreifen und Abstände anhand der Unfallskizzen rekonstruieren. Vor Ort Geschwindigkeiten und Seitenabstände erheben.",
+      options: "Je nach belegtem Hergang eine geänderte Fahrstreifenführung und Anpassungen der Geschwindigkeiten vergleichen.",
+    },
+    7: {
+      check: "Die Unfallskizzen einzeln auswerten und feststellen, ob sich trotz der Sammelkategorie ein gemeinsamer Hergang belegen lässt.",
+      options: "Erst bei einem belegten gemeinsamen Konflikt passende betriebliche und bauliche Varianten mit dem Bestand vergleichen.",
+    },
+  };
+
+  function isCouncilRecord(change) {
+    return change?.kind === "council-decision" || change?.kind === "implementation-status";
+  }
+
+  function motionCouncilRecords(site) {
+    if (site?.status !== "available" || !Array.isArray(site.changes)) return [];
+    return site.changes
+      .filter(change => isCouncilRecord(change) && change.precision === "documented-by" && UA.SiteDiscovery.validChange(change))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function councilRecordDate(record) {
+    return record.date.split("-").reverse().join(".");
+  }
+
+  function councilReview(siteNetwork) {
+    const priorWork = motionCouncilRecords(siteNetwork);
+    const decisions = priorWork.filter(record => record.kind === "council-decision");
+    const lastStatus = priorWork.filter(record => record.kind === "implementation-status").at(-1);
+    const recordText = record => `${councilRecordDate(record)} – ${record.label.replace(/[.\s]+$/, "")}.`;
+    const statusText = lastStatus ? `Zuletzt dokumentierter Stand: ${recordText(lastStatus)}` : "";
+    const followUp = decisions.length ? [
+      ...decisions.map(recordText), statusText,
+      "Den aktuellen Planungs- und Umsetzungsstand zum Beschluss belegen. Für umgesetzte Schritte den Zeitpunkt und die Wirkung prüfen. Für ausstehende Schritte Zuständigkeit, Hindernisse und nächsten Termin benennen.",
+    ].filter(Boolean).join(" ") : null;
+    return { priorWork, followUp, statusText };
+  }
+
+  function councilStatusMotion(siteNetwork, review) {
+    if (!review.followUp) return null;
+    return {
+      intro: `Die Verwaltung wird gebeten, dem zuständigen Gremium innerhalb von drei Monaten zur Verkehrssicherheit an der Stelle „${siteNetwork.label}“ zu berichten.`,
+      requests: [review.followUp],
+      rationale: "Der frühere Beschluss und die dazu veröffentlichten Verwaltungsunterlagen begründen die Nachfrage nach dem heutigen Stand.",
+      priorWork: review.priorWork,
+      site: siteNetwork.site,
+    };
+  }
+
+  function discoveryMotion(focus, siteNetwork, areaName, gremium, rail, review) {
+    const { priorWork, statusText, followUp } = review;
+    if (!focus?.key || !focus.points?.length) return null;
+    const plan = PATTERN_EXAMINATIONS[focus.key.split(":")[0]];
+    if (!plan) return null;
+    const byYear = {};
+    const severity = {};
+    for (const point of focus.points) {
+      const year = UA.SiteDiscovery.yearOf(point);
+      if (year !== null) byYear[year] = (byYear[year] || 0) + 1;
+      const category = String(point.props.ukategorie);
+      if (["1", "2", "3"].includes(category)) severity[category] = (severity[category] || 0) + 1;
+    }
+    const count = focus.points.length;
+    const place = siteNetwork?.label || areaName || "markierter Untersuchungsbereich";
+    const years = Object.entries(byYear).map(([year, n]) => `${year} (${n})`).join(", ");
+    const countLabel = count === 1 ? "1 Fall" : `${count} Fälle`;
+    const scope = siteNetwork ? "am Netzobjekt räumlich zugeordnet" : "im markierten Bereich ausgewählt";
+    const finding = `Für das Muster „${focus.label}“ ${count === 1 ? "ist" : "sind"} ${countLabel} ${scope}. Fallzahlen je Jahr: ${years}.`;
+    const findings = Object.entries(severity).map(([key, n]) => `${n} mit ${{ 1: "Getöteten", 2: "Schwerverletzten", 3: "Leichtverletzten" }[key]}`);
+    const rationale = [finding, findings.length ? `Unfälle nach schwerster Folge: ${findings.join(", ")}.` : "",
+      rail?.rationale || "Welche Fahrwege und Konflikte den Einzelfällen zugrunde lagen, ist anhand der Unfallunterlagen und der damaligen örtlichen Situation zu prüfen."].filter(Boolean).join(" ");
+    return {
+      intro: `Die Verwaltung wird gebeten, für den Bereich „${place}“ das Unfallmuster „${focus.label}“ gemeinsam mit der Unfallkommission zu prüfen.`,
+      requests: [
+        ...(followUp ? [followUp] : []),
+        rail ? rail.requests[0] : plan.check,
+        (followUp ? "Bei weiterem Handlungsbedarf ergänzende Varianten prüfen. " : "") + plan.options,
+        (followUp ? "" : [statusText, "Vorbefassung und Planungen anhand der Originalunterlagen prüfen."].filter(Boolean).join(" ") + " ") +
+          "Mit Straßenverkehrsbehörde und Straßenbaulastträger für jede Variante Zuständigkeit, Kosten, Zielkonflikte und Zeitplan klären.",
+        `Innerhalb von drei Monaten ${gremium ? "an das Gremium „" + gremium + "“" : "an das zuständige Gremium"} berichten. Für die Wirkungskontrolle einen Vorher-Nachher-Vergleich mit gleicher Abgrenzung und gleichen Erhebungszeiten festlegen. Fälle des Musters, Verletzungsschwere und beobachtete Konflikte getrennt erfassen und Änderungen der Verkehrsmengen berücksichtigen.`,
+      ],
+      rationale,
+      ...(priorWork.length ? { priorWork } : {}),
+      source: rail?.source || { label: "Statistische Ämter des Bundes und der Länder – Unfallatlas", url: "https://www.statistikportal.de/de/karten/unfallatlas" },
+      discoveryEvidence: { key: focus.key, label: focus.label, count, byYear, severity, place, ...(siteNetwork ? { site: siteNetwork.site } : {}) },
+    };
+  }
+
   const DISCOVERY_NOTE = "Die Gruppierung beruht auf Beteiligung und Unfalltyp. Fahrbewegungen und Ursachen bleiben anhand der Einzelfälle zu prüfen.";
 
   function plainSelection(bounds) {
@@ -1562,6 +1677,7 @@
         status: 'available', site: active.site, label: row.label, kind: row.kind,
         bounds: markedArea, query: active.query, source: network.source, boundarySource: network.boundarySource,
         assignedCount: row.assignedCount, queryCount: row.count, mapCount: points.length, mappedPoints: points,
+        changes: row.changes, crossingFeatures: row.crossingFeatures, comparison: UA.ReviewNetwork.compareSites?.(result, active.site.id, active.query),
       },
     };
   }
@@ -1598,7 +1714,7 @@
     try {
       const sites = await UA.SiteDiscovery.loadSites(city);
       return sites.filter(site => site.bounds && (centerIn(site.bounds, area) || centerIn(area, site.bounds)))
-        .flatMap(site => site.changes || []);
+        .flatMap(site => site.changes || []).filter(change => !isCouncilRecord(change));
     } catch {
       return [];
     }
@@ -1746,7 +1862,8 @@
     // A confirmed name is user evidence for the whole selection, unlike a
     // reverse-geocoded midpoint. Resolve before HTML escaping/rendering.
     const explicitAreaName = String(ctx.areaNameOverride || ctx.confirmedAreaName || new URL(window.location.href).searchParams.get('areaName') || '').trim();
-    const areaName = explicitAreaName || `Markierter Untersuchungsbereich in ${CITY_RAW} (${bStr})`;
+    const selectedSiteName = siteNetwork?.status === "available" ? siteNetwork.label : null;
+    const areaName = explicitAreaName || selectedSiteName || `Markierter Untersuchungsbereich in ${CITY_RAW} (${bStr})`;
     const visualContextHints = buildVisualContextHints(ctx);
 
     // ---- Yearly trend (#C2): linear regression over per-year counts ----
@@ -1799,7 +1916,16 @@
         trackSource = await UA.contextMeasures?.findHannoverTrackSource?.([sw.lng, sw.lat, ne.lng, ne.lat]);
       }
     }
-    const railMotion = railCrossingMotion(ctx, filteredPts, trackSource, explicitAreaName || "des markierten Kartenausschnitts");
+    // A nearby rail line and a different crash elsewhere in the rectangle
+    // must never supply the resolution for the selected network or pattern.
+    const hasSelectionFocus = sameDiscoveryArea(ctx.discoveryFocus?.bounds, markedArea);
+    const motionFocus = markedArea && discoveryFocus?.key ? discoveryFocus : null;
+    const railPoints = motionFocus ? motionFocus.points : hasSelectionFocus ? [] : filteredPts;
+    const railMotion = railCrossingMotion(ctx, railPoints, trackSource, explicitAreaName || "des markierten Kartenausschnitts");
+    const review = councilReview(siteNetwork);
+    const focusedMotion = includeMeasures && motionFocus
+      ? discoveryMotion(motionFocus, siteNetwork, explicitAreaName, gremiumMatch.gremium, railMotion, review) : null;
+    const statusMotion = includeMeasures && !focusedMotion ? councilStatusMotion(siteNetwork, review) : null;
     const measureAssessmentNote = includeMeasures && !hasLocalOsm && !railMotion
       ? "Vor-Ort-Prüfung erforderlich. Der verfügbare Ortskontext reicht für eine belastbare Maßnahmenrangfolge aus dem Katalog nicht aus."
       : null;
@@ -1994,7 +2120,7 @@
     const tBesch = beschResult.content;
     const usesDefaultResolution = !tBesch || ["base_resolution", "beschluss"].some(name =>
       DEFAULT_TEMPLATES[name]?.trim() === tBesch.trim());
-    const motion = usesDefaultResolution ? railMotion : null;
+    const motion = usesDefaultResolution ? focusedMotion || statusMotion || railMotion : null;
     // PR-QA Task 8: Marker-Zeile aus dem internal-note-Template entfernen, damit
     // `[Interner Hinweis – vor Versand entfernen]` nicht im offiziellen Antrag landet.
     const tHinw = stripInternalMarkerHeader(hinwResult.content);
@@ -2028,14 +2154,20 @@
     if (motion) {
       lines.push("Beschlussvorschlag:", motion.intro,
         ...motion.requests.map((request, i) => `${i + 1}) ${request}`),
-        "", "Begründung:", motion.rationale, `${motion.source.label} (${motion.source.url})`, "");
+        "", "Begründung:", motion.rationale);
+      if (motion.source) lines.push(`${motion.source.label} (${motion.source.url})`);
+      if (motion.priorWork?.length) {
+        lines.push("Amtliche Vorbefassung am Netzobjekt", ...motion.priorWork.map(record =>
+          `${councilRecordDate(record)} – ${record.label} (${record.url})`));
+      }
+      lines.push("");
     }
 
     // Task 2 – KURZBEWERTUNG (Executive Summary). Build deterministically
     // from the structured fields we already computed; renders in TEXT/HTML/
     // DOCX/PDF as the first content block after the cover.
     const _executiveSummary = buildExecutiveSummary({
-      deviations: dev, severity: sev, yearlyTrend
+      deviations: dev, severity: sev, yearlyTrend, motion
     }, { mode: exportMode });
     lines.push("KURZBEWERTUNG:");
     lines.push("  " + _executiveSummary.classification);
@@ -2861,7 +2993,9 @@
           
         </div>
 
-        ${motion ? `<h3>Beschlussvorschlag</h3><p>${UA.escHtml(motion.intro)}</p><ol>${motion.requests.map(request => `<li>${UA.escHtml(request)}</li>`).join("")}</ol><p>${UA.escHtml(motion.rationale)}</p><p><a href="${UA.escHtml(motion.source.url)}" target="_blank" rel="noopener">${UA.escHtml(motion.source.label)}</a></p>` : ""}
+        ${motion ? `<h3>Beschlussvorschlag</h3><p>${UA.escHtml(motion.intro)}</p><ol>${motion.requests.map(request => `<li>${UA.escHtml(request)}</li>`).join("")}</ol><p>${UA.escHtml(motion.rationale)}</p>${motion.source ? `<p>${sourceLink(motion.source)}</p>` : ""}
+          ${motion.priorWork?.length ? `<p><strong>Amtliche Vorbefassung am Netzobjekt</strong></p><ul>${motion.priorWork.map(record =>
+            `<li>${sourceLink({ ...record, date: councilRecordDate(record) })}</li>`).join("")}</ul>` : ""}` : ""}
 
         <div style="margin-top:12px; padding:10px 12px; background:#f6f7fb; border-left:4px solid #2a4a8a; border-radius:4px;">
           <div style="font-weight:950; font-size:14px;">KURZBEWERTUNG</div>

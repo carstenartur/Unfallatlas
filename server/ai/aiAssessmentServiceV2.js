@@ -560,10 +560,16 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
 
   if (mode === 'proposal-brief') {
     const valueAdd = buildBlockedFallbackContract(aiInput, reason);
+    const motion = aiInput?.deterministicAnalysisDigest?.selectedSiteMotion;
+    const requests = list(motion?.requests).filter(request => typeof request === 'string' && request.trim());
+    const resolution = requests.length ? [motion.intro, ...requests].filter(Boolean).join(' ') : null;
+    const councilSources = list(motion?.priorWork).filter(record => record?.label && /^https?:\/\//i.test(record.url));
+    const sourcedRationale = [motion?.rationale, ...councilSources.map(record =>
+      `${record.label} (${record.date}, ${record.url})`)].filter(Boolean).join(' ');
     return {
       schemaVersion: 'proposalBrief.v1',
       title: `Verkehrssicherheitsprüfung im Bereich ${area}`.trim(),
-      shortVersion:
+      shortVersion: motion?.rationale ||
         `Im markierten Bereich wurden ${counts.total || 0} Unfälle mit Personenschaden dokumentiert. `
         + 'Die Verwaltung wird gebeten, das Unfallgeschehen, die räumliche Lage und mögliche Konfliktmechanismen fachlich und vor Ort zu prüfen sowie geeignete Optionen mit Erfolgskriterien vorzulegen.',
       longVersion:
@@ -572,14 +578,14 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
         + 'Die zuständige Verwaltung beziehungsweise Unfallkommission soll deshalb Unfalltypen, Lage, Infrastruktur und alternative Erklärungen prüfen, Optionen aus der Maßnahmenbibliothek bewerten und dem Gremium berichten.',
       sachverhalt:
         `Im markierten Bereich wurden im Auswertungszeitraum ${counts.total || 0} Unfälle erfasst.`,
-      begruendung:
+      begruendung: sourcedRationale ||
         'Das dokumentierte Unfallgeschehen und seine Schwere rechtfertigen einen nachvollziehbaren fachlichen Prüfauftrag.'
         + (patterns.length
           ? ` Deterministisch erkannte Konflikt- oder Prüfmuster: ${patterns.slice(0, 3).map(pattern => pattern.label).join('; ')}.`
           : ''),
-      beschlussvorschlag:
+      beschlussvorschlag: resolution ||
         'Die Verwaltung wird gebeten, das dokumentierte Unfallgeschehen verkehrssicherheitsfachlich zu untersuchen, geeignete Maßnahmen- und Prüfoptionen einschließlich Voraussetzungen und Erfolgskriterien zu bewerten und dem zuständigen Gremium zu berichten.',
-      pruefauftrag:
+      pruefauftrag: requests[0] ||
         'Befassung der Unfallkommission beziehungsweise zuständigen Fachstellen; Prüfung von Unfalltypen, räumlicher Lage, Infrastruktur, Gegenhypothesen und kurzfristig prüfbaren Optionen.',
       measureSummary: preselected.slice(0, 5).map(measure => ({
         id: measure.id,
@@ -614,7 +620,7 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
         : 'Das amtlich dokumentierte Unfallgeschehen begründet einen fachlichen Prüfauftrag.',
       whyEvidenceIsLimitedIfApplicable:
         'Unfallursachen, reale Geometrie, Verkehrsmenge und politische Vorbefassung sind im deterministischen Fallback nicht abschließend belegt.',
-      suggestedCouncilRequest:
+      suggestedCouncilRequest: resolution ||
         `Die Verwaltung wird gebeten, im Bereich ${area} das dokumentierte Unfallgeschehen fachlich zu untersuchen, Optionen zu bewerten und dem Gremium mit Evidenz, Voraussetzungen, Frist und Erfolgskriterien zu berichten.`,
       suggestedReviewOrder:
         'Prüfung des dokumentierten Unfallgeschehens durch Verwaltung und Unfallkommission; danach Bericht und Entscheidung im zuständigen Gremium.',

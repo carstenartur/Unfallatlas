@@ -10,6 +10,10 @@
   const MAX_SITES = 250000;
   const ID = /^[a-z0-9][a-z0-9:-]{0,95}$/;
   const REVISION = /^[a-z0-9][a-z0-9-]{7,63}$/;
+  const crossingLabels = Object.freeze({
+    unmarked: 'ohne Markierung', marked: 'mit Markierung', lit: 'beleuchtet', unlit: 'unbeleuchtet',
+    signals: 'mit Lichtsignalanlage', unsignalled: 'ohne Lichtsignalanlage', island: 'mit Mittelinsel', noisland: 'ohne Mittelinsel',
+  });
   const indexes = new WeakMap();
   let catalog;
 
@@ -51,6 +55,12 @@
       }
     }
     if (!sites.size || Object.keys(counts).some(kind => counts[kind] !== index.counts?.[kind])) return null;
+    for (const record of Array.isArray(index.caseHistory) ? index.caseHistory : []) {
+      const site = sites.get(record?.id);
+      if (!site || !Array.isArray(record.coordinates) || record.coordinates.length !== site.coordinates.length
+          || !site.coordinates.every((value, i) => value === record.coordinates[i])) continue;
+      if (Array.isArray(record.changes) && record.changes.every(UA.SiteDiscovery.validChange)) site.changes = record.changes;
+    }
     return { city, revision, sites, counts, source: index.source, boundarySource: index.boundarySource };
   }
 
@@ -80,7 +90,25 @@
       };
       return scheduler ? scheduler.run(readPart) : readPart();
     }));
-    return signal.aborted ? null : parseNetwork(city, revision, index, parts);
+    const network = signal.aborted ? null : parseNetwork(city, revision, index, parts);
+    if (network && index.crossingContext === true) {
+      // This enrichment is optional. A failed request must leave the street network usable.
+      network.crossingContextReady = UA.DataResources.fetchJson('reviewNetworkCrossings', { city }, { optional: true }).then(context => {
+        if (context?.revision !== revision || !context.features || typeof context.features !== 'object'
+            || Array.isArray(context.features)) return;
+        let documented = 0;
+        for (const [id, features] of Object.entries(context.features)) {
+          const site = network.sites.get(id);
+          if (site?.kind === 'crossing' && Array.isArray(features) && features.length > 0 && features.length <= 4
+              && features.every(value => typeof value === 'string' && Object.hasOwn(crossingLabels, value))) {
+            site.crossingFeatures = features;
+            documented++;
+          }
+        }
+        network.documentedCrossings = documented;
+      }).catch(() => {});
+    }
+    return network;
   }
 
   async function load(cityRaw) {
@@ -186,9 +214,9 @@
     const points = UA.SiteDiscovery.filterPoints(predicate ? assigned.filter(predicate) : assigned, query);
     return {
       id: site.id, label: site.label, kind: site.kind, bounds: site.bounds, coordinates: site.coordinates,
-      points, count: points.length, assignedCount: assigned.length,
+      crossingFeatures: site.crossingFeatures, points, count: points.length, assignedCount: assigned.length,
       severeCount: points.filter(point => ['1', '2'].includes(String(point.props?.ukategorie))).length,
-      pattern: UA.SiteDiscovery.patternForPoints(points), changes: [],
+      pattern: UA.SiteDiscovery.patternForPoints(points), changes: site.changes || [],
     };
   }
 
@@ -196,12 +224,51 @@
     const candidates = [];
     const ids = onlyEmpty ? result.network.sites.keys() : result.bySite.keys();
     for (const id of ids) {
-      if (kind !== 'all' && result.network.sites.get(id).kind !== kind) continue;
+      const site = result.network.sites.get(id);
+      if (kind !== 'all' && site.kind !== kind && !site.crossingFeatures?.includes(kind)) continue;
       const candidate = row(result, id, query);
       if (onlyEmpty ? candidate.count === 0 : candidate.count > 0) candidates.push(candidate);
     }
     return candidates.sort((a, b) => b.count - a.count || b.severeCount - a.severeCount
       || a.label.localeCompare(b.label, 'de') || a.id.localeCompare(b.id));
+  }
+
+  function compareSites(result, siteId, query, predicate) {
+    const site = result.network.sites.get(siteId);
+    if (!site) return null;
+    const filter = UA.SiteDiscovery.queryPredicate(query || {});
+    const matches = point => filter(point) && (!predicate || predicate(point));
+    const selected = (result.bySite.get(siteId) || []).filter(matches);
+    const peers = result.network.counts[site.kind] - 1;
+    let higher = 0;
+    let equal = selected.length === 0 ? peers : 0;
+    for (const [id, points] of result.bySite) {
+      if (id === siteId || result.network.sites.get(id).kind !== site.kind) continue;
+      let count = 0;
+      for (const point of points) if (matches(point)) count++;
+      if (count > selected.length) {
+        higher++;
+        if (!selected.length) equal--;
+      } else if (selected.length && count === selected.length) equal++;
+    }
+    return { peers, higher, equal, count: selected.length,
+      severe: selected.filter(p => String(p.props.ukategorie) === '2').length,
+      fatal: selected.filter(p => String(p.props.ukategorie) === '1').length };
+  }
+
+  function comparisonLines(comparison, features) {
+    const lines = [];
+    if (comparison) {
+      const { peers, higher, equal, count, severe, fatal } = comparison;
+      lines.push('Unfälle nach Suchkriterien: ' + count + ', davon ' + severe
+        + ' mit Schwerverletzten und ' + fatal + ' mit Getöteten.');
+      if (peers > 0) lines.push('Von ' + peers.toLocaleString('de-DE') + ' anderen Netzstellen desselben Typs haben '
+        + higher.toLocaleString('de-DE') + ' mehr und ' + equal.toLocaleString('de-DE')
+        + ' gleich viele zugeordnete Fälle unter denselben Filtern. Der Vergleich berücksichtigt auch Stellen mit null Fällen. Verkehrsmengen und Bauform können abweichen.');
+    }
+    if (features?.length) lines.push('In OpenStreetMap erfasste Querungsmerkmale: '
+      + features.map(key => crossingLabels[key]).filter(Boolean).join(', ') + '.');
+    return lines;
   }
 
   function findingLines(finding) {
@@ -219,9 +286,10 @@
       finding.assignedCount + ' räumlich zugeordnete Fälle im geladenen Bestand, ' + finding.queryCount
         + ' nach Suchkriterien und davon ' + finding.mapCount + ' unter den Kartenfiltern.',
       'Die Übersicht und der vollständige Fallanhang zeigen das markierte Umfeld. Die Zuordnung zum Netzobjekt beruht auf den veröffentlichten Unfallkoordinaten und der kartierten Lage.',
+      ...comparisonLines(finding.comparison, finding.crossingFeatures),
       next[finding.kind],
     ];
   }
 
-  UA.ReviewNetwork = Object.freeze({ load, analyze, row, rows, findingLines });
+  UA.ReviewNetwork = Object.freeze({ load, analyze, row, rows, compareSites, comparisonLines, findingLines });
 })();
