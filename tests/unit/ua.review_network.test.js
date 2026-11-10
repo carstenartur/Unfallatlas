@@ -119,3 +119,32 @@ test('spatially assigns each recorded case once and preserves ambiguous and unma
   expect(q).toMatchObject({ id: 'q:25', kind: 'crossing', points: [], count: 0, assignedCount: 1 });
   expect(UA.ReviewNetwork.row(result, 'j:22', {}, () => false).count).toBe(0);
 });
+
+test('compares the selected cohorts with every other network site of the same kind, including zero cases', async () => {
+  const UA = setup();
+  const network = await UA.ReviewNetwork.load('Hannover');
+  const a = crash(52.37004, 9.7310, 7);
+  const b = crash(52.37004, 9.7310, 8, 2020);
+  const c = crash(52.37004, 9.7310, 8);
+  const result = UA.ReviewNetwork.analyze(network, [a, b, c]);
+  const id = 's:7:1:2';
+  expect(UA.ReviewNetwork.compareSites(result, id, { fromYear: 2024 })).toMatchObject({
+    peers: 1, higher: 0, equal: 1, count: 1, severe: 1, fatal: 0,
+  });
+  expect(UA.ReviewNetwork.compareSites(result, id, { fromYear: 2024 }, point => point !== c))
+    .toMatchObject({ peers: 1, higher: 0, equal: 0, count: 1 });
+  network.sites.get('q:25').crossingFeatures = ['unlit'];
+  expect(UA.ReviewNetwork.rows(result, {}, { kind: 'unlit', onlyEmpty: true }).map(row => row.id)).toEqual(['q:25']);
+});
+
+test.each([true, false])('only applies a matching optional crossing snapshot (matching: %s)', async matches => {
+  const UA = setup(undefined, { crossingContext: true });
+  const read = UA.DataResources.fetchJson.getMockImplementation();
+  UA.DataResources.fetchJson.mockImplementation((kind, params) => kind === 'reviewNetworkCrossings'
+    ? Promise.resolve({ revision: matches ? revision : 'outdated', features: { 'q:25': ['unlit'], 'j:22': ['unlit'] } })
+    : read(kind, params));
+  const network = await UA.ReviewNetwork.load('Hannover');
+  await network.crossingContextReady;
+  expect(network.sites.get('q:25').crossingFeatures).toEqual(matches ? ['unlit'] : undefined);
+  expect(network.sites.get('j:22').crossingFeatures).toBeUndefined();
+});

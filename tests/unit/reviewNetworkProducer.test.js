@@ -114,6 +114,33 @@ describe('offline review network producer', () => {
     ]);
   });
 
+  test('retains explicit crossing evidence and leaves unrecorded attributes unknown', () => {
+    const { output, result } = runProducer([
+      node(1, 52.004, 9.003), node(2, 52.004, 9.004,
+        '<tag k="highway" v="crossing"/><tag k="crossing:markings" v="no"/><tag k="lit" v="no"/>'),
+      node(3, 52.004, 9.005, '<tag k="highway" v="crossing"/>'), way(100, [1, 2, 3]),
+    ]);
+    expect(result.status).toBe(0);
+    const city = path.join(output, 'test_city');
+    const index = JSON.parse(fs.readFileSync(path.join(city, 'index.json')));
+    const context = JSON.parse(gunzipSync(fs.readFileSync(path.join(city, 'crossings.json.gz'))));
+    expect(context).toEqual({ revision: index.revision, features: { 'c:n:2': ['unmarked', 'unlit'] } });
+    expect(index.crossingContext).toBe(true);
+  });
+
+  test('retains explicit way attributes at a single crossing and drops conflicting lighting', () => {
+    const nodeTags = '<tag k="highway" v="crossing"/><tag k="lit" v="yes"/>';
+    const wayTags = '<tag k="highway" v="footway"/><tag k="footway" v="crossing"/><tag k="lit" v="no"/><tag k="crossing:markings" v="no"/>';
+    const { output, result } = runProducer([
+      node(1, 52.004, 9.003), node(2, 52.004, 9.004, nodeTags), node(3, 52.004, 9.005),
+      node(4, 52.003, 9.004), node(5, 52.005, 9.004),
+      way(100, [1, 2, 3]), way(200, [4, 2, 5], wayTags),
+    ]);
+    expect(result.status).toBe(0);
+    const context = JSON.parse(gunzipSync(fs.readFileSync(path.join(output, 'test_city', 'crossings.json.gz'))));
+    expect(context.features['c:n:2']).toEqual(['unmarked']);
+  });
+
   test('clips through city coverage with outside endpoints and preserves a hole', () => {
     const { sites } = generate([
       node(1, 52.005, 9.001), node(2, 52.005, 9.005),

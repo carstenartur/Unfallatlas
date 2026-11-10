@@ -184,3 +184,14 @@ describe('AI analysis comparison contract', () => {
     });
   });
 });
+
+test('both external AI handoffs retain the selected site motion in the compact deterministic digest', () => {
+  const structured = structuredFixture();
+  structured.motion = {
+    discoveryEvidence: { key: 'turning:5', label: 'Rad + Pkw · Typ 2/3', count: 17 },
+    requests: ['Abbiegebeziehungen prüfen.'], rationale: '17 zugeordnete Fälle.',
+  };
+  const bridge = loadBridge(makeWindow());
+  const digest = bridge.buildDeterministicAnalysisDigest(structured);
+  expect(digest.selectedSiteMotion).toMatchObject(structured.motion);
+});

@@ -15,7 +15,7 @@ describe('semantic filing-gate asset contract', () => {
     expect(filing).toBeGreaterThan(-1);
     expect(semantic).toBeGreaterThan(filing);
     expect(ui).toBeGreaterThan(semantic);
-    expect(source).toContain('js/ua.semantic_filing_gate.js?v=2026-08-20-1');
+    expect(source).toContain('js/ua.semantic_filing_gate.js?v=2026-11-10-site-evidence');
     expect(source).toContain('data-ua-semantic-filing-gate');
     expect(source).toContain('const semanticFilingGatePromise = filingReadinessPromise.then');
     expect(source).toContain('if (!loaded) return false;');

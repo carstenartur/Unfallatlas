@@ -115,6 +115,7 @@ function buildPrompt(aiInput, mode) {
   const poi = f.poiSummary;
   const pre = aiInput?.preselectedMeasures || [];
   const risSnapshot = aiInput?.risSnapshotContext;
+  const selectedMotion = aiInput?.deterministicAnalysisDigest?.selectedSiteMotion;
   const snapshotUrls = new Set((risSnapshot?.selectedReferences || []).map(reference => reference.url));
   const refs = (f.references || []).filter(reference => !snapshotUrls.has(reference.url));
   const hints = f.normalizedHints || {};
@@ -139,6 +140,14 @@ function buildPrompt(aiInput, mode) {
   lines.push('Verbindliche Einordnung: dokumentierte Ereignisse und mitgelieferte Unfallattribute bestimmt wiedergeben; Unsicherheit über Ursachen nicht mit Unsicherheit über das Ereignis verwechseln.');
 
   lines.push('');
+  if (selectedMotion?.discoveryEvidence) {
+    lines.push('=== AUSGEWÄHLTE STELLE UND PRÜFAUFTRAG ===');
+    lines.push(`Gewähltes Muster: ${selectedMotion.discoveryEvidence.label}`);
+    lines.push(selectedMotion.intro, selectedMotion.rationale);
+    if (Array.isArray(selectedMotion.requests)) lines.push(...selectedMotion.requests);
+    lines.push('Halte diese Fallgruppe, das Gesamtgebiet und den Stadtvergleich auseinander. Stelle jede Variante unter die im Prüfauftrag genannten Voraussetzungen. Begründe jede Änderung am gewählten Schwerpunkt mit überprüfbaren Belegen.');
+    lines.push('');
+  }
   lines.push('=== KENNZAHLEN (deterministisch berechnet) ===');
   lines.push(`Unfälle gesamt im Bereich: ${counts.total ?? 0}`);
   lines.push(`Davon Getötete/Schwerverletzte/Leichtverletzte: ${counts.fatal ?? 0} / ${counts.serious ?? 0} / ${counts.slight ?? 0}`);

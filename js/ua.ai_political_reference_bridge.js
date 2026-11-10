@@ -151,6 +151,7 @@
         areaName: structured?.meta?.areaName || null, date: structured?.meta?.date || null,
         link: structured?.meta?.link || null, filters: structured?.meta?.filters || null,
         involvementMode: structured?.meta?.involvementMode || null },
+      ...(structured?.motion?.discoveryEvidence ? { selectedSiteMotion: structured.motion } : {}),
       officialAccidentFacts: { total: finite(sev.total), fatal: finite(by['1']),
         serious: finite(by['2']), slight: finite(by['3']), other: finite(by.other) },
       patternCompositionComparison: {
@@ -248,6 +249,7 @@
     const instruction = [
       '', 'VERBINDLICHER VERGLEICHS- UND MEHRWERTAUFTRAG:',
       'Stelle deterministische und KI-Analyse gegenüber; bestätige zuerst Fakten und Methodik.',
+      ...(contract.deterministicDigest.selectedSiteMotion ? ['Bewahre den ausgewählten Prüfauftrag und seine Fallgruppe. Vergleiche andere Unfallmuster gesondert. Belege jede vorgeschlagene Änderung an Prüfauftrag oder Fallgruppe.'] : []),
       'Liefere mindestens drei quellengebundene Synthesen aus mehreren Evidenzschichten.',
       'Priorisiere; nenne Gegenhypothesen, Prüfbedarf, Voraussetzungen, Zielkonflikte und Erfolgskriterien.',
       'Recherchiere politische/administrative Vorbefassung und vermeide Doppelanträge.',

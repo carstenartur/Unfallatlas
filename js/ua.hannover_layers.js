@@ -88,7 +88,7 @@
     return window.L.layerGroup(points, { attribution: schoolAttribution });
   }
 
-  function latestReading(readings) {
+  function latestReading(readings, byYear) {
     if (!Array.isArray(readings)) throw new Error('Ungültige Messreihe');
     let latest = null;
     for (const reading of readings) {
@@ -105,7 +105,10 @@
           || !Number.isSafeInteger(count) || count < 0) {
         throw new Error('Ungültiger Messwert');
       }
-      if (!latest || datetime > latest.datetime) latest = { datetime, count };
+      const entry = { datetime, count };
+      const year = Number(day.slice(0, 4));
+      if (!byYear.has(year) || datetime > byYear.get(year).datetime) byYear.set(year, entry);
+      if (!latest || datetime > latest.datetime) latest = entry;
     }
     return latest;
   }
@@ -125,14 +128,16 @@
           || props.externalId !== id.slice('wheel-counter-'.length)) {
         throw new Error('Ungültige Zählstelle');
       }
-      const daily = latestReading(props.wheelCountingDataDaily);
-      const monthly = latestReading(props.wheelCountingDataMonthly);
       const prior = stations.get(id);
+      const dailyByYear = prior?.dailyByYear || new Map();
+      const monthlyByYear = prior?.monthlyByYear || new Map();
+      const daily = latestReading(props.wheelCountingDataDaily, dailyByYear);
+      const monthly = latestReading(props.wheelCountingDataMonthly, monthlyByYear);
       if (prior && (prior.latLng[0] !== latLng[0] || prior.latLng[1] !== latLng[1])) {
         throw new Error('Widersprüchliche Standorte für eine Zählstelle');
       }
       stations.set(id, {
-        id, latLng, name: props.name.trim(),
+        id, latLng, name: props.name.trim(), dailyByYear, monthlyByYear,
         daily: prior?.daily && (!daily || prior.daily.datetime >= daily.datetime) ? prior.daily : daily,
         monthly: prior?.monthly && (!monthly || prior.monthly.datetime >= monthly.datetime) ? prior.monthly : monthly,
       });
@@ -248,15 +253,18 @@
     const complete = (read) => {
       if (states.get(ctx) !== state || !active(ctx, 'bikeCounts') || revision !== state.fileRevision) return;
       try {
-        const layer = bikeGroup(stationData(JSON.parse(read())));
+        const stations = stationData(JSON.parse(read()));
+        const layer = bikeGroup(stations);
         syncLayer(state.map, layer, true);
         syncLayer(state.map, state.bikeLayer, false);
         state.bikeLayer = layer;
+        state.stations = stations;
       } catch (_) {
         state.fileError = 'Die Datei ist ungültig oder konnte nicht gelesen werden.';
       }
       state.fileReading = false;
       refresh(ctx, state);
+      UA.SiteDiscoveryUI?.exposureChanged?.(ctx);
     };
     if (file.size > maxFileSize) {
       state.fileError = 'Die Datei ist größer als 2 MB.';
@@ -322,6 +330,25 @@
   }
 
   UA.HannoverLayers = {
+    stationReadings(ctx, bounds, query = {}) {
+      const stations = isHannover(ctx) && states.get(ctx)?.stations;
+      if (!stations || !bounds) return [];
+      const results = [];
+      for (const station of stations) {
+        const [lat, lon] = station.latLng;
+        if (lat < bounds.south || lat > bounds.north || lon < bounds.west || lon > bounds.east) continue;
+        for (const [series, monthly] of [[station.dailyByYear, false], [station.monthlyByYear, true]]) {
+          const years = [...series.keys()].filter(year => year >= (query.fromYear ?? 0) && year <= (query.toYear ?? Infinity));
+          if (!years.length) continue;
+          const reading = series.get(Math.max(...years));
+          results.push({
+            name: station.name, url: vmz + '/region-hannover/radzaehler/' + station.id + '/',
+            text: readingText(monthly ? 'Gemeldeter Monatswert' : 'Gemeldeter Tageswert', reading, monthly),
+          });
+        }
+      }
+      return results;
+    },
     controlContent(ctx) {
       if (!ctx) return null;
       let state = states.get(ctx);

@@ -58,9 +58,11 @@ test('a point inside the circumcircle but far from a long selection is excluded 
 });
 
 function discoveryProvider() {
+  require('../../js/ua.site_discovery.js');
   const change = { label: 'Dokumentierte Änderung', date: '2024-08-21', precision: 'documented-by',
     url: 'https://www.hannover.de/beispiel' };
   window.UA.SiteDiscovery = {
+    ...window.UA.SiteDiscovery,
     filterPoints: (rows, criteria) => rows.filter(({ props }) =>
       props.year >= criteria.fromYear && props.year <= criteria.toYear),
     patternForPoints: (rows, key = 'automatic') => ({ key, label: 'Abbiegen', points: rows }),
@@ -97,7 +99,7 @@ test('a network report preserves the assigned cohort and the rectangular evidenc
   const site = { id: 'j:22', revision: '398a1a71f25db801' };
   const result = {
     network: {
-      city: 'hannover', revision: site.revision,
+      city: 'hannover', revision: site.revision, counts: { junction: 1 },
       sites: new Map([[site.id, { id: site.id, label: 'Testknoten', kind: 'junction', bounds: selected }]]),
       source: { label: 'OSM', url: 'https://www.openstreetmap.org/', date: '2026-11-08' },
     },
@@ -125,4 +127,53 @@ test('an unavailable network revision does not turn the rectangle into an assign
   expect(report.structured.siteNetwork).toMatchObject({ status: 'unavailable', site });
   expect(report.structured.discoveryFocus).toBeNull();
   expect(report.structured.totalAccidents).toBe(3);
+});
+
+test.each([
+  ['2', 'turning:5', /Abbiegebeziehungen/, /Signalphasen/],
+  ['4', '4:6', /Querungswege/, /Wartezeiten/],
+  ['6', '6:5', /Fahrtrichtungen/, /Seitenabstände/],
+])('binds type %s to the motion in the preview and text, even beside an unrelated bike crash', async (type, key, examination, option) => {
+  require('../../js/ua.site_discovery.js');
+  const props = type === '4' ? { istfuss: '1', istpkw: '1' } : { istrad: '1', istpkw: '1' };
+  const allPts = [2023, 2024, 2024].map((year, i) => point('focus-' + i, year, { ...props, utyp1: type }));
+  allPts.push(point('other', 2024, { istrad: '1', utyp1: '1' }));
+  const ctx = context({
+    allPts, areaNameOverride: 'Testplatz', discoveryFocus: { key, query: {}, bounds: selected },
+    exportOptions: { includeCosts: false, osmContextOverride: { summary: {}, source: { publisher: 'OSM', license: 'ODbL', retrievedVia: 'test' }, contexts: { tramTrackWays: 1 } } },
+  });
+  ctx.ui.incPedEl.checked = true;
+  window.UA.osmContext = { fetchOsmContext: jest.fn() };
+  const { structured, html, text } = await window.UA.computeExportReport(ctx);
+  expect(structured.motion?.discoveryEvidence).toMatchObject({ key, count: 3, byYear: { 2023: 1, 2024: 2 } });
+  const box = document.createElement('div');
+  box.innerHTML = html;
+  for (const output of [structured.motion.requests.join(' '), text, box.textContent]) {
+    expect(output).toMatch(examination);
+    expect(output).toMatch(option);
+    expect(output).toMatch(/Zuständigkeit/);
+    expect(output).toMatch(/Vorher-Nachher/);
+  }
+  require('../../js/ua.semantic_filing_gate.js');
+  require('../../js/ua.evidence_safe_semantics.js');
+  const normalized = window.UA.semanticFilingGate.normaliseReport({ structured, text, html });
+  const final = window.UA.EvidenceSafeSemantics.safeReport(normalized);
+  expect(final.structured.executiveSummary.classification).toContain(structured.discoveryFocus.label);
+  expect(final.structured.executiveSummary.bullets[0]).toContain('3 Fälle');
+  expect(structured.motion.rationale).toContain(structured.discoveryFocus.label);
+  expect(structured.motion.rationale).toContain('3 Fälle');
+  expect(structured.motion.requests.join(' ')).not.toMatch(/Gleisquerung/);
+});
+
+test('an unavailable selected site cannot substitute one bicycle crash from the surrounding rectangle', async () => {
+  require('../../js/ua.site_discovery.js');
+  window.UA.osmContext = { fetchOsmContext: jest.fn() };
+  const focus = { ...context().discoveryFocus, site: { id: 'j:22', revision: 'old' } };
+  const report = await window.UA.computeExportReport(context({
+    allPts: [point('surrounding rail', 2024, { istrad: '1', utyp1: '1' })],
+    discoveryFocus: focus, reviewNetworkPromise: Promise.resolve(null),
+    exportOptions: { includeCosts: false, osmContextOverride: { summary: {}, source: { publisher: 'OSM', license: 'ODbL', retrievedVia: 'test' }, contexts: { tramTrackWays: 1 } } },
+  }));
+  expect(report.structured.motion?.requests.join(' ') || '').not.toMatch(/Gleisquerung/);
+  expect(report.structured.siteNetwork.status).toBe('unavailable');
 });

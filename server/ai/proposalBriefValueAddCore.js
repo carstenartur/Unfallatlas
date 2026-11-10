@@ -189,11 +189,13 @@ function patternRow(row, localTotal, baselineTotal) {
 }
 
 function buildDeterministicDigest(structured, features) {
-  const existing = object(
+  const selectedSiteMotion = structured?.motion?.discoveryEvidence ? structured.motion : null;
+  let existing = object(
     structured?.deterministicAnalysisDigest
     || structured?.aiResearchHandoff?.deterministicAnalysisDigest
   );
   if (existing.schemaVersion === DETERMINISTIC_DIGEST_VERSION) {
+    if (selectedSiteMotion && existing.selectedSiteMotion !== selectedSiteMotion) existing = { ...existing, selectedSiteMotion };
     const research = object(structured?.politicalContextResearch);
     if (!snapshotSearchDetails(research)
       && ![...list(structured?.politicalReferences), ...list(research.selectedReferences)]
@@ -212,6 +214,7 @@ function buildDeterministicDigest(structured, features) {
   return {
     schemaVersion: DETERMINISTIC_DIGEST_VERSION,
     role: 'verified-reproducible-baseline',
+    ...(selectedSiteMotion ? { selectedSiteMotion } : {}),
     meta: {
       city: meta.city || meta.cityRaw || null,
       areaName: meta.areaName || null,

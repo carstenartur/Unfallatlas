@@ -293,5 +293,5 @@
     }
   }
 
-  UA.SiteDiscovery = Object.freeze({ yearOf, filterPoints, patternForPoints, candidates, boundsForPoints, loadSites });
+  UA.SiteDiscovery = Object.freeze({ yearOf, filterPoints, queryPredicate, patternForPoints, candidates, boundsForPoints, loadSites });
 })();
