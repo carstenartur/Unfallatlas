@@ -496,7 +496,10 @@
       if (matchQuality === "high") score += 2;
       else if (matchQuality === "medium") score += 1;
       score -= reasons.length;
-      if (score >= 9) return "high";
+      // Source resolution and sample count cannot compensate for a poor fit.
+      // Reuse the residual bands above as confidence ceilings, not new cutoffs.
+      if (residualMadMeters > 0.75) return "low";
+      if (score >= 9 && residualMadMeters <= 0.25) return "high";
       if (score >= 6) return "medium";
       return "low";
     }
@@ -529,6 +532,8 @@
       low_road_match_quality: "Straßenzuordnung ist unsicher",
       accident_point_far_from_matched_road:
         "Bezugspunkt liegt weit von der zugeordneten Straße entfernt",
+      elevated_profile_residual:
+        "Höhenprofil weicht deutlich von der linearen Anpassung ab",
     });
 
     function displayStatement(result) {
@@ -542,11 +547,15 @@
           .join("; ");
         return `Keine belastbare Straßenlängsneigung: ${reasons}.`;
       }
+      const residualWarning = result.uncertaintyReasons.includes("elevated_profile_residual")
+        ? ` ${REASON_LABELS_DE.elevated_profile_residual}.`
+        : "";
       if (result.semanticType === "terrain_context") {
         const range = result.gradientRangePercent;
         return (
           `Geländeneigung im Umfeld: ungefähr ${range[0]}–${range[1]} %, ` +
-          `${result.source.datasetTitle} (${result.source.resolutionMeters} m); für die Fahrbahn nicht belastbar.`
+          `${result.source.datasetTitle} (${result.source.resolutionMeters} m); für die Fahrbahn nicht belastbar.` +
+          residualWarning
         );
       }
       const value = Math.abs(result.gradientPercent)
@@ -566,7 +575,8 @@
       );
       return (
         `Straßenlängsneigung: ${value} % ${direction} über ${profileLength} m, ` +
-        `${result.source.datasetTitle} (${result.source.resolutionMeters} m), Qualität ${result.quality}.`
+        `${result.source.datasetTitle} (${result.source.resolutionMeters} m), Qualität ${result.quality}.` +
+        residualWarning
       );
     }
 
@@ -639,6 +649,9 @@
         opts.matchQuality || "unknown",
         reasons,
       );
+      // Explain the observed fit residual without diagnosing its physical cause
+      // or counting the same fit limitation again in the metadata score.
+      if (fit.residualMadMeters > 0.25) reasons.push("elevated_profile_residual");
       const semanticType =
         provider.descriptor.resolutionMeters >= 20 ||
         provider.descriptor.modelType !== "DTM"
@@ -806,6 +819,9 @@
         const range = magnitude <= 2 ? "0–2" : magnitude <= 4 ? "2–4"
           : magnitude <= 6 ? "4–6" : magnitude <= 10 ? "6–10" : "über 10";
         statement = `Geländeneigung im Umfeld: grobe Klasse ${range} %, ${sourceText}; für die Fahrbahn nicht belastbar.`;
+      }
+      if (uncertaintyReasons.includes("elevated_profile_residual")) {
+        statement += ` ${REASON_LABELS_DE.elevated_profile_residual}.`;
       }
       return Object.freeze({ semanticType, valuePresent: value !== null, reliableForRoad,
         source, sourceId: usesRoad ? p.road_slope_source_id || null : (/SRTM/i.test(source) ? "global.srtm30" : null), resolutionMeters,
