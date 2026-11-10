@@ -27,6 +27,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Allow the weekly workflow to start a few hours earlier than its previous run.
 const REFRESH_AFTER_MS = 6.5 * DAY_MS;
 const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 60 * 60_000 };
+const REFRESH_FINISH_MS = 5 * 60_000;
+const SOURCE_FINISH_MS = 2 * 60_000;
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
@@ -73,15 +75,16 @@ function withCollectionSettings(catalogue, limits, scope = {}) {
   return { ...catalogue, provenance: { ...catalogue.provenance, collection: { ...scope, ...catalogue.provenance?.collection, limits } } };
 }
 
-async function collectFromSource(city, now, { report = () => {}, ...options } = {}) {
+async function collectFromSource(city, now, { report = () => {}, workerTimeoutMs = SOURCE_LIMIT_MS[city], ...options } = {}) {
   // A worker bounds the wall clock even if a source keeps a connection alive.
+  const timeoutMs = Math.min(SOURCE_LIMIT_MS[city], workerTimeoutMs);
   const worker = new Worker(__filename, { workerData: { city, now: now.toISOString(), options } });
   let timer;
   let confirmedExclusions = [];
   const sourceError = error => Object.assign(error, { exclusions: confirmedExclusions });
   try {
     return await new Promise((resolve, reject) => {
-      timer = setTimeout(() => reject(sourceError(new Error(`Source crawl exceeded ${SOURCE_LIMIT_MS[city] / 60_000} minutes`))), SOURCE_LIMIT_MS[city]);
+      timer = setTimeout(() => reject(sourceError(new Error(`Source crawl exceeded ${timeoutMs / 60_000} minutes`))), timeoutMs);
       worker.once('error', error => reject(sourceError(error)));
       worker.once('exit', code => reject(sourceError(new Error(`Source worker exited without a catalogue (${code})`))));
       worker.on('message', ({ catalogue, error, progress, exclusions }) => {
@@ -696,7 +699,8 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
 
 async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, now,
   fetchPublished = globalThis.fetch, collect = collectFromSource, restoreOnly = false, report = () => {},
-  historyStartYear, workBudget, maxDurationMs, sourceDirectory, checkpointRetry } = {}) {
+  historyStartYear, workBudget, maxDurationMs, maxRefreshDurationMs, sourceDirectory, checkpointRetry } = {}) {
+  const refreshStarted = performance.now();
   if (!Array.isArray(cities) || !cities.length || cities.some(city => !Object.hasOwn(SOURCE_LIMIT_MS, city))) {
     throw new Error('Supported RIS cities: bonn, hannover');
   }
@@ -704,6 +708,9 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
     throw new TypeError('Invalid RIS historical start year');
   }
   if (workBudget !== undefined && (!Number.isSafeInteger(workBudget) || workBudget < 0)) throw new TypeError('Invalid RIS work budget');
+  if (maxRefreshDurationMs !== undefined && (!Number.isSafeInteger(maxRefreshDurationMs) || maxRefreshDurationMs <= 0)) {
+    throw new TypeError('Invalid RIS refresh duration');
+  }
   if (checkpointRetry !== undefined) {
     checkpointRetry = validateCheckpointRetry(checkpointRetry);
     if (restoreOnly || !cities.includes('hannover')) throw new Error('Checkpoint recovery requires a Hannover refresh');
@@ -711,12 +718,24 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
   }
   const sourceOptions = { workBudget: checkpointRetry ? 0 : workBudget, maxDurationMs, sourceDirectory,
     ...(checkpointRetry ? { checkpointRetry, checkpointOnly: true } : {}) };
+  const collectWithinBudget = (city, sourceNow, options) => {
+    if (maxRefreshDurationMs === undefined) return collect(city, sourceNow, options);
+    // Restoration and validation consume the same Pages time allowance. Only
+    // calculate the remaining source time at the actual collection boundary;
+    // the fixed source-verification date is independent of this monotone clock.
+    const remainingMs = Math.floor(refreshStarted + maxRefreshDurationMs - performance.now());
+    const workerTimeoutMs = Math.min(SOURCE_LIMIT_MS[city], remainingMs - REFRESH_FINISH_MS);
+    const durationMs = Math.min(options.maxDurationMs ?? SOURCE_LIMIT_MS[city] - SOURCE_FINISH_MS,
+      workerTimeoutMs - SOURCE_FINISH_MS);
+    if (durationMs <= 0) throw new Error('RIS refresh budget exhausted before source collection');
+    return collect(city, sourceNow, { ...options, maxDurationMs: durationMs, workerTimeoutMs });
+  };
   const clock = now === undefined ? () => new Date() : () => now;
   const startedAt = clock();
   if (!(startedAt instanceof Date) || !Number.isFinite(startedAt.getTime())) throw new Error('Invalid RIS refresh date');
   await listDirectory(directory);
   const outcomes = await Promise.allSettled([...new Set(cities)].map(async city => {
-    const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect,
+    const outcome = await refreshCity({ directory, city, startedAt, clock, fetchPublished, collect: collectWithinBudget,
       restoreOnly: restoreOnly || Boolean(checkpointRetry && city !== 'hannover'), report,
       sourceOptions: { ...sourceOptions, historyStartYear: historyStartYear ?? historyStartYears[city] } });
     report(outcome);
@@ -728,7 +747,7 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
 }
 
 function parseRefreshArguments(args) {
-  const usage = 'Usage: node scripts/refresh-ris-catalogues.js [--city bonn|hannover] [--restore-only] [--history-start-year YYYY] [--work-budget N] [--max-duration-ms N]\n' +
+  const usage = 'Usage: node scripts/refresh-ris-catalogues.js [--city bonn|hannover] [--restore-only] [--history-start-year YYYY] [--work-budget N] [--max-duration-ms N] [--max-refresh-duration-ms N]\n' +
     '       node scripts/refresh-ris-catalogues.js --checkpoint-retry hannover --source-cache-key KEY --min-records N\n' +
     '       node scripts/refresh-ris-catalogues.js --validate <directory> [--require-all]';
   if (args[0] === '--validate') {
@@ -742,8 +761,9 @@ function parseRefreshArguments(args) {
     else if (args[i] === '--city' && !options.cities && args[i + 1]) options.cities = [args[++i]];
     else if (args[i] === '--checkpoint-retry' && recoveryCity === undefined && args[i + 1]) recoveryCity = args[++i];
     else if (args[i] === '--source-cache-key' && sourceCacheKey === undefined && args[i + 1]) sourceCacheKey = args[++i];
-    else if (['--history-start-year', '--work-budget', '--max-duration-ms', '--min-records'].includes(args[i]) && /^\d+$/.test(args[i + 1] || '')) {
-      const key = { '--history-start-year': 'historyStartYear', '--work-budget': 'workBudget', '--max-duration-ms': 'maxDurationMs', '--min-records': 'minimumRecords' }[args[i]];
+    else if (['--history-start-year', '--work-budget', '--max-duration-ms', '--max-refresh-duration-ms', '--min-records'].includes(args[i]) && /^\d+$/.test(args[i + 1] || '')) {
+      const key = { '--history-start-year': 'historyStartYear', '--work-budget': 'workBudget', '--max-duration-ms': 'maxDurationMs',
+        '--max-refresh-duration-ms': 'maxRefreshDurationMs', '--min-records': 'minimumRecords' }[args[i]];
       if (options[key] !== undefined) throw new Error(usage);
       options[key] = Number(args[++i]);
     } else throw new Error(usage);

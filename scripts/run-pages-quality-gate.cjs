@@ -154,7 +154,9 @@ function buildAndValidateSite() {
   const refreshRis = process.env.PAGES_REFRESH_RIS === '1';
   if (refreshRis) {
     const { checkpointRetryFromEnv } = require('./ris-checkpoint-retry-options');
-    runNode('scripts/refresh-ris-catalogues.js', checkpointRetryFromEnv(process.env), { timeoutMs: 65 * 60_000 });
+    const maxRefreshDurationMs = 65 * 60_000;
+    runNode('scripts/refresh-ris-catalogues.js', [...checkpointRetryFromEnv(process.env),
+      '--max-refresh-duration-ms', String(maxRefreshDurationMs)], { timeoutMs: maxRefreshDurationMs });
   }
   fs.rmSync(SITE_ROOT, { recursive: true, force: true });
   fs.mkdirSync(QA_DIR, { recursive: true });

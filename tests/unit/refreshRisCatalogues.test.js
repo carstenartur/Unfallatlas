@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const { readRisSnapshot, writeRisSnapshot: writeSnapshot } = require('../../server/political-context/services/risSnapshot');
-const { refreshRisCatalogues, validateRisDirectory, collectOfficial } = require('../../scripts/refresh-ris-catalogues');
+const { refreshRisCatalogues, validateRisDirectory, collectOfficial, parseRefreshArguments } = require('../../scripts/refresh-ris-catalogues');
 const { createRisSourceCheckpoint } = require('../../server/political-context/services/risSourceCheckpoint');
 const { composeHannoverCatalogue } = require('../../server/political-context/providers/hannoverCatalogueComposition');
 const { combineHannoverCatalogues } = require('../../server/political-context/providers/hannoverCatalogue');
@@ -98,6 +98,67 @@ function fetchPages({ decoded = false, tamper } = {}) {
 function refresh(options) {
   return refreshRisCatalogues({ directory, now: NOW, fetchPublished: fetchPages(), historyStartYear: 2014, ...options });
 }
+
+describe('Pages refresh duration budget', () => {
+  const minute = 60_000;
+
+  test('parses the overall duration separately from the source duration', () => {
+    expect(parseRefreshArguments(['--max-refresh-duration-ms', '3900000', '--max-duration-ms', '600000']))
+      .toEqual({ maxRefreshDurationMs: 65 * minute, maxDurationMs: 10 * minute });
+    expect(() => parseRefreshArguments(['--max-refresh-duration-ms', '3900000', '--max-refresh-duration-ms', '3900000']))
+      .toThrow(/Usage/);
+  });
+
+  test.each([0, -1, 1.5, Infinity])('rejects an invalid overall duration (%s)', async maxRefreshDurationMs => {
+    await expect(refresh({ cities: ['hannover'], maxRefreshDurationMs, collect: async () => catalogue('hannover') }))
+      .rejects.toThrow(/refresh.*duration/i);
+  });
+
+  test.each([undefined, 10 * minute])('counts eleven minutes of restore time while keeping the source clock fixed (source cap %s)', async maxDurationMs => {
+    await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+    const elapsed = jest.spyOn(performance, 'now').mockReturnValue(0);
+    const fetchPage = fetchPages();
+    const collect = jest.fn(async () => catalogue('hannover'));
+    try {
+      await expect(refresh({ cities: ['hannover'], maxRefreshDurationMs: 65 * minute, maxDurationMs, collect,
+        fetchPublished: async (...args) => {
+          const response = await fetchPage(...args);
+          elapsed.mockReturnValue(11 * minute);
+          return response;
+        },
+      })).resolves.toMatchObject([{ status: 'published' }]);
+      expect(collect).toHaveBeenCalledWith('hannover', NOW, expect.objectContaining({
+        maxDurationMs: maxDurationMs ?? 47 * minute, workerTimeoutMs: 49 * minute,
+      }));
+      expect((await readRisSnapshot(directory, 'hannover')).manifest.generatedAt).toBe(NOW.toISOString());
+    } finally {
+      elapsed.mockRestore();
+    }
+  });
+
+  test('retains the verified fallback and its original age when restore exhausts the source budget', async () => {
+    const prior = await writeRisSnapshot(published, 'hannover', catalogue('hannover'), { now: FALLBACK });
+    const elapsed = jest.spyOn(performance, 'now').mockReturnValue(0);
+    const fetchPage = fetchPages();
+    const collect = jest.fn(async () => catalogue('hannover'));
+    try {
+      await expect(refresh({ cities: ['hannover'], maxRefreshDurationMs: 65 * minute, collect,
+        fetchPublished: async (...args) => {
+          const response = await fetchPage(...args);
+          elapsed.mockReturnValue(58 * minute);
+          return response;
+        },
+      })).resolves.toMatchObject([{ status: 'retained', generatedAt: prior.generatedAt, reason: expect.stringMatching(/budget/i) }]);
+      expect(collect).not.toHaveBeenCalled();
+      const { manifest, records } = await readRisSnapshot(directory, 'hannover');
+      expect(records).toHaveLength(2);
+      expect(manifest.generatedAt).toBe(prior.generatedAt);
+      expect(manifest.refreshFailure).toMatchObject({ attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() });
+    } finally {
+      elapsed.mockRestore();
+    }
+  });
+});
 
 const checkpointRetry = { city: 'hannover', sourceCacheKey: 'ris-sources-v1-Linux-42502618892-1', minimumRecords: 3 };
 
