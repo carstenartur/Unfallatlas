@@ -51,6 +51,39 @@ test('exact map, CSV and GeoJSON ID correspondence rejects omissions and extras'
   expect(() => qa.assertSameIds(ids, ['A001'], 'CSV')).toThrow(/CSV/);
   expect(() => qa.assertSameIds(ids, ['A001', 'A001'], 'map')).toThrow(/map/);
 });
+
+test.each(['missing', 'moved', 'severity', 'duplicate'])('release harness rejects a %s overview export point before synthesizing map pixels', async mutation => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-capture-input-'));
+  let harness;
+  jest.isolateModules(() => {
+    jest.doMock('../../js/ua.evidence_cohort', () => {
+      const actual = jest.requireActual('../../js/ua.evidence_cohort');
+      return { ...actual, _internal: { ...actual._internal,
+        exportEvidenceWord: async (UA, ...args) => {
+          const capture = UA.captureDocumentMap;
+          UA.captureDocumentMap = (ctx, options) => {
+            const points = options.exportPoints.map(point => ({ ...point, props: { ...point.props } }));
+            if (mutation === 'missing') points.pop();
+            if (mutation === 'moved') points[0].lon += 0.0001;
+            if (mutation === 'severity') points[0].props.ukategorie = '99';
+            if (mutation === 'duplicate') points[0] = points[1];
+            return capture(ctx, { ...options, exportPoints: points });
+          };
+          return actual._internal.exportEvidenceWord(UA, ...args);
+        }
+      } };
+    });
+    harness = require('../../scripts/qa-numbered-appendix-rendered');
+  });
+  try {
+    await expect(harness.generateReleaseEvidence({ outDir })).rejects.toThrow(/capture points/i);
+    expect(fs.existsSync(path.join(outDir, 'appendix.docx'))).toBe(false);
+  } finally {
+    jest.dontMock('../../js/ua.evidence_cohort');
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
+}, 30000);
 test('production PDF and Word appendix use a concise clickable map label, never raw URL parameters', async () => {
   const api = require('../../js/ua.evidence_cohort'),
     JSZip = require('jszip');
@@ -95,7 +128,10 @@ test('production PDF and Word appendix use a concise clickable map label, never 
   const cohorts = api.buildCohorts({}, ctx, {}, root);
   let definition, blob;
   const UA = {
-    captureExportMapImage: async () => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    createDocumentMapContext: context => ({ ctx: context, close() {} }),
+    captureDocumentMap: async () => ({
+      image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    }),
   };
   root.pdfMake = {
     createPdf: d => {
@@ -229,11 +265,11 @@ function captionFixture(format) {
     { role: 'detail-e1', markerCount: 2, accidentIds: ['A001', 'A002'] }
   ];
   const captions = format === 'native-pdf' ? [
-    'Abbildung 1: Übersicht – vollständiges Gebietskollektiv; dargestellt und nummeriert: 2 Unfälle.',
+    'Abbildung 1: Übersicht – vollständiges Gebietskollektiv, dargestellt sind 2 Unfälle. Die Unfall-IDs stehen auf den Detailkarten.',
     'Abbildung 2: E1; Unfall-IDs: A001, A002.'
   ] : [
-    'Abbildung 1: Übersicht – vollständiges Gebietskollektiv; Unfall-IDs: A001, A002.',
-    'Abbildung 2: Detail E1 – A001 bis A002; Unfall-IDs: A001, A002.'
+    'Abbildung 1: Übersicht – vollständiges Gebietskollektiv. 2 Unfälle. Die Unfall-IDs stehen auf den Detailkarten.',
+    'Abbildung 2: Detailkarte E1 – nummerierte Unfallorte. Unfall-IDs A001, A002.'
   ];
   return {
     contract: { expectedMaps: maps },
@@ -241,7 +277,7 @@ function captionFixture(format) {
       number: i + 1,
       images: [{ imageId: `map-${i}`, xMin: 30, xMax: 650, yMin: 20, yMax: 100 }],
       words: [
-        ...(i ? 'Detail E1 – A001 bis A002'.split(' ').map((t, j) => word(t, 30 + j * 60, 0)) : []),
+        ...(i ? 'Detailkarte E1 – nummerierte Unfallorte'.split(' ').map((t, j) => word(t, 30 + j * 60, 0)) : []),
         ...text.split(' ').map((t, j) => word(t, 30 + (j % 9) * 60, 110 + Math.floor(j / 9) * 13))
       ]
     })) }
@@ -253,9 +289,9 @@ test.each(['native-pdf', 'docx-pdf'])('independently checks visible %s caption r
   const bindings = qa.verifyRenderedMapCaptions(fixture.model, fixture.contract, format);
   expect(bindings).toHaveLength(2);
   expect(bindings[1]).toMatchObject({ role: 'detail-e1', page: 2, accidentIds: ['A001', 'A002'] });
-  expect(bindings[1].text).toContain('Unfall-IDs: A001, A002.');
+  expect(bindings[1].text).toMatch(/Unfall-IDs:? A001, A002\./);
   for (const [pageIndex, from, to] of [[1, 'E1', 'E9'], [1, 'A002.', 'A099.'],
-    ...(format === 'native-pdf' ? [[0, '2', '3']] : [[0, 'A002.', 'A099.']])]) {
+    [0, '2', '3']]) {
     const broken = captionFixture(format);
     const token = broken.model.pages[pageIndex].words.find(w => w.yMin >= 110 && w.text.includes(from));
     token.text = token.text.replace(from, to);
@@ -269,7 +305,7 @@ test.each(['native-pdf', 'docx-pdf'])('independently checks visible %s caption r
 test.each(['native-pdf', 'docx-pdf'])('rejects a %s detail heading stranded on the preceding map page', format => {
   const fixture = captionFixture(format);
   expect(qa.verifyRenderedMapCaptions(fixture.model, fixture.contract, format)[1].heading)
-    .toMatchObject({ text: 'Detail E1 – A001 bis A002', page: 2 });
+    .toMatchObject({ text: 'Detailkarte E1 – nummerierte Unfallorte', page: 2 });
   const moved = fixture.model.pages[1].words.filter(w => w.yMin === 0);
   fixture.model.pages[1].words = fixture.model.pages[1].words.filter(w => w.yMin !== 0);
   fixture.model.pages[0].words.push(...moved.map(w => ({ ...w, yMin: 200, yMax: 210 })));

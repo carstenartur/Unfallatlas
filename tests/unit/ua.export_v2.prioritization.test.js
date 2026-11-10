@@ -23,6 +23,10 @@ describe('UA.computeExportReport – structured.prioritization (Goldstandard-Sek
     load('ua.filters.js');
     load('ua.accident_views.js');
     load('ua.measures.js');
+    load('ua.osm_context.js');
+    mockWindow.UA.osmContext.fetchOsmContext = async () => mockWindow.UA.osmContext.aggregate([
+      { type: 'way', tags: { highway: 'primary', maxspeed: '50' } }
+    ]);
 
     mockWindow.fetch = async () => ({ ok: false, json: async () => ({}), text: async () => '' });
     mockWindow.L = { latLngBounds: () => {} };

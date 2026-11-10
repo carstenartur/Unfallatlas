@@ -65,3 +65,79 @@ test('document map capture reuses verified tiles instead of making a lossy secon
   expect(requests.size).toBeGreaterThan(0);
   expect([...requests.values()].every(count => count === 1)).toBe(true);
 });
+
+test('report capture uses native raster zoom and leaves live accident layers out', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.route('**/qa-report-tile/**', route => route.fulfill({ contentType: 'image/png', body: RED_TILE }));
+  await page.goto('/');
+  const origin = new URL(page.url()).origin;
+  await page.setContent('<!doctype html><div id="map" style="width:1050px;height:650px"></div>');
+  await page.addStyleTag({ url: `${origin}/vendor/leaflet/leaflet.css` });
+  for (const file of [
+    'vendor/leaflet/leaflet.js',
+    'vendor/leaflet-image/leaflet-image.js',
+    'js/ua.map_capture_tile_integrity.js',
+    'js/ua.map_v2.js',
+    'js/ua.report_v2.js',
+  ]) {
+    await page.addScriptTag({ url: `${origin}/${file}` });
+  }
+
+  const result = await page.evaluate(async originValue => {
+    const center = [52.3915, 9.7204];
+    const outside = [52.3915, 9.72075];
+    const live = L.map('map', { preferCanvas: true, maxZoom: 22 }).setView(center, 20);
+    const basemap = L.tileLayer(`${originValue}/qa-report-tile/{z}/{x}/{y}.png`, {
+      maxNativeZoom: 19, maxZoom: 22,
+    }).addTo(live);
+    const otherMarker = L.circleMarker(outside, { radius: 10, fillOpacity: 1, fillColor: '#5500ee' }).addTo(live);
+    const documentMap = UA.createDocumentMapContext({ map: live, baseMapState: { standardLayer: basemap } });
+    const { ctx } = documentMap;
+    const options = {
+      exportPoints: [{ lat: center[0], lon: center[1], props: { ukategorie: '3' } }],
+      exportBounds: { south: 52.3914, west: 9.72, north: 52.3916, east: 9.7206 },
+    };
+    const pixels = async dataUrl => {
+      const image = new Image();
+      image.src = dataUrl;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0);
+      const colorAt = position => {
+        const { x, y } = ctx.map.latLngToContainerPoint(position);
+        return [...context.getImageData(x, y, 1, 1).data];
+      };
+      return { included: colorAt(center), outside: colorAt(outside) };
+    };
+    try {
+      const raster = await UA.captureDocumentMap(ctx, options);
+      const rasterPixels = await pixels(raster.image);
+      UA.captureExportMapImage = async () => { throw new Error('fixture simulates raster-provider failure'); };
+      const schematic = await UA.captureDocumentMap(ctx, options);
+      return {
+        zoom: raster.zoom, liveZoom: live.getZoom(), liveMarker: live.hasLayer(otherMarker),
+        raster: raster.schematic, rasterPixels,
+        fallback: schematic.schematic, fallbackPixels: await pixels(schematic.image),
+      };
+    } finally {
+      // Exercise cleanup while a canvas redraw from changing zoom is pending.
+      L.circleMarker(center).addTo(ctx.map);
+      ctx.map.setZoom(18, { animate: false });
+      documentMap.close();
+      live.remove();
+    }
+  }, origin);
+  expect(result).toMatchObject({
+    zoom: 19, liveZoom: 20, liveMarker: true, raster: false, fallback: true,
+    rasterPixels: { outside: [255, 0, 0, 255] },
+    fallbackPixels: { included: [255, 255, 51, 255] },
+  });
+  expect(result.rasterPixels.included[1]).toBeGreaterThan(200);
+  expect(result.fallbackPixels.outside).not.toEqual(result.rasterPixels.outside);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+  expect(pageErrors).toEqual([]);
+});

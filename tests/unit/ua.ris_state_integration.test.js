@@ -132,7 +132,8 @@ describe('RIS URL and local storage integration', () => {
     UA.syncAllToUrl(ctx);
 
     const query = Object.fromEntries(new URL(window.location.href).searchParams);
-    expect(query).toEqual(expect.objectContaining({ ...risQuery, mapLayer: 'slope,traffic,ris', selSouth: '52.370000', zoom: '12' }));
+    expect(query).toEqual(expect.objectContaining({ ...risQuery, mapLayer: 'slope,traffic,ris', zoom: '12' }));
+    expect(Number(query.selSouth)).toBe(52.37);
     const stored = JSON.parse(localStorage.getItem('ua_state_hannover'));
     expect(stored.risView).toEqual(workedView);
     expect(stored.contextOverlays).toEqual({ active: { slope: true, traffic: true, ris: true } });

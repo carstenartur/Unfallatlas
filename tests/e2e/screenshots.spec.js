@@ -726,7 +726,8 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
 
     // Zwei semantisch ausgewählte vollständige PDF-Seiten werden als
     // Gesamtvorschau gerendert: Methodik/Beschlussvorschlag links sowie
-    // Übersicht und Auswahlkarte rechts. So dokumentiert das Bild den
+    // die vollständige Auswahlkarte rechts. Das Vorhandensein der Übersicht
+    // wird separat im PDF-Text geprüft. So dokumentiert das Bild den
     // tatsächlichen Export statt zufälliger Seitenpositionen.
     await page.setContent(`<!DOCTYPE html>
 <html>
@@ -774,12 +775,15 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
           text.includes('Methodik') && text.includes('eindeutige Zählbereiche')
         );
       }
+      const overviewPageIndex = pageTexts.findIndex((text) =>
+        text.includes('Abbildung 1: Übersichtskarte')
+      );
       const mapPageIndex = pageTexts.findIndex((text) =>
-        text.includes('Abbildung 1: Übersichtskarte') &&
         text.includes('Abbildung 2: Auswahl-Karte')
       );
       if (proposalPageIndex < 0) throw new Error('PDF proposal/methodology page was not found');
-      if (mapPageIndex < 0) throw new Error('PDF overview and selection map page was not found');
+      if (overviewPageIndex < 0) throw new Error('PDF overview map page was not found');
+      if (mapPageIndex < 0) throw new Error('PDF selection map page was not found');
       const proposalPageNumber = proposalPageIndex + 1;
       const mapPageNumber = mapPageIndex + 1;
       if (proposalPageNumber === mapPageNumber) throw new Error('PDF preview pages must be distinct');
@@ -841,11 +845,11 @@ test.describe('Werkbank V2 – PDF-Export Rendering', () => {
       new RegExp(`(?:^|\\D)${expectedLocalAccidents}\\s+Unfälle`, 'i')
     );
     expect(proposalPageText).toMatch(/Methodik|ANTRAG\s*\/\s*BESCHLUSSVORSCHLAG/i);
-    expect(mapPageText).toContain('Abbildung 1: Übersichtskarte');
+    expect(pdfDiagnostics.text).toContain('Abbildung 1: Übersichtskarte');
     expect(mapPageText).toContain('Abbildung 2: Auswahl-Karte');
 
     // Screenshot zweier repräsentativer vollständiger PDF-Seiten: Methodik und
-    // Beschlussvorschlag auf der ersten, Übersicht und Auswahlkarte auf der zweiten.
+    // Beschlussvorschlag auf der ersten, vollständige Auswahlkarte auf der zweiten.
     const screenshotPath = 'docs/screenshots/15-export-pdf-rendered.png';
     // The application may legitimately complete a later render while the export
     // modal and PDF generator are running. Bind stability only to the actual

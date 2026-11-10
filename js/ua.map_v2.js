@@ -157,6 +157,19 @@
   const EXPORT_MARKER_BORDER_W = 1.5;
   const EXPORT_HEAT_OPACITY_MAX = 0.35;
 
+  function createAccidentHeatLayer(ctx, points, zoom) {
+    const heatPoints = points.map(point => {
+      const severity = String(point.props?.ukategorie || "");
+      const weight = severity === "1" ? 1.0 : severity === "2" ? 0.7 : severity === "3" ? 0.4 : 0.5;
+      return [point.lat, point.lon, weight];
+    });
+    return window.L.heatLayer(heatPoints, {
+      radius: UA.heatRadiusForZoom(zoom, ctx.ui?.heatRadiusEl?.value ?? "25"),
+      blur: UA.heatBlurForZoom(zoom),
+      maxZoom: 17
+    });
+  }
+
   /**
    * Aktiviert den Export-Stil auf der Karte:
    *  - dimmt die Heatmap (CSS-Opacity ≤ 0.35), damit Punkte sichtbar bleiben.
@@ -175,6 +188,13 @@
     const token = { layer: null, prevHeatOpacity: null, active: false };
     if (!ctx || !ctx.map || typeof window === "undefined" || !window.L) return token;
     if (ctx._exportMapToken) return ctx._exportMapToken; // idempotent
+
+    const pts = (opts && Array.isArray(opts.points)) ? opts.points : (ctx.viewportPts || []);
+    ctx._exportMapToken = token;
+    if (opts?.rebuildHeat && ctx.showHeatmap && pts.length && typeof window.L.heatLayer === "function") {
+      token.exportHeat = createAccidentHeatLayer(ctx, pts, ctx.map.getZoom());
+      ctx.heatLayer = token.exportHeat.addTo(ctx.map);
+    }
 
     // 1) Heatmap dimmen (nur CSS – wird von leaflet-image via bake-helper im
     //    Report-Modul ohnehin in die Pixel gebrannt; wir setzen hier nur das
@@ -195,7 +215,6 @@
     }
 
     // 2) Severity-Overlay aufbauen.
-    const pts = (opts && Array.isArray(opts.points)) ? opts.points : (ctx.viewportPts || []);
     const radius = (opts && Number.isFinite(opts.radius)) ? opts.radius : EXPORT_MARKER_RADIUS;
     const layer = window.L.layerGroup();
     for (const p of pts) {
@@ -218,7 +237,6 @@
     try { layer.addTo(ctx.map); } catch { /* tolerate stub maps in tests */ }
     token.layer = layer;
     token.active = true;
-    ctx._exportMapToken = token;
     return token;
   };
 
@@ -241,6 +259,11 @@
         if (c && c.style) c.style.opacity = t.prevHeatOpacity;
       } catch { /* noop */ }
       t.prevHeatOpacity = null;
+    }
+    if (t.exportHeat) {
+      t.exportHeat.remove();
+      if (ctx.heatLayer === t.exportHeat) ctx.heatLayer = null;
+      t.exportHeat = null;
     }
     t.active = false;
     if (ctx._exportMapToken === t) ctx._exportMapToken = null;
@@ -1752,9 +1775,9 @@
     });
 
     const tileImagesReady = () => {
-      const doc = window.document;
-      if (!doc || typeof doc.querySelectorAll !== 'function') return true;
-      const imgs = Array.from(doc.querySelectorAll('.leaflet-tile-pane img'));
+      const container = map?.getContainer?.() || window.document;
+      if (!container || typeof container.querySelectorAll !== 'function') return true;
+      const imgs = Array.from(container.querySelectorAll('.leaflet-tile-pane img'));
       if (imgs.length === 0) return minTileImages === 0;
       if (imgs.length < minTileImages) return false;
       return imgs.every((img) => {
@@ -2403,27 +2426,10 @@
     // ---- Heatmap (zoom-adaptiv + opacity per Canvas, only rebuild when needed)
     if (ctx.showHeatmap && shouldRebuildHeat) {
       const z = ctx.map.getZoom();
-      const uiBase = ctx.ui?.heatRadiusEl?.value ?? "25";
-
-      const radius = UA.heatRadiusForZoom(z, uiBase);
-      const blur = UA.heatBlurForZoom(z);
-      const opacity = UA.heatOpacityForZoom(z);
-
-      const heatPts = pts.map((p) => {
-        const k = String(p.props?.ukategorie || "");
-        const w = k === "1" ? 1.0 : k === "2" ? 0.7 : k === "3" ? 0.4 : 0.5;
-        return [p.lat, p.lon, w];
-      });
-
-      ctx.heatLayer = L.heatLayer(heatPts, {
-        radius,
-        blur,
-        maxZoom: 17,
-      }).addTo(ctx.map);
-
-      applyHeatOpacity(ctx.heatLayer, opacity);
+      ctx.heatLayer = createAccidentHeatLayer(ctx, pts, z).addTo(ctx.map);
+      applyHeatOpacity(ctx.heatLayer, UA.heatOpacityForZoom(z));
       ctx._lastHeatZoom = currentZoom;
-      if (lifecycleRevision != null) observeHeatmapPaint(ctx.heatLayer, lifecycleRevision, heatPts.length);
+      if (lifecycleRevision != null) observeHeatmapPaint(ctx.heatLayer, lifecycleRevision, pts.length);
     } else if (ctx.showHeatmap && lifecycleRevision != null) {
       observeHeatmapPaint(ctx.heatLayer, lifecycleRevision, pts.length);
     }

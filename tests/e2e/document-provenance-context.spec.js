@@ -46,6 +46,8 @@ async function waitForWorkbench(page) {
 async function waitForDownloadOrVisibleFailure(page, button, dialogMessages) {
   const downloadPromise = page.waitForEvent('download', { timeout: 90_000 })
     .then(download => ({ download }));
+  const dialogPromise = page.waitForEvent('dialog', { timeout: 90_000 })
+    .then(dialog => ({ error: dialog.message() }));
   const failurePromise = page.waitForFunction(() => {
     const text = String(document.querySelector('#exportProgress')?.textContent || '');
     return /^Fehler:/i.test(text) ? text : false;
@@ -53,7 +55,7 @@ async function waitForDownloadOrVisibleFailure(page, button, dialogMessages) {
     .then(error => ({ error }));
 
   await button.click();
-  const outcome = await Promise.race([downloadPromise, failurePromise]);
+  const outcome = await Promise.race([downloadPromise, failurePromise, dialogPromise]);
   if (outcome.error) {
     const dialogSuffix = dialogMessages.length ? ` Dialog: ${dialogMessages.join(' | ')}` : '';
     throw new Error(`${outcome.error}${dialogSuffix}`);

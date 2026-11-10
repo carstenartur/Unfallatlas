@@ -307,10 +307,10 @@
       upd.risSelectionOnly = null;
       if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize({ ...ctx.risView, selectionOnly: false });
     } else if (ctx.selectionBounds) {
-      upd.selSouth = ctx.selectionBounds.getSouth().toFixed(6);
-      upd.selWest  = ctx.selectionBounds.getWest().toFixed(6);
-      upd.selNorth = ctx.selectionBounds.getNorth().toFixed(6);
-      upd.selEast  = ctx.selectionBounds.getEast().toFixed(6);
+      upd.selSouth = String(ctx.selectionBounds.getSouth());
+      upd.selWest  = String(ctx.selectionBounds.getWest());
+      upd.selNorth = String(ctx.selectionBounds.getNorth());
+      upd.selEast  = String(ctx.selectionBounds.getEast());
     }
     UA.setQS(upd);
     UA.saveCityState(ctx);

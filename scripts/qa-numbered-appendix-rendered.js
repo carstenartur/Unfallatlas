@@ -270,6 +270,15 @@ async function generateReleaseEvidence(options = {}) {
   };
   const cohorts = evidence.buildCohorts(UA, ctx, report, root);
   const rows = cohorts.completeEvidenceCohort.rows;
+  const rowsById = new Map(rows.map(row => [row.displayId, row]));
+  const intendedMaps = [
+    { role: 'overview', bounds: cohorts.bounds, rows },
+    ...cohorts.detailMapPartitions.map(partition => ({
+      role: `detail-${partition.mapRef.toLowerCase()}`,
+      bounds: partition.bounds,
+      rows: partition.accidentIds.map(id => rowsById.get(id))
+    }))
+  ];
   let manifest = JSON.parse(JSON.stringify(await provenance.createManifest(ctx, {
     UA,
     root
@@ -325,9 +334,23 @@ async function generateReleaseEvidence(options = {}) {
     },
     setView: () => {}
   };
-  UA.captureExportMapImage = async (_ctx, opts) => {
-    const mapRows = opts.evidenceRows,
-      role = mapRows.length === rows.length ? 'overview' : `detail-${mapRows[0].mapRef.toLowerCase()}`;
+  UA.createDocumentMapContext = context => ({ ctx: context, close() {} });
+  UA.captureDocumentMap = async (_ctx, opts) => {
+    const intended = intendedMaps[capturedMaps.length];
+    if (!intended) throw new Error('Unexpected map capture after all intended maps');
+    const { rows: mapRows, role } = intended;
+    const expectedPoints = mapRows.map(row => JSON.stringify([row.lat, row.lon, String(row.severity)])).sort();
+    const actualPoints = Array.isArray(opts.exportPoints)
+      ? opts.exportPoints.map(point => JSON.stringify([point?.lat, point?.lon, String(point?.props?.ukategorie)])).sort()
+      : [];
+    if (JSON.stringify(actualPoints) !== JSON.stringify(expectedPoints)) {
+      throw new Error(`Map capture points differ from the intended ${role} cohort`);
+    }
+    if (!['south', 'west', 'north', 'east'].every(key => opts.exportBounds?.[key] === intended.bounds[key])) {
+      throw new Error(`Map capture bounds differ from the intended ${role} cohort`);
+    }
+    const expectedLabelIds = role === 'overview' && mapRows.length > 18 ? [] : mapRows.map(row => row.displayId);
+    assertSameIds(expectedLabelIds, (opts.evidenceRows || []).map(row => row.displayId), 'Map capture labels');
     const map = createRoleMapFixture({
       role,
       points: mapRows.map(r => ({
@@ -340,7 +363,7 @@ async function generateReleaseEvidence(options = {}) {
       snapshotHash: normalized.sha256
     });
     capturedMaps.push(map);
-    return toDataUrl(map.png);
+    return { image: toDataUrl(map.png) };
   };
   UA.__documentProvenanceOriginals = {
     exportToWord: () => evidence._internal.exportEvidenceWord(UA, root, ctx, report, cohorts),
@@ -477,7 +500,7 @@ function verifyRenderedMapCaptions(model, contract, format) {
     const overview = expected.role === 'overview';
     const mapRef = overview ? 'E0' : expected.role.replace(/^detail-/, '').toUpperCase();
     const title = overview ? 'Übersicht – vollständiges Gebietskollektiv' :
-      `Detail ${mapRef} – ${expected.accidentIds[0]} bis ${expected.accidentIds.at(-1)}`;
+      `Detailkarte ${mapRef} – nummerierte Unfallorte`;
     let heading;
     if (!overview) {
       const before = tables.clusterWordsIntoLines(page.words).filter(line => line.yMax <= image.yMin + 2);
@@ -494,11 +517,14 @@ function verifyRenderedMapCaptions(model, contract, format) {
       }
       heading = { text, page: page.number };
     }
-    const idCaption = format === 'docx-pdf' || !overview;
-    const expectedText = tables.normalizeText(`Abbildung ${index + 1}: ${
-      format === 'native-pdf' && !overview ? mapRef : title}; ${idCaption ?
-      `Unfall-IDs: ${expected.accidentIds.join(', ')}.` :
-      `dargestellt und nummeriert: ${expected.markerCount} Unfälle.`}`);
+    const idCaption = !overview;
+    const expectedText = tables.normalizeText(format === 'native-pdf'
+      ? (overview
+        ? `Abbildung 1: ${title}, dargestellt sind ${expected.markerCount} Unfälle. Die Unfall-IDs stehen auf den Detailkarten.`
+        : `Abbildung ${index + 1}: ${mapRef}; Unfall-IDs: ${expected.accidentIds.join(', ')}.`)
+      : `Abbildung ${index + 1}: ${title}. ${overview
+        ? `${expected.markerCount} Unfälle. Die Unfall-IDs stehen auf den Detailkarten.`
+        : `Unfall-IDs ${expected.accidentIds.join(', ')}.`}`);
     const nextImage = page.images.filter(other => other.yMin > image.yMax)
       .sort((a, b) => a.yMin - b.yMin)[0];
     const lines = tables.clusterWordsIntoLines(page.words).filter(line =>

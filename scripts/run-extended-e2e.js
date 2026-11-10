@@ -8,14 +8,15 @@ const environment = {
   PLAYWRIGHT_SERVE_EXISTING_SITE: '1',
 };
 
-const suites = [
-  ['test', '--project=chromium'],
-  ['test', '--project=firefox-smoke'],
-  ['test', '--project=webkit-smoke'],
+const stages = [
+  [require.resolve('./qa-bonn-hbf-ai-golden'), '--skip-build'],
+  [playwrightCli, 'test', '--project=chromium'],
+  [playwrightCli, 'test', '--project=firefox-smoke'],
+  [playwrightCli, 'test', '--project=webkit-smoke'],
 ];
 
-for (const args of suites) {
-  const result = spawnSync(process.execPath, [playwrightCli, ...args], {
+for (const args of stages) {
+  const result = spawnSync(process.execPath, args, {
     cwd: process.cwd(),
     env: environment,
     stdio: 'inherit',

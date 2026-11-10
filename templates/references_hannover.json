@@ -26,5 +26,40 @@
       "url": "https://www.verkehrswacht-medien-service.de/schulweg/",
       "description": "Leitfaden zur Identifikation und Entschärfung von Gefahrenstellen auf Schulwegen. Relevanz bei Häufungen im Umfeld von Bildungseinrichtungen."
     }
+  ],
+  "localPoliticalCases": [
+    {
+      "location": {
+        "name": "Engelbosteler Damm / Haltenhoffstraße / Bodestraße",
+        "lat": 52.3915078,
+        "lon": 9.7203588,
+        "url": "https://www.openstreetmap.org/node/21426749",
+        "attribution": "© OpenStreetMap-Mitwirkende (ODbL 1.0)"
+      },
+      "references": [
+        {
+          "id": "hannover-sim:15-1865-2024",
+          "title": "Änderungsantrag zur Stadtbahnstrecke C-Nord und Umsteigeanlage Bahnhof Nordstadt",
+          "type": "Änderungsantrag",
+          "date": "2024-09-10",
+          "gremium": "Stadtbezirksrat Nord",
+          "number": "15-1865/2024",
+          "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1865-2024",
+          "source": "Sitzungsmanagement der Landeshauptstadt Hannover (SIM)",
+          "reason": "Der Stadtbezirksrat Nord beschloss am 30.09.2024 den Änderungsantrag zur Umsteigeanlage Bahnhof Nordstadt. Er verlangte unter anderem bessere Fußquerungen am Knoten Haltenhoffstraße/Bodestraße und eine Vorplanung für die Veloroute 13 im betroffenen Abschnitt."
+        },
+        {
+          "id": "hannover-sim:1411-2024E1",
+          "title": "Stadtbahnstrecke C-Nord, Umsteigeanlage Bahnhof Nordstadt – Einleitung des Planfeststellungsverfahrens",
+          "type": "Beschlussdrucksache, 1. Ergänzung",
+          "date": "2024-10-02",
+          "gremium": "Verwaltungsausschuss",
+          "number": "1411/2024 E1",
+          "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1411-2024E1",
+          "source": "Sitzungsmanagement der Landeshauptstadt Hannover (SIM)",
+          "reason": "Die Verwaltung empfahl 2024, dem Änderungsantrag teilweise zu folgen. Sie beschrieb Querungsmöglichkeiten an allen Knotenpunktarmen von Haltenhoffstraße/Bodestraße und erläuterte den Planungsstand der Veloroute 13. Der Verwaltungsausschuss stimmte der Vorlage am 14.11.2024 einstimmig zu."
+        }
+      ]
+    }
   ]
 }

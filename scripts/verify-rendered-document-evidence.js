@@ -99,7 +99,7 @@ for (const [pageNumber, text] of pageText.entries()) {
 requirePagePattern(2, /Top-Abweichungen \(Ausschnitt vs\. Stadt\):/u, 'deviation-table subsection heading');
 requirePagePattern(2, /Muster\s+Lokal\s+Lokal\s+%\s+Stadt\s+%\s+Faktor\s+95%-KI/u, 'deviation-table header');
 requirePagePattern(2, /5\s+11\s+45,8\s*%\s+14,6\s*%\s+3,13×/u, 'deviation-table first row');
-requirePagePattern(2, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'overview-map count n=24');
+requirePagePattern(2, /Unfälle im selben Gebiet vor Beteiligungsfilter\s*\(n\s*=\s*24\)/u, 'overview-map count n=24 before involvement filter');
 requirePagePattern(3, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'selection-map count n=24');
 requirePagePattern(4, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'detail-map parent count 24');
 requirePagePattern(4, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'detail-map count n=24');

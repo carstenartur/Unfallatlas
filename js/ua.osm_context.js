@@ -345,7 +345,12 @@
       return out;
     }
 
-    const elements = (body && Array.isArray(body.elements)) ? body.elements : [];
+    if (!Array.isArray(body?.elements) || body.remark) {
+      const out = { quality: { error: "Overpass lieferte keine vollständige Antwort", fetchedAt: new Date(now).toISOString() } };
+      _rememberInCache(key, out, now, ERROR_CACHE_TTL_MS);
+      return out;
+    }
+    const elements = body.elements;
     const agg = aggregate(elements);
     const result = Object.assign({}, agg, {
       bbox: {

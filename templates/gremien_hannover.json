@@ -1,152 +1,180 @@
 {
+  "stadt": "Hannover",
   "gremiumTyp": "Bezirksrat",
+  "stadtbezirksgrenzen": "data/mobility/hannover-stadtbezirke.geojson",
   "hinweis": "Zuständigkeit bitte vor Einreichung mit der aktuellen Bezirksgliederung abgleichen.",
   "fallback": "Zuständiger Bezirksrat konnte nicht eindeutig ermittelt werden. Bitte prüfen Sie die Zuordnung anhand der aktuellen Stadtbezirksgrenzen.",
   "zuordnung": [
     {
       "match": {
+        "city_district": "Mitte",
         "suburb": [
-          "Linden-Nord",
-          "Linden-Mitte",
-          "Linden-Süd",
-          "Limmer"
-        ]
-      },
-      "gremium": "Bezirksrat Linden-Limmer",
-      "kontakt": "bezirksrat-linden-limmer@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Mitte",
           "Calenberger Neustadt",
-          "Nordstadt",
-          "Südstadt"
-        ]
-      },
-      "gremium": "Bezirksrat Mitte",
-      "kontakt": "bezirksrat-mitte@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Vahrenwald",
-          "List"
-        ]
-      },
-      "gremium": "Bezirksrat Vahrenwald-List",
-      "kontakt": "bezirksrat-vahrenwald-list@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Hainholz",
-          "Vahrenheide",
-          "Sahlkamp"
-        ]
-      },
-      "gremium": "Bezirksrat Nord",
-      "kontakt": "bezirksrat-nord@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Döhren",
-          "Wülfel",
-          "Mittelfeld",
-          "Seelhorst"
-        ]
-      },
-      "gremium": "Bezirksrat Döhren-Wülfel",
-      "kontakt": "bezirksrat-doehren-wuelfel@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Mühlenberg",
-          "Wettbergen",
-          "Davenstedt",
-          "Badenstedt",
-          "Ricklingen"
-        ]
-      },
-      "gremium": "Bezirksrat Ricklingen",
-      "kontakt": "bezirksrat-ricklingen@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Kirchrode",
-          "Bemerode",
-          "Wülferode"
-        ]
-      },
-      "gremium": "Bezirksrat Kirchrode-Bemerode-Wülferode",
-      "kontakt": "bezirksrat-kirchrode-bemerode-wuelferode@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Misburg-Nord",
-          "Misburg-Süd",
-          "Anderten"
-        ]
-      },
-      "gremium": "Bezirksrat Misburg-Anderten",
-      "kontakt": "bezirksrat-misburg-anderten@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Bothfeld",
-          "Vinnhorst",
-          "Brink-Hafen"
-        ]
-      },
-      "gremium": "Bezirksrat Bothfeld-Vahrenheide",
-      "kontakt": "bezirksrat-bothfeld-vahrenheide@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Herrenhausen",
-          "Stöcken",
-          "Leinhausen",
-          "Ahlem"
-        ]
-      },
-      "gremium": "Bezirksrat Herrenhausen-Stöcken",
-      "kontakt": "bezirksrat-herrenhausen-stoecken@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Buchholz-Kleefeld"
-        ]
-      },
-      "gremium": "Bezirksrat Buchholz-Kleefeld",
-      "kontakt": "bezirksrat-buchholz-kleefeld@hannover-stadt.de"
-    },
-    {
-      "match": {
-        "suburb": [
-          "Waldhausen",
-          "Waldheim",
+          "Mitte",
+          "Oststadt",
           "Zoo"
         ]
       },
-      "gremium": "Bezirksrat Südstadt-Bult",
-      "kontakt": "bezirksrat-suedstadt-bult@hannover-stadt.de"
+      "gremium": "Stadtbezirksrat Mitte",
+      "kontakt": "bezirksratsbetreuung01@hannover-stadt.de"
     },
     {
       "match": {
+        "city_district": "Vahrenwald-List",
         "suburb": [
-          "Heideviertel",
-          "Kronsberg-Süd"
+          "List",
+          "Vahrenwald"
         ]
       },
-      "gremium": "Bezirksrat Bemerode",
-      "kontakt": "bezirksrat-bemerode@hannover-stadt.de"
+      "gremium": "Stadtbezirksrat Vahrenwald-List",
+      "kontakt": null
+    },
+    {
+      "match": {
+        "city_district": "Bothfeld-Vahrenheide",
+        "suburb": [
+          "Bothfeld",
+          "Isernhagen-Süd",
+          "Lahe",
+          "Sahlkamp",
+          "Vahrenheide"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Bothfeld-Vahrenheide",
+      "kontakt": "bezirksratsbetreuung03@hannover-stadt.de"
+    },
+    {
+      "match": {
+        "city_district": "Buchholz-Kleefeld",
+        "suburb": [
+          "Buchholz-Kleefeld",
+          "Groß-Buchholz",
+          "Heideviertel",
+          "Kleefeld"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Buchholz-Kleefeld",
+      "kontakt": "18.62.04.brb@hannover-stadt.de"
+    },
+    {
+      "match": {
+        "city_district": "Misburg-Anderten",
+        "suburb": [
+          "Anderten",
+          "Misburg-Nord",
+          "Misburg-Süd"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Misburg-Anderten",
+      "kontakt": null
+    },
+    {
+      "match": {
+        "city_district": "Kirchrode-Bemerode-Wülferode",
+        "suburb": [
+          "Bemerode",
+          "Kirchrode",
+          "Kronsberg Süd",
+          "Kronsberg-Süd",
+          "Wülferode"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Kirchrode-Bemerode-Wülferode",
+      "kontakt": null
+    },
+    {
+      "match": {
+        "city_district": "Südstadt-Bult",
+        "suburb": [
+          "Bult",
+          "Südstadt"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Südstadt-Bult",
+      "kontakt": "18.63.07.brb@hannover-stadt.de"
+    },
+    {
+      "match": {
+        "city_district": "Döhren-Wülfel",
+        "suburb": [
+          "Döhren",
+          "Mittelfeld",
+          "Seelhorst",
+          "Waldhausen",
+          "Waldheim",
+          "Wülfel"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Döhren-Wülfel",
+      "kontakt": "bezirksratsbetreuung08@hannover-stadt.de"
+    },
+    {
+      "match": {
+        "city_district": "Ricklingen",
+        "suburb": [
+          "Bornum",
+          "Mühlenberg",
+          "Oberricklingen",
+          "Ricklingen",
+          "Wettbergen"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Ricklingen",
+      "kontakt": null
+    },
+    {
+      "match": {
+        "city_district": "Linden-Limmer",
+        "suburb": [
+          "Limmer",
+          "Linden-Mitte",
+          "Linden-Nord",
+          "Linden-Süd"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Linden-Limmer",
+      "kontakt": null
+    },
+    {
+      "match": {
+        "city_district": "Ahlem-Badenstedt-Davenstedt",
+        "suburb": [
+          "Ahlem",
+          "Badenstedt",
+          "Davenstedt"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Ahlem-Badenstedt-Davenstedt",
+      "kontakt": "bezirksratsbetreuung11@hannover-stadt.de"
+    },
+    {
+      "match": {
+        "city_district": "Herrenhausen-Stöcken",
+        "suburb": [
+          "Burg",
+          "Herrenhausen",
+          "Ledeburg",
+          "Leinhausen",
+          "Marienwerder",
+          "Nordhafen",
+          "Stöcken"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Herrenhausen-Stöcken",
+      "kontakt": null
+    },
+    {
+      "match": {
+        "city_district": "Nord",
+        "suburb": [
+          "Brink-Hafen",
+          "Hainholz",
+          "Nordstadt",
+          "Vinnhorst"
+        ]
+      },
+      "gremium": "Stadtbezirksrat Nord",
+      "kontakt": "18.62.13.brb@hannover-stadt.de"
     }
   ]
 }

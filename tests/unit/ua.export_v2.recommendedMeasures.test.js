@@ -9,8 +9,7 @@
  *   3) `filteredOut` and the OSM-coverage disclaimer are surfaced in the
  *       output so the user understands why measures were suppressed and
  *       when the suppression couldn't even be checked.
- *   4) Missing OSM context = "no suppression" (defensive) but a visible
- *       hint that the prerequisite axes were not evaluated.
+ *   4) Missing location context leaves a documented need for field checks.
  *
  * Mirrors the loader pattern from ua.export_v2.osmContext.test.js but pulls
  * in the cost + measures helpers as well.
@@ -37,6 +36,7 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
     load('ua.trend.js');
     load('ua.heatmap.js');
     load('ua.osm_context.js');
+    load('ua.context_measures.js');
     load('ua.costs.js');
     load('ua.measures.js');
     // Network is offline → `loadCostFactors` and `loadCatalog` fall back to
@@ -176,34 +176,69 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
   });
 
   // ----------------------------------------------------------------------
-  // (3) Missing OSM context: NO suppression, but visible disclaimer
+  // (3) Missing context and a confirmed rail context
   // ----------------------------------------------------------------------
 
-  test('missing osmContext does NOT suppress measures but DOES surface a coverage disclaimer', async () => {
-    // override===null mimics a slow/blocked Overpass mirror. Defensive design:
-    // we keep the recommendation, but warn that prerequisites couldn't be checked.
+  test('missing local evidence suppresses the ranked catalog and requests field checks', async () => {
     const r = await UA.computeExportReport(makeCtx({ osmContextOverride: null }));
-    const rm = r.structured.recommendedMeasures;
-    expect(rm).toBeDefined();
-    // tempo_30 stays in (no false-negative filtering when data is missing)
-    expect(rm.measures.find(m => m.measure.id === 'tempo_30')).toBeDefined();
-    // osmCoverage should explicitly flag the gap …
-    expect(rm.osmCoverage).toBeDefined();
-    expect(rm.osmCoverage.present).toBe(false);
-    expect(rm.osmCoverage.hasGap).toBe(true);
-    // …and the rendered output must not pretend prerequisites were checked.
-    expect(r.text).toMatch(/OSM-Datenstand/);
-    expect(r.text).toMatch(/nicht abgerufen|nicht geprüft/);
-    expect(r.html).toMatch(/OSM-Datenstand/);
+    expect(r.structured.recommendedMeasures).toBeNull();
+    expect(r.structured.measureAssessmentNote).toMatch(/Vor-Ort-Prüfung/);
+    expect(r.text).toContain(r.structured.measureAssessmentNote);
+    expect(r.html).toContain(r.structured.measureAssessmentNote);
+    expect(r.text).not.toMatch(/Amortisation|Tempo-30-Anordnung/);
+    expect(r.structured.motion).toBeNull();
   });
 
-  test('osmContext.quality.error stub is surfaced verbatim in the disclaimer', async () => {
+  test('an OSM timeout remains visible without a quantitative catalog recommendation', async () => {
     const stub = { quality: { error: 'HTTP 504', fetchedAt: new Date().toISOString() } };
     const r = await UA.computeExportReport(makeCtx({ osmContextOverride: stub }));
-    const rm = r.structured.recommendedMeasures;
-    expect(rm.osmCoverage.error).toBe('HTTP 504');
-    expect(r.text).toMatch(/HTTP 504/);
-    expect(r.html).toMatch(/HTTP 504/);
+    expect(r.structured.recommendedMeasures).toBeNull();
+    expect(r.text).toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
+    expect(r.html).toMatch(/Vor-Ort-Prüfung/);
+  });
+
+  test('the decision prioritizes a verified rail context and counts only the relevant accident types', async () => {
+    const osm = osmKept();
+    osm.contexts.tramTrackWays = 2;
+    const ctx = makeCtx({ osmContextOverride: osm });
+    ctx.confirmedAreaName = 'Testknoten';
+    ctx.allPts.slice(0, 3).forEach(p => { p.props.utyp1 = '1'; });
+    ctx.allPts.slice(0, 2).forEach(p => { p.props.ukategorie = '2'; });
+    ctx.allPts[3].props.ukategorie = '2';
+    ctx.allPts[3].props.utyp1 = '3';
+    const r = await UA.computeExportReport(ctx);
+
+    expect(r.structured.recommendedMeasures).toBeNull();
+    expect(r.structured.motion.requests.join(' ')).toMatch(/Gleisquerungen.*Querungswinkel/);
+    expect(r.structured.motion.rationale).toMatch(/3 Fahrunfälle mit Radbeteiligung.*zwei Unfälle mit Schwerverletzten|3 Fahrunfälle mit Radbeteiligung.*2 Unfälle mit Schwerverletzten/);
+    expect(r.structured.motion.rationale).toMatch(/Unfallursache/);
+    expect(r.text).toContain(r.structured.motion.requests[0]);
+    expect(r.html).toContain(r.structured.motion.requests[0]);
+  });
+
+  test('the Hannover selection uses published ATKIS track geometry when Overpass is unavailable', async () => {
+    const tracks = require('../../data/mobility/hannover-tram-context.json');
+    const offline = global.fetch;
+    global.fetch = jest.fn(async url => url === 'data/mobility/hannover-tram-context.json'
+      ? { ok: true, json: async () => tracks }
+      : offline(url));
+    UA.osmContext.fetchOsmContext = async () => ({ quality: { error: 'timeout' } });
+    const ctx = makeCtx();
+    ctx.selectionBounds.getSouthWest = () => ({ lat: 52.391108, lng: 9.719819 });
+    ctx.selectionBounds.getNorthEast = () => ({ lat: 52.391889, lng: 9.721093 });
+    ctx.allPts[0].props.utyp1 = '1';
+    const r = await UA.computeExportReport(ctx);
+    expect(r.structured.motion.source.label).toContain('LGLN');
+    expect(r.structured.motion.rationale).toContain('1 Fahrunfall mit Radbeteiligung');
+    expect(r.structured.recommendedMeasures).toBeNull();
+
+    const distant = makeCtx();
+    distant.allPts[0].props.utyp1 = '1';
+    distant.selectionBounds.getSouthWest = () => ({ lat: 52.2, lng: 9.6 });
+    distant.selectionBounds.getNorthEast = () => ({ lat: 52.201, lng: 9.601 });
+    const other = await UA.computeExportReport(distant);
+    expect(other.structured.motion).toBeNull();
+    expect(other.structured.measureAssessmentNote).toMatch(/Vor-Ort-Prüfung/);
   });
 
   // ----------------------------------------------------------------------

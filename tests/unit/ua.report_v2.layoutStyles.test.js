@@ -244,8 +244,9 @@ describe('UA.report_v2 – Layout-Pass (canonical styles + map dramaturgy)', () 
     const texts = collectTexts(def.content).map(String);
     const captionTexts = texts.filter(t => /^Abbildung \d+: /.test(t));
     // Both detail (Abbildung 2) and cluster (Abbildung 3) captions should
-    // carry the subset cross-reference to Abbildung 1's parent count (262).
-    const subsetCaptions = captionTexts.filter(t => /Teilmenge der 262 Unfälle aus Abbildung 1\.$/.test(t));
+    // Refer to the 32 points rendered on the parent map, even when the
+    // older table fixture still has a different analytical population.
+    const subsetCaptions = captionTexts.filter(t => /Teilmenge der 32 Unfälle aus Abbildung 1\.$/.test(t));
     expect(subsetCaptions.length).toBeGreaterThanOrEqual(2);
     // And one of them must explicitly carry the detail count "Die 32 …".
     expect(subsetCaptions.some(t => /Die 32 dargestellten Unfälle/.test(t))).toBe(true);
