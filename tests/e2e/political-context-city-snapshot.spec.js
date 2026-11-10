@@ -110,7 +110,7 @@ test('Hannover opens the selected junction from a search result with several pla
     }]
   }]);
   await openPublicWerkbank(page, 'city=Hannover&centerLat=52.38&centerLon=9.74&zoom=15');
-  await page.locator('#btnPolCtxOpen').click();
+  await page.locator('#btnRisBrowse').click();
   await page.locator('#polCtxSearchInput').fill('Kötnerholzweg');
   await page.locator('#polCtxBtnSearch').click();
   const results = page.locator('#polCtxResults');

@@ -9,6 +9,7 @@
   const DEFAULT_TEMPLATES = UA.exportTemplateDefaults || {};
   const PATTERN_COMPARISON_LIMITATIONS = Object.freeze({"inference": "exploratory", "multiplicityAdjustment": "none", "referenceIncludesLocal": true, "localIntervalOnly": true, "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."});
   UA.patternComparisonLimitations = PATTERN_COMPARISON_LIMITATIONS;
+  const NO_OVERREPRESENTATION_NOTE = "Keine statistisch abgesicherte Überrepräsentation nach dem lokalen Wilson-Kriterium";
 
   async function loadTemplate(name, stadtSlug) {
     // Fallback chain:
@@ -2070,7 +2071,7 @@
           lines.push(`- ${lbl}: ${phrase} (lokal ${r.locCnt} Fälle, stadtweit ${r.baseCnt}).`);
         } else {
           const ciStr = `95%-KI: ${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}`;
-          const sigStr = r.isSignificant ? "signifikant" : "nicht signifikant – kleine Datenmenge";
+          const sigStr = r.isSignificant ? "signifikant" : NO_OVERREPRESENTATION_NOTE;
           lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${_fmtFactorDe(r.factor)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
         }
       }
@@ -2078,7 +2079,7 @@
       if (exportMode !== "political") {
         const allNonSignificant = dev.focus.every(r => !r.isSignificant);
         if (allNonSignificant) {
-          lines.push("Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (kleine Fallzahlen). Die Faktor-Werte sollten mit Vorsicht interpretiert werden.");
+          lines.push(`Hinweis: ${NO_OVERREPRESENTATION_NOTE}. Die Faktor-Werte sollten mit Vorsicht interpretiert werden.`);
         }
       }
       lines.push("");
@@ -2501,7 +2502,7 @@
     const fmtCI = (r) => `[${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}]`;
     const mkDevRow = (r) => {
       const sigStyle = r.isSignificant ? "" : " color:#999;";
-      const sigTooltip = r.isSignificant ? "" : ` title="Nicht signifikant – kleine Datenmenge (95%-KI schließt Stadtwert ein)"`;
+      const sigTooltip = r.isSignificant ? "" : ` title="${NO_OVERREPRESENTATION_NOTE}"`;
       const nsBadge = r.isSignificant ? "" : ` <span style="font-size:10px; color:#bbb;">n.s.</span>`;
       const factorCell = `${_fmtFactorDe(r.factor)}× <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${nsBadge}`;
       return `

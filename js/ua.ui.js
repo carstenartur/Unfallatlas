@@ -1,6 +1,5 @@
 (() => {
   const UA = (window.UA = window.UA || {});
-  const COMPACT_PANEL_QUERY = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
   const boundPanelButtons = new WeakSet();
   const boundLegendButtons = new WeakSet();
   const mapOccludedPanels = new WeakMap();
@@ -232,23 +231,25 @@
     if (!ui) return;
 
     if (ui.panelEl && ui.collapseBtn && !boundPanelButtons.has(ui.collapseBtn)) {
-      const compactQuery = typeof window.matchMedia === 'function'
-        ? window.matchMedia(COMPACT_PANEL_QUERY)
-        : null;
-      // Keep explicit phone and desktop choices separate across layout changes.
+      const compactQuery = window.matchMedia?.(UA.COMPACT_MAP_QUERY);
+      // Keep explicit compact and wide layout choices separate.
       const preferenceKey = () => compactQuery && compactQuery.matches
         ? "ua_panel_collapsed_mobile"
         : "ua_panel_collapsed";
       const restoreCollapsed = () => {
         mapOccludedPanels.delete(ui.panelEl);
         const compact = !!(compactQuery && compactQuery.matches);
+        document.body.classList.toggle('map-layout-compact', compact);
         const saved = (() => { try { return localStorage.getItem(preferenceKey()); } catch { return null; } })();
         setCollapsed(ui, saved === "1" || (saved !== "0" && compact));
       };
       restoreCollapsed();
       ui.collapseBtn.addEventListener('click', () => {
         const collapsed = ui.panelEl.classList.contains('collapsed');
-        if (compactQuery?.matches) UA.closeMapControls?.(ctx);
+        if (compactQuery?.matches) {
+          if (collapsed) UA.PoliticalContext?.collapseWorkspace?.(ctx);
+          UA.closeMapControls?.(ctx);
+        }
         setCollapsed(ui, !collapsed, preferenceKey());
       });
       if (compactQuery && typeof compactQuery.addEventListener === 'function') {
@@ -264,7 +265,10 @@
       ui.legendBtn.addEventListener('click', () => {
         const expanded = ui.legendBox.style.display !== "block";
         if (expanded && ui.panelEl && ui.collapseBtn) {
-          if (window.matchMedia?.(COMPACT_PANEL_QUERY).matches) UA.closeMapControls?.(ctx);
+          if (window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches) {
+            UA.PoliticalContext?.collapseWorkspace?.(ctx);
+            UA.closeMapControls?.(ctx);
+          }
           if (ui.panelEl.classList.contains('collapsed')) setCollapsed(ui, false);
         }
         setLegendExpanded(ui, expanded);
@@ -325,7 +329,7 @@
       roadCondition: ui.roadConditionEl.value,
       hourFrom: ui.hFromEl.value,
       hourTo: ui.hToEl.value,
-      maxPoints: ui.maxPointsEl.value,
+      maxPoints: ctx.renderPointLimit ?? ui.maxPointsEl.value,
       viewportPaddingPct: ui.viewportPaddingEl.value,
       heatRadius: ui.heatRadiusEl.value,
       includeCyclist: ui.incBikeEl.checked ? 1 : 0,
@@ -427,6 +431,12 @@
 
   UA.bindUi = function bindUi(ctx){
     const ui = ctx.ui;
+    const maxPointsField = ui.maxPointsEl;
+    const normalizePointLimit = (value, fallback) => {
+      const text = String(value ?? '').trim();
+      const parsed = text ? Number(text) : NaN;
+      return Number.isFinite(parsed) ? Math.max(500, Math.min(200000, Math.trunc(parsed))) : fallback;
+    };
 
     // Safe for legacy/direct callers; bindDom normally binds these earlier.
     UA.bindPanelDisclosure(ctx);
@@ -438,7 +448,8 @@
 
     ui.hFromEl.value = String(Math.max(0, Math.min(23, parseInt(UA.qGet("hourFrom","0"),10)||0)));
     ui.hToEl.value   = String(Math.max(0, Math.min(23, parseInt(UA.qGet("hourTo","23"),10)||23)));
-    ui.maxPointsEl.value = String(Math.max(500, Math.min(200000, parseInt(UA.qGet("maxPoints","100000"),10)||100000)));
+    ctx.renderPointLimit = normalizePointLimit(UA.qGet("maxPoints", maxPointsField.value), 100000);
+    maxPointsField.value = String(ctx.renderPointLimit);
     ui.viewportPaddingEl.value = String(Math.max(0, Math.min(100, parseInt(UA.qGet("viewportPaddingPct","20"),10)||20)));
     ui.heatRadiusEl.value = String(Math.max(5, Math.min(60, parseInt(UA.qGet("heatRadius","25"),10)||25)));
     ctx.mapMode = (typeof UA.resolveMapMode === "function")
@@ -507,9 +518,28 @@
     }
 
     // changes
-    for (const el of [ui.severityEl, ui.dayTypeEl, ui.roadConditionEl, ui.maxPointsEl, ui.viewportPaddingEl, ui.heatRadiusEl]) {
+    for (const el of [ui.severityEl, ui.dayTypeEl, ui.roadConditionEl, ui.viewportPaddingEl, ui.heatRadiusEl]) {
       el.addEventListener("change", ()=>{ UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); });
     }
+    const commitPointLimit = () => {
+      const limit = normalizePointLimit(maxPointsField.value, ctx.renderPointLimit);
+      maxPointsField.value = String(limit);
+      if (limit === ctx.renderPointLimit) return;
+      ctx.renderPointLimit = limit;
+      UA.syncAllToUrl(ctx);
+      UA.recomputeAndRender(ctx, 'renderLimitChanged');
+    };
+    // A number field can emit change on every spinner step. Keep those values
+    // as a draft until the user confirms the edit or leaves the field.
+    maxPointsField.addEventListener('change', () => {
+      if (document.activeElement !== maxPointsField) commitPointLimit();
+    });
+    maxPointsField.addEventListener('blur', commitPointLimit);
+    maxPointsField.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      commitPointLimit();
+    });
     for (const el of [ui.incBikeEl, ui.incPedEl, ui.incCarEl, ui.incMotoEl, ui.incGkfzEl, ui.incSonEl].filter(Boolean)) {
       el.addEventListener("change", ()=>{ UA.syncAllToUrl(ctx); UA.recomputeAndRender(ctx); });
     }

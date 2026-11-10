@@ -197,6 +197,13 @@ test('desktop keeps compact results and the document beside an operable map', as
   const detailBox = await detail.boundingBox();
   expect(listBox.x + listBox.width <= detailBox.x || detailBox.x + detailBox.width <= listBox.x,
     'Desktop results and document must have separate horizontal space').toBe(true);
+  const settings = page.getByRole('button', { name: 'Karte', exact: true });
+  await expect(settings).toHaveAttribute('aria-expanded', 'false');
+  const menuBox = await page.locator('.carte-control').boundingBox();
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(detailBox.x);
+  await settings.click();
+  await page.locator('#mapModeHybrid').click({ trial: true });
+  await settings.click();
   await expectTouchTargets(page.locator('#polCtxBtnCollapse, #polCtxBtnClose, #polCtxBtnSearch, #polCtxLevel'));
   await expectTouchTargets(detail.locator('.ris-details__toolbar button'));
   await captureEvidence(page, testInfo, 'desktop-results-and-document');
@@ -214,6 +221,68 @@ test('desktop keeps compact results and the document beside an operable map', as
   await page.locator('#btnPolCtxOpen').click();
   await expect(list).toBeVisible();
   await expect(page.locator('#polCtxSearchInput')).toHaveValue('Radweg');
+});
+
+test.describe('tablet workspace', () => {
+  test.use({ hasTouch: true });
+
+  for (const viewport of [{ width: 768, height: 1024 }, { width: 1366, height: 1024 }]) {
+    test(`alternates results, document and Karte with a usable map at ${viewport.width}px`, async ({ page }, testInfo) => {
+      test.setTimeout(80_000);
+      await page.setViewportSize(viewport);
+      const data = await workspaceFixture(testInfo);
+      await data.install(page);
+      await ready(page, `/werkbank_v2.html?${BASE_VIEW}`);
+      const mapMenu = page.getByRole('button', { name: 'Karte', exact: true });
+      const launcher = page.locator('#btnRisBrowse');
+      const analysis = page.locator('#panel');
+      const list = page.locator('#polCtxPanel');
+      const documentPanel = page.locator('#risDetails');
+      const city = resultCard(page, CITY_ID);
+
+      await mapMenu.tap();
+      await expect(mapMenu).toHaveAttribute('aria-expanded', 'true');
+      await launcher.tap();
+      await expect(list).toBeVisible();
+      await expect(mapMenu).toHaveAttribute('aria-expanded', 'false');
+      await expect(analysis).toBeHidden();
+      expect((await list.boundingBox()).width).toBeLessThan(viewport.width / 2);
+      await search(page, 'city');
+      await city.locator('.polCtxCheck').check();
+      await city.locator('[data-ris-open-record]').tap();
+      await expect(documentPanel.locator('.ris-record-view__title')).toHaveText(CITY_TITLE);
+      await expect(list).toBeHidden();
+      await expect(analysis).toBeHidden();
+      expect((await documentPanel.boundingBox()).width).toBeLessThan(viewport.width / 2);
+      await expectFitsViewport(page, documentPanel);
+      const selectedResult = city.locator('[data-ris-open-record]');
+      const originalResult = await selectedResult.elementHandle();
+      await documentPanel.getByRole('button', { name: 'Vorgangsansicht einklappen', exact: true }).focus();
+      await page.keyboard.press('Enter');
+      await expect(list).toBeVisible();
+      await expect(selectedResult).toBeFocused();
+      expect(await originalResult.evaluate(element => element.isConnected)).toBe(true);
+      expect(new URL(page.url()).searchParams.get('risRecord')).toBe(CITY_ID);
+      await page.keyboard.press('Enter');
+      await expect(documentPanel.locator('.ris-record-view__title')).toBeVisible();
+      await page.locator('.leaflet-control-zoom-in').tap();
+      await expect.poll(async () => (await mapView(page)).zoom).toBe(15);
+
+      await mapMenu.tap();
+      await expect(mapMenu).toHaveAttribute('aria-expanded', 'true');
+      await expect(documentPanel.locator('.ris-details__body')).toBeHidden();
+      await expect(list).toBeHidden();
+      const query = new URL(page.url()).searchParams;
+      expect(query.get('risRecord')).toBe(CITY_ID);
+      expect(query.get('risQuery')).toBe('Radweg');
+      expect(query.get('risLevels')).toBe('city');
+      await launcher.tap();
+      await expect(mapMenu).toHaveAttribute('aria-expanded', 'false');
+      await expect(list).toBeVisible();
+      await expect(city.locator('.polCtxCheck')).toBeChecked();
+      await expect(city).toHaveAttribute('aria-current', 'true');
+    });
+  }
 });
 
 test.describe('mobile workspace', () => {
@@ -333,9 +402,12 @@ test.describe('mobile workspace', () => {
     expect(openedPoint).toEqual([9.743, 52.381]);
     await expect(popup).toBeInViewport({ ratio: 1 });
     await expect(detail).toBeHidden();
-    await expect(page.locator('#btnRisBrowse')).toBeHidden();
+    const launcher = page.locator('#btnRisBrowse');
+    await expect(launcher).toBeVisible();
+    expect((await launcher.boundingBox()).width).toBeLessThanOrEqual(44);
     await captureEvidence(page, testInfo, 'mobile-selected-location-map-390px');
-    await list.getByRole('button', { name: 'Trefferliste ausklappen', exact: true }).tap();
+    await launcher.tap();
+    await expect(popup).toBeHidden();
     await expect(list.locator('.ris-browser__body')).toBeVisible();
     await expect(page.locator('#polCtxSearchInput')).toHaveValue('Radweg');
     await expect(page.locator('#polCtxLevel')).toHaveValue('state');

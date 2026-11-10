@@ -15,6 +15,8 @@
   UA.MapStore = {
     create: function createMapStore(ctx) {
       const scheduler = UA.RenderScheduler.create({ debounceMs: 0 });
+      // A display limit does not supersede a pending or in-flight viewport load.
+      const renderLimitScheduler = UA.RenderScheduler.create();
 
       function fullRender() {
         if (typeof UA.applyFilters === 'function') UA.applyFilters(ctx);
@@ -56,6 +58,21 @@
         if (typeof UA.renderLayers === 'function') UA.renderLayers(ctx);
       }
 
+      function renderLimitChanged() {
+        const previousCount = ctx.filteredCapped.length;
+        UA.applyRenderPointLimit(ctx);
+        if (ctx.filteredCapped.length === previousCount) return;
+
+        const previous = ctx.viewportPts;
+        UA.applyViewportFilter(ctx);
+        const next = ctx.viewportPts;
+        if (previous.length === next.length && previous.every((point, index) => point === next[index])) {
+          UA.updateStats?.(ctx);
+          return;
+        }
+        layerRender();
+      }
+
       const store = {
         _scheduler: scheduler,
         _ctx: ctx,
@@ -66,6 +83,10 @@
           switch (action) {
             case 'filtersChanged':
               scheduler.schedule(fullRender);
+              break;
+
+            case 'renderLimitChanged':
+              renderLimitScheduler.scheduleRaf(renderLimitChanged);
               break;
 
             case 'layerToggled':
@@ -120,6 +141,7 @@
 
         cancelPending: function cancelPending() {
           scheduler.cancel();
+          renderLimitScheduler.cancel();
           if (ctx.accidentViewportController
               && typeof ctx.accidentViewportController.invalidate === 'function') {
             ctx.accidentViewportController.invalidate();

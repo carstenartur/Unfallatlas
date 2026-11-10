@@ -255,14 +255,14 @@
     // Begin loading during parser execution; the adapter polls until map_v2 has
     // published its readiness function, then wraps it before screenshot capture.
     visibleTileReadiness: injectOptionalModule(
-      'js/ua.visible_tile_readiness.js?v=2026-07-24',
+      'js/ua.visible_tile_readiness.js?v=2026-11-10-ris-map',
       'data-ua-visible-tile-readiness'
     ),
     // This adapter wraps filters, map statistics and export functions. Loading
     // after parser-executed modules avoids replacing their pre-definition hooks
     // and composes deterministically with the partial-coverage export guard.
     analysisScope: injectOptionalModuleAfterDomReady(
-      'js/ua.analysis_scope.js?v=2026-11-08-method-limits',
+      'js/ua.analysis_scope.js?v=2026-11-10-ris-map',
       'data-ua-analysis-scope'
     ),
     accidentViewportController: injectOptionalModule(

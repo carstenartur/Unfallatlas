@@ -1,5 +1,8 @@
 'use strict';
 
+const { readFileSync } = require('node:fs');
+const { gunzipSync } = require('node:zlib');
+const path = require('node:path');
 const { enrichRisLocations } = require('../../server/political-context/services/risLocation');
 
 const limmerstrasse = {
@@ -14,6 +17,119 @@ const lutherkirche = {
 function enrich(records, entries = [limmerstrasse, lutherkirche], city = 'hannover') {
   return enrichRisLocations(records, { city, gazetteer: { city: 'hannover', entries } });
 }
+
+function hannoverFacilityGazetteer() {
+  const { publicFacilities } = require('../../config/ris-locations/hannover.json');
+  return {
+    ...JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz')))),
+    publicFacilities,
+  };
+}
+
+test.each([
+  ['0839-2014', '2014-04-25', 'Neubau Feuer-und Rettungswache Weidendamm, zweiter Bauabschnitt'],
+  ['1100-2013', '2013-05-11', 'Feuer- und Rettungswache Weidendamm, zweiter Bauabschnitt'],
+])('places the actual Weidendamm fire station planning title %s at the verified public address', (number, date, title) => {
+  const [record] = enrichRisLocations([{ id: `hannover-sim:${number}`, source: 'hannover-sim', title, date }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({
+    kind: 'place', label: 'Feuer- und Rettungswache 1 (Weidendamm 50)',
+    geometry: { type: 'Point', coordinates: [9.725982, 52.38909] },
+    attribution: expect.stringMatching(/Landeshauptstadt Hannover.*LGLN/u),
+    evidence: { source: 'title', text: title },
+  })]);
+});
+
+test('maps a publicly documented municipal site even when its measure is outside traffic policy', () => {
+  const title = 'Neubau der Feuer- und Rettungswache 4';
+  const text = 'Die Landeshauptstadt Hannover betreibt in der Nenndorfer Chaussee 5 im Stadtteil Hannover-Bornum eine Feuer- und Rettungswache (FRW 4).';
+  const [record] = enrichRisLocations([{ id: 'hannover-sim:1289-2025', source: 'hannover-sim', title, date: '2025-06-06', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({
+    kind: 'place', label: 'Feuer- und Rettungswache 4 (Nenndorfer Chaussee 5)',
+    geometry: { type: 'Point', coordinates: [9.69729, 52.349] },
+    evidence: { source: 'document', text },
+  })]);
+  expect(record.locationAssessment.reasons).not.toContain('non_traffic_address');
+});
+
+test.each([
+  'Ampelschaltung der Feuerwehr an der Ausfahrt der Feuerwache 3 auf die Bemeroder Straße',
+  'Neubau Feuerwache 3 in der Nenndorfer Chaussee',
+  'Feuerwache 1, Weidendamm 50-52',
+  'Feuerwache Weidendamm, Hausnummer 42',
+  'Feuerwache Weidendamm (Hausnummer 42)',
+  'Feuerwache Weidendamm 50, Nr. 42',
+  'Querung gegenüber der Feuerwache am Weidendamm',
+  'Fußgängerquerung vor der Einfahrt der Feuerwache am Weidendamm',
+  'Fußgängerquerung an der Einfahrt Weidendamm 50, Feuerwache 1',
+  'Feuerwache 1 ist vom Weidendamm aus erreichbar',
+  'Sperrung der Lange-Feld-Straße. Die Feuerwache liegt in unmittelbarer Nähe.',
+  'Feuerwache 2 Auf der Klappenburg',
+  'Feuerwache 2 Auf der Klappenburg 2',
+])('does not infer a public address from conflicting or insufficient evidence in %s', title => {
+  const [record] = enrichRisLocations([{ title, source: 'hannover-sim', date: '2018-02-01' }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations.some(location => location.kind === 'place' && location.geometry?.type === 'Point')).toBe(false);
+});
+
+test('uses a verified facility address before a postal suffix', () => {
+  const [record] = enrichRisLocations([{
+    title: 'Feuerwache Weidendamm 50, 30167 Hannover', source: 'hannover-sim',
+  }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toMatchObject([{
+    kind: 'place', label: 'Feuer- und Rettungswache 1 (Weidendamm 50)',
+    geometry: { type: 'Point', coordinates: [9.725982, 52.38909] },
+  }]);
+});
+
+test('keeps independently evidenced street work beside a named facility point', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  const title = 'Neubau Feuerwache am Weidendamm';
+  const text = 'Der Radweg auf dem Weidendamm wird erneuert.';
+  const [record] = enrichRisLocations([{ title, source: 'hannover-sim', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer });
+  expect(record.locations).toEqual([
+    expect.objectContaining({ kind: 'place', label: 'Feuer- und Rettungswache 1 (Weidendamm 50)',
+      evidence: { source: 'title', text: title }, geometry: { type: 'Point', coordinates: [9.725982, 52.38909] } }),
+    expect.objectContaining({ kind: 'street', label: 'Weidendamm', evidence: { source: 'document', text },
+      geometry: gazetteer.entries.find(entry => entry.name === 'Weidendamm').geometry }),
+  ]);
+});
+
+test('keeps an explicit street-subject title beside facility evidence', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  const title = 'Umgestaltung der Straße Weidendamm';
+  const text = 'Neubau Feuerwache am Weidendamm';
+  const [record] = enrichRisLocations([{ title, source: 'hannover-sim', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer });
+  expect(record.locations).toEqual([
+    expect.objectContaining({ kind: 'place', label: 'Feuer- und Rettungswache 1 (Weidendamm 50)',
+      evidence: { source: 'document', text }, geometry: { type: 'Point', coordinates: [9.725982, 52.38909] } }),
+    expect.objectContaining({ kind: 'street', label: 'Weidendamm', evidence: { source: 'title', text: title },
+      geometry: gazetteer.entries.find(entry => entry.name === 'Weidendamm').geometry }),
+  ]);
+});
+
+test('assigns the current Klappenburg building number only for a sufficiently recent title', () => {
+  const [record] = enrichRisLocations([{
+    title: 'Feuerwache 2 Auf der Klappenburg', source: 'hannover-sim', date: '2026-01-10',
+  }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toMatchObject([{
+    kind: 'place', label: 'Feuer- und Rettungswache 2 (Auf der Klappenburg 3)',
+    geometry: { type: 'Point', coordinates: [9.650174, 52.413112] },
+  }]);
+});
+
+test('does not choose between multiple public facilities on the same street', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  const existing = gazetteer.publicFacilities.entries[0];
+  gazetteer.publicFacilities = { ...gazetteer.publicFacilities,
+    entries: [...gazetteer.publicFacilities.entries, { ...existing, name: 'Andere Feuerwache', houseNumber: '5' }] };
+  const [record] = enrichRisLocations([{ title: 'Neubau der Feuerwache am Weidendamm', source: 'hannover-sim' }],
+    { city: 'hannover', gazetteer });
+  expect(record.locations.some(location => location.kind === 'place' && location.geometry?.type === 'Point')).toBe(false);
+});
 
 test('derives a street line from an exact title reference and retains its evidence and attribution', () => {
   const paper = { id: 'A', title: 'Verkehrssicherheit in der Limmerstrasse' };

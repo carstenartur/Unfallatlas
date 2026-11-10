@@ -44,6 +44,30 @@ test('12,000 distinct points in one old grid cell remain detailed in a tiny and 
   expect((await browser().catalogue.loadMap('test',{bounds:tile,zoom:12})).overview).toBe(true);
 },30000);
 
+test('a dense city viewport keeps local groups instead of replacing them with a coarse raster cell', async () => {
+  const rows = Array.from({ length: 160 }, (_, index) => record(`p-${index}`, {
+    type: 'Point', coordinates: point(0.1 + (index % 10) * 0.08, 0.1 + Math.floor(index / 10) * 0.05),
+  }));
+  await publish(rows);
+  const { catalogue, requests } = browser();
+  const result = await catalogue.loadMap('test', { bounds: tile, zoom: 14, maxFeatures: 64 });
+  const groups = result.features.features;
+  expect(result.overview).toBe(true);
+  expect(groups.length).toBeGreaterThan(1);
+  expect(groups.every(group => group.properties.spatialGroup && group.geometry.type === 'Point')).toBe(true);
+  expect(groups.reduce((count, group) => count + group.properties.geometryCount, 0)).toBe(rows.length);
+  expect(groups.every(({ bounds: [west, south, east, north] }) =>
+    west >= tile[0] && south >= tile[1] && east <= tile[2] && north <= tile[3])).toBe(true);
+  expect(groups.every(group => group.properties.recordCount === undefined)).toBe(true);
+  expect(requests).toHaveLength(2);
+
+  const clipped = await catalogue.loadMap('test', {
+    bounds: [tile[0], tile[1], point(0.75, 1)[0], tile[3]], zoom: 14, maxFeatures: 64,
+  });
+  expect(clipped.features.features.some(group => groups.some(original =>
+    original.properties.geometryId === group.properties.geometryId && original.bounds[2] > group.bounds[2]))).toBe(true);
+});
+
 test('spatial packing avoids unrelated complex-line payloads and retains a long crossing multipart geometry',async()=>{
   const center=point(0.5,0.5);
   const crossing={type:'MultiLineString',coordinates:[[point(0.01,0.5),point(0.99,0.5)],[point(0.49,0.49),point(0.51,0.51)]]};

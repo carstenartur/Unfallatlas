@@ -270,6 +270,15 @@ async function generateReleaseEvidence(options = {}) {
   };
   const cohorts = evidence.buildCohorts(UA, ctx, report, root);
   const rows = cohorts.completeEvidenceCohort.rows;
+  const rowsById = new Map(rows.map(row => [row.displayId, row]));
+  const intendedMaps = [
+    { role: 'overview', bounds: cohorts.bounds, rows },
+    ...cohorts.detailMapPartitions.map(partition => ({
+      role: `detail-${partition.mapRef.toLowerCase()}`,
+      bounds: partition.bounds,
+      rows: partition.accidentIds.map(id => rowsById.get(id))
+    }))
+  ];
   let manifest = JSON.parse(JSON.stringify(await provenance.createManifest(ctx, {
     UA,
     root
@@ -327,8 +336,21 @@ async function generateReleaseEvidence(options = {}) {
   };
   UA.createDocumentMapContext = context => ({ ctx: context, close() {} });
   UA.captureDocumentMap = async (_ctx, opts) => {
-    const mapRows = opts.evidenceRows.length ? opts.evidenceRows : rows,
-      role = mapRows.length === rows.length ? 'overview' : `detail-${mapRows[0].mapRef.toLowerCase()}`;
+    const intended = intendedMaps[capturedMaps.length];
+    if (!intended) throw new Error('Unexpected map capture after all intended maps');
+    const { rows: mapRows, role } = intended;
+    const expectedPoints = mapRows.map(row => JSON.stringify([row.lat, row.lon, String(row.severity)])).sort();
+    const actualPoints = Array.isArray(opts.exportPoints)
+      ? opts.exportPoints.map(point => JSON.stringify([point?.lat, point?.lon, String(point?.props?.ukategorie)])).sort()
+      : [];
+    if (JSON.stringify(actualPoints) !== JSON.stringify(expectedPoints)) {
+      throw new Error(`Map capture points differ from the intended ${role} cohort`);
+    }
+    if (!['south', 'west', 'north', 'east'].every(key => opts.exportBounds?.[key] === intended.bounds[key])) {
+      throw new Error(`Map capture bounds differ from the intended ${role} cohort`);
+    }
+    const expectedLabelIds = role === 'overview' && mapRows.length > 18 ? [] : mapRows.map(row => row.displayId);
+    assertSameIds(expectedLabelIds, (opts.evidenceRows || []).map(row => row.displayId), 'Map capture labels');
     const map = createRoleMapFixture({
       role,
       points: mapRows.map(r => ({

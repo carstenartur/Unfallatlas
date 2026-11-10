@@ -34,8 +34,8 @@
   <!-- These are loaded via script injection when export dialog opens -->
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/ua.css?v=2026-11-09-mobility" />
-  <link rel="stylesheet" href="css/ris-record-view.css?v=2026-11-09-ris-workspace" />
+  <link rel="stylesheet" href="css/ua.css?v=2026-11-10-ris-map" />
+  <link rel="stylesheet" href="css/ris-record-view.css?v=2026-11-10-ris-map" />
 </head>
 <body>
   <div id="map"></div>
@@ -241,8 +241,8 @@
         </summary>
 
         <div class="row">
-          <label for="maxPoints" title="Maximale Anzahl an Unfallpunkten, die gleichzeitig auf der Karte gerendert werden. Höhere Werte = vollständigeres Bild, langsamere Karte.">Max Punkte</label>
-          <input id="maxPoints" type="number" min="500" step="500" value="100000" />
+          <label for="maxPoints" title="Maximale Anzahl an Unfallpunkten, die gleichzeitig auf der Karte gerendert werden. Übernahme mit Eingabetaste oder beim Verlassen des Felds.">Max Punkte</label>
+          <input id="maxPoints" type="number" min="500" max="200000" step="500" value="100000" />
         </div>
 
         <div class="row">
@@ -663,15 +663,15 @@
 
   <!-- App JS (V2 with POI support) -->
   <script src="js/ua.bootstrap.js?v=2026-08-01"></script>
-  <script src="js/ua.core.js?v=2026-11-10-antrag-quality"></script>
+  <script src="js/ua.core.js?v=2026-11-10-ris-map-antrag"></script>
   <script src="js/ua.utils.js?v=2026-07-19"></script>
   <script src="js/ua.ris_view_state.js?v=2026-11-09-ris-workspace"></script>
-  <script src="js/ua.state.js?v=2026-11-10-carto"></script>
+  <script src="js/ua.state.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.map_layer_registry.js?v=2026-11-10-carto"></script>
-  <script src="js/ua.ui.js?v=2026-11-10-report-maps"></script>
+  <script src="js/ua.ui.js?v=2026-11-10-ris-map-antrag"></script>
   <!-- gzip fetch utility — must load before context_layers, accident_provider and data_v2 -->
   <script src="js/ua.fetch_gz.js?v=2026-07-06"></script>
-  <script src="js/ua.data_paths.js?v=2026-11-10-report-maps"></script>
+  <script src="js/ua.data_paths.js?v=2026-11-10-ris-map-antrag"></script>
   <script src="js/ua.spatial-grid.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.data-budget.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.context_layers.js?v=2026-11-08-context"></script>
@@ -683,9 +683,9 @@
   <script src="js/ua.accident_provider.js?v=2026-11-08-scalable-catalogue"></script>
   <!-- Architecture: RenderScheduler + MapStore (issue #308) -->
   <script src="js/ua.render_scheduler.js?v=2026-07-03"></script>
-  <script src="js/ua.map_store.js?v=2026-07-03"></script>
+  <script src="js/ua.map_store.js?v=2026-11-10-ris-map"></script>
   <!-- Architecture: MapScene model + URL codec (issue #308) -->
-  <script src="js/ua.map_scene.js?v=2026-11-09-mobility"></script>
+  <script src="js/ua.map_scene.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.map_scene_url_codec.js?v=2026-11-09-mobility"></script>
   <!-- Architecture: TrafficSituation domain model (issues #309, #341) -->
   <script src="js/ua.traffic_situation.js?v=2026-11-08-ris-view"></script>
@@ -699,16 +699,16 @@
   <script src="js/ua.leaflet_map_adapter.js?v=2026-07-03"></script>
   <script src="js/ua.preview_map_renderer.js?v=2026-11-08-scalable-catalogue"></script>
   <script src="js/ua.data_v2.js?v=2026-05-09"></script>
-  <script src="js/ua.filters.js?v=2026-11-08-context-review"></script>
+  <script src="js/ua.filters.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.lifecycle.js?v=2026-07-19"></script>
-  <script src="js/ua.ris-sources.js?v=2026-11-09-ris-workspace"></script>
-  <script src="js/ua.ris-partitions.js?v=2026-11-09-ris-workspace"></script>
-  <script src="js/ua.ris-catalogue.js?v=2026-11-09-ris-workspace"></script>
+  <script src="js/ua.ris-sources.js?v=2026-11-10-ris-map"></script>
+  <script src="js/ua.ris-partitions.js?v=2026-11-10-ris-map"></script>
+  <script src="js/ua.ris-catalogue.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.ris-record-view.js?v=2026-11-09-ris-workspace"></script>
-  <script src="js/ua.ris-details.js?v=2026-11-09-ris-workspace"></script>
-  <script src="js/ua.ris-layer.js?v=2026-11-09-ris-workspace"></script>
+  <script src="js/ua.ris-details.js?v=2026-11-10-ris-map"></script>
+  <script src="js/ua.ris-layer.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.hannover_layers.js?v=2026-11-09-mobility"></script>
-  <script src="js/ua.map_v2.js?v=2026-11-10-report-maps"></script>
+  <script src="js/ua.map_v2.js?v=2026-11-10-ris-map-antrag"></script>
   <script src="js/ua.time_clusters.js?v=2026-01-01"></script>
   <script src="js/ua.accident_views.js?v=2026-01-01"></script>
   <script src="js/ua.stats.js?v=2026-01-01"></script>
@@ -721,13 +721,13 @@
   <script src="js/ua.export_template_defaults.js?v=2026-11-08-method-limits"></script>
   <script src="js/ua.export_v2.js?v=2026-11-10-antrag-quality"></script>
   <script src="js/ua.ai_proposal.js?v=2026-11-07-ris"></script>
-  <script src="js/ua.report_v2.js?v=2026-11-10-antrag-quality"></script>
+  <script src="js/ua.report_v2.js?v=2026-11-10-ris-map-antrag"></script>
   <script src="js/ua.tour.js?v=2026-11-09-mobility"></script>
   <script src="js/ua.area_name_control.js?v=2026-11-08-area-research"></script>
-  <script src="js/ua.political-context.js?v=2026-11-09-ris-workspace"></script>
-  <script src="js/ua.app_v2.js?v=2026-11-09-mobility"></script>
+  <script src="js/ua.political-context.js?v=2026-11-10-ris-map"></script>
+  <script src="js/ua.app_v2.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.video-export-contract.js?v=2026-07-19"></script>
-  <script src="js/ua.video-export.js?v=2026-07-19"></script>
+  <script src="js/ua.video-export.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.priorities.js?v=2026-07-19"></script>
 </body>
 </html>

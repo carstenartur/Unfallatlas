@@ -11,6 +11,7 @@ const zlib = require('node:zlib');
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const { readRisSnapshot, writeRisSnapshot, enumerateSnapshotAssets, RIS_FALLBACK_MAX_AGE_MS } = require('../server/political-context/services/risSnapshot');
+const { countCatalogueLevels } = require('../server/political-context/services/risPartitionedSnapshot');
 const { enrichRisLocations, isPetitionerContactAddress } = require('../server/political-context/services/risLocation');
 const { validLocationGeometry } = require('../js/ua.ris-catalogue').snapshotFormat;
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
@@ -29,7 +30,7 @@ const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 60 * 60_000 };
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
-const LOCATION_REVISION = 5;
+const LOCATION_REVISIONS = { bonn: 5, hannover: 6 };
 const historyStartYears = { bonn: 2014, hannover: HANNOVER_HISTORY_START_YEAR };
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
@@ -190,7 +191,13 @@ async function inspect(directory, load, now) {
     const generated = Date.parse(snapshot.manifest.generatedAt);
     if (generated - now.getTime() > 5 * 60_000) throw new Error('RIS snapshot timestamp is in the future');
     if (Date.parse(snapshot.manifest.withdrawalsRecordedAt) - now.getTime() > 5 * 60_000) throw new Error('RIS withdrawal timestamp is in the future');
-    return { directory, manifest: snapshot.manifest, generated };
+    const { manifest } = snapshot;
+    // Existing v2 trees already contain every record and mapped ID needed for
+    // the footer. Derive the new summary without repacking the catalogue.
+    const levelCounts = manifest.schemaVersion === 2 && !manifest.levelCounts
+      ? countCatalogueLevels(snapshot.records, new Set(snapshot.features.features.map(feature => feature.properties.recordId)))
+      : undefined;
+    return { directory, manifest, generated, levelCounts };
   } catch (error) {
     return { directory, error };
   }
@@ -322,7 +329,7 @@ async function loadGazetteer(city) {
   const names = new Set(atkis.entries.map(key));
   const additional = (curated?.entries || []).filter(entry => !names.has(key(entry)))
     .map(entry => ({ ...entry, attribution: entry.attribution ?? curated.attribution }));
-  return { ...atkis, entries: [...atkis.entries, ...additional] };
+  return { ...atkis, entries: [...atkis.entries, ...additional], publicFacilities: curated?.publicFacilities };
 }
 
 function snapshotInputs({ records, features }) {
@@ -506,7 +513,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
     ...(retainedAt && previous?.manifest.refreshFailure ? { refreshFailure: { ...previous.manifest.refreshFailure,
       expiresAt: new Date(Date.parse(sourceClock) + RIS_FALLBACK_MAX_AGE_MS).toISOString() } } : {}) };
   const provenance = collectionProvenance({ catalogue, city, records, sourceRecords: inputs, sourceVerifiedAt: sourceClock, now, sourceOptions });
-  await writeRisSnapshot(directory, city, { ...catalogue, ...(sourceStatuses ? { sourceStatuses } : {}), ...retainedSource, provenance, coverage, records, locationRevision: LOCATION_REVISION }, { now, schemaVersion: 2 });
+  await writeRisSnapshot(directory, city, { ...catalogue, ...(sourceStatuses ? { sourceStatuses } : {}), ...retainedSource, provenance, coverage, records, locationRevision: LOCATION_REVISIONS[city] }, { now, schemaVersion: 2 });
   const { manifest } = await readRisSnapshot(directory, city);
   if (manifest.locationAssessment?.attempted !== recordCount(manifest)) throw new Error('Not every indexed record received a location assessment');
   assertUnexpiredSnapshot(manifest, now);
@@ -537,8 +544,8 @@ async function prepareExclusionFallback(directory, previous, exclusions, now) {
 }
 
 function needsLocationAssessment(manifest) {
-  return (manifest?.locationRevision ?? 0) < LOCATION_REVISION ||
-    manifest?.locationAssessment?.attempted !== recordCount(manifest);
+  return !manifest || (manifest.locationRevision ?? 0) < LOCATION_REVISIONS[manifest.city] ||
+    manifest.locationAssessment?.attempted !== recordCount(manifest);
 }
 
 async function prepareLocalAssessment(directory, selected, builtAt) {
@@ -552,7 +559,7 @@ async function prepareLocalAssessment(directory, selected, builtAt) {
   const records = snapshotInputs(original);
   const gazetteer = await loadGazetteer(source.city);
   const next = await writeRisSnapshot(directory, source.city, {
-    sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISION,
+    sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISIONS[source.city],
     ...(source.sourceStatuses === undefined ? {} : { sourceStatuses: source.sourceStatuses }),
     ...(source.withdrawalsRecordedAt === undefined ? {} : { withdrawalsRecordedAt: source.withdrawalsRecordedAt }),
     records: reassessRetainedLocations(records, source.city, gazetteer),
@@ -654,6 +661,9 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
       }
     }
 
+    if (!restoreOnly && selected.levelCounts && !selected.manifest.levelCounts) {
+      selected = { ...selected, manifest: { ...selected.manifest, levelCounts: selected.levelCounts }, rewriteManifest: true };
+    }
     const { manifest } = selected;
     if (checkpointRetry && (status !== 'published' || recordCount(manifest) < checkpointRetry.minimumRecords)) {
       throw new Error(`Hannover checkpoint recovery failed: ${reason || `${status}; ${recordCount(manifest) || 0} records, minimum ${checkpointRetry.minimumRecords}`}`);

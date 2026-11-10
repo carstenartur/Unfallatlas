@@ -23,6 +23,9 @@
   // ---- Core build info (optional) ----
   UA.BUILD = UA.BUILD || "";
 
+  // All map panels share the same compact layout, including wide touch tablets.
+  UA.COMPACT_MAP_QUERY = '(max-width: 1279px), (max-width: 1440px) and (pointer: coarse), (max-height: 500px) and (pointer: coarse)';
+
   // ---- URL helpers ----
   UA.qs = function qs() {
     return new URL(window.location.href).searchParams;

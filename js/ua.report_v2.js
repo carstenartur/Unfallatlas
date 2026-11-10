@@ -3532,7 +3532,7 @@
       if (ctx.ui.dayTypeEl) params.set("dayType", ctx.ui.dayTypeEl.value);
       if (ctx.ui.hFromEl) params.set("hourFrom", ctx.ui.hFromEl.value);
       if (ctx.ui.hToEl) params.set("hourTo", ctx.ui.hToEl.value);
-      if (ctx.ui.maxPointsEl) params.set("maxPoints", ctx.ui.maxPointsEl.value);
+      if (ctx.ui.maxPointsEl) params.set("maxPoints", ctx.renderPointLimit ?? ctx.ui.maxPointsEl.value);
       if (ctx.ui.viewportPaddingEl) params.set("viewportPaddingPct", ctx.ui.viewportPaddingEl.value);
       if (ctx.ui.heatRadiusEl) params.set("heatRadius", ctx.ui.heatRadiusEl.value);
     }

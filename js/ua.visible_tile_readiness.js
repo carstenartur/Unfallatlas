@@ -161,6 +161,7 @@
       const minTileImages = Math.max(0, Number(opts.minTileImages) || 0);
       if (minTileImages === 0) return original.apply(this, arguments);
 
+      const deadline = Date.now() + Math.max(1, Number(opts.timeoutMs) || 30000);
       const args = arguments;
       const control = { cancelled: false };
       const legacy = Promise.resolve()
@@ -170,7 +171,8 @@
       const visible = waitForVisibleDecodedTiles(opts, control);
       return firstSuccessfulProof(legacy, visible).then(result => {
         control.cancelled = true;
-        return result;
+        if (!result || Date.now() >= deadline) return false;
+        return UA.waitForAccidentClusterPaint?.(map, deadline) ?? true;
       });
     };
     wrapped[WRAPPED] = true;

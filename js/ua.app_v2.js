@@ -1,7 +1,7 @@
 (() => {
   const UA = (window.UA = window.UA || {});
 
-  UA.recomputeAndRender = function recomputeAndRender(ctx){
+  UA.recomputeAndRender = function recomputeAndRender(ctx, action = 'filtersChanged'){
     // Keep the TrafficSituation snapshot in sync whenever state changes.
     if (ctx
         && typeof UA.TrafficSituation !== 'undefined'
@@ -12,7 +12,7 @@
     // Prefer the MapStore dispatch path when available so that renders
     // go through the RenderScheduler (debounced, epoch-guarded).
     if (ctx && ctx.store) {
-      ctx.store.dispatch('filtersChanged');
+      ctx.store.dispatch(action);
       return;
     }
     // Fallback for callers that have not yet created a store (e.g. early

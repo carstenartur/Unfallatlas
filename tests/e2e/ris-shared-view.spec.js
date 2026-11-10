@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { ID, TITLE, BASE_VIEW, fixture, ready, captureEvidence } from './helpers/ris-shared-view-fixture.js';
 
+async function openMapSettings(page) {
+  const settings = page.getByRole('button', { name: 'Karte', exact: true });
+  if (await settings.getAttribute('aria-expanded') !== 'true') await settings.click();
+  await expect(page.getByRole('checkbox', { name: 'Ratsvorgänge', exact: true })).toBeVisible();
+  await expect(page.locator('#risDetails .ris-details__body')).toBeVisible();
+}
+
 test('a copied RIS view restores layer, area filter, unlocated record, tab and page in a fresh context', async ({ page, browser }, testInfo) => {
   test.setTimeout(100_000);
   const data = await fixture(testInfo);
@@ -47,6 +54,7 @@ test('a copied RIS view restores layer, area filter, unlocated record, tab and p
     const detail = received.locator('#risDetails');
     await expect(detail).toContainText(TITLE);
     await expect(detail.getByRole('tab', { name: 'Zusammenhänge', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await openMapSettings(received);
     await expect(received.getByRole('checkbox', { name: 'Ratsvorgänge', exact: true })).toBeChecked();
     await expect(received.getByRole('checkbox', { name: 'Nur in markierter Fläche', exact: true })).toBeChecked();
     const state = await received.evaluate(() => {
@@ -72,6 +80,7 @@ for (const schemaVersion of [1, 2]) {
     const panel = page.locator('#risDetails');
     await expect(panel).toContainText(TITLE);
     await expect(panel).toContainText('Region Hannover');
+    await openMapSettings(page);
     await expect(page.getByRole('checkbox', { name: 'Ratsvorgänge', exact: true })).not.toBeChecked();
     await expect(page.locator('.ua-ris-point')).toHaveCount(0);
     await panel.getByRole('tab', { name: 'Zusammenhänge', exact: true }).click();

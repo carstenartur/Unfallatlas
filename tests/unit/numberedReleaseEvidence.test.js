@@ -51,6 +51,39 @@ test('exact map, CSV and GeoJSON ID correspondence rejects omissions and extras'
   expect(() => qa.assertSameIds(ids, ['A001'], 'CSV')).toThrow(/CSV/);
   expect(() => qa.assertSameIds(ids, ['A001', 'A001'], 'map')).toThrow(/map/);
 });
+
+test.each(['missing', 'moved', 'severity', 'duplicate'])('release harness rejects a %s overview export point before synthesizing map pixels', async mutation => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-capture-input-'));
+  let harness;
+  jest.isolateModules(() => {
+    jest.doMock('../../js/ua.evidence_cohort', () => {
+      const actual = jest.requireActual('../../js/ua.evidence_cohort');
+      return { ...actual, _internal: { ...actual._internal,
+        exportEvidenceWord: async (UA, ...args) => {
+          const capture = UA.captureDocumentMap;
+          UA.captureDocumentMap = (ctx, options) => {
+            const points = options.exportPoints.map(point => ({ ...point, props: { ...point.props } }));
+            if (mutation === 'missing') points.pop();
+            if (mutation === 'moved') points[0].lon += 0.0001;
+            if (mutation === 'severity') points[0].props.ukategorie = '99';
+            if (mutation === 'duplicate') points[0] = points[1];
+            return capture(ctx, { ...options, exportPoints: points });
+          };
+          return actual._internal.exportEvidenceWord(UA, ...args);
+        }
+      } };
+    });
+    harness = require('../../scripts/qa-numbered-appendix-rendered');
+  });
+  try {
+    await expect(harness.generateReleaseEvidence({ outDir })).rejects.toThrow(/capture points/i);
+    expect(fs.existsSync(path.join(outDir, 'appendix.docx'))).toBe(false);
+  } finally {
+    jest.dontMock('../../js/ua.evidence_cohort');
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
+}, 30000);
 test('production PDF and Word appendix use a concise clickable map label, never raw URL parameters', async () => {
   const api = require('../../js/ua.evidence_cohort'),
     JSZip = require('jszip');

@@ -165,11 +165,13 @@
     return counts;
   };
 
+  UA.applyRenderPointLimit = function applyRenderPointLimit(ctx) {
+    const maxN = ctx.renderPointLimit ?? Math.max(500, parseInt(ctx.ui.maxPointsEl.value || "100000", 10));
+    ctx.filteredCapped = ctx.filteredAll.slice(0, maxN);
+  };
+
   UA.applyFilters = function applyFilters(ctx){
-    const ui = ctx.ui;
-    const maxN = Math.max(500, parseInt(ui.maxPointsEl.value || "100000", 10));
     const outAll = [];
-    const outCapped = [];
 
     for (const p of ctx.allPts) {
       const pr = p.props || {};
@@ -179,11 +181,10 @@
       if (!UA.matchesInvolvementFilter(ctx, m)) continue;
 
       outAll.push(p);
-      if (outCapped.length < maxN) outCapped.push(p);
     }
 
     ctx.filteredAll = outAll;
-    ctx.filteredCapped = outCapped;
+    UA.applyRenderPointLimit(ctx);
     ctx.baselineCounts = UA.computeBaselineCounts(ctx);
   };
 
