@@ -145,9 +145,9 @@ Richtungsangaben dürfen nicht zu zusätzlichen Kreuzungsarmen werden: Loccumer 
 
 ## Gesonderter lokaler Reparaturnachweis auf identischen Eingaben
 
-Am **10. November 2026 um 16:20:48.011 UTC** wurde die unveränderte Auswahl beider Audits vor und nach der Mapperänderung erneut gerechnet. Der Vergleich endete erfolgreich mit Exit-Code 0. Ausgangscode war `bc48708e9ff4c97997b4363334b80e515b40c135`; SHA-256 der geprüften neuen Mapperdatei:
+Am **10. November 2026 um 16:49:01.392 UTC** wurde die unveränderte Auswahl beider Audits vor und nach der Mapperänderung erneut gerechnet. Der Vergleich endete erfolgreich mit Exit-Code 0. Ausgangscode war `bc48708e9ff4c97997b4363334b80e515b40c135`; SHA-256 der geprüften neuen Mapperdatei:
 
-`f9dda6fa55557e11af80ca14e6d510760e7456ae5f13ab1cba58cf46e7f86fee`
+`9038f978bffb561eb2a600c286c49840762fb361259ef10587e64ba1891580a6`
 
 Für jeden Datensatz waren die Eingaben vor und nach der Änderung identisch. Die SHA-256-Werte aller **30 vorhandenen amtlichen HTML-Dateien** wurden geprüft: 26 aus der ursprünglichen Auswahl und vier aus der zweiten. Die acht regionalen Fälle der ersten Auswahl sowie 20 Fälle der zweiten wurden ausschließlich mit ihren veröffentlichten Titeln wiederholt. Es gab für den Replay keinen Quellenabruf und keinen Austausch von Fällen.
 
@@ -170,6 +170,26 @@ Die fünf geänderten Ergebnisse sind konkret nachvollziehbar:
 
 Die übrigen Fälle änderten sich in diesem Vergleich nicht. Die beschriebenen Grenzen bei Einmündungsnähe, fehlendem gemeinsamen Vertex, Begründungsabschnitten, Einrichtungsdaten und ungeprüften Titelfällen werden damit nicht für gelöst erklärt. Aus zwei neu kartierten Vorgängen in zwei unterschiedlich aufgebauten Diagnoseauswahlen wird keine Zahl für den Gesamtbestand hochgerechnet.
 
-Für diesen Mapperstand bestanden die gezielten lokalen Prüfungen: **321 Mapper-Tests** (13,171 s), **140 Refresh-Tests** (27,576 s) und die beiden vorhandenen UI-Suiten mit **9 und 32 Tests**, zusammen 41 UI-Tests. Die UI verwendet im geprüften lokalen Stand **„Der Karte noch nicht zugeordnet“**, damit eine fehlende Kartenlage nicht pauschal als fehlender Ortsbezug bezeichnet wird. Das sind lokale Implementierungs- und Testnachweise. **Vollständige CI, Merge und die Live-Veröffentlichung der Ortsrevision 8 sind weiterhin offen**; die oben festgehaltenen öffentlichen Zahlen bleiben der Revision-7-Ausgangsstand.
+Für diesen Mapperstand bestanden die gezielten lokalen Prüfungen: **335 Mapper-Tests** (6,592 s), **140 Refresh-Tests** (29,536 s) und die beiden vorhandenen UI-Suiten mit **9 und 32 Tests**, zusammen 41 UI-Tests. Die UI verwendet im geprüften lokalen Stand **„Der Karte noch nicht zugeordnet“**, damit eine fehlende Kartenlage nicht pauschal als fehlender Ortsbezug bezeichnet wird. Das sind lokale Implementierungs- und Testnachweise. **Vollständige CI, Merge und die Live-Veröffentlichung der Ortsrevision 8 sind weiterhin offen**; die oben festgehaltenen öffentlichen Zahlen bleiben der Revision-7-Ausgangsstand.
 
-Die unabhängige abschließende Review prüfte den Produktdiff und fünf gezielte Assertions zu `e.V.`, `u. a.` und `weder … noch` gegen denselben Mapper; es blieb kein blockierender Befund. Die entsprechenden Regressionen sichern Satzgrenzen nach Abkürzungen und die gemeinsame Verneinung koordinierter Abschnitte. Sie verhindern dabei auch, dass der Hannover-Bezug eines regionalen Satzes auf einen folgenden Satz übergeht oder eine verneinte Maßnahme durch die Aufteilung eine Geometrie erhält. Diese Schutzprüfungen erweitern nicht die amtliche Belegbasis der Stichprobe.
+Die unabhängige abschließende Review prüfte den vollständigen Produktdiff und zwölf gezielte Nachkontrollen gegen denselben Mapper; es blieb kein blockierender Befund. Die Korrekturen erhalten Einschränkungen hinter Klammern, begrenzen sie an Semikolons und eigenständigen folgenden Abschnittsklauseln und behandeln ein neutrales „von“ im Vorlauf nicht als Ortsgrenze. Die Satztrennung enthält nur noch die belegten Referenzausnahmen `bzw.`, `Nr.` und `Hausnr.`; allgemeine, auch satzabschließende Abkürzungen ziehen keine unabhängigen Ortsbelege zusammen. Alle vorherigen Regressionen bleiben erhalten. Diese Schutzprüfungen erweitern nicht die amtliche Belegbasis der Stichprobe.
+
+## Ergänzende Erhaltungsprüfung bereits kartierter Verkehrsvorgänge
+
+Um neue Auslassungen zu kontrollieren, wurden außerdem sämtliche **32 bereits als `mapped` oder `partial` bewerteten städtischen Verkehrsvorgänge aus demselben festen Blattpool** geprüft. Dies ist eine positive Gegenkontrolle; sie verändert weder die 34er- noch die 24er-Auswahl und ist keine zusätzliche repräsentative Stichprobe. Der Filter entspricht der obigen Verkehrstitel-Kreuztabelle, nun mit den 23 `mapped` und neun `partial` statt den unverorteten Fällen.
+
+Die Eingaben bestehen aus den unveränderten veröffentlichten Titeln und den gespeicherten Dokumentauszügen ihrer Ortsbelege. Sie ersetzen keinen vollständigen amtlichen Dokumentabruf. Alle hierfür erforderlichen Ortsbeleg-Assets waren mit überprüften Hashes bereits lokal vorhanden. Die abschließende Wiederholung vom **10. November 2026 um 16:48:49.299 UTC** verwendete ausschließlich die gespeicherten 32 Eingaben und denselben oben angegebenen Mapper: **null Katalogabrufe und null Netzabrufe**.
+
+| Kontrollgröße | Ergebnis |
+|---|---:|
+| Unveränderte Vorgangseingaben | 32 |
+| Im Ausgangs- und im reparierten Replay kartiert | 32 / 32 |
+| Baseline-Kombinationen aus Ortsart, exaktem Ortslabel und vollständiger Geometrie | 34 |
+| Davon unverändert erhalten | **34** |
+| Verlorene Kombinationen | **0** |
+| Zusätzlich erzeugte Kartenlagen | 0 |
+| Veröffentlichte kartierte Ortslabels, die schon im Ausgangs-Replay fehlen | 0 |
+
+Verglichen wurde jede einzelne Kombination einschließlich aller Koordinaten und ihrer Reihenfolge. Ein verbleibender anderer Marker desselben Vorgangs hätte einen Verlust nicht verdecken können. Die kompakte Evidenzdatei enthält die 32 IDs, Eingabe-/Beleghashes und die einzelnen Geometrie-Signaturen. Der Gesamthash der unveränderten Eingaben lautet `d306a01f15c8e45b794688c44541f4eb53b94e3c46c6e8417af8c4c28a9a9ef3`.
+
+Die positive Kontrolle bleibt auf die gespeicherten Belege beschränkt. Sie ist kein Beweis, dass in diesen Dokumenten sämtliche Maßnahmen gefunden werden, und keine Messung der globalen Trefferquote.

@@ -35,6 +35,7 @@
 - [x] Share narrowly scoped sentence separation across ordinary document evidence and regional scope evaluation.
 - [x] Run the full mapper suite and replay the two official sources with the real ATKIS data; verify geometry and text-only distinctions.
 - [x] Add failing regressions for the second sample's compound `Fuß- und Fahrradweg` with one street and the public `Bemeroder Straße 73 – Abriss …` title. Keep true place lists, ranges, unknown endpoints and surrounding conjunctions protected. Implement only the isolated compound-conjunction exception and the explicit observed title-action separator; preserve the complete source text.
+- [x] Address the PR review with observed regressions for parenthetical qualifiers, neutral leading `von`, terminal `ggf.`, semicolon scope and a following independent section clause. Keep qualification bounds separate from endpoint bounds; obtain independent targeted follow-up review.
 
 ## Task 2: Publication and diagnostic evidence
 
@@ -44,5 +45,6 @@
 - [x] Add a regression proving revision-7 retained evidence receives the new assessment without advancing source timestamps; then raise Hannover's revision to 8.
 - [x] Read and classify the fixed second traffic sample, keeping selection provenance and source hashes. Replay against baseline and repaired mapper.
 - [x] Clarify the existing unresolved/unavailable messages so that a missing assignment is not presented as proof of no geographical reference; adapt the existing wording assertion.
-- [ ] Record mapper and refresh results, preserve the original audit, inspect the complete diff independently and submit one focused follow-up PR.
+- [x] Record mapper and refresh results, preserve the original audit, inspect the complete diff independently and submit one focused follow-up PR.
+- [x] Verify the 32 mapped/partial traffic cases from the same fixed pool as a separate positive control on stored inputs, comparing exact location/geometry pairs without new official-source requests.
 - [ ] Verify required CI before merging; verify the live original regression and the newly recovered Eckerstraße section after publication.

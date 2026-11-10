@@ -1516,3 +1516,73 @@ test('retains a shared weder-noch negation on coordinated sections', () => {
   expect(record.locations.every(place => !place.geometry)).toBe(true);
   expect(record.locations.map(place => place.evidence)).toEqual(Array(2).fill({ source: 'document', text }));
 });
+
+test.each([
+  [`${firstTwoSections} (beide Abschnitte)`, 'werden nicht saniert.'],
+  [`${firstTwoSections} (beide Abschnitte)`, 'sind bis zur noch festzulegenden Grenze zu verlängern.'],
+  [`(${firstTwoSections})`, 'werden nicht saniert.'],
+  [`(${firstTwoSections})`, 'sind bis zur noch festzulegenden Grenze zu verlängern.'],
+])('retains the shared qualification beyond a closing parenthesis: %s %s', (sections, qualification) => {
+  const text = `${sections} ${qualification}`;
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.every(place => !place.geometry)).toBe(true);
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(2).fill({ source: 'document', text }));
+});
+
+test.each([false, true])('keeps a parenthesized group qualification inside its semicolon clause (negative group %s)', negative => {
+  const text = `${firstTwoSections} (beide Abschnitte) werden ${negative ? 'nicht ' : ''}saniert; die Drittstraße zwischen Oberstraße und Unterstraße wird ${negative ? '' : 'nicht '}saniert.`;
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(3);
+  expect(record.locations.slice(0, 2).map(place => Boolean(place.geometry))).toEqual([!negative, !negative]);
+  // The independent positive third section must survive the negative group.
+  // Existing handling of a single negative section is outside this change.
+  if (negative) expect(record.locations[2].geometry?.type).toBe('LineString');
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(3).fill({ source: 'document', text }));
+});
+
+test('does not import a preceding clause negation into the shared section prefix', () => {
+  const text = `Ein früherer Antrag wird nicht weiterverfolgt; ${firstTwoSections} werden saniert.`;
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.every(place => place.geometry?.type === 'LineString')).toBe(true);
+});
+
+test('does not interpret a neutral von-prefix as an additional spatial boundary', () => {
+  const text = 'Auf Antrag von Anwohnern wird die Hauptstraße zwischen Nordstraße und Südstraße saniert, und die Nebenstraße zwischen Weststraße und Oststraße wird erneuert.';
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.every(place => place.geometry?.type === 'LineString')).toBe(true);
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(2).fill({ source: 'document', text }));
+});
+
+test('preserves a genuine sentence boundary after ggf.', () => {
+  const first = 'Die Fahrbahn in der Limmerstraße saniert die Verwaltung ggf.';
+  const second = 'Die Haltestelle in der Stephanusstraße wird umgebaut.';
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [`${first} ${second}`] }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations.map(place => [place.label, place.evidence.text, Boolean(place.geometry)])).toEqual([
+    ['Limmerstraße', first, true], ['Stephanusstraße', second, false],
+  ]);
+});
+
+test.each(['title', 'document'])('keeps regional scope within a sentence ending with ggf. in %s evidence', source => {
+  const first = 'Die Fahrbahn in der Limmerstraße in Hannover saniert die Verwaltung ggf.';
+  const second = 'Die Haltestelle in der Stephanusstraße wird umgebaut.';
+  const text = `${first} ${second}`;
+  const [record] = enrich([{ source: 'region-hannover-ris', title: source === 'title' ? text : 'Regionales Programm',
+    ...(source === 'document' ? { locationEvidence: [text] } : {}),
+  }], [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations).toHaveLength(1);
+  expect(record.locations[0]).toMatchObject({ label: 'Limmerstraße', geometry: limmerstrasse.geometry,
+    evidence: { source, text: first } });
+});
+
+test.each([[false, false], [false, true], [true, false]])('bounds a parenthesized group before an independent section clause (negative group %s, negative third %s)', (negativeGroup, negativeThird) => {
+  const text = `${firstTwoSections} (beide Abschnitte) werden ${negativeGroup ? 'nicht ' : ''}saniert, und die Drittstraße zwischen Oberstraße und Unterstraße wird ${negativeThird ? 'nicht ' : ''}erneuert.`;
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(3);
+  expect(record.locations.slice(0, 2).map(place => Boolean(place.geometry))).toEqual([!negativeGroup, !negativeGroup]);
+  if (!negativeThird) expect(record.locations[2].geometry?.type).toBe('LineString');
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(3).fill({ source: 'document', text }));
+});

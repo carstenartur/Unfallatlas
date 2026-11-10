@@ -212,8 +212,14 @@ function sectionSpan(subject, hit, limit = subject.length) {
   if (!span) return null;
   const divider = span[1] === 'von' ? 'bis' : 'und';
   const bounds = new RegExp(`^(.{1,250}?)\\s+${divider}\\s+(.{1,250})`, 'u').exec(span[2]);
-  return bounds ? { hit, span, bounds, limit: hit.end + span[0].length,
-    tail: span[2].slice(bounds[0].length - bounds[2].length) } : null;
+  if (!bounds) return null;
+  const semicolon = subject.indexOf(';', hit.end);
+  const qualificationLimit = Math.min(limit, semicolon < 0 ? subject.length : semicolon);
+  const tailStart = hit.end + span[0].length - span[2].length + bounds[0].length - bounds[2].length;
+  // Closing parentheses bound endpoint syntax, not the qualifying predicate.
+  // Keep its tail through a parenthesis, but never across a semicolon clause.
+  return { hit, span, bounds, limit: hit.end + span[0].length, qualificationLimit,
+    tail: subject.slice(tailStart, qualificationLimit) };
 }
 
 function measureSections(subject, hits, byFirstWord, used) {
@@ -223,12 +229,16 @@ function measureSections(subject, hits, byFirstWord, used) {
   for (let index = 0; index + 1 < sections.length; index++) {
     const current = sections[index];
     const next = sections[index + 1];
-    if (next.hit.index >= current.limit) continue;
+    if (next.hit.index >= current.qualificationLimit) continue;
     const connector = /\s+(?:sowie|und)\s+(?:(?:die|der|den)\s+)?$/u.exec(subject.slice(current.hit.end, next.hit.index));
     if (!connector || !sectionSpan(subject, current.hit, current.hit.end + connector.index)) continue;
+    current.qualificationLimit = current.hit.end + connector.index;
+    // A new clause beyond a closing parenthesis ends the qualifying tail,
+    // but does not share its predicate with the preceding section group.
+    if (next.hit.index >= current.limit) continue;
     // Only a new street with its own complete section grammar is a sibling.
     // Ordinary conjunctions between anchors remain inside the current section.
-    current.limit = current.hit.end + connector.index;
+    current.limit = current.qualificationLimit;
     current.next = next;
     next.previous = current;
     current.coordinated = next.coordinated = true;
@@ -239,15 +249,16 @@ function measureSections(subject, hits, byFirstWord, used) {
     if (used.has(hit)) continue;
     const { span, bounds } = sectionSpan(subject, hit, section.limit);
     const qualifications = [];
+    let leadingQualification = '';
     if (section.coordinated) {
       let first = section;
       while (first.previous) first = first.previous;
-      qualifications.push(subject.slice(0, first.hit.index));
+      leadingQualification = subject.slice(subject.lastIndexOf(';', first.hit.index - 1) + 1, first.hit.index);
       // A qualifier after several siblings can govern all of them, even if
-      // another independent section follows. Keep each intervening tail and
-      // the shared lead-in; remove only the validated sibling boundary grammar.
+      // another independent section follows. Keep each intervening tail; the
+      // shared clause lead-in is checked separately for negation, not geography.
       for (let sibling = section; sibling; sibling = sibling.next) {
-        qualifications.push(sectionSpan(subject, sibling.hit, sibling.limit).tail);
+        qualifications.push(sectionSpan(subject, sibling.hit, sibling.qualificationLimit).tail);
       }
     }
     const stopsOnly = /\b(?:hochbahnsteig|haltestell)/u.test(bounds[1]);
@@ -261,7 +272,7 @@ function measureSections(subject, hits, byFirstWord, used) {
     });
     const qualification = section.coordinated ? qualifications.join(' ') : bounds[2];
     const extraBoundary = /\b(?:bis|zwischen|von)\s+/u.test(qualification)
-      || section.coordinated && /\b(?:nicht|kein(?:e|en|em|er|es)?|weder)\b/u.test(qualification);
+      || section.coordinated && /\b(?:nicht|kein(?:e|en|em|er|es)?|weder)\b/u.test(`${leadingQualification} ${qualification}`);
     const geometry = !extraBoundary && from.point && to.point ? streetSection(entry, from.point, to.point, approach) : null;
     const label = !extraBoundary && from.label && to.label ? `${entry.name}, ${from.label} bis ${to.label}` : entry.name;
     results.push(location('section', label, geometry, [entry, from.entry, to.entry].filter(Boolean)));
@@ -482,7 +493,7 @@ function evidenceSentences(text) {
     const sentence = text.slice(start, end);
     // These periods are part of a reference or an alternative, even when the
     // following street or label starts with an uppercase letter.
-    if (/\b(?:bzw|nr|hausnr|str|ca|ggf|vgl|sog|abs|art|dr|prof|z\.\s*b)\.["“”'’»«]*$/iu.test(sentence)) continue;
+    if (/\b(?:bzw|nr|hausnr)\.["“”'’»«]*$/iu.test(sentence)) continue;
     sentences.push(sentence);
     start = boundary.index + boundary[0].length;
   }
