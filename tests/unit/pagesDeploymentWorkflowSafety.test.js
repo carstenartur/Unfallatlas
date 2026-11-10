@@ -131,16 +131,17 @@ describe('Pages deployment workflow safety', () => {
       PAGES_RIS_MIN_RECORDS: '674', PAGES_RIS_CACHE_HIT: 'true' });
     expect(calls).toHaveLength(1);
     expect(calls[0][1]).toEqual([path.join(ROOT, 'scripts/refresh-ris-catalogues.js'),
-      '--checkpoint-retry', 'hannover', '--source-cache-key', 'ris-sources-v1-Linux-42502618892-1', '--min-records', '674']);
+      '--checkpoint-retry', 'hannover', '--source-cache-key', 'ris-sources-v1-Linux-42502618892-1', '--min-records', '674',
+      '--max-refresh-duration-ms', '3900000']);
     expect(calls[0][2].shell).not.toBe(true);
   });
 
-  test('allows the one-hour source crawl while retaining time for Pages verification and cache saving', () => {
+  test('passes the hard refresh budget to the importer while retaining time for Pages verification and cache saving', () => {
     const calls = refreshInvocation();
     expect(calls).toHaveLength(1);
     const [command, args, options] = calls[0];
     expect(command).toBe(process.execPath);
-    expect(args).toEqual([path.join(ROOT, 'scripts/refresh-ris-catalogues.js')]);
+    expect(args).toEqual([path.join(ROOT, 'scripts/refresh-ris-catalogues.js'), '--max-refresh-duration-ms', String(options.timeout)]);
     expect(options.timeout).toBeGreaterThan(60 * 60_000);
     expect(options.timeout).toBeLessThanOrEqual(65 * 60_000);
     expect(options.killSignal).toBe('SIGTERM');
