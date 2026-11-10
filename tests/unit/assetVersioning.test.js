@@ -48,10 +48,24 @@ describe('Werkbank deployment asset versions', () => {
     expect(scripts.indexOf('js/ua.facility_context.js')).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
   });
 
+  test('loads optional review-network support before site selection and document export', () => {
+    const scripts = [...html.matchAll(/<script[^>]+src="([^"?]+)/g)].map(match => match[1]);
+    const registry = scripts.indexOf('js/ua.review_network.js');
+    expect(registry).toBeGreaterThan(scripts.indexOf('js/ua.data_paths.js'));
+    expect(registry).toBeGreaterThan(scripts.indexOf('js/ua.site_discovery.js'));
+    expect(registry).toBeLessThan(scripts.indexOf('js/ua.site_discovery_ui.js'));
+    expect(registry).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
+  });
+
   test.each([
-    'ua.app_v2', 'ua.state', 'ua.data_paths', 'ua.ui', 'ua.map_v2', 'ua.export_v2', 'ua.report_v2',
+    'ua.app_v2', 'ua.map_v2',
   ])('%s refreshes the discovery and evidence export integration', asset => {
     expect(html).toContain(`js/${asset}.js?v=2026-11-10-site-discovery"`);
+  });
+
+  test.each(['ua.state', 'ua.data_paths', 'ua.ui', 'ua.review_network', 'ua.site_discovery_ui', 'ua.export_v2', 'ua.report_v2'])
+  ('%s refreshes the optional review network', asset => {
+    expect(html).toContain('js/' + asset + '.js?v=2026-11-10-review-network"');
   });
 
   test.each([

@@ -13,7 +13,9 @@
   const severityLabels = {
     1: 'Mit Getöteten', 2: 'Mit Schwerverletzten', 3: 'Mit Leichtverletzten',
   };
-  const kindLabels = { site: 'Dokumentierter Ort', segment: 'Straßenabschnitt', cell: 'Suchzelle' };
+  const kindLabels = {
+    site: 'Dokumentierter Ort', segment: 'Straßenabschnitt', cell: 'Suchzelle', junction: 'Knotenpunkt', crossing: 'Querung',
+  };
   const number = new Intl.NumberFormat('de-DE');
   const sameBounds = (a, b) => !!a && !!b && ['south', 'west', 'north', 'east'].every(k => a[k] === b[k]);
 
@@ -129,7 +131,7 @@
     ].join(' · ');
   }
 
-  function addCaseMarkers(ctx, state, selection, list, status, previousPoint) {
+  function addSelectionLayer(ctx, state, selection, list, status, previousPoint) {
     const locationGroups = new Map();
     const focused = new Set(selection.pattern?.points || []);
     const { yearOf } = UA.SiteDiscovery;
@@ -167,11 +169,20 @@
         return row;
       });
     list.append(...rows);
-    if (!ctx.map.addLayer || !window.L?.layerGroup || !locationGroups.size) return;
+    const coordinates = selection.coordinates;
+    if (!ctx.map.addLayer || !window.L?.layerGroup || (!locationGroups.size && !coordinates?.length)) return;
     const paneName = 'uaDiscoveryCases';
     const pane = ctx.map.getPane?.(paneName) || ctx.map.createPane?.(paneName);
     if (pane) pane.style.zIndex = '620';
-    const markers = [];
+    const layers = [];
+    if (coordinates?.length) {
+      const latLngs = [];
+      for (let i = 0; i < coordinates.length; i += 2) latLngs.push([coordinates[i], coordinates[i + 1]]);
+      const style = { color: '#0a7368', weight: 3, interactive: false, ...(pane ? { pane: paneName } : {}) };
+      const geometry = selection.kind === 'segment' ? window.L.polyline(latLngs, style)
+        : window.L.circleMarker(latLngs[0], { ...style, radius: 10, fill: false });
+      layers.push(geometry);
+    }
     for (const group of locationGroups.values()) {
       const { point } = group;
       const target = group.rows.find(row => row.isFocus) || group.rows[0];
@@ -195,9 +206,9 @@
         (link || state.heading).focus({ preventScroll: true });
         link?.scrollIntoView?.({ block: 'nearest' });
       });
-      markers.push(marker);
+      layers.push(marker);
     }
-    state.markerLayer = window.L.layerGroup(markers);
+    state.markerLayer = window.L.layerGroup(layers);
     ctx.map.addLayer(state.markerLayer);
   }
 
@@ -268,16 +279,37 @@
     const restoreFocus = activeCase?.link === document.activeElement;
     resetDetail(ctx, state);
     state.selection = selection;
-    const { label, total, points, pattern, changes, visibleCount, complete } = selection;
+    const { label, total, points, pattern, changes, visibleCount, complete, site, networkStatus } = selection;
+    if ((state.mode.value === 'network') === Boolean(site)) {
+      const action = [...state.rows.querySelectorAll('[data-discovery-candidate]')]
+        .find(button => button.dataset.discoveryCandidate === selection.id);
+      action?.setAttribute('aria-pressed', 'true');
+    }
     const heading = el('h4', '', label);
     heading.tabIndex = -1;
     const criteria = selection.query.mapFilters ? 'Such- und Kartenfiltern der Musterkarte' : 'Suchkriterien';
-    const scope = el('p', '', countText(points.length, 'Fall nach ' + criteria, 'Fälle nach ' + criteria)
-      + ' · ' + (complete
-        ? countText(total, 'Fall insgesamt im Rechteck', 'Fälle insgesamt im Rechteck')
-        : countText(total, 'geladener Fall im Rechteck', 'geladene Fälle im Rechteck')));
+    const contextCount = complete
+      ? countText(total, 'Fall insgesamt im Rechteck', 'Fälle insgesamt im Rechteck')
+      : countText(total, 'geladener Fall im Rechteck', 'geladene Fälle im Rechteck');
+    const cohortCount = site
+      ? countText(points.length, 'zugeordneter Fall nach ' + criteria, 'zugeordnete Fälle nach ' + criteria)
+      : countText(points.length, 'Fall nach ' + criteria, 'Fälle nach ' + criteria);
     state.heading = heading;
-    state.detail.append(heading, scope);
+    state.detail.append(heading);
+    if (networkStatus) {
+      const status = el('p', '', networkStatus === 'pending'
+        ? 'Der gespeicherte Netzstand wird geladen.'
+        : 'Der gespeicherte Netzstand ist nicht verfügbar. Die Fallliste bezieht sich auf das ursprüngliche Rechteck.');
+      status.setAttribute('role', 'status');
+      state.detail.append(status);
+    }
+    state.detail.append(el('p', '', networkStatus === 'pending' ? contextCount : cohortCount + ' · ' + contextCount));
+    state.detail.hidden = false;
+    if (networkStatus === 'pending') {
+      if (restoreFocus) heading.focus({ preventScroll: true });
+      return heading;
+    }
+    if (selection.coordinates?.length) state.detail.append(el('p', '', 'Türkise Kontur markiert die Netzstelle.'));
     if (visibleCount != null) {
       state.detail.append(el('p', '', countText(visibleCount, 'sichtbarer Clusterfall', 'sichtbare Clusterfälle')
         + ' · Rechteck mit 16 m Rand um die Originalkoordinaten.'));
@@ -288,10 +320,10 @@
         + ' · ' + countText(pattern.points.length, 'Fall', 'Fälle')
         + ' · ' + countText(pattern.recentPoints.length, 'Fall', 'Fälle') + ' im jüngsten Jahr dieses Musters (' + pattern.recentYear + ')'
         + '. Violette Ringe kennzeichnen die Musterfälle.'));
-    } else {
+    } else if (!networkStatus) {
       state.detail.append(el('p', '', 'Für diese Auswahl ist kein wiederkehrendes Muster mit mindestens drei Fällen aus zwei Jahren belegt.'));
     }
-    state.detail.append(el('p', 'site-discovery-note', exposureText(selection.areaPoints)));
+    state.detail.append(el('p', 'site-discovery-note', exposureText(site ? points : selection.areaPoints)));
 
     state.history = el('div');
     renderHistory(state.history, changes);
@@ -303,9 +335,8 @@
     const status = el('p', 'site-discovery-case-status');
     status.setAttribute('role', 'status');
     listDetails.append(el('summary', '', 'Einzelfälle auf der Karte'), status, list);
-    state.detail.append(listDetails);
-    state.detail.hidden = false;
-    addCaseMarkers(ctx, state, selection, list, status, activeCase?.point);
+    if (!site || points.length) state.detail.append(listDetails);
+    addSelectionLayer(ctx, state, selection, list, status, activeCase?.point);
     if (restoreFocus) (state.activeCase?.link || heading).focus({ preventScroll: true });
     appendFacilities(ctx, state, selection);
     const fieldCheck = el('details');
@@ -315,12 +346,14 @@
     return heading;
   }
 
+  function matchesMapFilters(ctx, point) {
+    const mask = UA.maskFromProps(point.props);
+    return mask > 0 && UA.matchesNonInvolvementFilters(ctx, point.props) && UA.matchesInvolvementFilter(ctx, mask);
+  }
+
   function buildSelection(ctx, { bounds, query, key, label, changes = [], visibleCount, useExactKey = false }) {
     const all = pointsInArea(ctx, bounds);
-    const population = query.mapFilters ? all.filter(point => {
-      const mask = UA.maskFromProps(point.props);
-      return mask > 0 && UA.matchesNonInvolvementFilters(ctx, point.props) && UA.matchesInvolvementFilter(ctx, mask);
-    }) : all;
+    const population = query.mapFilters ? all.filter(point => matchesMapFilters(ctx, point)) : all;
     const points = UA.SiteDiscovery.filterPoints(population, query);
     const pattern = useExactKey && !key ? null : UA.SiteDiscovery.patternForPoints(points, key || undefined);
     return {
@@ -329,14 +362,35 @@
     };
   }
 
-  function selectCandidate(ctx, state, row, event) {
-    const selection = buildSelection(ctx, {
-      bounds: row.bounds, query: state.query, label: row.label, changes: row.changes,
-    });
+  function buildNetworkSelection(ctx, row, query, site) {
+    return {
+      id: row.id, bounds: row.bounds, label: row.label, changes: row.changes, points: row.points, pattern: row.pattern,
+      kind: row.kind, coordinates: row.coordinates, query, site, total: pointsInArea(ctx, row.bounds).length, complete: true,
+    };
+  }
+
+  function restoreNetworkSelection(ctx, state, focus, pending) {
+    const { bounds, query, key, site } = focus;
+    const result = ctx.reviewNetworkResult;
+    const predicate = query.mapFilters ? point => matchesMapFilters(ctx, point) : undefined;
+    const row = result?.network.revision === site.revision ? UA.ReviewNetwork.row(result, site.id, query, predicate) : null;
+    const selection = row && sameBounds(row.bounds, bounds) ? {
+      ...buildNetworkSelection(ctx, row, query, site),
+      pattern: key ? UA.SiteDiscovery.patternForPoints(row.points, key) : null,
+    } : {
+      ...buildSelection(ctx, { bounds, query, useExactKey: true, label: 'Geteilter Prüfbereich' }),
+      networkStatus: pending ? 'pending' : 'unavailable',
+    };
+    showSelection(ctx, state, { ...selection, focus });
+  }
+
+  function selectCandidate(ctx, state, row, networkMode) {
+    const site = networkMode ? { id: row.id, revision: ctx.reviewNetworkResult.network.revision } : null;
+    const selection = site ? buildNetworkSelection(ctx, row, state.query, site)
+      : buildSelection(ctx, { bounds: row.bounds, query: state.query, label: row.label, changes: row.changes });
     if (!UA.setSelectionArea(ctx, row.bounds, { fit: fitOptions(ctx) })) return;
-    setFocus(ctx, { bounds: row.bounds, query: state.query, key: selection.pattern?.key || null });
-    const heading = showSelection(ctx, state, { ...selection, id: row.id });
-    event.currentTarget.setAttribute('aria-pressed', 'true');
+    setFocus(ctx, { bounds: row.bounds, query: state.query, key: selection.pattern?.key || null, ...(site ? { site } : {}) });
+    const heading = showSelection(ctx, state, { ...selection, id: row.id, focus: ctx.discoveryFocus });
     heading.focus({ preventScroll: true });
     heading.scrollIntoView?.({ block: 'nearest' });
   }
@@ -367,6 +421,7 @@
   }
 
   function renderRows(ctx, state) {
+    const networkMode = state.mode.value === 'network';
     const activeCandidate = state.rows.contains(document.activeElement)
       ? document.activeElement.dataset.discoveryCandidate
       : null;
@@ -375,19 +430,20 @@
     if (state.sort.value === 'severe') rows.sort((a, b) => b.severeCount - a.severeCount || b.count - a.count);
     if (state.sort.value === 'pattern') rows.sort((a, b) => (b.pattern?.points.length || 0) - (a.pattern?.points.length || 0) || b.count - a.count);
     for (const row of rows.slice(0, state.limit)) {
-      const action = button(row.label, event => selectCandidate(ctx, state, row, event));
+      const action = button(row.label, () => selectCandidate(ctx, state, row, networkMode));
       action.classList.add('site-discovery-result');
       action.dataset.discoveryCandidate = row.id;
       action.disabled = !row.bounds;
-      action.setAttribute('aria-pressed', String(row.id === state.selection?.id));
+      action.setAttribute('aria-pressed', String(row.id === state.selection?.id && networkMode === Boolean(state.selection?.site)));
+      const cases = networkMode ? countText(row.count, 'zugeordneter Fall', 'zugeordnete Fälle') : countText(row.count, 'Fall', 'Fälle');
       action.append(el('span', '', (kindLabels[row.kind] || 'Prüfbereich') + ' · '
-        + countText(row.count, 'Fall', 'Fälle') + ' · ' + number.format(row.severeCount) + ' mit Getöteten oder Schwerverletzten'));
+        + cases + ' · ' + number.format(row.severeCount) + ' mit Getöteten oder Schwerverletzten'));
       const item = el('li');
       item.append(action);
       state.rows.append(item);
       if (row.id === activeCandidate) action.focus({ preventScroll: true });
     }
-    state.status.textContent = countText(rows.length, 'Prüfbereich', 'Prüfbereiche')
+    state.status.textContent = (networkMode ? countText(rows.length, 'Netzstelle', 'Netzstellen') : countText(rows.length, 'Prüfbereich', 'Prüfbereiche'))
       + (rows.length ? ' · ' + Math.min(state.limit, rows.length) + ' angezeigt' : ' mit den gewählten Kriterien');
     state.more.hidden = state.limit >= rows.length;
   }
@@ -399,8 +455,60 @@
       state.status.textContent = 'Das Startjahr muss vor oder im Endjahr liegen.';
       return;
     }
-    state.candidates = UA.SiteDiscovery.candidates(ctx.allPts || [], state.query, state.sites || []);
+    state.candidates = state.mode.value === 'network'
+      ? UA.ReviewNetwork.rows(ctx.reviewNetworkResult, state.query, { kind: state.networkKind.value, onlyEmpty: state.onlyEmpty.checked })
+      : UA.SiteDiscovery.candidates(ctx.allPts || [], state.query, state.sites || []);
     renderRows(ctx, state);
+  }
+
+  function syncSearchMode(state) {
+    const networkMode = state.mode.value === 'network';
+    state.networkKindLabel.hidden = !networkMode;
+    state.onlyEmptyLabel.hidden = !networkMode;
+    state.networkMeta.hidden = !networkMode;
+    state.rows.setAttribute('aria-label', networkMode ? 'Gefundene Netzstellen' : 'Gefundene Prüfbereiche');
+    state.more.textContent = networkMode ? 'Weitere Netzstellen' : 'Weitere Prüfbereiche';
+  }
+
+  function updateNetwork(ctx, state, allowLoad) {
+    const complete = ctx.accidentDataCoverage?.complete === true;
+    if (complete && allowLoad && !state.networkRequest && UA.ReviewNetwork?.load) {
+      const city = state.city;
+      const request = Promise.resolve().then(() => UA.ReviewNetwork.load(city)).catch(() => null);
+      state.networkRequest = request;
+      ctx.reviewNetworkPromise = request.then(network => {
+        if (state.networkRequest !== request || ctx.CITY_RAW !== city) return null;
+        state.network = network || null;
+        dataChanged(ctx);
+        return ctx.reviewNetworkResult || null;
+      });
+    }
+
+    const network = complete ? state.network : null;
+    const previous = ctx.reviewNetworkResult;
+    if (network ? previous?.network === network && state.networkPoints === ctx.allPts : !previous) return false;
+    const result = network ? UA.ReviewNetwork.analyze(network, ctx.allPts || []) : null;
+    state.networkPoints = network ? ctx.allPts : null;
+    ctx.reviewNetworkResult = result;
+    if (state.network !== undefined) ctx.reviewNetworkPromise = Promise.resolve(result);
+
+    state.networkControls.hidden = !result;
+    state.title.textContent = result ? 'Stellen finden' : 'Prüfbereiche finden';
+    if (!result) state.mode.value = 'areas';
+    else if (!previous) state.mode.value = 'network';
+    syncSearchMode(state);
+    state.networkMeta.replaceChildren();
+    if (result) {
+      const { total, assigned, ambiguous, unmatched } = result.counts;
+      const coverage = el('p', 'site-discovery-note', 'Zuordnung im Stadtdatensatz · '
+        + countText(total, 'Fall insgesamt', 'Fälle insgesamt') + ' · ' + number.format(assigned) + ' zugeordnet · '
+        + number.format(ambiguous) + ' mehrdeutig · ' + number.format(unmatched) + ' ohne Zuordnung');
+      const source = el('p', 'site-discovery-note');
+      source.append(countText(network.sites.size, 'Netzstelle', 'Netzstellen') + ' · ',
+        sourceLink(network.source.label, network.source.url), ' · ' + sourceDate(network.source.date));
+      state.networkMeta.append(coverage, source);
+    }
+    return true;
   }
 
   function dataChanged(ctx, opening = false) {
@@ -412,20 +520,31 @@
       state.points = null;
       state.sites = null;
       state.siteRequest = null;
+      state.network = undefined;
+      state.networkRequest = null;
+      ctx.reviewNetworkPromise = null;
     }
+    const focus = ctx.discoveryFocus;
     const visible = !state.panel.hidden;
-    if (!visible && !state.selection) return;
-    const coverage = ctx.accidentDataCoverage;
-    const scope = coverage?.complete === true
+    const networkChanged = updateNetwork(ctx, state, visible || Boolean(focus?.site));
+    if (!visible && !focus?.site && !state.selection) return;
+    const complete = ctx.accidentDataCoverage?.complete === true;
+    const scope = complete
       ? 'Vollständiger verfügbarer Stadtdatensatz. Fälle mit Personenschaden.'
       : 'Stadtdatensatz unvollständig. Die gesamte Liste bezieht sich nur auf die geladenen Unfalldaten.';
     if (state.coverage.textContent !== scope) state.coverage.textContent = scope;
     const selection = state.selection;
     const pointsChanged = state.points !== ctx.allPts;
     const mapChanged = state.mapPoints !== ctx.filteredAll;
-    if (selection && (pointsChanged || (selection.query.mapFilters && mapChanged))) {
+    const pending = complete && Boolean(state.networkRequest) && state.network === undefined;
+    if (focus?.site && sameBounds(focus.bounds, areaBounds(ctx))) {
+      if (selection?.focus !== focus || pointsChanged || networkChanged || state.complete !== complete
+          || state.networkPending !== pending || (focus.query.mapFilters && mapChanged)) {
+        restoreNetworkSelection(ctx, state, focus, pending);
+      }
+    } else if (selection && (pointsChanged || (selection.query.mapFilters && mapChanged))) {
       showSelection(ctx, state, { ...selection, ...buildSelection(ctx, {
-        ...selection, key: ctx.discoveryFocus?.key, useExactKey: true,
+        ...selection, key: focus?.key, useExactKey: true,
       }) });
     }
     state.mapPoints = ctx.filteredAll;
@@ -433,8 +552,10 @@
       state.points = ctx.allPts;
       refreshYearControls(ctx, state);
     }
+    state.complete = complete;
+    state.networkPending = pending;
     if (!visible) return;
-    if (opening || pointsChanged) refreshCandidates(ctx, state);
+    if (opening || pointsChanged || networkChanged) refreshCandidates(ctx, state);
     if (!state.siteRequest) {
       const requested = Promise.resolve(UA.SiteDiscovery.loadSites(ctx.CITY_RAW));
       state.siteRequest = requested;
@@ -448,7 +569,7 @@
           state.heading.textContent = site.label;
           renderHistory(state.history, site.changes);
         }
-        if (!state.panel.hidden) refreshCandidates(ctx, state);
+        if (!state.panel.hidden && state.mode.value === 'areas') refreshCandidates(ctx, state);
       }).catch(() => {});
     }
   }
@@ -503,6 +624,21 @@
     title.tabIndex = -1;
     head.append(title, button('Schließen', close));
 
+    const networkControls = el('div');
+    networkControls.hidden = true;
+    const mode = selectControl('siteDiscoveryMode', 'Suchmodus', [['areas', 'Prüfbereiche'], ['network', 'Netzregister']]);
+    const networkKind = selectControl('siteDiscoveryNetworkKind', 'Netztyp', [
+      ['all', 'Alle'], ...['junction', 'crossing', 'segment'].map(kind => [kind, kindLabels[kind]]),
+    ]);
+    const networkGrid = el('div', 'site-discovery-criteria');
+    networkGrid.append(mode.wrapper, networkKind.wrapper);
+    const onlyEmpty = el('input');
+    onlyEmpty.type = 'checkbox';
+    const onlyEmptyLabel = el('label');
+    onlyEmptyLabel.append(onlyEmpty, ' Ohne zugeordneten Fall nach Suchkriterien');
+    const networkMeta = el('div');
+    networkControls.append(networkGrid, onlyEmptyLabel, networkMeta);
+
     const grid = el('div', 'site-discovery-criteria');
     const from = selectControl('siteDiscoveryFromYear', 'Von Jahr', []);
     const to = selectControl('siteDiscoveryToYear', 'Bis Jahr', []);
@@ -535,7 +671,7 @@
     more.hidden = true;
     panel.append(head, coverage, el('p', 'site-discovery-note',
       'Die Liste zeigt Fallzahlen. Verkehrsmengen und amtlich festgelegte Unfallhäufungsstellen sind gesondert zu prüfen. Die Kartenfilter bleiben separat.'),
-      grid, detail, status, rows, more);
+      networkControls, grid, detail, status, rows, more);
     (trigger.closest('.taskActions') || trigger).after(panel);
 
     const savedQuery = ctx.discoveryFocus?.query || allQuery;
@@ -544,7 +680,9 @@
     type.select.value = query.type;
     involvement.select.value = query.involvement || 'all';
     const state = {
-      panel, trigger, coverage, status, rows, more, detail, sort: sort.select,
+      panel, trigger, title, coverage, status, rows, more, detail, sort: sort.select,
+      networkControls, mode: mode.select, networkKind: networkKind.select, networkKindLabel: networkKind.wrapper,
+      onlyEmpty, onlyEmptyLabel, networkMeta,
       fromYearSelect: from.select, toYearSelect: to.select,
       limit: listPage, query, city: ctx.CITY_RAW, candidates: [], points: ctx.allPts, mapPoints: ctx.filteredAll,
     };
@@ -567,6 +705,13 @@
       state.limit = listPage;
       renderRows(ctx, state);
     });
+    for (const control of [mode.select, networkKind.select, onlyEmpty]) {
+      control.addEventListener('change', () => {
+        syncSearchMode(state);
+        state.limit = listPage;
+        refreshCandidates(ctx, state);
+      });
+    }
     trigger.addEventListener('click', () => {
       if (!panel.hidden) { close(); return; }
       showPanel(ctx, state);
@@ -577,12 +722,15 @@
     });
 
     if (ctx.discoveryFocus && sameBounds(ctx.discoveryFocus.bounds, areaBounds(ctx))) {
-      const { bounds, key } = ctx.discoveryFocus;
-      showSelection(ctx, state, {
-        ...buildSelection(ctx, { bounds, query: savedQuery, key, useExactKey: true, label: 'Geteilter Prüfbereich' }),
-        shared: true,
-      });
+      const { bounds, key, site } = ctx.discoveryFocus;
+      if (!site) {
+        showSelection(ctx, state, {
+          ...buildSelection(ctx, { bounds, query: savedQuery, key, useExactKey: true, label: 'Geteilter Prüfbereich' }),
+          shared: true,
+        });
+      }
       if (!UA.qBool?.('export', false)) showPanel(ctx, state, { fromMap: true });
+      else if (site) dataChanged(ctx);
     }
   }
 

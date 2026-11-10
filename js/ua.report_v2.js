@@ -187,6 +187,7 @@
     return {
       rows,
       discoveryCount,
+      cohortLabel: cohorts?.discoveryCohort?.label,
       period,
       complete: appendix?.complete !== false && appendix?.truncated !== true && cohorts?.status !== "not-assessable"
         && (appendix?.total == null || appendix.total === rows.length),
@@ -204,12 +205,16 @@
       return `Die Liste enthält ${count} veröffentlichte Unfälle mit Personenschaden${period}. Ihre Vollständigkeit konnte nicht bestätigt werden.`;
     }
     const events = evidence.rows.length === 1 ? "ist 1 Unfall" : `sind ${count} Unfälle`;
-    return `Im ausgewählten Gebiet${period} ${events} mit Personenschaden veröffentlicht. Die Suchfilter heben davon ${filteredCount} hervor.`;
+    const selection = evidence.cohortLabel
+      ? `Die Netzzuordnung umfasst unter den aktiven Such- und Kartenfiltern ${filteredCount} ${evidence.discoveryCount === 1 ? "Fall" : "Fälle"}.`
+      : `Die Suchfilter heben davon ${filteredCount} hervor.`;
+    return `Im ausgewählten Gebiet${period} ${events} mit Personenschaden veröffentlicht. ${selection}`;
   }
 
   function evidenceTable(evidence, mapRefs, anchorPrefix) {
     const includeMapRefs = mapRefs.size > 0;
-    const headers = includeMapRefs ? EVIDENCE_HEADERS : EVIDENCE_HEADERS.slice(0, -1);
+    const headers = (includeMapRefs ? EVIDENCE_HEADERS : EVIDENCE_HEADERS.slice(0, -1))
+      .map(label => label === "Suchfilter" && evidence.cohortLabel ? "Netzfall" : label);
     const rows = evidence.rows.map(row => {
       const hour = row.hour == null ? "—" : `${String(row.hour).padStart(2, "0")}:00`;
       const coordinates = Number.isFinite(row.lat) && Number.isFinite(row.lon)
@@ -232,9 +237,12 @@
 
   function evidenceAnnexIntro(evidence, hasMap) {
     const mapHint = hasMap ? " Die Spalte Karte verweist auf die jeweiligen Kartenblätter in Anlage 1." : "";
+    const legend = evidence.cohortLabel
+      ? "In der Spalte Netzfall steht „Ja“ bei den zugeordneten Fällen, die die aktiven Such- und Kartenfilter erfüllen."
+      : "In der Spalte Suchfilter steht „Ja“ bei den durch die Filter hervorgehobenen Fällen.";
     return [
       evidenceCountText(evidence),
-      `A### bezeichnet eine Dokumentkennung. In der Spalte Suchfilter steht „Ja“ bei den durch die Filter hervorgehobenen Fällen. Die Koordinaten geben die veröffentlichte Lage als Breiten- und Längengrad an.${mapHint}`
+      `A### bezeichnet eine Dokumentkennung. ${legend} Die Koordinaten geben die veröffentlichte Lage als Breiten- und Längengrad an.${mapHint}`
     ];
   }
 
@@ -1331,7 +1339,14 @@
     const bounds = points.length < plan.points.length
       ? discovery?.boundsForPoints?.(points, { paddingMeters: 28 })
       : null;
-    return { key: candidate.key, query: candidate.query, label: candidate.label, points, recentText, bounds };
+    const assignedOnly = candidate.site && !candidate.key;
+    return {
+      key: candidate.key, query: candidate.query, site: candidate.site, label: candidate.label, points, recentText, bounds,
+      title: assignedOnly ? "Zugeordnete Unfälle im Detail" : "Unfallmuster im Detail",
+      mapLabel: assignedOnly ? "Netzobjektkarte" : "Musterkarte",
+      legend: assignedOnly ? "Die Punkte sind dem Netzobjekt räumlich zugeordnet. Die Fahrbeziehungen bleiben offen." : FOCUS_MAP_LEGEND,
+      summary: (assignedOnly ? candidate.label : "Unfallmuster im Auswertungsgebiet – " + candidate.label) + " (n = " + points.length + ").",
+    };
   }
 
   function focusCaption(figure, focus, overviewN, overviewIndex) {
@@ -1372,6 +1387,20 @@
 
   const SITE_CHANGE_LIMIT = "Für einen belastbaren Vorher-Nachher-Vergleich fehlen hinreichend gesicherte und vergleichbare Zeitangaben.";
   const FOCUS_MAP_LEGEND = "Der Rahmen markiert den Bereich der Musterkarte. Die Punkte zeigen veröffentlichte Unfallorte. Die Fahrtrichtungen bleiben offen.";
+
+  function reportNetworkSite(ctx, structured) {
+    const finding = structured?.siteNetwork;
+    if (!finding || !UA.ReviewNetwork?.findingLines) return null;
+    const sources = [finding.source, finding.boundarySource].filter(Boolean).map(source => ({
+      text: [source.label, sourceDate(source.date)].filter(Boolean).join(" · "),
+      href: reportLink(source.url),
+    }));
+    const link = finding.status === "available" ? buildWerkbankUrl(ctx, {
+      bounds: finding.bounds,
+      discoveryFocus: { site: finding.site, key: structured.discoveryFocus?.key, query: finding.query },
+    }) : null;
+    return { lines: UA.ReviewNetwork.findingLines(finding), sources, link };
+  }
 
   function reportFacilities(poi) {
     return (poi?.facilities || []).filter(facility => facility?.name && facility.relation).slice(0, 5).map(facility => {
@@ -2924,11 +2953,11 @@
               ...mapOptions, exportPoints: focus.points, exportBounds: focus.bounds, heatmapExportOpacity: 0
             });
             const detailRun = pngImageRun(capture.image, fitImageToMax(capture.image, DOCX_MAP_MAX), {
-              title: "Unfallmuster im Detail", description: focus.label
+              title: focus.title, description: focus.label
             });
-            const figure = figCounter.next(`Musterkarte – ${focus.label}`);
+            const figure = figCounter.next(`${focus.mapLabel} – ${focus.label}`);
             children.push(new Paragraph({
-              text: "Unfallmuster im Detail", heading: HeadingLevel.HEADING_3, keepNext: true,
+              text: focus.title, heading: HeadingLevel.HEADING_3, keepNext: true,
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
@@ -2938,7 +2967,7 @@
               text: focusCaption(figure, focus, overviewN, docxSelectionFigIndex),
               italics: true, spacing: { after: 80 }
             }));
-            children.push(motionParagraph(FOCUS_MAP_LEGEND));
+            children.push(motionParagraph(focus.legend));
             pushDocxMapSourceNote(children, ctx, 80, capture);
             addMapLink(capture, { discoveryFocus: focus });
             focusMapShown = true;
@@ -2949,7 +2978,7 @@
         }
         if (focus) {
           if (!focusMapShown) {
-            children.push(new Paragraph({ text: `Unfallmuster im Auswertungsgebiet – ${focus.label} (n = ${focus.points.length}).` }));
+            children.push(new Paragraph({ text: focus.summary }));
           }
           if (focus.recentText) children.push(new Paragraph({ text: focus.recentText, spacing: { after: 100 } }));
           const criteria = focusCriteria(focus.query);
@@ -3074,6 +3103,16 @@
       }
     }
     const mapSection = formalMotion ? children.splice(mapsStart) : [];
+
+    const networkSite = reportNetworkSite(ctx, sd);
+    if (networkSite) {
+      children.push(new Paragraph({ text: "Befund aus dem Netzregister", heading: HeadingLevel.HEADING_2, keepNext: true }));
+      for (const line of networkSite.lines) children.push(motionParagraph(line));
+      for (const source of networkSite.sources) {
+        children.push(new Paragraph({ children: [linkedWordRun(source)], spacing: { after: 80 }, keepLines: true }));
+      }
+      if (networkSite.link) children.push(new Paragraph({ children: [linkedWordRun({ text: "Auswertung in der Werkbank öffnen", href: networkSite.link })] }));
+    }
 
     const siteChanges = reportSiteChanges(sd);
     if (siteChanges.length) {
@@ -3628,13 +3667,17 @@
     if (Number.isFinite(Number(ctx.orthophotoOpacity))) {
       params.set("orthophotoOpacity", Math.round(Number(ctx.orthophotoOpacity) * 100));
     }
-    if (ovr.discoveryFocus?.key) {
-      params.set("siteFocus", ovr.discoveryFocus.key);
+    if (ovr.discoveryFocus?.key || ovr.discoveryFocus?.site) {
+      params.set("siteFocus", ovr.discoveryFocus.key || "all");
       const { fromYear, toYear, severity, type, involvement } = ovr.discoveryFocus.query || {};
       for (const [name, value] of Object.entries({ siteFrom: fromYear, siteTo: toYear, siteSeverity: severity, siteType: type, siteInvolvement: involvement })) {
         if (value != null && value !== "") params.set(name, value);
       }
       params.set("siteMapFilters", "1");
+      if (ovr.discoveryFocus.site) {
+        params.set("siteNetworkId", ovr.discoveryFocus.site.id);
+        params.set("siteNetworkRev", ovr.discoveryFocus.site.revision);
+      }
     }
 
     // Map position – override.center / override.zoom take precedence so each
@@ -5007,11 +5050,11 @@
               ...mapOptions, exportPoints: focus.points, exportBounds: focus.bounds, heatmapExportOpacity: 0
             });
             const focusUrl = mapUrl(capture, { discoveryFocus: focus });
-            const figure = pdfFigCounter.next(`Musterkarte – ${focus.label}`);
+            const figure = pdfFigCounter.next(`${focus.mapLabel} – ${focus.label}`);
             docDefinition.content.push({
               unbreakable: true,
               stack: [
-                { text: "Unfallmuster im Detail", style: "subsectionHeader" },
+                { text: focus.title, style: "subsectionHeader" },
                 {
                   image: capture.image,
                   fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
@@ -5020,7 +5063,7 @@
                   link: focusUrl
                 },
                 { text: focusCaption(figure, focus, overviewN, pdfSelectionFigIndex), style: "caption", alignment: "center" },
-                { text: FOCUS_MAP_LEGEND, style: "small", margin: [0, 4, 0, 4] }
+                { text: focus.legend, style: "small", margin: [0, 4, 0, 4] }
               ]
             });
             pushPdfMapSourceNote(docDefinition, ctx, 4, capture);
@@ -5037,7 +5080,7 @@
         if (focus) {
           if (!focusMapShown) {
             docDefinition.content.push({
-              text: `Unfallmuster im Auswertungsgebiet – ${focus.label} (n = ${focus.points.length}).`, style: "small"
+              text: focus.summary, style: "small"
             });
           }
           if (focus.recentText) docDefinition.content.push({ text: focus.recentText, style: "small", margin: [0, 4, 0, 8] });
@@ -5157,6 +5200,16 @@
       }
     }
     const mapSection = formalMotion ? docDefinition.content.splice(mapsStart) : [];
+
+    const networkSite = reportNetworkSite(ctx, sd);
+    if (networkSite) {
+      docDefinition.content.push({ text: "Befund aus dem Netzregister", style: "subheader" });
+      for (const line of networkSite.lines) docDefinition.content.push({ text: line, style: "normal", margin: [0, 0, 0, 4] });
+      for (const source of networkSite.sources) docDefinition.content.push({ text: [linkedPdfRun(source)], style: "normal" });
+      if (networkSite.link) {
+        docDefinition.content.push({ text: [linkedPdfRun({ text: "Auswertung in der Werkbank öffnen", href: networkSite.link })], style: "normal" });
+      }
+    }
 
     const siteChanges = reportSiteChanges(sd);
     if (siteChanges.length) {

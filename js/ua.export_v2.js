@@ -1534,17 +1534,54 @@
     return sw && ne ? { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng } : null;
   }
 
-  function reportDiscoveryFocus(ctx, points, markedArea) {
+  function sameDiscoveryArea(bounds, markedArea) {
+    return bounds && markedArea && Object.keys(markedArea).every(edge => markedArea[edge] === bounds[edge]);
+  }
+
+  function matchesReportMap(ctx, point) {
+    if (UA.AnalysisScope?.matchesActiveFilters) return UA.AnalysisScope.matchesActiveFilters(ctx, point);
+    const mask = maskFromProps(point.props);
+    return mask > 0 && (!UA.matchesInvolvementFilter || UA.matchesInvolvementFilter(ctx, mask));
+  }
+
+  async function reviewNetworkFinding(ctx, markedArea, filteredPoints) {
+    const active = ctx.discoveryFocus;
+    if (!active?.site || !sameDiscoveryArea(active.bounds, markedArea)) return null;
+    const unavailable = { status: 'unavailable', site: active.site };
+    const result = ctx.reviewNetworkResult || await Promise.resolve(ctx.reviewNetworkPromise).catch(() => null);
+    const network = result?.network;
+    if (ctx.accidentDataCoverage?.complete === false || !network || network.city !== UA.normKey(ctx.CITY_RAW)
+        || network.revision !== active.site.revision || !UA.ReviewNetwork) return { finding: unavailable };
+    const row = UA.ReviewNetwork.row(result, active.site.id, active.query);
+    if (!row || !sameDiscoveryArea(row.bounds, markedArea)) return { finding: unavailable };
+    const visible = new Set(filteredPoints);
+    const points = row.points.filter(point => visible.has(point) && matchesReportMap(ctx, point));
+    return {
+      points, key: active.key,
+      finding: {
+        status: 'available', site: active.site, label: row.label, kind: row.kind,
+        bounds: markedArea, query: active.query, source: network.source, boundarySource: network.boundarySource,
+        assignedCount: row.assignedCount, queryCount: row.count, mapCount: points.length, mappedPoints: points,
+      },
+    };
+  }
+
+  function reportDiscoveryFocus(ctx, points, markedArea, reviewNetwork) {
     const discovery = UA.SiteDiscovery;
     if (!discovery?.patternForPoints) return undefined;
-    let scoped = points.filter(point => {
-      if (UA.AnalysisScope?.matchesActiveFilters) return UA.AnalysisScope.matchesActiveFilters(ctx, point);
-      const mask = maskFromProps(point.props);
-      return mask > 0 && (!UA.matchesInvolvementFilter || UA.matchesInvolvementFilter(ctx, mask));
-    });
+    if (reviewNetwork) {
+      const scoped = reviewNetwork.points;
+      if (!scoped?.length) return null;
+      const pattern = reviewNetwork.key ? discovery.patternForPoints(scoped, reviewNetwork.key) : null;
+      const fallback = { key: null, label: 'Räumlich zugeordnete Fälle am Netzobjekt', points: scoped };
+      return {
+        ...(pattern || fallback), query: reviewNetwork.finding.query, site: reviewNetwork.finding.site,
+        note: pattern ? DISCOVERY_NOTE : "Die Zuordnung beruht auf der kartierten Lage.",
+      };
+    }
+    let scoped = points.filter(point => matchesReportMap(ctx, point));
     const active = ctx.discoveryFocus;
-    const selected = markedArea && active?.query && active.bounds
-      && Object.keys(markedArea).every(edge => markedArea[edge] === active.bounds[edge]);
+    const selected = active?.query && sameDiscoveryArea(active.bounds, markedArea);
     const query = selected ? { ...active.query } : null;
     if (query) scoped = discovery.filterPoints(scoped, query);
     const pattern = discovery.patternForPoints(scoped, query ? active.key || undefined : undefined);
@@ -1593,7 +1630,11 @@
     // The report's annex uses the non-involvement scope. The discovery focus
     // further narrows that same point set without changing the annex.
     const filteredPts = getPointsInBounds(ctx);
-    const discoveryFocus = reportDiscoveryFocus(ctx, filteredPts, markedArea);
+    const networkSelection = ctx.discoveryFocus?.site ? await reviewNetworkFinding(ctx, markedArea, filteredPts) : null;
+    const siteNetwork = networkSelection?.finding;
+    const siteNetworkLines = siteNetwork ? UA.ReviewNetwork?.findingLines(siteNetwork) || [] : [];
+    const discoveryFocus = reportDiscoveryFocus(ctx, filteredPts, markedArea, networkSelection);
+    const discoveryHeading = discoveryFocus?.site && !discoveryFocus.key ? "Netzzuordnung im Ausschnitt" : "Muster im Ausschnitt";
     
     const center = bounds.getCenter ? bounds.getCenter() : null;
     let loc = null;
@@ -2290,8 +2331,13 @@
       lines.push("");
     }
 
+    if (siteNetworkLines.length) {
+      lines.push("Befund aus dem Netzregister", ...siteNetworkLines);
+      if (siteNetwork.source) lines.push(siteNetwork.source.label + " · " + siteNetwork.source.date + " · " + siteNetwork.source.url);
+      lines.push("");
+    }
     if (discoveryFocus) {
-      lines.push(`Muster im Ausschnitt: ${discoveryFocus.label} (${discoveryFocus.points.length} ${discoveryFocus.points.length === 1 ? "Fall" : "Fälle"})`);
+      lines.push(`${discoveryHeading}: ${discoveryFocus.label} (${discoveryFocus.points.length} ${discoveryFocus.points.length === 1 ? "Fall" : "Fälle"})`);
       lines.push(discoveryFocus.note, "");
     }
     if (siteChanges.length) {
@@ -2891,7 +2937,10 @@
 
         ${accidentHtmlSection}
 
-        ${discoveryFocus ? `<div><strong>Muster im Ausschnitt:</strong> ${UA.escHtml(discoveryFocus.label)}
+        ${siteNetworkLines.length ? `<div><strong>Befund aus dem Netzregister</strong>
+          ${siteNetworkLines.map(line => '<p>' + UA.escHtml(line) + '</p>').join('')}
+          ${siteNetwork.source ? sourceLink(siteNetwork.source) : ''}</div>` : ""}
+        ${discoveryFocus ? `<div><strong>${discoveryHeading}:</strong> ${UA.escHtml(discoveryFocus.label)}
           (${discoveryFocus.points.length} ${discoveryFocus.points.length === 1 ? "Fall" : "Fälle"}). ${UA.escHtml(discoveryFocus.note)}</div>` : ""}
         ${siteChanges.length ? `<div><strong>Dokumentierte örtliche Änderungen</strong><ul>
           ${siteChanges.map(change => `<li>${sourceLink({ ...change, date: changeDate(change) })}</li>`).join("")}
@@ -3097,6 +3146,7 @@
       yearTable: yr,
       poi: poiAnalysis,
       ...(discoveryFocus !== undefined ? { discoveryFocus } : {}),
+      ...(siteNetwork ? { siteNetwork } : {}),
       siteChanges,
       references: refDocs,
       politicalReferences,
