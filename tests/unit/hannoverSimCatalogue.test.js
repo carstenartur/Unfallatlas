@@ -292,6 +292,56 @@ test('uses the administrative reply section in preference to the question reprod
   ]);
 });
 
+test.each(['Antrag,', 'Antrag zu beschließen:'])('recognizes the operative public heading %s without copying later sections', async heading => {
+  const operative = 'der Verlagerung der Grundschule Bonner Straße in das Schulgebäude Stresemannallee zum nächstmöglichen Zeitpunkt im Schuljahr 2010/2011 zuzustimmen.';
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">Schulverlagerung</a></td></tr>`),
+    [ORIGINAL]: document('Antrag Nr. 1047/2026', 'Schulverlagerung', '',
+      `<h4>${heading}</h4><div class="row rt">${operative}<p data-public="false">Vertraulicher Ort.</p></div>`
+      + '<h4>Berücksichtigung von Gender-Aspekten</h4><p>Vergleich: Limmerstraße.</p>'
+      + '<h4>Kostentabelle</h4><p>Kostenstelle: Fössestraße.</p>'
+      + '<h4>Begründung</h4><p>Vergleich: Blumenauer Straße.</p>'),
+  });
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0].locationEvidence).toEqual([operative]);
+  expect(records[0]).not.toHaveProperty('locationEvidenceUnavailable');
+});
+
+test('prefers the full administrative answer heading to its reproduced question', async () => {
+  const operative = 'Die Umgestaltung der Kreuzung Elmstraße/Schwarzwaldstraße ist vor dem Hintergrund der Sanierungsziele für Sahlkamp-Mitte von besonderer Bedeutung.';
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ANSWER}">Antwort</a></td></tr>`),
+    [ANSWER]: document('Drucksache Nr. 1047/2026 F1', 'Umgestaltung der Kreuzung Elmstraße', '',
+      '<h4></h4><p>Ist eine Querung an der Kreuzung Davenstedter Straße/Südfeldstraße geplant?</p>'
+      + `<h4>Die Verwaltung beantwortet die Anfrage wie folgt:</h4><div class="row rt">${operative}</div>`
+      + '<h4>Begründung</h4><p>Vergleichsfall Limmerstraße.</p>'),
+  });
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0].locationEvidence).toEqual([operative]);
+});
+
+test('preserves a street name wrapped at its final hyphen without joining separate evidence blocks', async () => {
+  const { requestText } = transport({
+    'Termine.xsp': archive(`<tr><td><a href="${RAT}">25.06.2026</a></td></tr>`),
+    [RAT]: agenda(`<tr><td><a href="${ORIGINAL}">Fahrradabstellmöglichkeiten</a></td></tr>`),
+    [ORIGINAL]: document('Antrag Nr. 1047/2026', 'Fahrradabstellmöglichkeiten', '',
+      '<h4>Antrag</h4><div class="row rt">Türkstraße, In der Flage, Gustav-Adolf-<br>\nStraße, Schraderstraße und Sauerweinstraße'
+      + '<br><br>Getrennte Zeile Gustav-Adolf-<br><br>Straße bleibt getrennt.'
+      + '</div><p>Absatz Gustav-Adolf-</p><p>Straße bleibt im nächsten Absatz.</p>'
+      + '<ul><li>Listeneintrag Gustav-Adolf-</li><li>Straße bleibt im nächsten Eintrag.</li></ul>'
+      + '<h4>Begründung</h4><p>Gustav-Adolf-<br>Straße ist nur ein Vergleichsfall.</p>'),
+  });
+  const { records } = await collect({ now: TODAY, includeRss: false, includeLocationEvidence: true, requestText });
+  expect(records[0].locationEvidence).toEqual([
+    'Türkstraße, In der Flage, Gustav-Adolf-Straße, Schraderstraße und Sauerweinstraße',
+    'Getrennte Zeile Gustav-Adolf-', 'Straße bleibt getrennt.',
+    'Absatz Gustav-Adolf-', 'Straße bleibt im nächsten Absatz.',
+    'Listeneintrag Gustav-Adolf-', 'Straße bleibt im nächsten Eintrag.',
+  ]);
+});
+
 test('keeps the complete official ID when a reply refers to a revised document', async () => {
   const revisionReply = 'DS/15-0773-2026N1S1';
   const { requestText } = transport({

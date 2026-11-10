@@ -356,12 +356,15 @@ function measureText(markup) {
   const heading = elements(visible, 'h3').find(match => /^Inhalt der Drucksache/i.test(plain(match[2])));
   if (!heading) return { locationEvidence: [], locationEvidenceUnavailable: true };
   const body = visible.slice(heading.index + heading[0].length);
-  const answer = headingSection(body, /^(?:text der antwort|antwort(?: der verwaltung)?)\s*:?$/i);
-  const motion = headingSection(body, /^(?:antrag|anfrage|beschluss(?:vorschlag)?|entscheidung)\s*:?$/i);
+  const answer = headingSection(body, /^(?:text der antwort|antwort(?: der verwaltung)?|die verwaltung beantwortet die anfrage wie folgt)\s*[:,]?$/i);
+  const motion = headingSection(body, /^(?:antrag(?: zu beschließen)?|anfrage|beschluss(?:vorschlag)?|entscheidung)\s*[:,]?$/i);
   // The portal uses an empty h4 for unlabelled request text. In a reply the
   // same section may reproduce the original question above the actual answer.
   const content = answer || motion || headingSection(body, /^$/);
   const paragraphs = content
+    // Keep the literal street-name hyphen across a single layout line break.
+    // Paragraphs, lists and blank lines remain separate evidence.
+    .replace(/([\p{L}]-)<br\b[^>]*>\s*(?=Straße\b)/giu, '$1')
     .replace(/<(b|strong)\b[^>]*>\s*(?:<u>\s*)?frage\s+\d+\s*:\s*(?:<\/u>\s*)?<\/\1>\s*<(b|strong)\b[^>]*>[\s\S]*?<\/\2>/gi, '\n')
     .replace(/<(b|strong)\b[^>]*>\s*(?:<u>\s*)?frage\s+\d+\s*:[\s\S]*?<\/\1>/gi, '\n')
     .split(/<(?:br\b[^>]*|\/(?:p|li|div|tr)\s*)>/i)
@@ -784,7 +787,7 @@ async function collectHannoverYear(options = {}, verifiedList) {
     const related = [];
     const acquiredDetails = [];
     const readDocument = async doc => {
-      const revision = `sim-v4-timeline:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
+      const revision = `sim-v5-evidence:${options.includeLocationEvidence === true}:${doc.sourceRevision || 'linked'}`;
       const retained = yearWork?.details[doc.key];
       const detailAge = now.getTime() - Date.parse(retained?.checkedAt);
       if (retained?.revision === revision && detailAge >= 0 && detailAge < 7 * DAY_MS) {

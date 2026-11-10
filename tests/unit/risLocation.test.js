@@ -691,9 +691,44 @@ const addressGazetteer = {
   addresses: { limmer: { '12': [9.712, 52.37], '12a': [9.713, 52.37], '14': [9.714, 52.37] } },
 };
 
+test('retains the exact address in the unmodified published reply 15-1782/2019 F1', () => {
+  const text = 'Das Team Immissionsschutz der Region Hannover hat Nachbarschaftsbeschwerden über Geruchsbelästigungen – verursacht durch die Gaststätte Kebapci Musa in der Gustav-Adolf-Straße 6 -bearbeitet. Es konnte erfolgreich auf den Einbau einer Abluftfilteranlage hingewirkt werden.';
+  const context = 'Die Windrichtungsdaten sind für diesen Zeitraum stündlich gemessen worden. Nach Auswertung dieser Daten bleibt festzuhalten, dass für das Jahr 2017 die vorgenannte Grenze von 10% mit für das Kebapci Musa ermittelten 6, 78 % deutlich unterschritten wird.';
+  const title = 'Antwort der Verwaltung auf die Anfrage Geruchsbelästigungen in der Nordstadt';
+  const [record] = enrichRisLocations([{ id: 'hannover-sim:15-1782-2019F1', source: 'hannover-sim', title, locationEvidence: [text, context] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'address', label: 'Gustav-Adolf-Straße 6',
+    geometry: { type: 'Point', coordinates: [9.726686, 52.381992] },
+    evidence: { source: 'document', text: 'Das Team Immissionsschutz der Region Hannover hat Nachbarschaftsbeschwerden über Geruchsbelästigungen – verursacht durch die Gaststätte Kebapci Musa in der Gustav-Adolf-Straße 6 -bearbeitet.' } })]);
+});
+
+test.each([
+  ['12 -geprüft.', 'Limmerstraße 12', [9.712, 52.37]],
+  ['12 A –saniert.', 'Limmerstraße 12 A', [9.713, 52.37]],
+  ['12-14 —überprüft.', 'Limmerstraße 12-14', undefined],
+  ['12 -bislang geprüft.', 'Limmerstraße 12', [9.712, 52.37]],
+])('retains the complete address before a dash attached to prose in %s', (tail, label, coordinates) => {
+  const text = `Die Verkehrsmaßnahme wird in der Limmerstraße ${tail}`;
+  const [record] = enrichRisLocations([{ title: 'Radverkehr', locationEvidence: [text] }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations.map(place => [place.label, place.geometry?.coordinates])).toEqual([[label, coordinates]]);
+  expect(record.locations[0].evidence).toEqual({ source: 'document', text });
+});
+
+test.each(['12 -', '12 -a', '12 -b', '12 -ab', '12 -a/b', '12 bis', '12 /', '12 - 14abc'])('does not truncate a partial address continuation %s at its first house number', tail => {
+  const [record] = enrichRisLocations([{ title: `Radverkehr Limmerstraße ${tail}` }], { city: 'hannover', gazetteer: addressGazetteer });
+  expect(record.locations).toEqual([]);
+});
+
+test.each(['12 -bis 14', '12 -bis', '12 -bis 8/10', '12 -und 14', '12 -und', '12 -oder 14', '12 -sowie 14', '12 -bzw 14'])('does not treat a dashed address operator as prose in titles or documents: %s', tail => {
+  const text = `Radverkehr in der Limmerstraße ${tail}`;
+  const records = enrichRisLocations([{ title: text }, { title: 'Radverkehr', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer: addressGazetteer });
+  expect(records.map(record => record.locations)).toEqual([[], []]);
+});
+
 test.each([
   ['12-14', '12-14'], ['12 bis 14', '12 bis 14'], ['12/14', '12/14'],
-  ['12 A – 14 B', '12 A-14 B'], ['12 / 14', '12/14'],
+  ['12 A – 14 B', '12 A-14 B'], ['12 / 14', '12/14'], ['12 A -b', '12 A-B'],
 ])('retains the complete address compound %s without geocoding its first number', (tail, label) => {
   const title = `Radverkehr in der Limmerstraße ${tail}`;
   const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
