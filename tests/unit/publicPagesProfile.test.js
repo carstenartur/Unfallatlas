@@ -58,6 +58,14 @@ describe('public Pages distribution profile', () => {
     fs.rmSync(OUTPUT, { recursive: true, force: true });
   });
 
+  test('hides the server-only priorities action and omits its client in the public page', () => {
+    const html = fs.readFileSync(path.join(OUTPUT, 'werkbank_v2.html'), 'utf8');
+    const page = new DOMParser().parseFromString(html, 'text/html');
+    const opener = page.getElementById('btnPrioritiesOpen');
+    expect(opener.closest('[hidden]')).not.toBeNull();
+    expect(page.querySelector('script[src^="js/ua.priorities.js"]')).toBeNull();
+  });
+
   test('publishes every browser-side capability while declaring hardening gaps honestly', () => {
     const result = validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE });
     expect(result).toMatchObject({
@@ -77,9 +85,9 @@ describe('public Pages distribution profile', () => {
       knownLicenseRestrictions: [],
       knownLicenseConflicts: [],
     });
-    expect(DISABLED_CAPABILITIES).toEqual(['video-export']);
-    expect(manifest.distribution.disabledCapabilities).toEqual(['video-export']);
-    expect(manifest.networkPolicy.disabledCapabilities).toEqual(['video-export']);
+    expect(DISABLED_CAPABILITIES).toEqual(['priorities', 'video-export']);
+    expect(manifest.distribution.disabledCapabilities).toEqual(DISABLED_CAPABILITIES);
+    expect(manifest.networkPolicy.disabledCapabilities).toEqual(DISABLED_CAPABILITIES);
     expect(Object.keys(manifest.dependencies).sort()).toEqual(Object.keys(PUBLIC_PACKAGES).sort());
     expect(manifest.vendorAssets.map(asset => asset.path).sort()).toEqual([...PUBLIC_ASSET_PATHS].sort());
 
@@ -88,7 +96,7 @@ describe('public Pages distribution profile', () => {
     expect(notice.knownGaps.length).toBeGreaterThan(0);
     expect(notice.provenanceGapsBlockCapabilities).toBe(false);
     expect(notice.knownLicenseRestrictions).toEqual([]);
-    expect(notice.disabledCapabilities).toEqual(['video-export']);
+    expect(notice.disabledCapabilities).toEqual(DISABLED_CAPABILITIES);
     expect(notice.excludedPackages).toEqual([]);
     for (const relative of PUBLIC_ASSET_PATHS) {
       expect(fs.existsSync(path.join(OUTPUT, relative))).toBe(true);

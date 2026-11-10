@@ -851,8 +851,10 @@ unverändert).
 ### 14.2 `GET /api/priorities/profiles`
 
 Liefert die unterstützten Profile und das `dataStatus`-Vokabular für
-UI-Dropdowns und Status-Anzeigen.  **Hängt nicht** vom Analysis Service
-ab, funktioniert auch im Browser-only-/Node-Standalone-Modus.
+UI-Dropdowns und Status-Anzeigen. Der Node-Server liefert die Profile
+unabhängig vom Analysis Service. Für Ranglisten und gespeicherte Briefs
+braucht er einen verbundenen Analysis Service. Die öffentliche Browser-Version
+blendet den Menüpunkt aus.
 
 ```bash
 curl http://localhost:8000/api/priorities/profiles
