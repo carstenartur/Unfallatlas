@@ -287,9 +287,11 @@ function addressTail(subject, city, allowClosingFence = false) {
     end += separator[0].length;
   }
   const after = subject.slice(end);
-  // Recognize observed title subtitles and balanced planning-title fences,
-  // while unknown words and incomplete range endpoints remain unresolved.
-  const proseSeparator = TITLE_ADDRESS_SUFFIX.test(after);
+  // A separated dash attached to prose must not conceal a range/list operator
+  // or another number immediately after that word;
+  // spaced unknown endpoints still need an observed title suffix or fence.
+  const proseSeparator = TITLE_ADDRESS_SUFFIX.test(after)
+    || /^\s+[-–](?!(?:bis|und|oder|sowie|bzw|beziehungsweise|respektive)\b)\p{L}[\p{L}\p{M}]{2,}(?![\p{L}\p{M}\p{N}/+–-]|\s*,?\s*\d)/u.test(after);
   const closingFence = allowClosingFence && /^\s+[-–](?:\s*$|\s+[-–]\s+vereinfachtes verfahren\b)/u.test(after);
   if ((!proseSeparator && !closingFence && ADDRESS_CONTINUATION.test(after)) || /^\s+[a-z]\s*(?:[-–/+]|\s+bis\b)/u.test(after)
       || /^\s+(?:km|meter|minuten)\b/u.test(after)) return null;

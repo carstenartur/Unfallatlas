@@ -30,7 +30,7 @@ const SOURCE_LIMIT_MS = { bonn: 20 * 60_000, hannover: 60 * 60_000 };
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
-const LOCATION_REVISIONS = { bonn: 5, hannover: 6 };
+const LOCATION_REVISIONS = { bonn: 5, hannover: 7 };
 const historyStartYears = { bonn: 2014, hannover: HANNOVER_HISTORY_START_YEAR };
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
@@ -355,16 +355,17 @@ function snapshotInputs({ records, features }) {
   });
 }
 
-function reassessRetainedLocations(records, city, gazetteer) {
+function reassessRetainedLocations(records, city, gazetteer, checkpointEvidence = new Map()) {
   const inputs = records.map(record => {
-    const document = [...new Set((record.locations || []).filter(location => location.evidence.source === 'document')
+    const checkpoint = checkpointEvidence.get(record.id);
+    const document = checkpoint?.paragraphs || [...new Set((record.locations || []).filter(location => location.evidence.source === 'document')
       .map(location => location.evidence.text))];
     return {
       ...record, locationEvidence: document,
       locationTitleEvidence: [...new Set((record.locations || []).filter(location => location.evidence.source === 'title')
         .map(location => location.evidence.text))],
       // Stored quotations do not establish full document availability.
-      locationEvidenceTruncated: document.length > 0 || record.locationAssessment?.truncated === true,
+      locationEvidenceTruncated: checkpoint ? checkpoint.truncated : document.length > 0 || record.locationAssessment?.truncated === true,
       locationEvidenceUnavailable: record.locationEvidenceUnavailable === true || !document.length
         || record.locationAssessment?.reasons.includes('document_text_unavailable') === true,
     };
@@ -434,6 +435,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   const historicalSourceClocks = [];
   const retainedDetails = new Map();
   const retainedAssessmentSources = new Map();
+  const retainedCheckpointEvidence = new Map();
   // Checkpoint evidence can outlive a published snapshot. Its original detail
   // clock must constrain publication even when no previous manifest exists.
   const retainedClocks = inputs.filter(record => record.locationEvidenceUnavailable && record.detailVerifiedAt)
@@ -478,7 +480,16 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
           reasons: [...new Set([...prior.locationAssessment.reasons, 'document_text_unavailable'])] };
         else merged.locationAssessment = retainedLegacyAssessment(prior);
         retainedDetails.set(next.id, merged);
-        if (needsLocationAssessment(old.manifest)) {
+        // Unmapped snapshots have no saved body quotations. A dated source
+        // checkpoint can still supply that original text after a failed retry,
+        // including after a snapshot-only upgrade already advanced the revision.
+        const verifiedAt = Date.parse(next.detailVerifiedAt);
+        const paragraphs = Array.isArray(next.locationEvidence)
+          ? next.locationEvidence.filter(text => typeof text === 'string' && text.trim()) : [];
+        if (!prior.locations?.length && paragraphs.length && Number.isFinite(verifiedAt) && verifiedAt <= now.getTime()) {
+          retainedCheckpointEvidence.set(next.id, { paragraphs, truncated: next.locationEvidenceTruncated === true });
+        }
+        if (needsLocationAssessment(old.manifest) || retainedCheckpointEvidence.has(next.id)) {
           // Reassess only the prior snapshot's title and saved quotations;
           // newer list metadata is not a substitute for the unavailable body.
           retainedAssessmentSources.set(next.id, { ...prior, locationEvidenceUnavailable: true });
@@ -495,7 +506,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
   }
   const gazetteer = await loadGazetteer(city);
   const records = enrichRisLocations(inputs.filter(record => !retainedDetails.has(record.id)), { city, gazetteer, maxLocationsPerRecord: Infinity });
-  const reassessed = new Map(reassessRetainedLocations([...retainedAssessmentSources.values()], city, gazetteer)
+  const reassessed = new Map(reassessRetainedLocations([...retainedAssessmentSources.values()], city, gazetteer, retainedCheckpointEvidence)
     .map(record => [record.id, record]));
   for (const record of retainedDetails.values()) {
     const assessment = reassessed.get(record.id);
