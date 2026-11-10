@@ -1,0 +1,1052 @@
+{
+  "schemaVersion": 1,
+  "auditDate": "2026-11-10",
+  "status": "local_replay_and_review_complete_full_ci_merge_publication_pending",
+  "baseline": {
+    "manifestUrl": "https://carstenartur.github.io/Unfallatlas/data/ris/hannover.json",
+    "fetchedAt": "2026-11-10T15:49:33.372Z",
+    "generation": "a7c0511de4677ad3c8ff1137528974c5acabf42647eadb1d3eafbd74e4ec665d",
+    "manifestBytesSha256": "9195527e605f02ff2f620f9ea66ba9e70b959e5e35973b09d67b84bb469dcfcb",
+    "locationRevision": 7,
+    "sourceClock": "2026-11-08T17:02:48.611Z",
+    "recordCount": 109560,
+    "mappedRecordCount": 7037,
+    "geometryCount": 3018,
+    "locationAssessment": {
+      "attempted": 109560,
+      "mapped": 6213,
+      "partial": 824,
+      "unresolved": 88728,
+      "unavailable": 13795,
+      "truncated": 833
+    },
+    "roots": {
+      "records": {
+        "path": "hannover.418e64dc9593520d61a541fc93ad39035565f674fdce0cfd8ce34c54d4999cca.records.json.gz",
+        "sha256": "418e64dc9593520d61a541fc93ad39035565f674fdce0cfd8ce34c54d4999cca",
+        "bytes": 6759,
+        "count": 27,
+        "kind": "records"
+      },
+      "locations": {
+        "path": "hannover.43102597e000e4b32396eb024ddbaa5eb91062e6a3650ee578aaf13645f40697.locations.json.gz",
+        "sha256": "43102597e000e4b32396eb024ddbaa5eb91062e6a3650ee578aaf13645f40697",
+        "bytes": 1075,
+        "count": 4,
+        "kind": "locations"
+      },
+      "relations": {
+        "path": "hannover.7960a2a4fcad23703edc88e0b4edebbc4d9dd3c06816868370e29ffa907904d8.relations.json.gz",
+        "sha256": "7960a2a4fcad23703edc88e0b4edebbc4d9dd3c06816868370e29ffa907904d8",
+        "bytes": 5537,
+        "count": 20,
+        "kind": "relations"
+      },
+      "search": {
+        "path": "hannover.161519ed522105fe46fd8dc10498edf62eb45d5956ee820bbf388391af91f11b.search.json.gz",
+        "sha256": "161519ed522105fe46fd8dc10498edf62eb45d5956ee820bbf388391af91f11b",
+        "bytes": 4141,
+        "count": 17,
+        "kind": "search"
+      },
+      "geometry": {
+        "path": "hannover.c0932bddc28e49a5b3b395bffe18eb1eac0ff0369ab41a47ca5c7ab3c183a6bf.geometry.json.gz",
+        "sha256": "c0932bddc28e49a5b3b395bffe18eb1eac0ff0369ab41a47ca5c7ab3c183a6bf",
+        "bytes": 14380,
+        "count": 48,
+        "kind": "geometry"
+      },
+      "links": {
+        "path": "hannover.e5a00ba8193da9ae0e47b806cec8be64abe83a3f531a4b003a6aa7fd12eb7220.links.json.gz",
+        "sha256": "e5a00ba8193da9ae0e47b806cec8be64abe83a3f531a4b003a6aa7fd12eb7220",
+        "bytes": 9796,
+        "count": 37,
+        "kind": "links"
+      },
+      "spatial": {
+        "path": "hannover.ae128a64c28a314750ac4f978e5af7f770c065ea55ec619ec9e866ee42101499.spatial.json.gz",
+        "sha256": "ae128a64c28a314750ac4f978e5af7f770c065ea55ec619ec9e866ee42101499",
+        "bytes": 18597,
+        "count": 48,
+        "kind": "spatial",
+        "bounds": [
+          9.614321,
+          52.308755,
+          9.894419,
+          52.44984
+        ],
+        "featureCount": 3018
+      }
+    },
+    "diagnosticCodeRef": "bc48708e9ff4c97997b4363334b80e515b40c135"
+  },
+  "selection": {
+    "seed": "hannover-unmapped-traffic-diagnostic-2026-11-10-v1",
+    "hashRule": "SHA-256(seed + newline + record ID)",
+    "rootIndexes": [
+      0,
+      3,
+      6,
+      9,
+      12,
+      15,
+      18,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26
+    ],
+    "childIndexes": [
+      17,
+      47
+    ],
+    "leaves": [
+      {
+        "rootIndex": 0,
+        "childIndex": 17,
+        "path": "hannover.c28e63a50ec8f13c9f6a78662de83fe80ac01a50c4720a9a5a6f2581c134bbf9.records.json.gz",
+        "sha256": "c28e63a50ec8f13c9f6a78662de83fe80ac01a50c4720a9a5a6f2581c134bbf9",
+        "bytes": 50582,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 0,
+        "childIndex": 47,
+        "path": "hannover.cafbe464c783272f72ac12445c67e6942f0b2e220f764770d73b55b639a6fd8f.records.json.gz",
+        "sha256": "cafbe464c783272f72ac12445c67e6942f0b2e220f764770d73b55b639a6fd8f",
+        "bytes": 50593,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 3,
+        "childIndex": 17,
+        "path": "hannover.e9b371842373d780a3afbd5bd5a530b7213e0c20f9ee6bc8c157d92b78b87256.records.json.gz",
+        "sha256": "e9b371842373d780a3afbd5bd5a530b7213e0c20f9ee6bc8c157d92b78b87256",
+        "bytes": 49850,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 3,
+        "childIndex": 47,
+        "path": "hannover.4321e4c22a1db4bde672599c35bfba98461a32dc932913067973fa1b20c71aba.records.json.gz",
+        "sha256": "4321e4c22a1db4bde672599c35bfba98461a32dc932913067973fa1b20c71aba",
+        "bytes": 50196,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 6,
+        "childIndex": 17,
+        "path": "hannover.45128003dcefb841b45d76c3c720cbe8c00971fa461bc05bff2f25c902fff6a2.records.json.gz",
+        "sha256": "45128003dcefb841b45d76c3c720cbe8c00971fa461bc05bff2f25c902fff6a2",
+        "bytes": 51001,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 6,
+        "childIndex": 47,
+        "path": "hannover.98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be.records.json.gz",
+        "sha256": "98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be",
+        "bytes": 50205,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 9,
+        "childIndex": 17,
+        "path": "hannover.5033c11f05537d4902731a8b118e3d75256d3a78bd1d5ab0e64293dc0b6e9817.records.json.gz",
+        "sha256": "5033c11f05537d4902731a8b118e3d75256d3a78bd1d5ab0e64293dc0b6e9817",
+        "bytes": 50125,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 9,
+        "childIndex": 47,
+        "path": "hannover.e2708bfd730406ab26b9553608e0365b7c14cd196eda34aeddc79a3f366191a9.records.json.gz",
+        "sha256": "e2708bfd730406ab26b9553608e0365b7c14cd196eda34aeddc79a3f366191a9",
+        "bytes": 50174,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 12,
+        "childIndex": 17,
+        "path": "hannover.7adc5404127a33bc62f6d5b5d60f7eb832d17f2dad290d5193fcce6654cb4cad.records.json.gz",
+        "sha256": "7adc5404127a33bc62f6d5b5d60f7eb832d17f2dad290d5193fcce6654cb4cad",
+        "bytes": 51142,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 12,
+        "childIndex": 47,
+        "path": "hannover.558d44994a259b6e5a0c95e48d89ef2e8613d0e3429c29f46c2eb97ca976d8e9.records.json.gz",
+        "sha256": "558d44994a259b6e5a0c95e48d89ef2e8613d0e3429c29f46c2eb97ca976d8e9",
+        "bytes": 50350,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 15,
+        "childIndex": 17,
+        "path": "hannover.abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082.records.json.gz",
+        "sha256": "abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082",
+        "bytes": 50692,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 15,
+        "childIndex": 47,
+        "path": "hannover.845d107c2d7572f1282fa784a2f9e4d7437ce5427344446840e8f225cbd791bd.records.json.gz",
+        "sha256": "845d107c2d7572f1282fa784a2f9e4d7437ce5427344446840e8f225cbd791bd",
+        "bytes": 50494,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 18,
+        "childIndex": 17,
+        "path": "hannover.3136334a39694c38fffd9f9962288a01bb01668418d8dc4b71b16d19c8bb2545.records.json.gz",
+        "sha256": "3136334a39694c38fffd9f9962288a01bb01668418d8dc4b71b16d19c8bb2545",
+        "bytes": 50002,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 18,
+        "childIndex": 47,
+        "path": "hannover.022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4.records.json.gz",
+        "sha256": "022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4",
+        "bytes": 49738,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 21,
+        "childIndex": 17,
+        "path": "hannover.07be89a1a5d1e8fb9dcee02b3bb8f1e77f3e1487d75c9f858efe355ce138cded.records.json.gz",
+        "sha256": "07be89a1a5d1e8fb9dcee02b3bb8f1e77f3e1487d75c9f858efe355ce138cded",
+        "bytes": 49459,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 21,
+        "childIndex": 47,
+        "path": "hannover.5c65ebde4c7474c2f239b531c55a03513f74870abd37cd66553f6d6d590b5de5.records.json.gz",
+        "sha256": "5c65ebde4c7474c2f239b531c55a03513f74870abd37cd66553f6d6d590b5de5",
+        "bytes": 49116,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 22,
+        "childIndex": 17,
+        "path": "hannover.2095c759987d4ff0e8bf9e5dd00006638cf15c19db5bf7881789728c32ec8674.records.json.gz",
+        "sha256": "2095c759987d4ff0e8bf9e5dd00006638cf15c19db5bf7881789728c32ec8674",
+        "bytes": 49024,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 22,
+        "childIndex": 47,
+        "path": "hannover.91fe014f878c920c3e13510f5e286bd6f0d40b788c8d555b7e0f3424d8eab2e4.records.json.gz",
+        "sha256": "91fe014f878c920c3e13510f5e286bd6f0d40b788c8d555b7e0f3424d8eab2e4",
+        "bytes": 52617,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 23,
+        "childIndex": 17,
+        "path": "hannover.5ace33cfe3b73206cb242e0e66a87d1be500acf2758236dc58a0740016698eef.records.json.gz",
+        "sha256": "5ace33cfe3b73206cb242e0e66a87d1be500acf2758236dc58a0740016698eef",
+        "bytes": 48356,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 23,
+        "childIndex": 47,
+        "path": "hannover.b2ee3ea0ca1afb2a78f96222aeb5e0da34632c2aab4042e0e980143e1d6d07c7.records.json.gz",
+        "sha256": "b2ee3ea0ca1afb2a78f96222aeb5e0da34632c2aab4042e0e980143e1d6d07c7",
+        "bytes": 58704,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 24,
+        "childIndex": 17,
+        "path": "hannover.a3fe7ff22595976c1c195a5ee77bf84eb91b754167cd5210fc0e99791795f608.records.json.gz",
+        "sha256": "a3fe7ff22595976c1c195a5ee77bf84eb91b754167cd5210fc0e99791795f608",
+        "bytes": 59333,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 24,
+        "childIndex": 47,
+        "path": "hannover.9546cb205291bd3e951fd1ff008d4f29e8f8649f92092db835b9399ed0d2b544.records.json.gz",
+        "sha256": "9546cb205291bd3e951fd1ff008d4f29e8f8649f92092db835b9399ed0d2b544",
+        "bytes": 59078,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 25,
+        "childIndex": 17,
+        "path": "hannover.f0e9b5bd014122ce011bc711ff84e0f7b76c60ac262d00d716717f050acd71e3.records.json.gz",
+        "sha256": "f0e9b5bd014122ce011bc711ff84e0f7b76c60ac262d00d716717f050acd71e3",
+        "bytes": 61397,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 25,
+        "childIndex": 47,
+        "path": "hannover.33281ffc4bba5228ff895161d877ecf32b31975f6c9bc76f28d4b98a46533c61.records.json.gz",
+        "sha256": "33281ffc4bba5228ff895161d877ecf32b31975f6c9bc76f28d4b98a46533c61",
+        "bytes": 59214,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 26,
+        "childIndex": 17,
+        "path": "hannover.8b651dd326c6ec77b29747503b42c95731627433923c96fed69d1ea5b7e57365.records.json.gz",
+        "sha256": "8b651dd326c6ec77b29747503b42c95731627433923c96fed69d1ea5b7e57365",
+        "bytes": 48746,
+        "count": 64,
+        "kind": "records"
+      },
+      {
+        "rootIndex": 26,
+        "childIndex": 47,
+        "path": "hannover.516cbb962975896d18958f655ce753ea02ec8ba1cdfa6801c2c5bd25725b0c92.records.json.gz",
+        "sha256": "516cbb962975896d18958f655ce753ea02ec8ba1cdfa6801c2c5bd25725b0c92",
+        "bytes": 43907,
+        "count": 56,
+        "kind": "records"
+      }
+    ],
+    "titleFilter": [
+      {
+        "term": "Verkehr",
+        "regex": "verkehr"
+      },
+      {
+        "term": "Radweg",
+        "regex": "radweg"
+      },
+      {
+        "term": "Fahrrad",
+        "regex": "fahrrad"
+      },
+      {
+        "term": "Gehweg",
+        "regex": "gehweg"
+      },
+      {
+        "term": "Querung",
+        "regex": "querung"
+      },
+      {
+        "term": "Parkplatz",
+        "regex": "parkplatz"
+      },
+      {
+        "term": "Tempo",
+        "regex": "\\btempo(?:\\b|\\d)"
+      },
+      {
+        "term": "Ampel",
+        "regex": "ampel"
+      },
+      {
+        "term": "Kreuzung",
+        "regex": "kreuzung"
+      },
+      {
+        "term": "Haltestelle",
+        "regex": "haltestelle"
+      },
+      {
+        "term": "Fahrbahn",
+        "regex": "fahrbahn"
+      }
+    ],
+    "titleNormalization": "German lowercase, Unicode NFD, remove combining marks; substring matching supports German compounds; Tempo requires a word boundary or following digit.",
+    "requiredSource": "hannover-sim",
+    "requiredAssessmentStatuses": [
+      "unresolved",
+      "unavailable"
+    ],
+    "requiredGeometryCount": 0,
+    "priorIdsExcluded": [
+      "hannover-sim:15-1044-2007S1",
+      "hannover-sim:15-2726-2007",
+      "hannover-sim:15-0075-2014",
+      "hannover-sim:15-2723-2018S1",
+      "hannover-sim:15-0533-2023",
+      "hannover-sim:15-1541-2026F1",
+      "hannover-sim:2535-2020",
+      "hannover-sim:15-2725-2008",
+      "hannover-sim:15-1046-2010S1",
+      "hannover-sim:15-2139-2018",
+      "hannover-sim:15-2724-2022",
+      "hannover-sim:15-1618-2025",
+      "hannover-sim:15-2723-2009",
+      "hannover-sim:15-2609-2007",
+      "hannover-sim:15-2723-2019S1",
+      "hannover-sim:15-1127-2018",
+      "hannover-sim:2990-2020F1",
+      "hannover-sim:15-2054-2024",
+      "hannover-sim:15-2055-2025",
+      "hannover-sim:2536-2003",
+      "hannover-sim:0423-2002",
+      "hannover-sim:0424-2010",
+      "hannover-sim:15-1541-2017",
+      "hannover-sim:H-0605-2021",
+      "hannover-sim:15-1619-2021",
+      "hannover-sim:H-0169-2021",
+      "region-hannover-ris:vo:3120",
+      "region-hannover-ris:vo:3135",
+      "region-hannover-ris:vo:5513",
+      "region-hannover-ris:vo:1004946",
+      "region-hannover-ris:vo:1004929",
+      "region-hannover-ris:vo:2004948",
+      "region-hannover-ris:vo:1007252",
+      "region-hannover-ris:vo:1007262"
+    ],
+    "familyRule": "Transitive relatedTo links plus common SIM base IDs after removing trailing one-to-three-letter/one-to-three-digit suffix groups. Prior sample families are also excluded.",
+    "eraOrder": [
+      "before_2010",
+      "2010_2019",
+      "2020_plus"
+    ],
+    "preferredPerEra": 8,
+    "selectionRule": "Per era, take ascending seeded hash while skipping already selected families; fill any shortfall from remaining hashes across eras. No failure-reason quotas; no extra leaf or title searching.",
+    "poolSize": 1656,
+    "cityUnmappedPoolSize": 1129,
+    "trafficTitlePoolSize": 134,
+    "excludedPriorIds": 4,
+    "excludedPriorFamilyRecords": 7,
+    "eligibleRecords": 127,
+    "eligibleFamilies": 75,
+    "eligibleEraCounts": {
+      "2020_plus": 54,
+      "2010_2019": 52,
+      "before_2010": 21
+    },
+    "selectedEraCounts": {
+      "before_2010": 8,
+      "2010_2019": 8,
+      "2020_plus": 8
+    },
+    "selectedIdsSha256": "ff781c6d59d2c34c58e97d495cb41ae74aa4f511f8582443f9b4a89d0e395595",
+    "finalizedAt": "2026-11-10T15:49:39.687Z",
+    "assetConcurrencyLimit": 8,
+    "observedMaximumActiveLoads": 7,
+    "uniqueAssetsValidated": 74,
+    "selectedCount": 24,
+    "hashEncoding": "UTF-8; individual selection hash has no trailing LF; selectedIdsSha256 hashes ordered IDs joined with LF and one final LF.",
+    "leafHashScope": "Uncompressed JSON bytes; bytes is the uncompressed byte length.",
+    "yearRule": "Four-digit year after / in the Drucksachennummer; otherwise first four characters of date.",
+    "familyBaseIdRegex": "(-\\d{4})(?:[A-Z]{1,3}\\d{1,3})+$",
+    "familyDeduplication": "Transitive union across the fixed pool and all 34 prior records; relatedTo links and SIM base IDs. Lexicographically smallest ID names each union.",
+    "excludedPriorFamilyRecordsIncludesPriorIds": true,
+    "originalAudit": "ris-location-audit-2026-11-10.json",
+    "originalAuditBytesSha256": "870e6d616d64886e0c364e03ba77670bc122dd3d74a7095c932199e676b3b10d",
+    "original34SelectionChanged": false
+  },
+  "fixedPool": {
+    "manifestGeneration": "a7c0511de4677ad3c8ff1137528974c5acabf42647eadb1d3eafbd74e4ec665d",
+    "locationRevision": 7,
+    "poolRecords": 1656,
+    "simRecords": 1216,
+    "poolSha256": "b19ac00a4cad09e318504ae00f96a6500e3312eb1674843ae9ce49afe4a9b207",
+    "filter": "Exact auditKeywordMatches from the predeclared title filter, before any prior-sample/family exclusions.",
+    "documentDefinition": "locationAssessment.sources contains document; this records assessment provenance, not availability of a separately downloaded HTML document.",
+    "rows": [
+      {
+        "trafficTitle": true,
+        "status": "mapped",
+        "documentYes": 23,
+        "documentNo": 0,
+        "total": 23
+      },
+      {
+        "trafficTitle": true,
+        "status": "partial",
+        "documentYes": 9,
+        "documentNo": 0,
+        "total": 9
+      },
+      {
+        "trafficTitle": true,
+        "status": "unresolved",
+        "documentYes": 130,
+        "documentNo": 4,
+        "total": 134
+      },
+      {
+        "trafficTitle": true,
+        "status": "unavailable",
+        "documentYes": 0,
+        "documentNo": 0,
+        "total": 0
+      },
+      {
+        "trafficTitle": false,
+        "status": "mapped",
+        "documentYes": 47,
+        "documentNo": 0,
+        "total": 47
+      },
+      {
+        "trafficTitle": false,
+        "status": "partial",
+        "documentYes": 8,
+        "documentNo": 0,
+        "total": 8
+      },
+      {
+        "trafficTitle": false,
+        "status": "unresolved",
+        "documentYes": 943,
+        "documentNo": 52,
+        "total": 995
+      },
+      {
+        "trafficTitle": false,
+        "status": "unavailable",
+        "documentYes": 0,
+        "documentNo": 0,
+        "total": 0
+      }
+    ],
+    "limitations": "Descriptive cross-tabulation of the fixed 26-leaf pool only. Not representative and not a global rate estimate."
+  },
+  "sourceAcquisition": {
+    "selected": 24,
+    "freshOfficialHtml": 4,
+    "timeouts": 4,
+    "localConnectDenials": 16,
+    "currentOfficialFullTextsUnavailable": 20,
+    "maximumConcurrentRequests": 4,
+    "atSemantics": "The original fetch log calls this retrievedAt; the fetcher records it at the start of each attempt, not at completion.",
+    "limits": "Direct batch: only selected public official HTML URLs, no redirects, login, cookies, PDF/attachment bodies or follow-up URLs; no retry or rerun of that batch. A separate research-tool open attempted the same four timeout URLs without obtaining content. No replacement cases or source substitution.",
+    "initialGuardLimitation": "The initial guard caught direct HTTPError and HTML access checks, but failed to classify URLError proxy CONNECT denials. The batch completed before inspection; no requests were retried. The script guard was corrected after this run, and was not run again.",
+    "accessBoundary": "Local egress proxy CONNECT 403 Forbidden; not a verified HTTP 403 response from the official origin.",
+    "remainingReadsStopped": true,
+    "missingSourceCacheFound": false,
+    "fallbackAttempts": [
+      {
+        "i": "05",
+        "id": "hannover-sim:15-2056-2003S1",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2056-2003S1",
+        "method": "research_tool_web_open",
+        "outcome": "not_accessible",
+        "contentReceived": false,
+        "at": null
+      },
+      {
+        "i": "06",
+        "id": "hannover-sim:0147-2007",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0147-2007",
+        "method": "research_tool_web_open",
+        "outcome": "not_accessible",
+        "contentReceived": false,
+        "at": null
+      },
+      {
+        "i": "07",
+        "id": "hannover-sim:15-2140-2001N1S1",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2140-2001N1S1",
+        "method": "research_tool_web_open",
+        "outcome": "not_accessible",
+        "contentReceived": false,
+        "at": null
+      },
+      {
+        "i": "08",
+        "id": "hannover-sim:15-0076-2009",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0076-2009",
+        "method": "research_tool_web_open",
+        "outcome": "not_accessible",
+        "contentReceived": false,
+        "at": null
+      }
+    ],
+    "fallbackScope": "Only the four timeout cases 05–08 received one additional research-tool open each. No research-tool opens for the CONNECT-denied cases 09–24, no browser use and no further attempts. Exact fallback timestamps were not preserved in this evidence file.",
+    "newEvidenceFromFallbacks": false
+  },
+  "gazetteer": {
+    "repositoryPath": "config/ris-locations/hannover-atkis.json.gz",
+    "compressedSha256": "a75b7305430ad751cce8d7a61d35057137258ea79b6418bb6a051a79588c157c",
+    "uncompressedSha256": "1932e4d3e615c8e8765358ff123e86e132554cda673dc6fcc2110fdb7bffc3b2",
+    "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+    "entryCount": 3253,
+    "titleNameCheckScope": "Exact normalized name only; no mapper replay or geometry construction."
+  },
+  "diagnosticControls": {
+    "scope": "Existing isolated baseline diagnostics, distinct from the final identical-input local replay recorded in repairVerification; neither establishes publication.",
+    "case03": {
+      "compoundGuardOnly": true,
+      "expectedTextPlace": "Wilkenburger Straße",
+      "geometry": null,
+      "sourceQuoteUnchanged": true,
+      "counterexamplesCompared": 12,
+      "counterexamplesUnchanged": 12,
+      "guardCases": [
+        "two named streets",
+        "alternative locations",
+        "bounded section",
+        "opposite location",
+        "slash separator",
+        "semicolon separator",
+        "street-name ellipsis",
+        "independent action",
+        "full coordinated terms",
+        "range without range geometry",
+        "unknown number endpoint",
+        "region other municipality"
+      ]
+    },
+    "case10": {
+      "evidence": "published title only",
+      "streetKey": "0324100100391",
+      "houseNumber": "73",
+      "point": [
+        9.815542,
+        52.346857
+      ],
+      "baselineAddressTail": null,
+      "compoundGuardAloneRecoversAddress": false,
+      "counterfactualControls": [
+        "73: Abriss",
+        "73 -Abriss",
+        "73 – Dachsanierung"
+      ],
+      "sourceTitleWasNotCorrected": true
+    }
+  },
+  "result": {
+    "claim": "Die geringe Kartenabdeckung wird auch durch Fehlklassifikationen, Extraktionslücken und fehlende genaue Ortszuordnungen mitverursacht. Nicht alle unverorteten Vorgänge sind inhaltlich ortslos.",
+    "scope": "Diagnostic fixed title-filtered sample; no representative estimate, no extrapolation of a defect rate or achievable global mapped count.",
+    "twentyWithoutFreshFullText": {
+      "specificPlaceInTitle": 15,
+      "generalTitle": 5,
+      "generalTitleDoesNotProveBodyLacksPlaces": true
+    },
+    "review13To24": {
+      "specificTitle": 9,
+      "generalTitle": 3,
+      "newFullTexts": 0,
+      "notNineConfirmedParserDefects": true
+    },
+    "repairVerification": "identical_saved_inputs_replayed_locally_and_reviewed",
+    "publicationOfThisFollowupVerified": false,
+    "mappedCountAfterRepair": null,
+    "mappedCountAfterRepairMeaning": "No whole-catalogue estimate or post-repair live count is derived. Local sample counts are in repairVerification.",
+    "ciMergeLiveOfRevision8": "pending"
+  },
+  "limitations": [
+    "document in locationAssessment.sources is assessment provenance, not proof of a complete text or a fresh source read.",
+    "A text place can be correct while a point, whole-street line, section, bridge, stop or building geometry is not verified.",
+    "A general title does not establish absence of locations in the unavailable document body.",
+    "Case 04 has concrete measures in the HTML justification; it must not be classified as a proven placeless citywide topic.",
+    "No historical before/after street geometry or explanation of historical disappearance is inferred from case 02.",
+    "The isolated baseline controls do not certify final regression results; the separate local replay and targeted test counts are recorded in repairVerification. CI, merge and live revision 8 are still pending.",
+    "In the title-only final replays, previous document excerpts are deliberately absent. The result cannot be treated as a complete remapping of those published records."
+  ],
+  "inputArtifacts": [
+    {
+      "name": "selected-records.json",
+      "sha256": "a7c2c5dde117e659640d8315eb87d1d5527c2281d130babbd6016a010ed2b78c"
+    },
+    {
+      "name": "selection-method.json",
+      "sha256": "6628519921fc918523af2524373c3f77299acd6b55244cdcaf80cea7761e0f38"
+    },
+    {
+      "name": "source-fetches.json",
+      "sha256": "4fa6889734c2bc585bac03e85dd3b71470028cd93ef4cd50b0ac84d4e7498699"
+    },
+    {
+      "name": "source-fetch-summary.json",
+      "sha256": "5f17f3ec4dffaa6c2cb2f0391828a4ee622754cf139b54a84f4bef8f0795ea15"
+    },
+    {
+      "name": "manual-review-13-24.json",
+      "sha256": "14c30c1b2b7c836e4937eb1c6d2ad3168a08b912f5c1aa6029c475a308b683ee"
+    },
+    {
+      "name": "traffic-pool-crosstab.json",
+      "sha256": "24ef42647ab532b06756ad4b6a5451f1c6d6d3f4d1983c9c4b0b945da5032c74"
+    },
+    {
+      "name": "title-place-gazetteer-check.json",
+      "sha256": "2ce4a572503773c65808d4494ce20a11c151423e4bc81fe7b97ee0528cd5e1c3"
+    },
+    {
+      "name": "local-evidence-summary.json",
+      "sha256": "0a718462f52807bf8333c5586f553f6a880b04f9556255d7ebfd351e807df115"
+    },
+    {
+      "name": "first-four-controls.json",
+      "sha256": "d6c2cc5fb9a8dd8903e4976bc7b559ef455ee59683c77f81eb07c03bff70ea1e"
+    },
+    {
+      "name": "compound-and-address-diagnosis.json",
+      "sha256": "d64afaa7e46704e8a2219e994039bf4bdcfec244b1518fcf58ef6315ff8318f4"
+    },
+    {
+      "name": "replay-two-audits.json",
+      "sha256": "1ce4b4c11276ee7592ba452d67c2aa726acef604e6017329ef07050f7deef984"
+    },
+    {
+      "name": "replay-two-audits.log",
+      "sha256": "d8366ac85911ee3132c5a29f989b380310cd268b1c721bca0421c5fd05546fbb"
+    },
+    {
+      "name": "replay-two-audits.cjs",
+      "sha256": "4b5eee6cef9de9b67646ab8448bae7ee6157c20b60d753a964149f890bd08293"
+    },
+    {
+      "name": "clause-mapper-green.log",
+      "sha256": "f7c0e704438c35bad0f21b25e78fdcccda7609d9d8441871d43e7f99c49f9780"
+    },
+    {
+      "name": "clause-refresh-final.log",
+      "sha256": "b6e70b5ff2743ff217b561569914522a6fb84e8adad0776826cbd44ffab25e7a"
+    },
+    {
+      "name": "clause-ui-wording.log",
+      "sha256": "4f579ce96ad7506b5197e8d9aa21fd781cdd858da1e5384de523d6abfcf33f03"
+    },
+    {
+      "name": "clause-record-view.log",
+      "sha256": "69f217d67fd94861fb414900adf46db434ccc18096bc1f65f8bcdd87928ae4a2"
+    }
+  ],
+  "repairVerification": {
+    "checkedAt": "2026-11-10T16:20:48.011Z",
+    "baselineRef": "bc48708e9ff4c97997b4363334b80e515b40c135",
+    "mapperSha256": "f9dda6fa55557e11af80ca14e6d510760e7456ae5f13ab1cba58cf46e7f86fee",
+    "intendedLocationRevision": 8,
+    "evidencePolicy": "Identical saved source evidence is replayed before and after. Unavailable full texts remain title-only; no source fetch, replacement case or population estimate.",
+    "comparisonScope": "Identical inputs before and after for each record. For 20 traffic cases and 8 original regional cases only published titles are replayed; previous document excerpts are deliberately absent. This is not a full remapping of the corresponding published record.",
+    "officialHtmlHashesVerified": 30,
+    "originalSummary": {
+      "records": 34,
+      "storedOfficialHtml": 26,
+      "titleOnly": 8,
+      "changed": 3,
+      "beforeMapped": 1,
+      "afterMapped": 2,
+      "mappedAdded": [
+        "hannover-sim:15-2724-2022"
+      ],
+      "mappedRemoved": []
+    },
+    "trafficSummary": {
+      "records": 24,
+      "storedOfficialHtml": 4,
+      "titleOnly": 20,
+      "changed": 2,
+      "beforeMapped": 0,
+      "afterMapped": 1,
+      "mappedAdded": [
+        "hannover-sim:15-2055-2016"
+      ],
+      "mappedRemoved": []
+    },
+    "originalChangedRecords": [
+      {
+        "i": "11",
+        "id": "hannover-sim:15-2724-2022",
+        "evidenceScope": "stored_official_html",
+        "sourceSha256": "bf1131c2b91c9025309cb1008fe4f0b6eb81b68ebb6525a6814f8d70c4c6ad33",
+        "parsedEvidenceCount": 1,
+        "before": {
+          "assessment": {
+            "status": "unresolved",
+            "sources": [
+              "title",
+              "document"
+            ],
+            "reasons": [
+              "unverified_name",
+              "unmapped_location"
+            ],
+            "truncated": false
+          },
+          "locations": [
+            {
+              "kind": "section",
+              "label": "Sodenstraße",
+              "mapped": false,
+              "evidence": {
+                "source": "document",
+                "textSha256": "55640f6610d14a3884ceddc8adfbad095d43bd521f6c6e13ee157824023941d3",
+                "textChars": 193
+              }
+            }
+          ]
+        },
+        "after": {
+          "assessment": {
+            "status": "partial",
+            "sources": [
+              "title",
+              "document"
+            ],
+            "reasons": [
+              "unverified_name",
+              "unmapped_location"
+            ],
+            "truncated": false
+          },
+          "locations": [
+            {
+              "kind": "section",
+              "label": "Sodenstraße",
+              "mapped": false,
+              "evidence": {
+                "source": "document",
+                "textSha256": "55640f6610d14a3884ceddc8adfbad095d43bd521f6c6e13ee157824023941d3",
+                "textChars": 193
+              }
+            },
+            {
+              "kind": "section",
+              "label": "Eckerstraße, Hallerstraße bis Fridastraße",
+              "mapped": true,
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    9.741912,
+                    52.382327
+                  ],
+                  [
+                    9.742932,
+                    52.38243
+                  ],
+                  [
+                    9.743196,
+                    52.382443
+                  ],
+                  [
+                    9.744619,
+                    52.382237
+                  ],
+                  [
+                    9.744746,
+                    52.382256
+                  ]
+                ]
+              },
+              "evidence": {
+                "source": "document",
+                "textSha256": "55640f6610d14a3884ceddc8adfbad095d43bd521f6c6e13ee157824023941d3",
+                "textChars": 193
+              }
+            }
+          ]
+        },
+        "changed": true
+      },
+      {
+        "i": "12",
+        "id": "hannover-sim:15-1618-2025",
+        "evidenceScope": "stored_official_html",
+        "sourceSha256": "b7ff4b061041990289624e0605a4f6300c6c5594b571632a77069c5299025f26",
+        "parsedEvidenceCount": 4,
+        "before": {
+          "assessment": {
+            "status": "unresolved",
+            "sources": [
+              "title",
+              "document"
+            ],
+            "reasons": [
+              "unverified_name"
+            ],
+            "truncated": false
+          },
+          "locations": []
+        },
+        "after": {
+          "assessment": {
+            "status": "unresolved",
+            "sources": [
+              "title",
+              "document"
+            ],
+            "reasons": [
+              "unverified_name",
+              "unmapped_location"
+            ],
+            "truncated": false
+          },
+          "locations": [
+            {
+              "kind": "street",
+              "label": "Clemensstraße",
+              "mapped": false,
+              "evidence": {
+                "source": "document",
+                "textSha256": "b723ff775b34fa2f206585d0be1ce626cc3bfb0822f3304b555cd59b39050137",
+                "textChars": 191
+              }
+            },
+            {
+              "kind": "street",
+              "label": "Feuerwehrstraße",
+              "mapped": false,
+              "evidence": {
+                "source": "document",
+                "textSha256": "ca71f4c330b1b4a0f59410542ad088e542317405a0177ae63552a7acc3fddc9a",
+                "textChars": 124
+              }
+            }
+          ]
+        },
+        "changed": true
+      },
+      {
+        "i": "18",
+        "id": "hannover-sim:15-2054-2024",
+        "evidenceScope": "stored_official_html",
+        "sourceSha256": "3f97192ce565bb10fdbe3b7566f09704698d45392dc8a2dec0133977f059f573",
+        "parsedEvidenceCount": 1,
+        "before": {
+          "assessment": {
+            "status": "unresolved",
+            "sources": [
+              "title",
+              "document"
+            ],
+            "reasons": [
+              "unmapped_location"
+            ],
+            "truncated": false
+          },
+          "locations": [
+            {
+              "kind": "section",
+              "label": "Liepmannstraße",
+              "mapped": false,
+              "evidence": {
+                "source": "document",
+                "textSha256": "fcf18cf53db84f9bdbd53ac1e69c86caf2848083fb5f68905c36de48245b947b",
+                "textChars": 153
+              }
+            }
+          ]
+        },
+        "after": {
+          "assessment": {
+            "status": "unresolved",
+            "sources": [
+              "title",
+              "document"
+            ],
+            "reasons": [
+              "unmapped_location"
+            ],
+            "truncated": false
+          },
+          "locations": [
+            {
+              "kind": "section",
+              "label": "Liepmannstraße",
+              "mapped": false,
+              "evidence": {
+                "source": "document",
+                "textSha256": "b73062b0be0d998f428d167fb5858013c1886e4c6156bfaf2e4fec72736394cc",
+                "textChars": 200
+              }
+            }
+          ]
+        },
+        "changed": true
+      }
+    ],
+    "original18EvidenceRestored": "The retained evidence now continues after bzw. through Hurlebuschweg eine Querungshilfe zu errichten.; it remains a text section without geometry.",
+    "targetedTests": {
+      "mapper": {
+        "passed": 321,
+        "failed": 0,
+        "seconds": 13.171
+      },
+      "refresh": {
+        "passed": 140,
+        "failed": 0,
+        "seconds": 27.576
+      },
+      "existingUiSuites": {
+        "passedBySuite": [
+          9,
+          32
+        ],
+        "passed": 41,
+        "failed": 0
+      }
+    },
+    "uiWording": {
+      "text": "Der Karte noch nicht zugeordnet",
+      "meaning": "Does not equate absence of a map geometry with absence of location evidence.",
+      "verificationScope": "Local implementation and existing UI suites; no new live claim."
+    },
+    "ci": "pending",
+    "merge": "pending",
+    "publication": "pending",
+    "status": "completed_local_replay",
+    "finalReview": "approved",
+    "finalReplay": "completed",
+    "reviewScope": [
+      "Independent final product-diff review: no blocking finding.",
+      "Five targeted e.V./u. a./weder-noch assertions passed against the recorded mapper.",
+      "Sentence-ending abbreviations do not merge independent evidence or leak Hannover scope into a following regional sentence.",
+      "Shared negation remains attached to all coordinated sections; negated measures do not gain geometry."
+    ]
+  },
+  "records": [
+    {"i":"01","id":"hannover-sim:2532-2003","title":"Antrag von Ratsfrau Kastning zum Verzicht auf Parkplätze im Bereich Große Straße/ Sackmannstraße","number":"2532/2003","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2532-2003","year":2003,"era":"before_2010","selectionHash":"47e959f7f79c668bcb89f7b3f4317a0d7300c4cab4a1a388ed27336bab1aed06","family":"hannover-sim:2532-2003","keywords":["Parkplatz"],"leaf":{"rootIndex":21,"childIndex":47,"path":"hannover.5c65ebde4c7474c2f239b531c55a03513f74870abd37cd66553f6d6d590b5de5.records.json.gz","sha256":"5c65ebde4c7474c2f239b531c55a03513f74870abd37cd66553f6d6d590b5de5"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:16.061019+00:00","outcome":"official_html","status":200,"content_type":"text/html","bytes":7500,"sha256":"47185555e9892dc7d99d0e3edb0b6cb9bc846a3d4171c1f481389c0296702e5f"},"evidenceScope":"fresh_official_html_and_snapshot","currentOfficialFullTextReviewed":true,"finding":{"category":"concrete_relation_extraction_and_extent_gap","titleHasSpecificPlace":true,"sourceHasSpecificPlace":true,"namedPlaces":["Große Straße","Sackmannstraße"],"observation":"Der operative Antrag betrifft zwei geplante Parkplätze kurz vor der Einmündung Große Straße in die Sackmannstraße. Im Ausgangsstand wurde kein Textort erhalten.","mechanism":"Die Grammatik Einmündung X in Y wird nicht als solcher Ortsbezug verarbeitet. Der Zusatz kurz vor grenzt den Maßnahmenort zugleich vom Kreuzungspunkt ab.","geometryLimit":"Ein berechenbarer Straßenknoten darf nicht als belegter Parkplatzstandort ausgegeben werden; die genaue Parkplatzgeometrie bleibt offen.","certainty":"official_full_text_and_baseline_diagnosis"},"repairReplay":{"evidenceScope":"stored_official_html","sourceSha256":"47185555e9892dc7d99d0e3edb0b6cb9bc846a3d4171c1f481389c0296702e5f","parsedEvidenceCount":1,"before":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"02","id":"hannover-sim:15-2726-2009F1","title":"Antwort der Verwaltung auf die Anfrage Verkehrssituation in der Innenstadt Sitzung des Stadtbezirksrates Mitte am 14.12.2009 TOP 8.3.7.","number":"15-2726/2009 F1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2726-2009F1","year":2009,"era":"before_2010","selectionHash":"527c5317d48a589ca2edda93390b15699800357525ea3d676d52cf3fa6513940","family":"hannover-sim:15-2726-2009","keywords":["Verkehr"],"leaf":{"rootIndex":18,"childIndex":47,"path":"hannover.022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4.records.json.gz","sha256":"022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["unmapped_location"],"truncated":false},"geometryIds":[],"savedLocations":[{"kind":"junction","label":"Lister Meile / Kurt-Schumacher-Straße","mapped":false}]},"sourceAcquisition":{"at":"2026-11-10T15:51:16.065205+00:00","outcome":"official_html","status":200,"content_type":"text/html","bytes":15283,"sha256":"374c173fb429757cc2f2d34c3e21c3deb68bc5ff79df58fbedce65406440c329"},"evidenceScope":"fresh_official_html_and_snapshot","currentOfficialFullTextReviewed":true,"finding":{"category":"recognized_junction_reference_geometry_gap","titleHasSpecificPlace":false,"sourceHasSpecificPlace":true,"namedPlaces":["Lister Meile","Kurt-Schumacher-Straße"],"observation":"Der Verwaltungsantworttext nennt den Knotenpunkt Lister Meile/Kurt-Schumacher-Straße. Der veröffentlichte Katalog hat den Textort bereits als junction, jedoch ohne Geometrie.","mechanism":"Die geprüften ATKIS-Linien besitzen keinen gemeinsamen Vertex. Ein gespeicherter Beginn der Lister Meile liegt bei [9.739993,52.377187], ein Ende der Kurt-Schumacher-Straße bei [9.739417,52.37685].","geometryLimit":"Keine unbestätigte Verbindung, Mittelpunktschätzung oder historische Straßenänderung als Ursache behaupten.","certainty":"official_full_text_and_current_gazetteer_check"},"repairReplay":{"evidenceScope":"stored_official_html","sourceSha256":"374c173fb429757cc2f2d34c3e21c3deb68bc5ff79df58fbedce65406440c329","parsedEvidenceCount":10,"before":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["unmapped_location"],"truncated":false},"locations":[{"kind":"junction","label":"Lister Meile / Kurt-Schumacher-Straße","mapped":false,"evidence":{"source":"document","textSha256":"21c3d9d572658d6a94e50f6c0e00ce4a9e9e7e5d8979afe0df390bc8f835b885","textChars":164}}]},"after":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["unmapped_location"],"truncated":false},"locations":[{"kind":"junction","label":"Lister Meile / Kurt-Schumacher-Straße","mapped":false,"evidence":{"source":"document","textSha256":"21c3d9d572658d6a94e50f6c0e00ce4a9e9e7e5d8979afe0df390bc8f835b885","textChars":164}}]},"changed":false}},
+    {"i":"03","id":"hannover-sim:15-0606-2005","title":"Geh- und Fahrradweg Wilkenburger Straße","number":"15-0606/2005","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0606-2005","year":2005,"era":"before_2010","selectionHash":"5af31c5a8a1f1ecce725e45845a6e01c7329984a420792c38a665f9c8d9eb7f8","family":"hannover-sim:15-0606-2005","keywords":["Radweg","Fahrrad"],"leaf":{"rootIndex":6,"childIndex":47,"path":"hannover.98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be.records.json.gz","sha256":"98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:16.066222+00:00","outcome":"official_html","status":200,"content_type":"text/html","bytes":7907,"sha256":"6da425de00426da0e862bcfc60aaf09995fb525a186f5d22ac75387749d58a6f"},"evidenceScope":"fresh_official_html_and_snapshot","currentOfficialFullTextReviewed":true,"finding":{"category":"confirmed_compound_conjunction_guard","titleHasSpecificPlace":true,"sourceHasSpecificPlace":true,"namedPlaces":["Wilkenburger Straße"],"observation":"Titel und operativer Text benennen den Geh- und Fahrradweg beziehungsweise Fuß- und Fahrradweg an der Wilkenburger Straße. Im Ausgangsstand entstehen keine Orte.","mechanism":"MULTIPLE_LOCATIONS behandelt das und im zusammengesetzten Verkehrsbegriff als mögliche Verknüpfung mehrerer Orte. Eine isolierte In-Memory-Kontrolle nur dieser Abbruchbedingung erhält den ursprünglichen Dokumentbeleg als Textort.","geometryLimit":"Erwartbar ist ein Textort Wilkenburger Straße ohne Geometrie. Die komplette Straßenlinie ist dadurch nicht als Maßnahmenausdehnung belegt.","certainty":"official_full_text_and_isolated_diagnostic_control"},"repairReplay":{"evidenceScope":"stored_official_html","sourceSha256":"6da425de00426da0e862bcfc60aaf09995fb525a186f5d22ac75387749d58a6f","parsedEvidenceCount":8,"before":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["unmapped_location"],"truncated":false},"locations":[{"kind":"street","label":"Wilkenburger Straße","mapped":false,"evidence":{"source":"document","textSha256":"0bf9f7a2872b211b6f420bc11bbec32da3844244421801143c48366f9842b213","textChars":142}}]},"changed":true}},
+    {"i":"04","id":"hannover-sim:2534-2002","title":"Nahverkehrsplan 2003 / Entwurf","number":"2534/2002","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2534-2002","year":2002,"era":"before_2010","selectionHash":"5feec985e0923baa39dd1f8fb5d2b5d2ed13d2fcefeedefa52ba48fd953344b8","family":"hannover-sim:2534-2002","keywords":["Verkehr"],"leaf":{"rootIndex":21,"childIndex":47,"path":"hannover.5c65ebde4c7474c2f239b531c55a03513f74870abd37cd66553f6d6d590b5de5.records.json.gz","sha256":"5c65ebde4c7474c2f239b531c55a03513f74870abd37cd66553f6d6d590b5de5"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:16.067755+00:00","outcome":"official_html","status":200,"content_type":"text/html","bytes":22259,"sha256":"83c4b16d76dac75ef7c2afdbcdd242a0ef1a144dfdc1c9d13f82d53f70fa193b"},"evidenceScope":"fresh_official_html_and_snapshot","currentOfficialFullTextReviewed":true,"finding":{"category":"specific_measures_outside_provider_evidence_scope","titleHasSpecificPlace":false,"sourceHasSpecificPlace":true,"namedPlaces":["Königstraße","Hindenburgstraße","Raschplatz","Fasanenkrug","Anderten","Podbielskistraße","Brabeckstraße","Altenbekener Damm","Döhrener Turm"],"observation":"Der operative Antrag stimmt nur einer beigefügten Stellungnahme zu. Die gelesene HTML-Begründung enthält konkrete, unterschiedlich bewertete Maßnahmen und Prüfaufträge an mehreren Orten.","mechanism":"Der Provider übernimmt hier nur den operativen Zustimmungssatz, nicht die maßnahmenbezogenen Abschnitte der Begründung. no_specific_location beschreibt deshalb den ausgewerteten Ausschnitt, nicht nachgewiesene Ortslosigkeit der gesamten Vorlage.","geometryLimit":"Eine Erweiterung muss Maßnahmen, Ablehnungen, Optionen und Prüfaufträge getrennt erhalten. Anlagen und PDF-Inhalte wurden nicht gelesen.","certainty":"official_full_text_and_provider_output"},"repairReplay":{"evidenceScope":"stored_official_html","sourceSha256":"83c4b16d76dac75ef7c2afdbcdd242a0ef1a144dfdc1c9d13f82d53f70fa193b","parsedEvidenceCount":1,"before":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"05","id":"hannover-sim:15-2056-2003S1","title":"ENTSCHEIDUNG: Reinigung der Gleisanlage im Haltestellenbereich Kronsberg","number":"15-2056/2003 S1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2056-2003S1","year":2003,"era":"before_2010","selectionHash":"63e2708e699d9a879e85c37d041f7667f4ff68d60eda6e93306bb08e039bef6c","family":"hannover-sim:15-2056-2003","keywords":["Haltestelle"],"leaf":{"rootIndex":15,"childIndex":17,"path":"hannover.abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082.records.json.gz","sha256":"abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:22.355138+00:00","outcome":"timeout","error":"URLError: <urlopen error timed out>","additionalReadAttempt":{"method":"research_tool_web_open","outcome":"not_accessible","contentReceived":false,"at":null}},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_stop_title_fulltext_unavailable","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Haltestelle Kronsberg"],"observation":"Der Titel lokalisiert die Reinigung der Gleisanlage im Haltestellenbereich Kronsberg.","mechanism":"Konkreter Haltestellenbezug bereits im Titel; genaue Extraktionsursache und passende Referenzgeometrie sind ohne aktuellen Volltext nicht geprüft.","geometryLimit":"Keinen Haltestellenpunkt aus dem Namen allein ergänzen.","certainty":"published_title_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"06","id":"hannover-sim:0147-2007","title":"Verordnung über Beförderungsentgelte und -bedingungen im Gelegenheitsverkehr mit Taxen in der Landeshauptstadt Hannover","number":"0147/2007","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0147-2007","year":2007,"era":"before_2010","selectionHash":"88884a65fc63bc564bb5d551ea65d9cd7eae49a892ee5bafb664194cd2053360","family":"hannover-sim:0147-2007","keywords":["Verkehr"],"leaf":{"rootIndex":0,"childIndex":17,"path":"hannover.c28e63a50ec8f13c9f6a78662de83fe80ac01a50c4720a9a5a6f2581c134bbf9.records.json.gz","sha256":"c28e63a50ec8f13c9f6a78662de83fe80ac01a50c4720a9a5a6f2581c134bbf9"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["evidence_truncated","unmapped_location"],"truncated":true},"geometryIds":[],"savedLocations":[{"kind":"street","label":"Messegelände","mapped":false}]},"sourceAcquisition":{"at":"2026-11-10T15:51:22.381330+00:00","outcome":"timeout","error":"URLError: <urlopen error timed out>","additionalReadAttempt":{"method":"research_tool_web_open","outcome":"not_accessible","contentReceived":false,"at":null}},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"general_title_fulltext_unavailable","titleHasSpecificPlace":false,"sourceHasSpecificPlace":null,"namedPlaces":[],"observation":"Der Titel beschreibt eine allgemeine Taxentarifverordnung. Die gespeicherten Ortsmetadaten enthalten bereits den unkartierten Textort Messegelände und evidence_truncated.","mechanism":"Der allgemeine Titel beweist nicht, dass der unzugängliche Volltext keine lokalen Regelungen enthält. Die frühere Dokumentprovenienz wurde nicht durch einen neuen Volltextabruf bestätigt.","geometryLimit":"Der gespeicherte Ortsname belegt keine neu geprüfte Maßnahme oder genaue Geometrie.","certainty":"published_title_and_saved_metadata_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"07","id":"hannover-sim:15-2140-2001N1S1","title":"ENTSCHEIDUNG: Tempo \"30\"","number":"15-2140/2001 N1 S1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2140-2001N1S1","year":2001,"era":"before_2010","selectionHash":"88fdc9b66b80fc8c50c586ec01dc8e4f1ef22db65cefd74d3141e4497b5cfc47","family":"hannover-sim:15-2140-2001","keywords":["Tempo"],"leaf":{"rootIndex":15,"childIndex":47,"path":"hannover.845d107c2d7572f1282fa784a2f9e4d7437ce5427344446840e8f225cbd791bd.records.json.gz","sha256":"845d107c2d7572f1282fa784a2f9e4d7437ce5427344446840e8f225cbd791bd"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["unmapped_location"],"truncated":false},"geometryIds":[],"savedLocations":[{"kind":"section","label":"Lenther Chaussee","mapped":false}]},"sourceAcquisition":{"at":"2026-11-10T15:51:22.506578+00:00","outcome":"timeout","error":"URLError: <urlopen error timed out>","additionalReadAttempt":{"method":"research_tool_web_open","outcome":"not_accessible","contentReceived":false,"at":null}},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"general_title_fulltext_unavailable","titleHasSpecificPlace":false,"sourceHasSpecificPlace":null,"namedPlaces":[],"observation":"Der Titel Tempo 30 ist allgemein. Die gespeicherten Ortsmetadaten enthalten bereits einen unkartierten Abschnitt Lenther Chaussee.","mechanism":"Nur der Titel wird als allgemein eingeordnet; der Vorgang ist wegen des fehlenden aktuellen Volltexts nicht als ortslos beurteilt.","geometryLimit":"Den gespeicherten Abschnitt ohne aktuelle Belegprüfung nicht auf eine ganze Straße oder einen Punkt reduzieren.","certainty":"published_title_and_saved_metadata_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"08","id":"hannover-sim:15-0076-2009","title":"Verlängerung der Tempo „30-Zone“ von der Mecklenheidestr. in Richtung Weizenfeldstr. auf der Alten Stöckener Str.","number":"15-0076/2009","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0076-2009","year":2009,"era":"before_2010","selectionHash":"98d2683cc04d2bdc5be1b97e8d3acfe2f170820b8992e39f581f3cbfc7325dd7","family":"hannover-sim:15-0076-2009","keywords":["Tempo"],"leaf":{"rootIndex":3,"childIndex":17,"path":"hannover.e9b371842373d780a3afbd5bd5a530b7213e0c20f9ee6bc8c157d92b78b87256.records.json.gz","sha256":"e9b371842373d780a3afbd5bd5a530b7213e0c20f9ee6bc8c157d92b78b87256"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:22.512513+00:00","outcome":"timeout","error":"URLError: <urlopen error timed out>","additionalReadAttempt":{"method":"research_tool_web_open","outcome":"not_accessible","contentReceived":false,"at":null}},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_corridor_title_fulltext_unavailable","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Mecklenheidestraße","Weizenfeldstraße","Alte Stöckener Straße"],"observation":"Der Titel beschreibt die Verlängerung einer Tempo-30-Zone von der Mecklenheidestraße in Richtung Weizenfeldstraße auf der Alten Stöckener Straße.","mechanism":"Konkreter Korridor im Titel; Abkürzungen, Flexion und Richtungsbezug sind mögliche, noch nicht isoliert bestätigte Extraktionshindernisse.","geometryLimit":"Richtungsangabe und Abschnitt nicht ohne Beleg zu einer vollständigen Straßen- oder Kreuzungsgeometrie machen.","certainty":"published_title_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"09","id":"hannover-sim:15-0605-2012S1","title":"ENTSCHEIDUNG: Verkehrssituation Im Othfelde, Sitzung des Stadtbezirksrates Vahrenwald-List am 19.03.2012, TOP 8.3.1.","number":"15-0605/2012 S1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0605-2012S1","year":2012,"era":"2010_2019","selectionHash":"028a2210e457faf2c9ae0693fdb97bb456331297461cb10a285a806f1baa3bf2","family":"hannover-sim:15-0605-2012","keywords":["Verkehr"],"leaf":{"rootIndex":6,"childIndex":47,"path":"hannover.98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be.records.json.gz","sha256":"98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:42.377821+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_street_title_fulltext_unavailable","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Im Othfelde"],"observation":"Der Titel benennt die Verkehrssituation Im Othfelde.","mechanism":"Konkreter Straßenbezug ist bereits im Titel vorhanden. Mehrteiliger Name und angehängte Sitzungsangaben sind ohne gezielten Replay keine bewiesene Parserursache.","geometryLimit":"Aus dem allgemeinen Verkehrsbetreff keine genaue Maßnahmenausdehnung ableiten.","certainty":"published_title_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"10","id":"hannover-sim:15-2055-2016","title":"Bemeroder Straße 73 – Abriss Gärtnerhaus + Herstellung an dessen Stelle den in der Straße sonst üblichen getrennten Fuß- und Radweg","number":"15-2055/2016","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2055-2016","year":2016,"era":"2010_2019","selectionHash":"03093a303c915b8d9ab29142f398b1d5ab991494df3548a1e664500a067f0d8b","family":"hannover-sim:15-2055-2016","keywords":["Radweg"],"leaf":{"rootIndex":15,"childIndex":17,"path":"hannover.abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082.records.json.gz","sha256":"abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:42.418061+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"confirmed_title_address_prose_suffix_gap","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Bemeroder Straße 73"],"observation":"Der veröffentlichte Titel verbindet Bemeroder Straße 73 mit Abriss eines Gärtnerhauses und Herstellung eines Fuß- und Radwegs. Ein aktueller amtlicher Volltext liegt nicht vor.","mechanism":"addressTail verwirft den beidseitig beabstandeten Strich vor Abriss als möglichen unvollständigen Zahlenbereich; Abriss fehlt in TITLE_ADDRESS_SUFFIX. Isolierte Interpunktions-/Suffixkontrollen liefern den vorhandenen Hausnummernpunkt, die Compound-Kontrolle allein nicht.","geometryLimit":"Der Gazetteer enthält Hausnummer 73 bei [9.815542,52.346857], streetKey 0324100100391. Zahlenbereiche wie 73–75 und unvollständige Endpunkte wie 73–X dürfen nicht auf Hausnummer 73 verkürzt werden. Die Diagnose belegt den Titelfehler, keine neue Volltext- oder Live-Verifikation.","certainty":"published_title_and_isolated_diagnostic_control"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"partial","sources":["title"],"reasons":["document_text_unavailable"],"truncated":false},"locations":[{"kind":"address","label":"Bemeroder Straße 73","mapped":true,"geometry":{"type":"Point","coordinates":[9.815542,52.346857]},"evidence":{"source":"title","textSha256":"d7f9f027b55e2ca394755d1c53b21f3abc0d33deda8965e7d43d5555c5e8ace4","textChars":131}}]},"changed":true}},
+    {"i":"11","id":"hannover-sim:15-0151-2011","title":"Querungshilfe Großer Kolonnenweg","number":"15-0151/2011","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0151-2011","year":2011,"era":"2010_2019","selectionHash":"040192696ee807f72b26cd9f5c74c946f614fc9b74422fdb20b03494c203acbd","family":"hannover-sim:15-0151-2011","keywords":["Querung"],"leaf":{"rootIndex":3,"childIndex":47,"path":"hannover.4321e4c22a1db4bde672599c35bfba98461a32dc932913067973fa1b20c71aba.records.json.gz","sha256":"4321e4c22a1db4bde672599c35bfba98461a32dc932913067973fa1b20c71aba"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:42.532094+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_crossing_title_point_unconfirmed","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Großer Kolonnenweg"],"observation":"Der Titel benennt eine Querungshilfe am Großen Kolonnenweg.","mechanism":"Der Straßenbezug ist konkret; die genaue Querungsstelle ist im Titel nicht angegeben und der Volltext nicht verfügbar.","geometryLimit":"Die ganze Straße ist kein Ersatz für den noch unbekannten Querungspunkt.","certainty":"published_title_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"12","id":"hannover-sim:15-2723-2015","title":"Katastrophale Verkehrssituation im Nikolaiviertel","number":"15-2723/2015","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2723-2015","year":2015,"era":"2010_2019","selectionHash":"062cbe5dcfe637fb2b45aebcb6bc5d6d17f92cc0de3b0a1647a560b73e7f3012","family":"hannover-sim:15-2723-2015","keywords":["Verkehr"],"leaf":{"rootIndex":18,"childIndex":47,"path":"hannover.022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4.records.json.gz","sha256":"022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:42.534405+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_quarter_title_geometry_unconfirmed","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Nikolaiviertel"],"observation":"Der Titel benennt eine Verkehrssituation im Nikolaiviertel.","mechanism":"Konkreter Quartiersbezug; genaue Straßen, Maßnahmen und eine verifizierte Quartiersgeometrie bleiben ungeprüft.","geometryLimit":"Keinen repräsentativen Punkt aus einem Quartiersnamen allein erzeugen.","certainty":"published_title_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"13","id":"hannover-sim:15-0604-2012","title":"Einrichtung von Zählstellen an Radverkehrsmagistralen","number":"15-0604/2012","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0604-2012","year":2012,"era":"2010_2019","selectionHash":"07422bf71ea4b849d5faf826be90ceff658ec931b3dc775db151d502742cb672","family":"hannover-sim:15-0604-2012","keywords":["Verkehr"],"leaf":{"rootIndex":6,"childIndex":47,"path":"hannover.98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be.records.json.gz","sha256":"98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.650635+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"general_title_fulltext_unavailable","titleHasSpecificPlace":false,"sourceHasSpecificPlace":null,"namedPlaces":[],"observation":"Der Titel benennt ein Netz bzw. ein Programm, aber keine einzelne Straße oder Zählstelle. Ob der nicht verfügbare Volltext konkrete Standorte nennt, bleibt offen.","mechanism":"Kein Fehler allein aus diesem Titel belegbar.","certainty":"published_title_and_local_gazetteer_names_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"14","id":"hannover-sim:15-1126-2018","title":"Kurzzeitparkplätze Kleestraße","number":"15-1126/2018","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1126-2018","year":2018,"era":"2010_2019","selectionHash":"09f00be0865b978897880ee64e44e47ed18ecab143227c4de34ce73fe438c29c","family":"hannover-sim:15-1126-2018","keywords":["Parkplatz"],"leaf":{"rootIndex":9,"childIndex":47,"path":"hannover.e2708bfd730406ab26b9553608e0365b7c14cd196eda34aeddc79a3f366191a9.records.json.gz","sha256":"e2708bfd730406ab26b9553608e0365b7c14cd196eda34aeddc79a3f366191a9"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.651746+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_street","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Kleestraße"],"observation":"Die Maßnahme ist bereits im Titel einer konkret benannten Straße zugeordnet. Kleestraße ist im vorhandenen ATKIS-Bestand eindeutig vorhanden.","mechanism":"Fehlender Ort kann hier nicht mit fehlendem Straßennamen im Titel oder fehlendem ATKIS-Namenseintrag erklärt werden. Extraktion/Zuordnung noch ohne Replay zu prüfen.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Kleestraße","matches":1,"streetKeys":["0324100101563"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"15","id":"hannover-sim:15-1045-2010F1","title":"Antwort der Verwaltung auf die Anfrage Sicheres Radfahren auf den Radwegen in der Landeshauptstadt Hannover Sitzung des Stadtbezirksrates Bothfeld-Vahrenheide am 19.05.2010 TOP 5.1.1.","number":"15-1045/2010 F1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1045-2010F1","year":2010,"era":"2010_2019","selectionHash":"12090afbc7b88d53d5afb3007d86753c74c25657197d588414883b7257ca0828","family":"hannover-sim:15-1045-2010","keywords":["Radweg"],"leaf":{"rootIndex":9,"childIndex":17,"path":"hannover.5033c11f05537d4902731a8b118e3d75256d3a78bd1d5ab0e64293dc0b6e9817.records.json.gz","sha256":"5033c11f05537d4902731a8b118e3d75256d3a78bd1d5ab0e64293dc0b6e9817"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.655965+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"general_title_fulltext_unavailable","titleHasSpecificPlace":false,"sourceHasSpecificPlace":null,"namedPlaces":[],"observation":"Der Sachbetreff ist allgemein; der angehängte Sitzungsbezirk bezeichnet zunächst das Gremium. Konkrete Straßen im nicht verfügbaren Volltext bleiben ungeprüft.","mechanism":"Kein Fehler allein aus diesem Titel belegbar; Gremiensitz nicht als Maßnahmenort verwenden.","certainty":"published_title_and_local_gazetteer_names_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"16","id":"hannover-sim:15-2724-2019N1S1","title":"Öffnung der Straße In der Rehre für den Kraftfahrzeugverkehr Sitzung des Stadtbezirksrates Ricklingen am 07.11.2019 TOP 7.6.1.1.","number":"15-2724/2019 N1 S1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2724-2019N1S1","year":2019,"era":"2010_2019","selectionHash":"1526d8d1b4bd0b994d49c12e8554c5fcc306c38dbbaddce6acf7359e72cefb8a","family":"hannover-sim:15-2724-2019","keywords":["Verkehr"],"leaf":{"rootIndex":18,"childIndex":47,"path":"hannover.022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4.records.json.gz","sha256":"022ce379e52efcee9f38da7c9840681350dbaa5bd9887bb8e57782f2eeb61df4"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.656640+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_street","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["In der Rehre"],"observation":"Der Titel benennt die Straße In der Rehre und eine dortige Verkehrsregelung. Der mehrteilige Straßenname ist im ATKIS-Bestand eindeutig vorhanden.","mechanism":"Nicht bestätigter Verdacht: mehrteiliger Straßenname mit Präposition wird bei der Extraktion übergangen. Kein Mapper-Replay durchgeführt.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"In der Rehre","matches":1,"streetKeys":["0324100101433"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"17","id":"hannover-sim:15-2054-2022","title":"Verlängerung der Grün-Phase für Fußgänger an der Lichtsignalanlage Thurnithistr./Richtung Loccumerstr. zur Überquerung der Garkenburgstr.","number":"15-2054/2022","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2054-2022","year":2022,"era":"2020_plus","selectionHash":"000f840f1b42bf80787d8747b39b2aebd07a4727375ecfbd71350db530aa946b","family":"hannover-sim:15-2054-2022","keywords":["Querung"],"leaf":{"rootIndex":15,"childIndex":17,"path":"hannover.abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082.records.json.gz","sha256":"abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.657096+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_junction_area","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Thurnithistraße","Loccumer Straße","Garkenburgstraße"],"observation":"Der Titel lokalisiert eine Lichtsignalanlage/Querung durch benannte Straßen und eine Richtungsangabe. Alle ausgeschriebenen Straßennamen sind im ATKIS-Bestand vorhanden; kein exakter Punkt konstruiert.","mechanism":"Nicht bestätigter Verdacht: abgekürzte Straßenbezeichnungen und Schrägstrich/Richtungsbezug. Loccumer Straße darf nicht ohne Prüfung als dritter Knotenarm interpretiert werden.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Thurnithistraße","matches":1,"streetKeys":["0324100103296"]},{"name":"Loccumer Straße","matches":1,"streetKeys":["0324100101853"]},{"name":"Garkenburgstraße","matches":1,"streetKeys":["0324100100971"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"18","id":"hannover-sim:15-2055-2024","title":"Kanalbrücken Wunstorfer Straße und Eichenbrink für den Radverkehr sicherer machen","number":"15-2055/2024","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2055-2024","year":2024,"era":"2020_plus","selectionHash":"03f1d4d44d629fed7c28a4669bcebeb85f96dd1264c283556390d578d8b9dc09","family":"hannover-sim:15-2055-2024","keywords":["Verkehr"],"leaf":{"rootIndex":15,"childIndex":17,"path":"hannover.abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082.records.json.gz","sha256":"abd212f27b68dd199f072c03478afa95b8906947b18032dd5ed30284d0c3a082"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.657702+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_two_bridge_areas","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Wunstorfer Straße","Eichenbrink"],"observation":"Der Titel bezeichnet zwei Kanalbrücken anhand der zugehörigen Straßen. Beide Straßen sind im ATKIS-Bestand vorhanden; Brückenpunkte wurden nicht bestimmt.","mechanism":"Nicht bestätigter Verdacht: mehrere verknüpfte Ortsnamen bzw. Straßenname ohne Straßensuffix. Eine fehlende Brückengeometrie wäre von der fehlenden Erkennung beider Straßen zu trennen.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Wunstorfer Straße","matches":1,"streetKeys":["0324100103098"]},{"name":"Eichenbrink","matches":1,"streetKeys":["0324100100775"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"19","id":"hannover-sim:15-2140-2020F1","title":"Antwort der Verwaltung auf die Anfrage Beschilderung an der Kreuzung Hannoversche Str./Grenzstr./Louise-Schroeder-Str. Sitzung des Stadtbezirksrates Misburg-Anderten am 07.10.2020 TOP 3.1.3.","number":"15-2140/2020 F1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2140-2020F1","year":2020,"era":"2020_plus","selectionHash":"048fd2505b762073d6fe361b13bbf7a5aecb5e5f75edf5d1da017662ad16776f","family":"hannover-sim:15-2140-2020","keywords":["Kreuzung"],"leaf":{"rootIndex":15,"childIndex":47,"path":"hannover.845d107c2d7572f1282fa784a2f9e4d7437ce5427344446840e8f225cbd791bd.records.json.gz","sha256":"845d107c2d7572f1282fa784a2f9e4d7437ce5427344446840e8f225cbd791bd"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.661715+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_junction_area","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Hannoversche Straße","Grenzstraße","Louise-Schroeder-Straße"],"observation":"Der Titel enthält eine ausdrücklich benannte Kreuzung mit drei Straßen. Alle ausgeschriebenen Namen haben je einen ATKIS-Eintrag. Die tatsächliche Kreuzungsgeometrie wurde nicht geprüft.","mechanism":"Nicht bestätigter Verdacht: Abkürzungen und Schrägstrich-Verknüpfung. Titel bietet konkrete Ortsevidenz; Volltext und genaue Parserursache bleiben offen.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Hannoversche Straße","matches":1,"streetKeys":["0324100101169"]},{"name":"Grenzstraße","matches":1,"streetKeys":["0324100101082"]},{"name":"Louise-Schroeder-Straße","matches":1,"streetKeys":["0324100101870"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"20","id":"hannover-sim:15-0605-2022","title":"Parken von schweren SUV auf Gehwegen","number":"15-0605/2022","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0605-2022","year":2022,"era":"2020_plus","selectionHash":"0abe3ba728e838fd7b8161bfc6de6bfed5c8298689cadb2b850266f5691027ed","family":"hannover-sim:15-0605-2022","keywords":["Gehweg"],"leaf":{"rootIndex":6,"childIndex":47,"path":"hannover.98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be.records.json.gz","sha256":"98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.662688+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"general_title_fulltext_unavailable","titleHasSpecificPlace":false,"sourceHasSpecificPlace":null,"namedPlaces":[],"observation":"Der Titel benennt ein Verkehrsproblem, jedoch keine Straße oder konkrete Stelle. Ob der Volltext Beispiele enthält, bleibt ungeprüft.","mechanism":"Kein Fehler allein aus diesem Titel belegbar.","certainty":"published_title_and_local_gazetteer_names_only"},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"21","id":"hannover-sim:15-0534-2021F1","title":"Antwort der Verwaltung auf die Anfrage Künftige Querungsanlage Oheriedentrift hin zur Grundschule Feldbuschwende Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 19.03.2021 TOP 3.1.2.","number":"15-0534/2021 F1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0534-2021F1","year":2021,"era":"2020_plus","selectionHash":"0fc59c49fbbeeb0e9e27588c04ead0be6e4d6d9c01ead8a43b189d248b77c455","family":"hannover-sim:15-0534-2021","keywords":["Querung"],"leaf":{"rootIndex":6,"childIndex":17,"path":"hannover.45128003dcefb841b45d76c3c720cbe8c00971fa461bc05bff2f25c902fff6a2.records.json.gz","sha256":"45128003dcefb841b45d76c3c720cbe8c00971fa461bc05bff2f25c902fff6a2"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.663273+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_corridor_point_unconfirmed","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Oheriedentrift","Feldbuschwende"],"observation":"Oheriedentrift und das Ziel Grundschule Feldbuschwende grenzen den Bereich ein. Beide Namensformen sind als Straßen im ATKIS-Bestand vorhanden; der Straßeneintrag Feldbuschwende belegt keine Schulgebäude-Koordinate.","mechanism":"Nicht bestätigter Verdacht: Straßenname ohne gängiges Straßensuffix und Relationsbeschreibung. Exakte Querungsstelle bleibt ohne Volltext/zusätzliche Referenz offen.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Oheriedentrift","matches":1,"streetKeys":["0324100103663"]},{"name":"Feldbuschwende","matches":1,"streetKeys":["0324100103669"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"22","id":"hannover-sim:15-1619-2025","title":"des Tempo 30 Hinweisschild am Standort Zebrastreifen Weidetorstr. Ecke Pinkenburger Str. Fahrtrichtung Osterfelddamm versetzen","number":"15-1619/2025","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1619-2025","year":2025,"era":"2020_plus","selectionHash":"144f7a6a24f0c483400ae53e0e315cf04b53a89a0b8c1313f64f615f5fc114b0","family":"hannover-sim:15-1619-2025","keywords":["Tempo"],"leaf":{"rootIndex":12,"childIndex":47,"path":"hannover.558d44994a259b6e5a0c95e48d89ef2e8613d0e3429c29f46c2eb97ca976d8e9.records.json.gz","sha256":"558d44994a259b6e5a0c95e48d89ef2e8613d0e3429c29f46c2eb97ca976d8e9"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.666173+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_junction_area","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Weidetorstraße","Pinkenburger Straße","Osterfelddamm"],"observation":"Ein Zebrastreifen an einer ausdrücklich benannten Ecke wird mit Fahrtrichtung beschrieben. Alle ausgeschriebenen Straßen sind im ATKIS-Bestand vorhanden.","mechanism":"Nicht bestätigter Verdacht: Abkürzungen sowie Ecke-/Richtungsbezug. Osterfelddamm ist zunächst Richtungsbeleg, nicht automatisch Teil derselben Kreuzung.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Weidetorstraße","matches":1,"streetKeys":["0324100102972"]},{"name":"Pinkenburger Straße","matches":1,"streetKeys":["0324100102183"]},{"name":"Osterfelddamm","matches":1,"streetKeys":["0324100102114"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"23","id":"hannover-sim:15-1126-2020S2","title":"Entscheidung: Querung Waldchaussee/Fritz-Behrens-Allee Sitzung des Stadtbezirksrates Mitte am 08.06.2020 TOP 8.3.5.","number":"15-1126/2020 S2","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1126-2020S2","year":2020,"era":"2020_plus","selectionHash":"16ecb26dab335e81e2051584044a6115989a4333b4f40149e4dbbef64c224870","family":"hannover-sim:15-1126-2020","keywords":["Querung"],"leaf":{"rootIndex":9,"childIndex":47,"path":"hannover.e2708bfd730406ab26b9553608e0365b7c14cd196eda34aeddc79a3f366191a9.records.json.gz","sha256":"e2708bfd730406ab26b9553608e0365b7c14cd196eda34aeddc79a3f366191a9"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.667083+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_crossing_reference_gap","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Waldchaussee","Fritz-Behrens-Allee"],"observation":"Der Titel nennt eine konkrete Querung. Fritz-Behrens-Allee ist vorhanden; unter dem exakten Namen Waldchaussee gibt es im geprüften ATKIS-Bestand keinen Eintrag.","mechanism":"Belegte lokale Referenzlücke für den exakten Namen Waldchaussee; zusätzlich bleibt die ausgebliebene Erkennung der vorhandenen Fritz-Behrens-Allee zu prüfen. Vollständiger Kreuzungspunkt nicht belegt.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Waldchaussee","matches":0,"streetKeys":[]},{"name":"Fritz-Behrens-Allee","matches":1,"streetKeys":["0324100100945"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}},
+    {"i":"24","id":"hannover-sim:15-0605-2026N1","title":"Änderungsantrag zur Antrag Nr. 15-0524/2026 Schutzblinker für den Fußverkehr an Kreuzungen der Vahrenwalder Straße","number":"15-0605/2026 N1","url":"https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0605-2026N1","year":2026,"era":"2020_plus","selectionHash":"1f2a167ba3efc0237be944c4ddb6aa6b256360d3522e3e99c241534875712637","family":"hannover-sim:15-0605-2026","keywords":["Verkehr","Kreuzung"],"leaf":{"rootIndex":6,"childIndex":47,"path":"hannover.98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be.records.json.gz","sha256":"98670ba560797629b7e5154d7096c86e34ad9b11dd2732bca9ea369b265774be"},"baseline":{"assessment":{"status":"unresolved","sources":["title","document"],"reasons":["no_specific_location"],"truncated":false},"geometryIds":[],"savedLocations":[]},"sourceAcquisition":{"at":"2026-11-10T15:51:48.669575+00:00","outcome":"local_connect_denied","error":"URLError: <urlopen error Tunnel connection failed: 403 Forbidden>"},"evidenceScope":"published_title_and_saved_metadata_only","currentOfficialFullTextReviewed":false,"finding":{"category":"concrete_corridor_point_unconfirmed","titleHasSpecificPlace":true,"sourceHasSpecificPlace":null,"namedPlaces":["Vahrenwalder Straße"],"observation":"Der Titel benennt einen konkreten Straßenkorridor und mehrere Kreuzungen. Vahrenwalder Straße ist im ATKIS-Bestand vorhanden; einzelne Kreuzungsstellen sind im Titel nicht aufgezählt.","mechanism":"Straßenbezug ist belegt, die einzelnen Maßnahmenpunkte bleiben offen. Keine flächige bzw. punktgenaue Verortung allein aus dem Titel ableiten.","certainty":"published_title_and_local_gazetteer_names_only","gazetteerChecks":[{"name":"Vahrenwalder Straße","matches":1,"streetKeys":["0324100102866"]}]},"repairReplay":{"evidenceScope":"published_title_only","sourceSha256":null,"parsedEvidenceCount":0,"before":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"after":{"assessment":{"status":"unresolved","sources":["title"],"reasons":["document_text_unavailable","no_specific_location"],"truncated":false},"locations":[]},"changed":false}}
+  ]
+}

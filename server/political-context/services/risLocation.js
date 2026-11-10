@@ -23,7 +23,7 @@ const ADDRESS_PREFIX = /^\s+(?:(?:nr\.?|hausnr\.?|hausnummern?)\s*)?/u;
 const ADDRESS_ITEM = new RegExp(`^(${ADDRESS_NUMBER})(?:\\s*([-–/+]|bis\\s+)\\s*(${ADDRESS_NUMBER})|\\s*([-–+])\\s*([a-z]{1,2})(?!\\p{L}))?(?![\\p{L}\\p{N}/+–-])`, 'u');
 const ADDRESS_SEPARATOR = /^(?:\s*,\s*|\s+und\s+)(?=\d)/u;
 const ADDRESS_CONTINUATION = /^\s*(?:[-–/+]|bis\b|,\s*\d|und\s+\d)/u;
-const TITLE_ADDRESS_SUFFIX = /^\s+[-–]\s*(?:(?:modifizierter\s+)?einleitungsbeschluss|auslegungsbeschluss|aufstellungs(?:- und einleitungs)?beschluss|satzungsbeschluss|beschluss|dachsanierung|entscheidung zur belegung|erneuerung sportboden|aus mitteln|vormals as solar)\b/u;
+const TITLE_ADDRESS_SUFFIX = /^\s+[-–]\s*(?:(?:modifizierter\s+)?einleitungsbeschluss|auslegungsbeschluss|aufstellungs(?:- und einleitungs)?beschluss|satzungsbeschluss|beschluss|dachsanierung|abriss|entscheidung zur belegung|erneuerung sportboden|aus mitteln|vormals as solar)\b/u;
 const HANNOVER_SCOPE = /\bin\s+(?:(?:der\s+)?(?:landeshauptstadt|stadt)\s+)?hannover(?![\p{L}\p{M}\p{N}'-])/gu;
 const REGION_NON_MEASURE = /\b(?:kontakt|anschrift|postanschrift|besucheranschrift|adresse|postfach|rathaus|regionshaus|dienstgebäude|verwaltungsgebäude|geschäftsstelle|ansprechpartner|beschlossen|beschlussfassung|beraten|beratung|vorgestellt|erörtert|abgestimmt|verabschiedet)\b/u;
 const REGION_SCOPE_EXCLUSION = /\b(?:ausserhalb|ausser|nicht|kein(?:e|en|em|er|es)?|ohne|statt|anstatt|wie|als|vergleich|vorbild|hingegen|dagegen)\b/u;
@@ -126,7 +126,11 @@ function indexPublicFacilities(gazetteer) {
 
 function matchSingleLocation(text, byFirstWord, fromDocument = false) {
   const subject = normalize(text).replace(/^(?:anfrage|antrag|änderungsantrag|antwort|stellungnahme) (?:der|des) [^:]+:\s*/u, '');
-  if (!subject || LIMITED_SCOPE.test(subject) || MULTIPLE_LOCATIONS.test(subject)) return null;
+  // The conjunction inside this path compound does not name a second place.
+  // Only the multiplicity check uses this view; cues and evidence stay literal.
+  const multiplicitySubject = subject.replace(/\b(?:geh|fuss)-\s+und\s+(?:fahrrad|rad)weg(?:e|es|en|s)?\b/gu,
+    compound => compound.replace(/\bund\b/u, ' '));
+  if (!subject || LIMITED_SCOPE.test(subject) || MULTIPLE_LOCATIONS.test(multiplicitySubject)) return null;
   if (fromDocument && COMPARISON_CUE.test(subject)) return null;
 
   let entry = null;
@@ -203,16 +207,49 @@ function endpoint(street, fragment, byFirstWord, stopsOnly) {
   return { label, point: crossings[0][1], entry: crossings[0][0] };
 }
 
+function sectionSpan(subject, hit, limit = subject.length) {
+  const span = /^\s*[,(:]?\s*(?:(?:im|in dem) (?:abschnitt|bereich)\s+)?(zwischen|von)\s+([^;)]+)/u.exec(subject.slice(hit.end, limit));
+  if (!span) return null;
+  const divider = span[1] === 'von' ? 'bis' : 'und';
+  const bounds = new RegExp(`^(.{1,250}?)\\s+${divider}\\s+(.{1,250})`, 'u').exec(span[2]);
+  return bounds ? { hit, span, bounds, limit: hit.end + span[0].length,
+    tail: span[2].slice(bounds[0].length - bounds[2].length) } : null;
+}
+
 function measureSections(subject, hits, byFirstWord, used) {
   const results = [];
-  for (const hit of hits) {
+  const sections = hits.filter(hit => hit.entry.kind === 'street')
+    .map(hit => sectionSpan(subject, hit)).filter(Boolean);
+  for (let index = 0; index + 1 < sections.length; index++) {
+    const current = sections[index];
+    const next = sections[index + 1];
+    if (next.hit.index >= current.limit) continue;
+    const connector = /\s+(?:sowie|und)\s+(?:(?:die|der|den)\s+)?$/u.exec(subject.slice(current.hit.end, next.hit.index));
+    if (!connector || !sectionSpan(subject, current.hit, current.hit.end + connector.index)) continue;
+    // Only a new street with its own complete section grammar is a sibling.
+    // Ordinary conjunctions between anchors remain inside the current section.
+    current.limit = current.hit.end + connector.index;
+    current.next = next;
+    next.previous = current;
+    current.coordinated = next.coordinated = true;
+  }
+  for (const section of sections) {
+    const hit = section.hit;
     const { entry, index, end } = hit;
-    if (used.has(hit) || entry.kind !== 'street') continue;
-    const span = /^\s*[,(:]?\s*(?:(?:im|in dem) (?:abschnitt|bereich)\s+)?(zwischen|von)\s+([^;)]+)/u.exec(subject.slice(end));
-    if (!span) continue;
-    const divider = span[1] === 'von' ? 'bis' : 'und';
-    const bounds = new RegExp(`^(.{1,250}?)\\s+${divider}\\s+(.{1,250})`, 'u').exec(span[2]);
-    if (!bounds) continue;
+    if (used.has(hit)) continue;
+    const { span, bounds } = sectionSpan(subject, hit, section.limit);
+    const qualifications = [];
+    if (section.coordinated) {
+      let first = section;
+      while (first.previous) first = first.previous;
+      qualifications.push(subject.slice(0, first.hit.index));
+      // A qualifier after several siblings can govern all of them, even if
+      // another independent section follows. Keep each intervening tail and
+      // the shared lead-in; remove only the validated sibling boundary grammar.
+      for (let sibling = section; sibling; sibling = sibling.next) {
+        qualifications.push(sectionSpan(subject, sibling.hit, sibling.limit).tail);
+      }
+    }
     const stopsOnly = /\b(?:hochbahnsteig|haltestell)/u.test(bounds[1]);
     const from = endpoint(entry, bounds[1], byFirstWord, stopsOnly);
     const finalBound = bounds[2].split(',', 1)[0];
@@ -222,7 +259,9 @@ function measureSections(subject, hits, byFirstWord, used) {
       return link?.street === entry.name && link.geometry?.type === 'LineString' && isLine(link.geometry.coordinates)
         ? [link.geometry.coordinates] : [];
     });
-    const extraBoundary = /\b(?:bis|zwischen|von)\s+/u.test(bounds[2]);
+    const qualification = section.coordinated ? qualifications.join(' ') : bounds[2];
+    const extraBoundary = /\b(?:bis|zwischen|von)\s+/u.test(qualification)
+      || section.coordinated && /\b(?:nicht|kein(?:e|en|em|er|es)?|weder)\b/u.test(qualification);
     const geometry = !extraBoundary && from.point && to.point ? streetSection(entry, from.point, to.point, approach) : null;
     const label = !extraBoundary && from.label && to.label ? `${entry.name}, ${from.label} bis ${to.label}` : entry.name;
     results.push(location('section', label, geometry, [entry, from.entry, to.entry].filter(Boolean)));
@@ -435,10 +474,26 @@ function isPetitionerContactAddress(location) {
   return /\bpetition\b/u.test(before) && /\bschriftliche eingabe (?:der|des|von)\b/u.test(before);
 }
 
+function evidenceSentences(text) {
+  const sentences = [];
+  let start = 0;
+  for (const boundary of text.matchAll(/[.!?]["“”'’»«]*\s+(?=[\p{Lu}„"«»])/gu)) {
+    const end = boundary.index + boundary[0].search(/\s/u);
+    const sentence = text.slice(start, end);
+    // These periods are part of a reference or an alternative, even when the
+    // following street or label starts with an uppercase letter.
+    if (/\b(?:bzw|nr|hausnr|str|ca|ggf|vgl|sog|abs|art|dr|prof|z\.\s*b)\.["“”'’»«]*$/iu.test(sentence)) continue;
+    sentences.push(sentence);
+    start = boundary.index + boundary[0].length;
+  }
+  sentences.push(text.slice(start));
+  return sentences;
+}
+
 function measureLocations(record, byFirstWord, gazetteer, limit, requireHannoverScope, facilities) {
   const document = (Array.isArray(record.locationEvidence) ? record.locationEvidence : [])
     .filter(paragraph => typeof paragraph === 'string' && paragraph.trim()).flatMap(paragraph =>
-    paragraph.split(/(?<=[.!?])\s+(?=[\p{Lu}„])/u));
+    evidenceSentences(paragraph));
   // Retained snapshots may hold older title quotations as well as the prior
   // record title. Keep their individual source identity and sentence scope.
   const titles = [...new Set([...(Array.isArray(record.locationTitleEvidence) ? record.locationTitleEvidence : []), record.title]
@@ -448,7 +503,8 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
   // titles. A publisher, heading or another paragraph cannot license a street.
   const scoped = requireHannoverScope || (gazetteer.city === 'hannover' && record.source === 'niedersachsen-landtag');
   const evidence = scoped ? allEvidence.flatMap(proof => typeof proof.text === 'string'
-    ? proof.text.split(/(?<=[.!?])\s+(?=[\p{Lu}„])|[\r\n]+/u).map(text => ({ source: proof.source, text })) : [])
+    ? evidenceSentences(proof.text).flatMap(sentence => sentence.split(/[\r\n]+/u))
+      .map(text => ({ source: proof.source, text })) : [])
     .filter(proof => hannoverLocationScope(proof.text, byFirstWord)) : allEvidence;
   const source = gazetteer.publicFacilities?.source;
   const publicFacilities = !source || source === record.source || requireHannoverScope ? facilities : null;

@@ -1259,3 +1259,260 @@ test('does not use separately known house points for an unknown complete numeric
   const [record] = enrichRisLocations([{ title }], { city: 'hannover', gazetteer: addressGazetteer });
   expect(record.locations).toEqual([{ kind: 'address', label: 'Limmerstraße 12+14', evidence: { source: 'title', text: title } }]);
 });
+
+const sodenSection = 'die Sodenstraße zwischen Celler Straße und Angerstraße';
+const eckerSection = 'die Eckerstraße zwischen Hallerstraße und Fridastraße';
+
+test.each([
+  `${sodenSection} sowie ${eckerSection}`,
+  `${eckerSection} sowie ${sodenSection}`,
+])('preserves the independent verified section in the published Soden/Ecker request: %s', sections => {
+  const text = `${sections} werden in das vorgelegte Straßen Sanierungsprogramm der Stadt mit aufgenommen.`;
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title: 'Straßensanierung Sodenstraße & Eckerstraße', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.find(place => place.label.startsWith('Sodenstraße'))).toEqual({
+    kind: 'section', label: 'Sodenstraße', evidence: { source: 'document', text },
+  });
+  expect(record.locations.find(place => place.label.startsWith('Eckerstraße'))).toMatchObject({
+    kind: 'section', label: 'Eckerstraße, Hallerstraße bis Fridastraße', evidence: { source: 'document', text },
+    geometry: { type: 'LineString', coordinates: [[9.741912, 52.382327], [9.742932, 52.38243], [9.743196, 52.382443], [9.744619, 52.382237], [9.744746, 52.382256]] },
+  });
+  expect(record.locationAssessment).toMatchObject({ status: 'partial', reasons: expect.arrayContaining(['unverified_name', 'unmapped_location']) });
+});
+
+test.each([
+  'sind bis zur noch festzulegenden Grenze zu verlängern.',
+  `sind ${'nach eingehender Abstimmung mit allen Beteiligten '.repeat(6)}bis zur noch festzulegenden Grenze zu verlängern.`,
+  'werden nicht in das Sanierungsprogramm aufgenommen.',
+])('keeps a shared trailing restriction on coordinated sections: %s', restriction => {
+  const text = `${eckerSection} sowie ${sodenSection} ${restriction}`;
+  const [record] = enrichRisLocations([{ title: 'Straßensanierung', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.every(place => !place.geometry && place.kind === 'section')).toBe(true);
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(2).fill({ source: 'document', text }));
+});
+
+test('does not mistake an added endpoint for a coordinated independent section', () => {
+  const text = 'Die Hauptstraße zwischen Nordstraße und Südstraße sowie Oststraße wird saniert.';
+  const [record] = enrich([{ title: 'Straßensanierung', locationEvidence: [text] }], [
+    street('Hauptstraße', [[9.67, 52.38], [9.68, 52.38], [9.70, 52.38], [9.71, 52.38]]),
+    street('Nordstraße', [[9.68, 52.37], [9.68, 52.39]]),
+    street('Südstraße', [[9.70, 52.37], [9.70, 52.39]]),
+    street('Oststraße', [[9.71, 52.37], [9.71, 52.39]]),
+  ]);
+  expect(record.locations).toHaveLength(1);
+  expect(record.locations[0]).toMatchObject({ kind: 'section', evidence: { source: 'document', text } });
+  expect(record.locations[0].geometry).toBeUndefined();
+});
+
+test('retains independent textual streets after the quoted sentence in the published Clemens/Feuerwehr inquiry', () => {
+  const first = 'In der Verwaltungsantwort heißt es mit Blick auf die geforderte Durchfahrtssperre für KfZ in der Clemensstraße: „Eine Umsetzung würde mit der Einrichtung der Bewohner*innenparkzone erfolgen.“';
+  const second = 'Mit Blick auf den Modalfilter in der Feuerwehrstraße wurde auf die Entwicklung des (ehemaligen) Feuerwehrgeländes verwiesen.';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title: 'Zuständigkeit Wohnquartier Calenberger Neustadt', locationEvidence: [`${first} ${second}`] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([
+    { kind: 'street', label: 'Clemensstraße', evidence: { source: 'document', text: first } },
+    { kind: 'street', label: 'Feuerwehrstraße', evidence: { source: 'document', text: second } },
+  ]);
+});
+
+test.each(['“', '”', '»', '"'])('separates sentences after a closing quote %s while preserving the original evidence', quote => {
+  const first = `Die Verwaltung sagt: „Die Fahrbahn in der Limmerstraße wird saniert.${quote}`;
+  const second = 'Die Haltestelle in der Stephanusstraße wird umgebaut.';
+  const [record] = enrich([{ title: 'Verkehrsmaßnahmen', locationEvidence: [`${first} ${second}`] }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations.map(place => [place.label, place.evidence.text, Boolean(place.geometry)])).toEqual([
+    ['Limmerstraße', first, true], ['Stephanusstraße', second, false],
+  ]);
+});
+
+test('does not separate a quoted phrase without sentence-ending punctuation', () => {
+  const text = 'Die Haltestelle in der Limmerstraße „Alte Haltestelle“ Neben der Stephanusstraße soll verlegt werden.';
+  const [record] = enrich([{ title: 'Haltestellenverlegung', locationEvidence: [text] }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations).toEqual([]);
+});
+
+test('retains the complete published alternative endpoint after bzw.', () => {
+  const text = 'Die Verwaltung der Landeshauptstadt Hannover wird gebeten, in der Liepmannstraße im Abschnitt zwischen den Straßen Auf dem Brinke und Hufelandstraße bzw. Hurlebuschweg eine Querungshilfe zu errichten.';
+  const [record] = enrichRisLocations([{ title: 'Querungshilfe Liepmannstraße', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toHaveLength(1);
+  expect(record.locations[0].geometry).toBeUndefined();
+  expect(record.locations[0].evidence).toEqual({ source: 'document', text });
+});
+
+test('retains the complete sentence after the abbreviation Nr.', () => {
+  const text = 'Die Fahrbahn in der Limmerstraße wird gemäß Nr. Vier saniert.';
+  const [record] = enrich([{ title: 'Fahrbahnsanierung', locationEvidence: [text] }]);
+  expect(record.locations).toHaveLength(1);
+  expect(record.locations[0].evidence).toEqual({ source: 'document', text });
+});
+
+test.each(['title', 'document'])('does not borrow a Hannover qualifier across a quoted sentence in regional %s evidence', source => {
+  const text = 'Die Fahrbahn in der Limmerstraße „wird saniert.“ Die Maßnahme liegt in Hannover.';
+  const [record] = enrich([{ source: 'region-hannover-ris', title: source === 'title' ? text : 'Regionales Programm',
+    ...(source === 'document' ? { locationEvidence: [text] } : {}),
+  }]);
+  expect(record.locations).toEqual([]);
+});
+
+test.each(['title', 'document'])('retains only the independently scoped street across quoted regional %s sentences', source => {
+  const first = 'Die Fahrbahn in der Limmerstraße in Hannover wird saniert.“';
+  const second = 'Die Fahrbahn in der Stephanusstraße wird saniert.';
+  const text = `${first} ${second}`;
+  const [record] = enrich([{ source: 'region-hannover-ris', title: source === 'title' ? text : 'Regionales Programm',
+    ...(source === 'document' ? { locationEvidence: [text] } : {}),
+  }], [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations).toHaveLength(1);
+  expect(record.locations[0]).toMatchObject({ label: 'Limmerstraße', geometry: limmerstrasse.geometry,
+    evidence: { source, text: first } });
+});
+
+
+test('does not split an incomplete first section at a later complete section', () => {
+  const text = 'Die Hauptstraße zwischen Nordstraße sowie die Nebenstraße zwischen Weststraße und Oststraße werden saniert.';
+  const [record] = enrich([{ title: 'Straßensanierung', locationEvidence: [text] }], [
+    street('Hauptstraße', [[9.67, 52.38], [9.68, 52.38], [9.70, 52.38], [9.71, 52.38]]),
+    street('Nebenstraße', [[9.67, 52.36], [9.68, 52.36], [9.70, 52.36], [9.71, 52.36]]),
+    street('Nordstraße', [[9.68, 52.37], [9.68, 52.39]]),
+    street('Weststraße', [[9.68, 52.35], [9.68, 52.37]]),
+    street('Oststraße', [[9.70, 52.35], [9.70, 52.37]]),
+  ]);
+  expect(record.locations.every(place => !place.geometry)).toBe(true);
+});
+
+test('does not drop a negation belonging to the first coordinated section', () => {
+  const text = `${eckerSection} werden nicht aufgenommen sowie ${sodenSection} werden geprüft.`;
+  const [record] = enrichRisLocations([{ title: 'Straßensanierung', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.every(place => !place.geometry)).toBe(true);
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(2).fill({ source: 'document', text }));
+});
+
+const coordinatedRoads = [
+  street('Hauptstraße', [[9.67, 52.38], [9.68, 52.38], [9.70, 52.38], [9.71, 52.38]]),
+  street('Nordstraße', [[9.68, 52.37], [9.68, 52.38], [9.68, 52.39]]),
+  street('Südstraße', [[9.70, 52.37], [9.70, 52.38], [9.70, 52.39]]),
+  street('Nebenstraße', [[9.67, 52.36], [9.68, 52.36], [9.70, 52.36], [9.71, 52.36]]),
+  street('Weststraße', [[9.68, 52.35], [9.68, 52.36], [9.68, 52.37]]),
+  street('Oststraße', [[9.70, 52.35], [9.70, 52.36], [9.70, 52.37]]),
+  street('Drittstraße', [[9.67, 52.34], [9.68, 52.34], [9.70, 52.34], [9.71, 52.34]]),
+  street('Oberstraße', [[9.68, 52.33], [9.68, 52.34], [9.68, 52.35]]),
+  street('Unterstraße', [[9.70, 52.33], [9.70, 52.34], [9.70, 52.35]]),
+];
+const firstTwoSections = 'die Hauptstraße zwischen Nordstraße und Südstraße sowie die Nebenstraße zwischen Weststraße und Oststraße';
+
+test.each(['werden nicht saniert', 'werden bis zur noch festzulegenden Grenze verlängert'])('retains a shared qualification before the third coordinated section: %s', qualification => {
+  const text = `${firstTwoSections} ${qualification} und die Drittstraße zwischen Oberstraße und Unterstraße wird saniert.`;
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(3);
+  expect(record.locations.slice(0, 2).every(place => !place.geometry)).toBe(true);
+  expect(record.locations[2]).toMatchObject({ kind: 'section', label: 'Drittstraße, Oberstraße bis Unterstraße',
+    geometry: { type: 'LineString', coordinates: [[9.68, 52.34], [9.70, 52.34]] } });
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(3).fill({ source: 'document', text }));
+});
+
+test.each(['Nicht saniert werden', 'Keine Sanierung erfolgt für'])('preserves a shared leading negation: %s', prefix => {
+  const text = `${prefix} ${firstTwoSections}.`;
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.every(place => !place.geometry)).toBe(true);
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(2).fill({ source: 'document', text }));
+});
+
+test.each(['usw.', 'etc.'])('allows a new sentence after the potentially terminal abbreviation %s', abbreviation => {
+  const first = `Die Fahrbahn in der Limmerstraße wird saniert ${abbreviation}`;
+  const second = 'Die Haltestelle in der Stephanusstraße wird umgebaut.';
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [`${first} ${second}`] }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations.map(place => [place.label, place.evidence.text, Boolean(place.geometry)])).toEqual([
+    ['Limmerstraße', first, true], ['Stephanusstraße', second, false],
+  ]);
+});
+
+test.each(['usw.', 'etc.'])('does not carry regional scope past a sentence-ending %s', abbreviation => {
+  const first = `Die Fahrbahn in der Limmerstraße in Hannover wird saniert ${abbreviation}`;
+  const second = 'Die Haltestelle in der Stephanusstraße wird umgebaut.';
+  const [record] = enrich([{ source: 'region-hannover-ris', title: `${first} ${second}` }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations).toHaveLength(1);
+  expect(record.locations[0]).toMatchObject({ label: 'Limmerstraße', geometry: limmerstrasse.geometry,
+    evidence: { source: 'title', text: first } });
+});
+
+test('retains the street in the unchanged published Wilkenburger path description without whole-road geometry', () => {
+  const text = 'An der Wilkenburger Straße gibt es auf der einen Fahrbahnseite (Richtung Arnum rechte Seite) einen beidseitig benutzbaren Fuß- und Fahrradweg.';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title: 'Fuß- und Radverkehr', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([{ kind: 'street', label: 'Wilkenburger Straße', evidence: { source: 'document', text } }]);
+});
+
+test.each(['Fuß- und Fahrradweg', 'Geh- und Radweg', 'Geh- und Fahrradwege', 'Fuß- und Radwegen', 'Geh- und Radweges', 'Fuß- und Fahrradwegs'])('ignores only the internal conjunction in the compound %s', compound => {
+  const text = `An der Limmerstraße wird über den Zustand des ${compound} berichtet.`;
+  const [record] = enrich([{ title: 'Verkehrswege', locationEvidence: [text] }]);
+  expect(record.locations).toEqual([{ kind: 'street', label: 'Limmerstraße', evidence: { source: 'document', text } }]);
+});
+
+test.each(['und einen Parkplatz.', 'sowie einen Parkplatz.', 'oder einen Parkplatz.', '; an der Stephanusstraße.', '/ Stephanusstraße.', '& Stephanusstraße.'])('preserves independent conjunctions and separators outside a path compound: %s', continuation => {
+  const text = `An der Limmerstraße gibt es einen Geh- und Radweg ${continuation}`;
+  const [record] = enrich([{ title: 'Verkehrswege', locationEvidence: [text] }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations).toEqual([]);
+});
+
+test.each(['Fußweg und Fahrradweg', 'Geh- und Radwegweiser', 'Wander- und Radweg'])('does not relax the location-list guard for other coordination: %s', compound => {
+  const text = `An der Limmerstraße wird über ${compound} berichtet.`;
+  const [record] = enrich([{ title: 'Verkehrswege', locationEvidence: [text] }]);
+  expect(record.locations).toEqual([]);
+});
+
+test('maps the verified house number before Abriss in the original published Bemeroder title', () => {
+  const title = 'Bemeroder Straße 73 – Abriss Gärtnerhaus + Herstellung an dessen Stelle den in der Straße sonst üblichen getrennten Fuß- und Radweg';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title, locationEvidenceUnavailable: true }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'address', label: 'Bemeroder Straße 73',
+    geometry: { type: 'Point', coordinates: [9.815542, 52.346857] }, evidence: { source: 'title', text: title } })]);
+  expect(record.locationAssessment).toMatchObject({ status: 'partial', reasons: ['document_text_unavailable'] });
+});
+
+test.each(['73–75 – Abriss Gärtnerhaus', '73 – 75 – Abriss Gärtnerhaus', '73-X', '73 – X', '73 – Abrissbirne', '73 – Abriss75'])('does not invent an exact point for an incomplete or compound demolition address: %s', tail => {
+  const title = `Radverkehr Bemeroder Straße ${tail}`;
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations.every(place => !place.geometry)).toBe(true);
+  if (tail.startsWith('73–75') || tail.startsWith('73 – 75')) {
+    expect(record.locations.map(place => place.label)).toEqual(['Bemeroder Straße 73-75']);
+  }
+});
+
+test.each(['des Verkehrsvereins e.V.', 'von Verkehrsvereinen u. a.'])('recognizes sentence-ending organization or list abbreviations after %s', ending => {
+  const first = `Die Fahrbahn in der Limmerstraße wird saniert mit Unterstützung ${ending}`;
+  const second = 'Die Haltestelle in der Stephanusstraße wird umgebaut.';
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [`${first} ${second}`] }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations.map(place => [place.label, place.evidence.text, Boolean(place.geometry)])).toEqual([
+    ['Limmerstraße', first, true], ['Stephanusstraße', second, false],
+  ]);
+});
+
+test.each(['des Verkehrsvereins e.V.', 'von Verkehrsvereinen u. a.'])('keeps regional sentence scope after the terminal abbreviation in %s', ending => {
+  const first = `Die Fahrbahn in der Limmerstraße in Hannover wird saniert mit Unterstützung ${ending}`;
+  const second = 'Die Haltestelle in der Stephanusstraße wird umgebaut.';
+  const [record] = enrich([{ source: 'region-hannover-ris', title: `${first} ${second}` }],
+    [limmerstrasse, street('Stephanusstraße', [[9.71, 52.36], [9.72, 52.36]])]);
+  expect(record.locations).toHaveLength(1);
+  expect(record.locations[0]).toMatchObject({ label: 'Limmerstraße', geometry: limmerstrasse.geometry,
+    evidence: { source: 'title', text: first } });
+});
+
+test('retains a shared weder-noch negation on coordinated sections', () => {
+  const text = `${firstTwoSections} werden weder saniert noch neu asphaltiert.`;
+  const [record] = enrich([{ title: 'Straßenarbeiten', locationEvidence: [text] }], coordinatedRoads);
+  expect(record.locations).toHaveLength(2);
+  expect(record.locations.every(place => !place.geometry)).toBe(true);
+  expect(record.locations.map(place => place.evidence)).toEqual(Array(2).fill({ source: 'document', text }));
+});
