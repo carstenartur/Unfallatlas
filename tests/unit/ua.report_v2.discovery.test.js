@@ -193,6 +193,7 @@ describe('document evidence for a conflict pattern', () => {
     expect(plain).toContain('Befund aus dem Netzregister');
     expect(plain).toContain('Testknoten');
     expect(plain).toContain('Netzfall');
+    expect(plain).toContain('In der Spalte Netzfall steht „Ja“');
     expect(plain).toMatch(/2 räumlich zugeordnete Fälle.*1 nach Suchkriterien.*1 unter den Kartenfiltern/);
     const link = new URL(output.find(node => node.image && node.link?.includes('siteNetworkId')).link).searchParams;
     expect(link.get('siteNetworkId')).toBe(site.id);

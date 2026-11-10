@@ -205,7 +205,10 @@
       return `Die Liste enthält ${count} veröffentlichte Unfälle mit Personenschaden${period}. Ihre Vollständigkeit konnte nicht bestätigt werden.`;
     }
     const events = evidence.rows.length === 1 ? "ist 1 Unfall" : `sind ${count} Unfälle`;
-    return `Im ausgewählten Gebiet${period} ${events} mit Personenschaden veröffentlicht. Die Suchfilter heben davon ${filteredCount} hervor.`;
+    const selection = evidence.cohortLabel
+      ? `Die Netzzuordnung umfasst unter den aktiven Such- und Kartenfiltern ${filteredCount} ${evidence.discoveryCount === 1 ? "Fall" : "Fälle"}.`
+      : `Die Suchfilter heben davon ${filteredCount} hervor.`;
+    return `Im ausgewählten Gebiet${period} ${events} mit Personenschaden veröffentlicht. ${selection}`;
   }
 
   function evidenceTable(evidence, mapRefs, anchorPrefix) {
@@ -234,9 +237,12 @@
 
   function evidenceAnnexIntro(evidence, hasMap) {
     const mapHint = hasMap ? " Die Spalte Karte verweist auf die jeweiligen Kartenblätter in Anlage 1." : "";
+    const legend = evidence.cohortLabel
+      ? "In der Spalte Netzfall steht „Ja“ bei den zugeordneten Fällen, die die aktiven Such- und Kartenfilter erfüllen."
+      : "In der Spalte Suchfilter steht „Ja“ bei den durch die Filter hervorgehobenen Fällen.";
     return [
       evidenceCountText(evidence),
-      `A### bezeichnet eine Dokumentkennung. In der Spalte Suchfilter steht „Ja“ bei den durch die Filter hervorgehobenen Fällen. Die Koordinaten geben die veröffentlichte Lage als Breiten- und Längengrad an.${mapHint}`
+      `A### bezeichnet eine Dokumentkennung. ${legend} Die Koordinaten geben die veröffentlichte Lage als Breiten- und Längengrad an.${mapHint}`
     ];
   }
 
