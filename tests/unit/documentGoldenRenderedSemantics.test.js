@@ -36,13 +36,9 @@ function baselineModel() {
       page(3, [word('Abbildung 2: Auswahl-Karte mit 24 Unfällen', 330)], [
         { imageId: 'selection', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
       ]),
-      page(4, [word('Abbildung 3: Detailausschnitt des markierten Auswertungsbereichs', 330)], [
-        { imageId: 'detail', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
-      ]),
-      page(5, [word('Abbildung 4: Cluster-Karte Bonn-Zentrum mit 11 Unfällen', 330)], [
+      page(4, [word('Abbildung 3: Cluster-Karte Bonn-Zentrum mit 11 Unfällen', 330)], [
         { imageId: 'cluster', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
       ]),
-      page(6, [word('Datenquelle Unfallatlas', 60)]),
     ],
   };
 }
@@ -57,8 +53,8 @@ describe('document Golden rendered semantics', () => {
 
     expect(text.matched.accidentCount).toContain('24');
     expect(maps.bindings.map(binding => binding.role))
-      .toEqual(['cluster', 'detail', 'overview', 'selection']);
-    expect(new Set(maps.bindings.map(binding => binding.imageId)).size).toBe(4);
+      .toEqual(['cluster', 'overview', 'selection']);
+    expect(new Set(maps.bindings.map(binding => binding.imageId)).size).toBe(3);
     expect(tables.bindings.map(binding => binding.role)).toEqual(['severity', 'year-trend']);
     expect(tables.evidenceMode).toBe('rendered-headings');
   });
@@ -100,6 +96,16 @@ describe('document Golden rendered semantics', () => {
       .toThrow(/map_caption_without_image/);
   });
 
+  test('rejects an extra detail map alongside all declared maps', () => {
+    const scenario = scenarios.getScenario('bonn-urban-junction');
+    const source = baselineModel();
+    source.pages.push(page(5, [word('Abbildung 4: Detailausschnitt des markierten Auswertungsbereichs', 330)], [
+      { imageId: 'detail', xMin: 40, yMin: 80, xMax: 520, yMax: 300 },
+    ]));
+    const model = semantics.normalizedPageModel(source, scenario.id);
+    expect(() => semantics.verifyMapSemantics(model, scenario)).toThrow(/unexpected_map_count/);
+  });
+
   test('writes a source-hash-bound semantic matrix without replacing rendered evidence', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'document-golden-semantics-'));
     try {
@@ -126,14 +132,14 @@ describe('document Golden rendered semantics', () => {
             docxGenerated: true,
             zipSignatureValid: true,
             minimumBytesSatisfied: true,
-            renderedPageCount: 6,
+            renderedPageCount: 4,
             renderedMapSemantics: null,
             renderedTableSemantics: null,
           },
           manualWordEvidence: { required: true, status: 'not-performed', receipt: null },
           renderedEvidence: {
-            renderedPageCount: 6,
-            minimumRenderedPages: 6,
+            renderedPageCount: 4,
+            minimumRenderedPages: 4,
             auditModel: {
               path: modelRelative,
               bytes: fs.statSync(modelFile).size,

@@ -278,6 +278,13 @@ function verifyMapSemantics(model, scenario) {
     const line = findUniqueLine(lines, pattern, `${role} map caption`, scenario.id);
     return bindCaptionToImage(model, line, usedImages, scenario.id, role);
   });
+  const imageCount = model.pages.reduce((total, page) => total + page.images.length, 0);
+  if (imageCount !== bindings.length) {
+    fail('unexpected_map_count', `${scenario.id} has unexpected rendered map images`, {
+      expected: bindings.length,
+      actual: imageCount,
+    });
+  }
   return Object.freeze({
     verified: true,
     expectedRoles: Object.freeze([...scenario.expectations.requiredMapKinds]),

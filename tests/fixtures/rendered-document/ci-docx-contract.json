@@ -9,7 +9,7 @@
   "requiredImageKinds": [
     "map"
   ],
-  "expectedMapCount": 4,
+  "expectedMapCount": 3,
   "expectedTableRowCount": 10,
   "imageHints": [
     {
@@ -42,21 +42,8 @@
       "page": 4,
       "imageIndex": 0,
       "kind": "map",
-      "altText": "Detailkarte des markierten Bonner Auswertungsbereichs mit 24 Unfallpunkten.",
-      "caption": "Abbildung 3: Detailkarte des markierten Auswertungsbereichs.",
-      "sourceIds": [
-        "fixture.accidents.bonn-golden",
-        "fixture.basemap.synthetic"
-      ],
-      "sourceWidth": 960,
-      "sourceHeight": 640
-    },
-    {
-      "page": 5,
-      "imageIndex": 0,
-      "kind": "map",
       "altText": "Clusterkarte Bonn-Zentrum mit 11 Unfallpunkten als Teilmenge des markierten Bereichs.",
-      "caption": "Abbildung 4: Clusterkarte Bonn-Zentrum mit 11 Unfällen.",
+      "caption": "Abbildung 3: Cluster-Karte – Detailkarte Bonn-Zentrum (n=11)",
       "sourceIds": [
         "fixture.accidents.bonn-golden",
         "fixture.basemap.synthetic"

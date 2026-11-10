@@ -209,7 +209,7 @@ function normalizeScenario(value) {
   });
 }
 
-const COMMON_MAPS = ['overview', 'selection', 'detail', 'cluster'];
+const COMMON_MAPS = ['overview', 'selection', 'cluster'];
 const COMMON_TABLES = ['severity', 'year-trend'];
 
 const RAW_SCENARIOS = [
@@ -240,7 +240,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: false, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 5,
+      minimumRenderedPages: 4,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
       manualWordEvidenceRequired: true,
@@ -275,7 +275,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: true, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 5,
+      minimumRenderedPages: 4,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
       manualWordEvidenceRequired: true,
@@ -309,7 +309,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: true, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 8,
+      minimumRenderedPages: 7,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: ['severity', 'year-trend', 'deviations'],
       manualWordEvidenceRequired: true,
@@ -379,7 +379,7 @@ const RAW_SCENARIOS = [
     exportOptions: { includeMap: true, includePOIs: true, includeReferences: true },
     expectations: {
       minimumDocxBytes: 1024,
-      minimumRenderedPages: 5,
+      minimumRenderedPages: 4,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
       manualWordEvidenceRequired: true,

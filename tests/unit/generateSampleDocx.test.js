@@ -70,11 +70,11 @@ describe('real DOCX Golden snapshot generator', () => {
 test('each golden role draws its actual population and publishes a snapshot-bound receipt', () => {
   const { createScenarioMaps } = require('../../scripts/generate-sample-docx');
   const maps=createScenarioMaps(createContext(), resolveScenarioForTest());
+  expect(Object.keys(maps)).toEqual(['overview', 'selection', 'cluster']);
   expect(maps.overview.receipt.markerCount).toBe(24);
   expect(maps.selection.receipt.markerCount).toBe(24);
-  expect(maps.detail.receipt.markerCount).toBe(24);
   expect(maps.cluster.receipt.markerCount).toBe(11);
-  expect(new Set(Object.values(maps).map(m=>m.receipt.sha256)).size).toBe(4);
+  expect(new Set(Object.values(maps).map(m=>m.receipt.sha256)).size).toBe(3);
   expect(maps.cluster.receipt.accidentIds.every(id=>maps.overview.receipt.accidentIds.includes(id))).toBe(true);
 });
 function resolveScenarioForTest(){return require('../../scripts/document-golden-scenarios').getScenario('bonn-urban-junction');}

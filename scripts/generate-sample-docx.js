@@ -459,7 +459,6 @@ function createScenarioMaps(context, scenario) {
   const specifications = {
     overview: { points, bounds: boundsForPoints(points, .7) },
     selection: { points, bounds: scenario.bounds },
-    detail: { points, bounds: boundsForPoints(points, .06) },
     cluster: { points: cluster, bounds: boundsForPoints(cluster, .1) },
   };
   const maps = Object.fromEntries(Object.entries(specifications).map(([role, specification]) =>
@@ -513,7 +512,6 @@ async function generateSampleDocx(options = {}) {
   UA.captureExportMapImage = async (_ctx, captureOptions = {}) =>
     toDataUrl((captureOptions.exportPoints ? maps.overview : maps.selection).png);
   UA._captureExportMapImage = UA.captureExportMapImage;
-  UA._captureDetailMap = async () => toDataUrl(maps.detail.png);
   UA._captureClusterMaps = async () => [{
     image: toDataUrl(maps.cluster.png),
     bounds: maps.cluster.receipt.bounds,

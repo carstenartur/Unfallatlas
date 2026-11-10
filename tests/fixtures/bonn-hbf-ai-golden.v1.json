@@ -68,14 +68,156 @@
       "contextEvidence": {
         "osm": null,
         "poi": {
-          "nearArea": [
+          "facilities": [
             {
-              "id": "osm:node:652820249",
-              "lat": 50.7341656,
-              "lon": 7.0877954,
-              "name": "Kindertageseinrichtung Rasselbande e. V.",
+              "distanceMeters": 75,
+              "id": "osm:way:886798893",
+              "lat": 50.729322,
+              "locationSource": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/way/886798893"
+              },
+              "lon": 7.0955328,
+              "name": "Kita Erlöserbund",
+              "planSources": [],
+              "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+              "relation": "im Umfeld",
+              "source": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/way/886798893"
+              },
               "type": "kindergarten"
             },
+            {
+              "distanceMeters": 82,
+              "id": "osm:node:7004624759",
+              "lat": 50.7310233,
+              "locationSource": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/node/7004624759"
+              },
+              "lon": 7.102171,
+              "name": "Kinderladen Kleine Kaiser",
+              "planSources": [],
+              "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+              "relation": "im Umfeld",
+              "source": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/node/7004624759"
+              },
+              "type": "kindergarten"
+            },
+            {
+              "distanceMeters": 115,
+              "id": "osm:way:896360907",
+              "lat": 50.7289694,
+              "locationSource": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/way/896360907"
+              },
+              "lon": 7.1011534,
+              "name": "Kita Villa W.i.E",
+              "planSources": [],
+              "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+              "relation": "im Umfeld",
+              "source": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/way/896360907"
+              },
+              "type": "kindergarten"
+            },
+            {
+              "distanceMeters": 127,
+              "id": "osm:way:22292731",
+              "lat": 50.7293682,
+              "locationSource": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/way/22292731"
+              },
+              "lon": 7.0895004,
+              "name": "Felix-Hausdorff-Gymnasium",
+              "planSources": [],
+              "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+              "relation": "im Umfeld",
+              "source": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/way/22292731"
+              },
+              "type": "school"
+            },
+            {
+              "distanceMeters": 138,
+              "id": "osm:node:3743152125",
+              "lat": 50.7367446,
+              "locationSource": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/node/3743152125"
+              },
+              "lon": 7.0942546,
+              "name": "Stadthaus-Kita",
+              "planSources": [],
+              "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+              "relation": "im Umfeld",
+              "source": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/node/3743152125"
+              },
+              "type": "kindergarten"
+            },
+            {
+              "distanceMeters": 164,
+              "id": "osm:relation:21068779",
+              "lat": 50.7325052,
+              "locationSource": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/relation/21068779"
+              },
+              "lon": 7.0886657,
+              "name": "Wittelsbacher Pänz",
+              "planSources": [],
+              "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+              "relation": "im Umfeld",
+              "source": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/relation/21068779"
+              },
+              "type": "kindergarten"
+            },
+            {
+              "distanceMeters": 190,
+              "id": "osm:node:10113688902",
+              "lat": 50.7372114,
+              "locationSource": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/node/10113688902"
+              },
+              "lon": 7.098033,
+              "name": "BBZ Altenkirchen",
+              "planSources": [],
+              "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+              "relation": "im Umfeld",
+              "source": {
+                "date": "2026-08-01",
+                "label": "© OpenStreetMap contributors",
+                "url": "https://www.openstreetmap.org/node/10113688902"
+              },
+              "type": "school"
+            }
+          ],
+          "nearArea": [
             {
               "id": "osm:node:3743152125",
               "lat": 50.7367446,
@@ -105,20 +247,6 @@
               "type": "school"
             },
             {
-              "id": "osm:way:38284466",
-              "lat": 50.7279608,
-              "lon": 7.0950223,
-              "name": "Waldorfkindergarten am Schloß",
-              "type": "kindergarten"
-            },
-            {
-              "id": "osm:way:360762201",
-              "lat": 50.7314535,
-              "lon": 7.0871283,
-              "name": "Michaelschule",
-              "type": "school"
-            },
-            {
               "id": "osm:way:886798893",
               "lat": 50.729322,
               "lon": 7.0955328,
@@ -141,10 +269,10 @@
             }
           ],
           "nearByType": {
-            "kindergarten": 7,
-            "school": 3
+            "kindergarten": 5,
+            "school": 2
           },
-          "totalNear": 10,
+          "totalNear": 7,
           "totalWithin": 0,
           "withinArea": [],
           "withinByType": {}
@@ -1502,14 +1630,156 @@
       }
     },
     "poi": {
-      "nearArea": [
+      "facilities": [
         {
-          "id": "osm:node:652820249",
-          "lat": 50.7341656,
-          "lon": 7.0877954,
-          "name": "Kindertageseinrichtung Rasselbande e. V.",
+          "distanceMeters": 75,
+          "id": "osm:way:886798893",
+          "lat": 50.729322,
+          "locationSource": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/way/886798893"
+          },
+          "lon": 7.0955328,
+          "name": "Kita Erlöserbund",
+          "planSources": [],
+          "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+          "relation": "im Umfeld",
+          "source": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/way/886798893"
+          },
           "type": "kindergarten"
         },
+        {
+          "distanceMeters": 82,
+          "id": "osm:node:7004624759",
+          "lat": 50.7310233,
+          "locationSource": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/node/7004624759"
+          },
+          "lon": 7.102171,
+          "name": "Kinderladen Kleine Kaiser",
+          "planSources": [],
+          "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+          "relation": "im Umfeld",
+          "source": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/node/7004624759"
+          },
+          "type": "kindergarten"
+        },
+        {
+          "distanceMeters": 115,
+          "id": "osm:way:896360907",
+          "lat": 50.7289694,
+          "locationSource": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/way/896360907"
+          },
+          "lon": 7.1011534,
+          "name": "Kita Villa W.i.E",
+          "planSources": [],
+          "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+          "relation": "im Umfeld",
+          "source": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/way/896360907"
+          },
+          "type": "kindergarten"
+        },
+        {
+          "distanceMeters": 127,
+          "id": "osm:way:22292731",
+          "lat": 50.7293682,
+          "locationSource": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/way/22292731"
+          },
+          "lon": 7.0895004,
+          "name": "Felix-Hausdorff-Gymnasium",
+          "planSources": [],
+          "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+          "relation": "im Umfeld",
+          "source": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/way/22292731"
+          },
+          "type": "school"
+        },
+        {
+          "distanceMeters": 138,
+          "id": "osm:node:3743152125",
+          "lat": 50.7367446,
+          "locationSource": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/node/3743152125"
+          },
+          "lon": 7.0942546,
+          "name": "Stadthaus-Kita",
+          "planSources": [],
+          "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+          "relation": "im Umfeld",
+          "source": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/node/3743152125"
+          },
+          "type": "kindergarten"
+        },
+        {
+          "distanceMeters": 164,
+          "id": "osm:relation:21068779",
+          "lat": 50.7325052,
+          "locationSource": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/relation/21068779"
+          },
+          "lon": 7.0886657,
+          "name": "Wittelsbacher Pänz",
+          "planSources": [],
+          "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+          "relation": "im Umfeld",
+          "source": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/relation/21068779"
+          },
+          "type": "kindergarten"
+        },
+        {
+          "distanceMeters": 190,
+          "id": "osm:node:10113688902",
+          "lat": 50.7372114,
+          "locationSource": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/node/10113688902"
+          },
+          "lon": 7.098033,
+          "name": "BBZ Altenkirchen",
+          "planSources": [],
+          "reason": "Standortpunkt im Umkreis von weniger als 200 m um den Bereich. Der Standortdatensatz enthält keine Eingänge oder Wege.",
+          "relation": "im Umfeld",
+          "source": {
+            "date": "2026-08-01",
+            "label": "© OpenStreetMap contributors",
+            "url": "https://www.openstreetmap.org/node/10113688902"
+          },
+          "type": "school"
+        }
+      ],
+      "nearArea": [
         {
           "id": "osm:node:3743152125",
           "lat": 50.7367446,
@@ -1539,20 +1809,6 @@
           "type": "school"
         },
         {
-          "id": "osm:way:38284466",
-          "lat": 50.7279608,
-          "lon": 7.0950223,
-          "name": "Waldorfkindergarten am Schloß",
-          "type": "kindergarten"
-        },
-        {
-          "id": "osm:way:360762201",
-          "lat": 50.7314535,
-          "lon": 7.0871283,
-          "name": "Michaelschule",
-          "type": "school"
-        },
-        {
           "id": "osm:way:886798893",
           "lat": 50.729322,
           "lon": 7.0955328,
@@ -1575,10 +1831,10 @@
         }
       ],
       "nearByType": {
-        "kindergarten": 7,
-        "school": 3
+        "kindergarten": 5,
+        "school": 2
       },
-      "totalNear": 10,
+      "totalNear": 7,
       "totalWithin": 0,
       "withinArea": [],
       "withinByType": {}
@@ -1811,7 +2067,7 @@
       "js/ua.evidence_safe_semantics.js": "cf022eed045f94f6da257ffdd2d73069c294db7e0c08e225e51fdc6629afa6f4",
       "js/ua.evidence_safe_semantics_hardening.js": "f0dc5155752e32444b38a138f8e5a6270ef881b93ca834ef82da715e48ddc98e",
       "js/ua.export_template_defaults.js": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22",
-      "js/ua.export_v2.js": "5e9d903629d4ddb9fc12da775fea2d5392c06ba7de74e3a13e1dde6e55c80f46",
+      "js/ua.export_v2.js": "0a611c440f2052784ad01d62226b80f03ecb7a6f9b7cc13696c534595752fd49",
       "js/ua.filters.js": "6201ff418e290414164459ce7541148bf44a6248830794b73d7e7c680418dfe1",
       "js/ua.heatmap.js": "d65c22f2a07d871fb38b1c18b88877e14f2d461357458d1e4e5330cb161a86c5",
       "js/ua.stats.js": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",
