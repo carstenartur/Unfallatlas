@@ -15,6 +15,7 @@ function loadModules(extraWin) {
   };
   load('ua.render_scheduler.js');
   load('ua.map_store.js');
+  load('ua.filters.js');
   return win.UA;
 }
 
@@ -73,6 +74,45 @@ describe('UA.MapStore', () => {
     store.dispatch('layerToggled');
     expect(calls).toContain('renderLayers');
     expect(calls).not.toContain('applyFilters');
+  });
+
+  test('coalesces render-limit commits and reuses the unbounded analytical results', () => {
+    const filteredAll = Array.from({ length: 750 }, (_, i) => ({ lat: i, lon: 1 }));
+    const previous = filteredAll.slice(0, 500);
+    const { ctx } = makeCtx({ filteredAll, filteredCapped: previous, viewportPts: previous });
+    UA.applyViewportFilter.mockImplementation(() => { ctx.viewportPts = ctx.filteredCapped; });
+    const store = UA.MapStore.create(ctx);
+
+    ctx.renderPointLimit = 550;
+    store.dispatch('renderLimitChanged');
+    ctx.renderPointLimit = 650;
+    store.dispatch('renderLimitChanged');
+    expect(UA.renderLayers).not.toHaveBeenCalled();
+    jest.runAllTimers();
+
+    expect(ctx.filteredAll).toBe(filteredAll);
+    expect(ctx.filteredCapped).toHaveLength(650);
+    expect(ctx.filteredCapped.at(-1)).toBe(filteredAll[649]);
+    expect(UA.applyFilters).not.toHaveBeenCalled();
+    expect(UA.renderLayers).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not rebuild layers when the updated render limit changes no viewport points', () => {
+    const filteredAll = Array.from({ length: 750 }, (_, i) => ({ lat: i, lon: 1 }));
+    const { ctx } = makeCtx({
+      filteredAll, filteredCapped: filteredAll.slice(0, 500), viewportPts: filteredAll.slice(0, 100)
+    });
+    UA.applyViewportFilter.mockImplementation(() => { ctx.viewportPts = ctx.filteredCapped.slice(0, 100); });
+    UA.updateStats = jest.fn();
+    const store = UA.MapStore.create(ctx);
+
+    ctx.renderPointLimit = 600;
+    store.dispatch('renderLimitChanged');
+    jest.runAllTimers();
+    expect(ctx.filteredCapped).toHaveLength(600);
+    expect(UA.applyFilters).not.toHaveBeenCalled();
+    expect(UA.renderLayers).not.toHaveBeenCalled();
+    expect(UA.updateStats).toHaveBeenCalledWith(ctx);
   });
 
   test('cityLoaded dispatches a synchronous full render', () => {

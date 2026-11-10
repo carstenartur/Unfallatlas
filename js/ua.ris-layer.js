@@ -344,7 +344,11 @@
     const props = feature.properties;
     if (props.overview) {
       text(root, 'strong', 'Übersicht: zusammengefasste Kartenlagen');
-      text(root, 'p', `${props.recordCount} Ratsvorgänge · ${props.geometryCount} Kartenlagen in dieser Zelle. Die Fläche zeigt eine Zusammenfassung, keine genaue Lage.`);
+      if (props.spatialGroup) {
+        text(root, 'p', `${props.geometryCount} Kartenlagen in dieser räumlichen Gruppe. Beim Vergrößern werden die einzelnen Lagen sichtbar.`);
+      } else {
+        text(root, 'p', `${props.recordCount} Ratsvorgänge · ${props.geometryCount} Kartenlagen in dieser Zelle. Die Fläche zeigt eine Zusammenfassung, keine genaue Lage.`);
+      }
       const zoom = text(root, 'button', 'Für Details vergrößern');
       zoom.type = 'button'; zoom.className = 'smallBtn';
       const zoomStatus = text(root, 'div', '');
@@ -526,6 +530,13 @@
   }
 
   function pointMarker(L, feature, latlng) {
+    if (feature.properties.spatialGroup) {
+      const badge = document.createElement('span');
+      badge.textContent = feature.properties.geometryCount.toLocaleString('de-DE');
+      badge.style.cssText = 'display:grid;place-items:center;width:100%;height:100%;border-radius:50%;'
+        + 'box-shadow:0 0 0 2px #fff,0 1px 4px #555;background:#532b78;color:white;font-weight:bold';
+      return L.marker(latlng, { pane: PANE, icon: L.divIcon({ className: 'ua-ris-group', html: badge, iconSize: [32, 32] }) });
+    }
     const { color, dashed, fill } = styles[feature.properties.accuracy];
     const swatch = document.createElement('span');
     swatch.style.cssText = `display:block;width:100%;height:100%;box-sizing:border-box;` +
@@ -542,17 +553,20 @@
     if (!view.width || !view.height) return options;
 
     const margin = 8;
-    if (window.matchMedia?.('(max-width: 640px), (max-height: 500px) and (pointer: coarse)')?.matches) {
-      // CSS temporarily hides the task sheet and map cards while this popup
-      // is open. Its first layout must already use that unobstructed space.
+    if (window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches) {
+      // CSS temporarily hides the workspace and map cards while this popup
+      // is open. Leave room for the shortcut back to the results.
+      const launcher = document.getElementById('btnRisBrowse')?.getBoundingClientRect();
+      const top = launcher?.height ? Math.max(margin, launcher.bottom - view.top + margin) : margin;
       return {
         maxWidth: Math.max(50, Math.min(options.maxWidth, view.width - 2 * margin - 50)),
-        maxHeight: Math.max(50, Math.min(options.maxHeight, view.height - 2 * margin - 56)),
-        autoPanPaddingTopLeft: [margin, margin],
+        maxHeight: Math.max(50, Math.min(options.maxHeight, view.height - top - margin - 56)),
+        autoPanPaddingTopLeft: [margin, top],
         autoPanPaddingBottomRight: [margin, margin],
       };
     }
     const panel = ctx.ui?.panelEl?.getBoundingClientRect();
+    const list = document.querySelector('body.ris-list-open:not(.ris-list-collapsed) #polCtxPanel')?.getBoundingClientRect();
     const layerControlElement = state.root.closest('.context-overlay-control');
     const legendElement = container.querySelector('.layer-legend-control');
     const layerControl = layerControlElement?.getBoundingClientRect();
@@ -560,7 +574,8 @@
     // Karte owns both control aliases. Reserve its right-hand column once,
     // leaving the full central height usable beside tall desktop sidebars.
     const unifiedCard = layerControlElement && layerControlElement === legendElement;
-    const left = panel?.width ? Math.max(margin, panel.right - view.left + margin) : margin;
+    const left = Math.max(margin, ...[panel, list].filter(box => box?.width)
+      .map(box => box.right - view.left + margin));
     const top = !unifiedCard && layerControl?.height ? Math.max(margin, layerControl.bottom - view.top + margin) : margin;
     const legendRight = legend?.width ? Math.max(margin, view.right - legend.left + margin) : margin;
     const legendBottom = legend?.height ? Math.max(margin, view.bottom - legend.top + margin) : margin;
@@ -589,16 +604,23 @@
       return layer._uaRisPopupRoot = data.partitioned
         ? partitionPopup(ctx, state, data, feature, layer) : popup(ctx, state, data, feature, layer);
     }, { className: 'ua-ris-popup' });
+    if (feature.properties.spatialGroup) {
+      layer.on('popupclose', () => positionGroupMarker(feature, layer));
+    }
     layer.on('add', () => {
       const el = layer.getElement();
       if (!el) return;
       el.setAttribute('tabindex', '0');
       el.setAttribute('role', 'button');
-      el.setAttribute('aria-label', data.partitioned
-        ? (feature.properties.overview ? `Übersichtszelle: ${feature.properties.recordCount} Ratsvorgänge; für Details vergrößern` : `${feature.properties.recordCount} Ratsvorgänge: ${feature.properties.label || 'Kartenlage'}`)
+      const props = feature.properties;
+      let label = data.partitioned
+        ? `${props.recordCount} Ratsvorgänge: ${props.label || 'Kartenlage'}`
         : locations.length === 1
         ? `Ratsvorgang: ${data.records.get(locations[0].recordId).title}`
-        : `${locations.length} Ratsvorgänge an dieser Stelle`);
+        : `${locations.length} Ratsvorgänge an dieser Stelle`;
+      if (props.spatialGroup) label = `Räumliche Gruppe: ${props.geometryCount} Kartenlagen; für Details vergrößern`;
+      else if (props.overview) label = `Übersichtszelle: ${props.recordCount} Ratsvorgänge; für Details vergrößern`;
+      el.setAttribute('aria-label', label);
       el.addEventListener('keydown', event => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
@@ -632,6 +654,12 @@
       : 'Der Kartenbestand konnte nicht geladen werden. Zum erneuten Versuch aus- und einschalten.';
   }
 
+  function positionGroupMarker(feature, layer) {
+    const [lng, lat] = feature.geometry.coordinates;
+    const current = layer.getLatLng();
+    if (current.lat !== lat || current.lng !== lng) layer.setLatLng([lat, lng]);
+  }
+
   function syncVisibleLayers(ctx, state, data, visible) {
     const next = new Set(visible);
     for (const [feature, layer] of state.featureLayers) {
@@ -659,7 +687,9 @@
     }
     // Keep any layer that remains visible, including its open popup or focus.
     for (const feature of visible) {
-      if (!state.featureLayers.has(feature)) state.layer.addData(feature);
+      const layer = state.featureLayers.get(feature);
+      if (!layer) state.layer.addData(feature);
+      else if (feature.properties.spatialGroup && !layer.isPopupOpen()) positionGroupMarker(feature, layer);
     }
   }
 
@@ -687,9 +717,11 @@
         syncVisibleLayers(ctx, state, data, visible);
         state.legend.hidden = !visible.some(feature => !feature.properties.overview);
         state.mixedLegend.hidden = !visible.some(feature => feature.properties.accuracy === 'mixed');
-        let status = data.overview
-          ? 'Übersicht: zusammengefasste Zellen · Für genaue Kartenlagen vergrößern'
-          : `${visible.length} Kartenlagen im Kartenausschnitt`;
+        let status = `${visible.length} Kartenlagen im Kartenausschnitt`;
+        if (data.overview) {
+          const grouping = visible.some(feature => feature.properties.spatialGroup) ? 'räumliche Gruppen' : 'zusammengefasste Zellen';
+          status = `Übersicht: ${grouping} · Für genaue Kartenlagen vergrößern`;
+        }
         const budgetOverview = data.overview && data.coverage?.truncated === true
           && Array.isArray(data.coverage.missing) && data.coverage.missing.length === 0;
         if (!data.coverage?.complete) {
@@ -762,6 +794,18 @@
     }, delay);
   }
 
+  function catalogueLevelCountLabels(manifest) {
+    const sources = UA.RisSources;
+    if (!sources || !manifest.levelCounts) return [];
+    const declaredLevels = new Set((manifest.sourceStatuses || []).map(status => sources.levelOf(status)));
+    const levels = [...sources.levels, { id: 'unknown', label: 'Ebene offen' }];
+    return levels.flatMap(({ id, label }) => {
+      const counts = manifest.levelCounts[id];
+      if (counts) return [`${label} ${counts.records.toLocaleString('de-DE')} (${counts.mapped.toLocaleString('de-DE')} verortet)`];
+      return declaredLevels.has(id) ? [`${label} 0`] : [];
+    });
+  }
+
   function refreshCatalogueCount(ctx, state) {
     const footer = ctx.ui?.risCatalogueCountEl;
     const city = state.city;
@@ -787,6 +831,7 @@
       const total = manifest.recordCount ?? manifest.records.count;
       let label = `Ratsvorgänge im veröffentlichten Katalog: ${total.toLocaleString('de-DE')}`;
       if (manifest.schemaVersion === 2) label += ` (davon ${manifest.mappedRecordCount.toLocaleString('de-DE')} verortet)`;
+      for (const breakdown of catalogueLevelCountLabels(manifest)) label += ` · ${breakdown}`;
       if (!manifest.coverage.complete) label += ' · Teilbestand';
       if (stale) label += ' · Veralteter Datenstand';
       if (manifest.refreshFailure) label += ' · Aktualisierung fehlgeschlagen';
@@ -821,7 +866,8 @@
     const city = cityOf(ctx);
     if (state.city !== city) {
       clearLayer(state);
-      Object.assign(state, { city, data: null, pending: null, loadedKey: null, requestVersion: (state.requestVersion || 0) + 1 });
+      Object.assign(state, { city, data: null, pending: null, pendingKey: null, loadedKey: null,
+        requestVersion: (state.requestVersion || 0) + 1 });
       state.body.hidden = state.legend.hidden = state.coverage.hidden = true;
       state.status.textContent = '';
       state.loadError = null;
@@ -852,9 +898,16 @@
       }
       return;
     }
-    if (!state.data && !state.pending && !state.loadError) {
+    const query = mapQuery(ctx, state);
+    if (state.data?.partitioned && state.loadedKey === query.key
+        && state.pending && state.pendingKey !== query.key && !state.pendingNavigation) {
+      // The viewport already has the requested result. A late response for
+      // the abandoned selection would replace its markers until a reload.
+      state.pending = state.pendingKey = null;
+    }
+    if (!state.data && !state.loadError && state.pendingKey !== query.key) {
       state.status.textContent = 'Ratsvorgänge werden geladen …';
-      loadSnapshot(ctx, state);
+      loadSnapshot(ctx, state, false, false, query);
     }
     if (state.toggle.checked && state.data) {
       const { manifest } = state.data;
@@ -868,17 +921,28 @@
         return;
       }
       scheduleFreshnessCheck(ctx, state, freshness.nextCheckAt);
-      if (state.data.partitioned && state.loadedKey !== viewportKey(state) && state.pendingKey !== viewportKey(state)) loadSnapshot(ctx, state);
+      if (state.data.partitioned && state.loadedKey !== query.key && state.pendingKey !== query.key) {
+        loadSnapshot(ctx, state, false, false, query);
+      }
       draw(ctx, state, state.filter.checked ? rect : null, freshness);
     }
   }
 
-  function viewportKey(state) {
-    return `${rectOf(state.map.getBounds())?.join(',')}|${state.map.getZoom()}`;
+  function mapQuery(ctx, state) {
+    let bounds = rectOf(state.map.getBounds());
+    const selection = state.filter.checked && rectOf(ctx.selectionBounds);
+    if (bounds && selection) {
+      const clipped = [Math.max(bounds[0], selection[0]), Math.max(bounds[1], selection[1]),
+        Math.min(bounds[2], selection[2]), Math.min(bounds[3], selection[3])];
+      // An off-screen selection is still the useful query scope for record navigation.
+      bounds = clipped[0] <= clipped[2] && clipped[1] <= clipped[3] ? clipped : selection;
+    }
+    const zoom = state.map.getZoom();
+    return { bounds, zoom, key: `${bounds?.join(',')}|${zoom}` };
   }
 
-  function loadSnapshot(ctx, state, revalidate = false, navigation = false) {
-    const key = viewportKey(state);
+  function loadSnapshot(ctx, state, revalidate = false, navigation = false, query = mapQuery(ctx, state)) {
+    const { key, bounds, zoom } = query;
     if (state.pending && state.pendingKey === key && !revalidate) {
       state.pendingNavigation ||= navigation;
       return state.pending;
@@ -886,7 +950,7 @@
     if (state.data && !revalidate && (!state.data.partitioned || state.loadedKey === key)) return Promise.resolve(state.data);
     const city = state.city;
     const version = state.requestVersion = (state.requestVersion || 0) + 1;
-    const options = { bounds: rectOf(state.map.getBounds()), zoom: state.map.getZoom(), maxFeatures: 1000, ...(revalidate ? { revalidate: true } : {}) };
+    const options = { bounds, zoom, maxFeatures: zoom >= 14 ? 1500 : 1000, ...(revalidate ? { revalidate: true } : {}) };
     const request = Promise.resolve().then(() => UA.RisCatalogue.loadMap(city, options)).then(indexSnapshot);
     state.pending = request;
     state.pendingKey = key;

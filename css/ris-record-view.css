@@ -1,5 +1,10 @@
 /* Map/list/document workspace and process line inspired by Ratsatlas Bonn.
    See docs/licenses/ratsatlas-bonn-MIT.txt and docs/ris-catalogue.md. */
+:root {
+  --ris-results-width: clamp(18rem, 24vw, 22.5rem);
+  --ris-document-width: clamp(22rem, 29vw, 29rem);
+  --ris-compact-width: clamp(18rem, calc(48vw - 8px), 26rem);
+}
 .ris-details {
   --ris-ink: #202536;
   --ris-muted: #535d6c;
@@ -11,7 +16,7 @@
   z-index: 1300;
   display: flex;
   flex-direction: column;
-  width: min(34rem, calc(100vw - 2rem));
+  width: min(var(--ris-document-width), calc(100vw - 2rem));
   height: calc(100vh - 5.75rem);
   height: calc(100dvh - 5.75rem);
   min-width: 0;
@@ -144,7 +149,6 @@
 .ris-details.ris-details--collapsed {
   inset-block-start: auto;
   inset-block-end: 1rem;
-  width: min(33rem, calc(100vw - 2rem));
   height: auto;
 }
 
@@ -425,15 +429,7 @@
 .ris-record-view__pager button { min-width: 0; }
 .ris-record-view__page-label { color: var(--ris-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
 
-@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
-  .ris-details {
-    inset: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
-    width: auto;
-    max-width: none;
-    height: auto;
-    border-radius: 12px;
-  }
-
+@media (max-width: 640px) {
   .ris-details__toolbar { display: block; padding: 8px 10px; }
   .ris-details__toolbar h2 { margin-bottom: 4px; font-size: .8rem; }
   .ris-details__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
@@ -458,15 +454,6 @@
   .ris-record-view__evidence { padding: 10px; }
   .ris-record-view__pager { gap: 7px; }
   .ris-record-view__pager button { padding-inline: 7px; }
-
-  .ris-details.ris-details--collapsed {
-    inset-block-start: max(8px, env(safe-area-inset-top));
-    inset-inline-start: max(8px, env(safe-area-inset-left));
-    inset-inline-end: auto;
-    inset-block-end: auto;
-    width: min(16rem, calc(100vw - 8.5rem));
-    height: auto;
-  }
 
   .ris-details--collapsed .ris-details__actions { display: flex; }
   .ris-details--collapsed .ris-details__actions button { flex: 1 1 auto; overflow-wrap: normal; }
@@ -504,7 +491,7 @@
   inset: 4.75rem auto 1rem 1rem;
   z-index: 1300;
   flex-direction: column;
-  width: min(23rem, calc(100vw - 2rem));
+  width: min(var(--ris-results-width), calc(100vw - 2rem));
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -588,10 +575,16 @@
 .ris-browser__footer button { width: 100%; }
 .ris-browser__pager { display: flex; flex-wrap: wrap; gap: 7px; margin: 16px 3px 4px; }
 .ris-browser__pager button { flex: 1 1 120px; }
-.ris-browser.ris-browser--collapsed { inset-block-start: auto; height: auto; width: min(23rem, calc(100vw - 2rem)); }
+.ris-browser.ris-browser--collapsed { inset-block-start: auto; height: auto; }
 .ris-browser--collapsed .ris-browser__toolbar { border-bottom: 0; }
-body.ris-list-open:not(.ris-list-collapsed) #panel { display: none; }
-body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--collapsed) { width: min(32rem, calc(100vw - 27rem)); }
+body.ris-list-open:not(.ris-list-collapsed) #panel,
+body.ris-document-open #panel { display: none; }
+body.ris-list-open:not(.ris-list-collapsed, .map-layout-compact) #map .leaflet-left {
+  left: calc(var(--ris-results-width) + 1rem);
+}
+body.ris-document-open:not(.map-layout-compact) #map .leaflet-right {
+  right: calc(var(--ris-document-width) + 1rem);
+}
 
 .ris-result { margin: 0 0 8px; padding: 12px; border: 1px solid #e1dce8; border-radius: 11px; background: #fff; overflow-wrap: anywhere; }
 .ris-result:hover { border-color: #b29bc9; background: #fcfaff; }
@@ -670,39 +663,59 @@ body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--colla
   .ris-workspace-launcher span { display: none; }
 }
 
-@media (max-width: 980px) {
-  body.ris-list-open.ris-document-open #polCtxPanel { display: none !important; }
-  body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--collapsed) { width: min(38rem, calc(100vw - 2rem)); }
-  body.ris-list-open:not(.ris-list-collapsed) .ris-details--collapsed { display: none; }
-  .ris-details__toolbar { gap: 7px; }
+/* List and document take turns in the same rail on compact maps. */
+body.map-layout-compact :is(.ris-browser, .ris-details) {
+  inset: 4.4rem auto max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  width: var(--ris-compact-width);
+  max-width: none;
+  height: auto;
+  border-radius: 12px;
+}
+body.map-layout-compact:is(.ris-list-collapsed, .ris-document-open) #polCtxPanel,
+body.map-layout-compact:has(#map .ua-ris-popup) #polCtxPanel { display: none !important; }
+body.map-layout-compact.ris-list-open:not(.ris-list-collapsed) .ris-details--collapsed,
+body.map-layout-compact:has(#map .ua-ris-popup) .ris-details { display: none; }
+body.map-layout-compact:has(#map .ua-ris-popup) .ris-workspace-launcher {
+  width: 44px;
+  padding: 10px;
+  justify-content: center;
+}
+body.map-layout-compact:has(#map .ua-ris-popup) .ris-workspace-launcher span { display: none; }
+body.map-layout-compact .ris-details.ris-details--collapsed {
+  inset-block-start: max(8px, env(safe-area-inset-top));
+  inset-block-end: auto;
+  width: min(19rem, calc(100vw - 8.5rem));
+}
+body.map-layout-compact .ris-details--collapsed .ris-details__back { display: none; }
+body.map-layout-compact .ris-details__toolbar { gap: 7px; }
+
+@media (max-height: 550px) {
+  body.map-layout-compact .ris-browser__body { overflow-y: auto; overscroll-behavior: contain; }
+  body.map-layout-compact .ris-browser__results { flex: none; overflow: visible; }
 }
 
-@media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
+@media (max-width: 640px) {
   .ris-workspace-launcher { inset-inline-start: 12px; transform: none; }
-  .ris-browser { inset: 4.4rem 8px max(8px, env(safe-area-inset-bottom)); width: auto; border-radius: 12px; }
+  body.map-layout-compact :is(.ris-browser, .ris-details):not(.ris-details--collapsed) {
+    inset: auto 8px max(8px, env(safe-area-inset-bottom));
+    width: auto;
+    height: min(68dvh, calc(100dvh - 4.8rem));
+  }
   .ris-browser__toolbar { padding: 9px 11px; }
   .ris-browser__search { padding: 10px 12px 5px; }
   .ris-browser__hint { display: none; }
   .ris-browser__footer { padding: 7px 12px 10px; }
   .ris-browser__status { padding: 5px 12px 8px; }
-  .ris-browser.ris-browser--collapsed { inset-block-start: auto; width: min(23rem, calc(100vw - 16px)); }
-  .ris-details { inset: 4.4rem 8px max(8px, env(safe-area-inset-bottom)); height: auto; }
-  body.ris-list-open:not(.ris-list-collapsed) .ris-details:not(.ris-details--collapsed) { width: auto; }
-  body.ris-document-open #panel { display: none; }
   .ris-details__toolbar { display: flex; padding: 8px 10px; }
   .ris-details__toolbar h2 { flex: 1; margin: 0; }
   .ris-details__actions { flex-basis: 100%; width: 100%; }
   .ris-details__back { order: 0; }
-  .ris-details.ris-details--collapsed { inset-block-start: max(8px, env(safe-area-inset-top)); width: min(16rem, calc(100vw - 8.5rem)); }
   .ris-details--collapsed .ris-details__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ris-details--collapsed .ris-details__actions button { padding-inline: 2px; overflow-wrap: normal; }
-  .ris-details--collapsed .ris-details__back { display: none; }
   body:has(#risDetails.ris-details--collapsed:not([hidden])) .ris-workspace-launcher {
     inset-inline-start: auto; inset-inline-end: 5rem; width: 44px; padding: 10px; justify-content: center;
   }
   body:has(#risDetails.ris-details--collapsed:not([hidden])) .ris-workspace-launcher span { display: none; }
-  body:has(#map .ua-ris-popup) .ris-details--collapsed,
-  body:has(#map .ua-ris-popup) .ris-workspace-launcher { display: none; }
   .ris-process-step__summary { column-gap: 8px; }
   .ris-process-step__summary .ris-process-step__body { font-size: .88rem; }
   .ris-record-view__relation-path { grid-template-columns: minmax(0, auto) minmax(4rem, 1fr) minmax(0, auto); gap: 6px; }

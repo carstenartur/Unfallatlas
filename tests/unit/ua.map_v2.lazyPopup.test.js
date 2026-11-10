@@ -81,6 +81,9 @@ describe('UA.renderLayers lazy accident popups', () => {
 
     UA.renderLayers(ctx);
     expect(markers).toHaveLength(2);
+    expect(clusterLayer.addTo.mock.invocationCallOrder[0]).toBeLessThan(
+      clusterLayer.addLayers.mock.invocationCallOrder[0]
+    );
     expect(UA.renderAccidentBasePopupHtml).not.toHaveBeenCalled();
     expect(UA.composeAccidentPopupHtml).not.toHaveBeenCalled();
     expect(markers.every(marker => marker.bindPopup.mock.calls.length === 0)).toBe(true);
@@ -112,5 +115,89 @@ describe('UA.renderLayers lazy accident popups', () => {
 
     // The untouched second marker still has no popup allocation.
     expect(markers[1].bindPopup).not.toHaveBeenCalled();
+  });
+
+  test('a replaced cluster cancels its remaining batches and cannot publish obsolete progress', () => {
+    jest.useFakeTimers();
+    try {
+      const { UA, win, markers, clusterLayer } = loadMapModule();
+      clusterLayer.remove = jest.fn();
+      const replacement = {
+        on: jest.fn(), addTo: jest.fn(), addLayers: jest.fn(), getLayers: () => []
+      };
+      let revision = 0;
+      UA._lifecycleReporter = {
+        beginRender: () => ++revision,
+        reportLayer: jest.fn(),
+        finishRender: jest.fn(),
+      };
+      const point = { lat: 50.70, lon: 7.10, props: { ukategorie: '1' } };
+      const ctx = {
+        lifecyclePrimary: true,
+        map: { getZoom: () => 15 },
+        viewportPts: Array.from({ length: 1000 }, () => point),
+        showCluster: true,
+        ui: { statEl: { textContent: '' } },
+      };
+      UA.renderLayers(ctx);
+      const initialCount = markers.length;
+      expect(initialCount).toBeGreaterThan(0);
+      expect(initialCount).toBeLessThan(1000);
+      expect(UA._lifecycleReporter.reportLayer).toHaveBeenCalledWith(
+        1, 'cluster', expect.objectContaining({ processed: initialCount, complete: false })
+      );
+
+      win.L.markerClusterGroup.mockReturnValueOnce(replacement);
+      ctx.viewportPts = [point];
+      ctx._dataChanged = true;
+      UA.renderLayers(ctx);
+      const afterReplace = UA._lifecycleReporter.reportLayer.mock.calls.length;
+      jest.runAllTimers();
+
+      expect(clusterLayer.remove).toHaveBeenCalledTimes(1);
+      expect(markers).toHaveLength(initialCount);
+      expect(ctx.clusterLayer).toBe(replacement);
+      expect(UA._lifecycleReporter.reportLayer).toHaveBeenCalledWith(
+        2, 'cluster', expect.objectContaining({ processed: 1, complete: true })
+      );
+      expect(UA._lifecycleReporter.reportLayer).toHaveBeenCalledTimes(afterReplace);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('cluster paint readiness rechecks for replacement work between paint frames', async () => {
+    jest.useFakeTimers();
+    try {
+      const { UA, win, markers } = loadMapModule();
+      const frames = [];
+      win.requestAnimationFrame = callback => frames.push(callback);
+      const point = { lat: 50.70, lon: 7.10, props: {} };
+      const ctx = {
+        map: { getZoom: () => 15 },
+        viewportPts: Array.from({ length: 1000 }, () => point),
+        showCluster: true,
+        ui: { statEl: { textContent: '' } },
+      };
+      const finished = jest.fn();
+      const readiness = UA.waitForAccidentClusterPaint(ctx.map, Date.now() + 100).then(finished);
+      frames.shift()();
+      // The render-limit commit runs in the first animation frame, after
+      // the initial readiness check found no pending cluster.
+      UA.renderLayers(ctx);
+      frames.shift()();
+      await Promise.resolve();
+      expect(finished).not.toHaveBeenCalled();
+      expect(markers.length).toBeLessThan(1000);
+
+      await jest.advanceTimersByTimeAsync(10);
+      expect(markers).toHaveLength(1000);
+      frames.shift()();
+      frames.shift()();
+      await readiness;
+      expect(finished).toHaveBeenCalledWith(true);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

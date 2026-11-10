@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '../..');
-const COMPACT_QUERY = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
+const COMPACT_QUERY = '(max-width: 1279px), (max-width: 1440px) and (pointer: coarse), (max-height: 500px) and (pointer: coarse)';
 const desktopPreference = 'ua_panel_collapsed';
 const phonePreference = 'ua_panel_collapsed_mobile';
 const markup = fs.readFileSync(path.join(ROOT, 'werkbank_v2.html'), 'utf8');
@@ -17,7 +17,7 @@ let viewportMedia;
 function setViewport(width, height, pointer = 'coarse') {
   // jsdom does not evaluate media queries; model the browser's answer and
   // change event for the responsive stylesheet's compact-screen query.
-  const matches = width <= 640 || (height <= 500 && pointer === 'coarse');
+  const matches = width <= 1279 || (pointer === 'coarse' && (width <= 1440 || height <= 500));
   if (!viewportMedia) {
     viewportMedia = new EventTarget();
     viewportMedia.media = COMPACT_QUERY;
@@ -49,6 +49,7 @@ describe('UA panel disclosure before data loading', () => {
     window.UA = {};
     viewportMedia = null;
     setViewport(390, 844);
+    loadScript('ua.core.js');
     loadScript('ua.utils.js');
     loadScript('ua.state.js');
     loadScript('ua.ui.js');
@@ -83,6 +84,8 @@ describe('UA panel disclosure before data loading', () => {
 
   test.each([
     ['phone landscape', 844, 390, 'coarse', true],
+    ['tablet portrait', 810, 1080, 'coarse', true],
+    ['wide tablet landscape', 1366, 1024, 'coarse', true],
     ['narrow window', 600, 900, 'fine', true],
     ['desktop', 1440, 900, 'fine', false],
     ['short desktop window', 1280, 480, 'fine', false],
@@ -92,6 +95,7 @@ describe('UA panel disclosure before data loading', () => {
     UA.bindDom(ctx);
 
     expect(ctx.ui.panelEl.classList.contains('collapsed')).toBe(collapsed);
+    expect(document.body.classList.contains('map-layout-compact')).toBe(collapsed);
     expect(ctx.ui.collapseBtn.getAttribute('aria-expanded')).toBe(String(!collapsed));
     expect(localStorage.getItem(phonePreference)).toBeNull();
     expect(localStorage.getItem(desktopPreference)).toBeNull();

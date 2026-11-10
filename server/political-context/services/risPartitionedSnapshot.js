@@ -6,6 +6,7 @@ const {
   gzipSync
 } = require('node:zlib');
 const P = require('../../../js/ua.ris-partitions');
+const RisSources = require('../../../js/ua.ris-sources');
 const grid = require('../../../js/ua.spatial-grid');
 const { buildProvenance, assertProvenance, verifyDistribution } = require('./risProvenance');
 const {
@@ -121,6 +122,17 @@ function tileKeys(bounds) {
     throw error;
   }
 }
+function countCatalogueLevels(records, mappedIds) {
+  const counts = {};
+  for (const record of records) {
+    const level = RisSources.levelOf(record) || 'unknown';
+    const row = counts[level] ??= { records: 0, mapped: 0 };
+    row.records++;
+    if (mappedIds.has(record.id)) row.mapped++;
+  }
+  return counts;
+}
+
 async function writePartitionedSnapshot(directory, city, catalogue, {
   now = Date.now, spatialFormat = P.SPATIAL_FORMAT
 } = {}) {
@@ -320,6 +332,7 @@ async function writePartitionedSnapshot(directory, city, catalogue, {
     gridZoom: 12,
     recordCount: records.length,
     mappedRecordCount: recordGeometry.size,
+    levelCounts: countCatalogueLevels(records, recordGeometry),
     geometryCount: geometries.size,
     overviewZoom,
     roots,
@@ -494,8 +507,8 @@ async function readPartitionedSnapshot(directory, city, value) {
   if (audit) for (const [id, {feature}] of audit.verify()) await appendGeometry(id, feature);
   await verifyDistribution(directory, m.provenance, [...assets.values()]);
 
-  if (geometryCount !== m.geometryCount
-      || new Set(features.map(f => f.properties.recordId)).size !== m.mappedRecordCount) throw new Error('RIS map count mismatch');
+  const mappedIds = new Set(features.map(f => f.properties.recordId));
+  if (geometryCount !== m.geometryCount || mappedIds.size !== m.mappedRecordCount) throw new Error('RIS map count mismatch');
   const {
       hosts
     } = I.normalizeSources(m.sources, city),
@@ -505,6 +518,14 @@ async function readPartitionedSnapshot(directory, city, value) {
     features
   }, normalized.byId, features.length, Number.MAX_SAFE_INTEGER)
       || !I.validLocationAssessmentSummary(m.locationAssessment, records.length, records)) throw new Error('Invalid RIS partition records/map');
+  if (m.levelCounts) {
+    const counts = countCatalogueLevels(normalized.records, mappedIds);
+    if (Object.keys(counts).length !== Object.keys(m.levelCounts).length
+        || Object.entries(counts).some(([level, row]) =>
+          row.records !== m.levelCounts[level]?.records || row.mapped !== m.levelCounts[level]?.mapped)) {
+      throw new Error('RIS level counts do not match the catalogue records');
+    }
+  }
   return {
     manifest: m,
     records: normalized.records,
@@ -516,6 +537,7 @@ async function readPartitionedSnapshot(directory, city, value) {
 }
 module.exports = {
   partitionFormat: {buildSpatialEntries},
+  countCatalogueLevels,
   writePartitionedSnapshot,
   readPartitionedSnapshot,
   enumerateSnapshotAssets

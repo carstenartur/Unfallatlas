@@ -423,7 +423,6 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
 .mobility-layer-status { margin: 3px 0 0; color: #555; }
 .carte-control [data-map-group="ris"] > div { max-width: none !important; }
 @media (min-width: 641px) and (max-width: 780px) {
-  .panel { width: calc(100vw - 330px); }
   .panel .row { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -718,6 +717,38 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
 }
 
 /* ============================================================
+   Compact map layout (phone, tablet and narrow browser windows)
+   ============================================================ */
+:where(body.map-layout-compact) .panel {
+  position: fixed;
+  inset: auto auto max(8px, env(safe-area-inset-bottom)) 8px;
+  width: min(26rem, 46vw);
+  max-height: 62dvh;
+  overscroll-behavior: contain;
+}
+:where(body.map-layout-compact) .panel.collapsed {
+  width: min(280px, calc(100vw - 16px));
+  max-width: none;
+}
+:where(body.map-layout-compact) :is(.collapseBtn, .legendBtn, .mapControlToggle) {
+  min-width: 44px;
+  min-height: 44px;
+}
+:where(body.map-layout-compact) .mapControl { max-width: calc(100vw - 78px); gap: 0; }
+:where(body.map-layout-compact) .context-overlay-legend { padding: 4px !important; }
+:where(body.map-layout-compact) .mapControlBody {
+  max-height: clamp(64px, calc(100dvh - 260px), 42dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+:where(body.map-layout-compact) .carte-control .mapControlBody { max-height: 50vh; max-height: 50dvh; }
+
+/* The compact popup is the only sheet while its location is being inspected. */
+body.map-layout-compact #map:has(.ua-ris-popup) + #panel,
+body.map-layout-compact #map:has(.ua-ris-popup) .leaflet-top.leaflet-right,
+body.map-layout-compact #map:has(.ua-ris-popup) .mapControl { display: none; }
+
+/* ============================================================
    Responsive task surface (phone portrait / touch)
    ============================================================ */
 @media (max-width: 640px), (max-height: 500px) and (pointer: coarse) {
@@ -732,10 +763,6 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
     box-shadow: 0 -8px 28px rgba(0,0,0,.22);
     overscroll-behavior: contain;
   }
-  /* Keep the compact record and its close action clear of overlapping controls. */
-  #map:has(.ua-ris-popup) + #panel,
-  #map:has(.ua-ris-popup) .leaflet-top.leaflet-right,
-  #map:has(.ua-ris-popup) .mapControl { display: none; }
   .panelHeader {
     z-index: 4;
     background: rgba(255,255,255,.98);
@@ -752,18 +779,6 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
   }
   .panelTitle { font-size: 15px; }
   .panelSub { font-size: 11px; }
-  .mapControl {
-    max-width: calc(100vw - 78px);
-    gap: 0;
-  }
-  .context-overlay-legend { padding: 4px !important; }
-  .mapControlToggle { min-width: 44px; min-height: 44px; }
-  .mapControlBody {
-    max-height: clamp(64px, calc(100dvh - 260px), 42dvh);
-    overflow: auto;
-    overscroll-behavior: contain;
-  }
-  .carte-control .mapControlBody { max-height: 50vh; max-height: 50dvh; }
   .layerLegendItems { flex-direction: row; flex-wrap: wrap; max-width: 150px; }
   .legend-item { width: 44px; height: 44px; flex: 0 0 44px; }
   .row {

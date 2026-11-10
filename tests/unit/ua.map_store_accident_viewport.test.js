@@ -121,6 +121,28 @@ describe('MapStore viewport accident lifecycle', () => {
     expect(UA.renderLayers).toHaveBeenCalledTimes(1);
   });
 
+  test('changing the render limit keeps an in-flight viewport load current', async () => {
+    const UA = makeUA();
+    installRenderSpies(UA);
+    const result = deferred();
+    UA.requestAccidentViewport = jest.fn(() => result.promise);
+    UA.commitAccidentViewportResult = jest.fn(() => true);
+    UA.applyRenderPointLimit = jest.fn();
+    const ctx = context();
+    const store = UA.MapStore.create(ctx);
+
+    store.dispatch('viewportChanged', { debounceMs: 0 });
+    jest.runOnlyPendingTimers();
+    store.dispatch('renderLimitChanged');
+    jest.runOnlyPendingTimers();
+    expect(UA.applyRenderPointLimit).toHaveBeenCalledWith(ctx);
+
+    result.resolve({ committed: true });
+    await flushPromises();
+    expect(UA.commitAccidentViewportResult).toHaveBeenCalledWith(ctx, { committed: true });
+    expect(UA.renderLayers).toHaveBeenCalledTimes(1);
+  });
+
   test('full-city mode never asks the tiled provider during pan or zoom', async () => {
     const UA = makeUA();
     installRenderSpies(UA);

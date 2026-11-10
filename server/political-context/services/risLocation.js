@@ -27,6 +27,9 @@ const TITLE_ADDRESS_SUFFIX = /^\s+[-–]\s*(?:(?:modifizierter\s+)?einleitungsbe
 const HANNOVER_SCOPE = /\bin\s+(?:(?:der\s+)?(?:landeshauptstadt|stadt)\s+)?hannover(?![\p{L}\p{M}\p{N}'-])/gu;
 const REGION_NON_MEASURE = /\b(?:kontakt|anschrift|postanschrift|besucheranschrift|adresse|postfach|rathaus|regionshaus|dienstgebäude|verwaltungsgebäude|geschäftsstelle|ansprechpartner|beschlossen|beschlussfassung|beraten|beratung|vorgestellt|erörtert|abgestimmt|verabschiedet)\b/u;
 const REGION_SCOPE_EXCLUSION = /\b(?:ausserhalb|ausser|nicht|kein(?:e|en|em|er|es)?|ohne|statt|anstatt|wie|als|vergleich|vorbild|hingegen|dagegen)\b/u;
+const FACILITY_NEARBY = /(?:^|\s)(?:gegenüber|neben|vor|hinter|in der nähe von|(?:auf|in) höhe|zwischen|(?:ein|aus|zu)fahrt(?:en|stor)?|(?:ein|aus|zu)gang|vorplatz|tor)[\s,:–-]+(?:(?:direkt|unmittelbar|an|von|zu|der|den|dem|das|des|die|zur|zum)\s+)*$/u;
+const FACILITY_STREET_CONTINUATION = /^\s*(?:[/&]|(?:und|oder|bis|sowie|bzw|zwischen)\b)/u;
+const HOUSE_NUMBER_CUE = /^[\s,(:\["–-]+(?:\d|(?:nr|haus[- ]?nr|hausnummern?)(?=\b|\d))/u;
 
 function normalize(text, preserveSpacedDashes = false) {
   return typeof text === 'string' ? text.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss')
@@ -93,6 +96,34 @@ function indexGazetteer(gazetteer) {
   return byFirstWord;
 }
 
+function indexPublicFacilities(gazetteer) {
+  const result = new Map();
+  const facilities = gazetteer.publicFacilities;
+  if (!facilities?.entries?.length || !facilities.attribution) return result;
+  const streets = new Map(gazetteer.entries.filter(entry => entry.kind === 'street').map(entry => [entry.name, entry]));
+  for (const facility of facilities.entries) {
+    const street = streets.get(facility.street);
+    if (!street || !facility.name || !facility.houseNumber) continue;
+    const number = normalize(facility.houseNumber).replace(/\s+/gu, '');
+    const coordinates = facility.coordinates ?? gazetteer.addresses?.[street.streetKey]?.[number];
+    if (!isPosition(coordinates)) continue;
+    const names = [facility.name, ...(facility.aliases || [])].map(value => RegExp.escape(measureSubject(value)));
+    const name = '(?:' + names.join('|') + ')';
+    const preceding = new RegExp(
+      String.raw`(?<![\p{L}\p{M}\p{N}'-])${name}\s*(?:[,(:–-]\s*)?(?:(?:am|im|an|in|auf)\s+(?:(?:der|dem|die|den)\s+)?)?$`, 'u');
+    const following = new RegExp(
+      String.raw`^(?:\s*,\s*|\s+(?:im stadtteil [\p{L}\p{M}-]+\s+)?)(?:(?:der|die|des|dem|eine|einer)\s+)?${name}(?![\p{L}\p{M}\p{N}'-]|\s*\d|\s*\(\s*frw\b)`, 'u');
+    const address = street.name + ' ' + facility.houseNumber;
+    const attribution = [{ attribution: facilities.attribution }];
+    if (!facility.coordinates && gazetteer.addressAttribution) attribution.push({ attribution: gazetteer.addressAttribution });
+    const found = location('place', facility.name + ' (' + address + ')', { type: 'Point', coordinates }, attribution);
+    const entries = result.get(street.name) || [];
+    entries.push({ preceding, following, address, number, from: facility.from, found });
+    result.set(street.name, entries);
+  }
+  return result;
+}
+
 function matchSingleLocation(text, byFirstWord, fromDocument = false) {
   const subject = normalize(text).replace(/^(?:anfrage|antrag|änderungsantrag|antwort|stellungnahme) (?:der|des) [^:]+:\s*/u, '');
   if (!subject || LIMITED_SCOPE.test(subject) || MULTIPLE_LOCATIONS.test(subject)) return null;
@@ -123,7 +154,7 @@ function matchSingleLocation(text, byFirstWord, fromDocument = false) {
   // A street in a reply may locate a stop or a building. Its full line is
   // appropriate only if the roadway itself is the subject of the statement.
   const geometry = !fromDocument || entry.kind === 'place' || namesRoadway ? entry.geometry : undefined;
-  return { entry, geometry };
+  return { entry, geometry, namesRoadway };
 }
 
 function mentions(subject, byFirstWord, includeUnverified = false) {
@@ -248,7 +279,7 @@ function addressTail(subject, city, allowClosingFence = false) {
     const postal = /^\s*,\s*\d{5}\s+([\p{L}\p{M}]+)(?:-[\p{L}\p{M}-]+)?(.*)$/u.exec(subject.slice(end));
     if (city && postal && normalize(postal[1]) === normalize(city)
         && (/^\s*[.!]?\s*$/u.test(postal[2])
-          || /^\s+(?:zum thema|des trägers|ersatzneubau|neubau|2\.\s*bauabschnitt)\b/u.test(postal[2]))) return { items, end };
+          || /^\s+(?:zum thema|des trägers|ersatzneubau|neubau|2\.\s*bauabschnitt)\b/u.test(postal[2]))) return { items, end, postal: true };
     const separator = ADDRESS_SEPARATOR.exec(subject.slice(end));
     if (!separator || items.length === 8) break;
     end += separator[0].length;
@@ -282,6 +313,33 @@ function measureAddresses(subject, streets, gazetteer, used) {
   return results;
 }
 
+function measurePublicFacilities(subject, streets, facilities, city, date, used) {
+  const results = [];
+  for (const hit of streets) {
+    const candidates = facilities.get(hit.entry.name);
+    if (!candidates) continue;
+    const before = subject.slice(0, hit.index);
+    const tail = subject.slice(hit.end);
+    const address = addressTail(tail, city);
+    if (address && address.items.length !== 1) continue;
+    const after = tail.slice(address?.end ?? 0);
+    if (!address?.postal && HOUSE_NUMBER_CUE.test(after)) continue;
+    if (!address && FACILITY_STREET_CONTINUATION.test(after)) continue;
+    const matched = candidates.filter(facility => {
+      if (address && address.items[0].key !== facility.number) return false;
+      if (!address && facility.from && (!/^\d{4}-\d{2}-\d{2}$/u.test(date) || date < facility.from)) return false;
+      const leading = facility.preceding.exec(before);
+      if (!leading && !(address && facility.following.test(after))) return false;
+      if (FACILITY_NEARBY.test(leading ? before.slice(0, leading.index) : before)) return false;
+      return !isPetitionerContactAddress({ kind: 'address', label: facility.address, evidence: { text: subject } });
+    });
+    if (matched.length !== 1) continue;
+    used.add(hit);
+    results.push(matched[0].found);
+  }
+  return results;
+}
+
 function measurePlaceList(subject, hits) {
   const list = new Set();
   const bounded = [];
@@ -303,6 +361,7 @@ function measurePlaceList(subject, hits) {
 
 function measureSubject(text) {
   return normalize(text, true)
+    .replace(/\bfeuer-\s*und\s+rettungswache\b/gu, 'feuer- und rettungswache')
     .replace(/(\p{L})str(?:\.(?=\s|[/,;)]|$)|(?=\s+\d))/gu, '$1strasse')
     .replace(/([\p{L}\p{M}-]+)-\s+(und|sowie|oder)\s+((?:(?:die|der|den)\s+)?[\p{L}\p{M}-]+strasse)\b/gu,
       '$1strasse $2 $3');
@@ -345,7 +404,7 @@ function hannoverLocationScope(text, byFirstWord) {
   }));
 }
 
-function parseMeasureLocations(text, byFirstWord, gazetteer) {
+function parseMeasureLocations(text, byFirstWord, gazetteer, publicFacilities, date) {
   const subject = measureSubject(text);
   const hits = mentions(subject, byFirstWord);
   const used = new Set();
@@ -353,6 +412,7 @@ function parseMeasureLocations(text, byFirstWord, gazetteer) {
   return [
     ...measureSections(subject, hits, byFirstWord, used),
     ...measureJunctions(subject, remainingStreets(), used),
+    ...(publicFacilities?.size ? measurePublicFacilities(subject, remainingStreets(), publicFacilities, gazetteer.city, date, used) : []),
     ...measureAddresses(subject, remainingStreets(), gazetteer, used),
     ...measurePlaceList(subject, hits.filter(hit => !used.has(hit))),
   ];
@@ -371,7 +431,7 @@ function isPetitionerContactAddress(location) {
   return /\bpetition\b/u.test(before) && /\bschriftliche eingabe (?:der|des|von)\b/u.test(before);
 }
 
-function measureLocations(record, byFirstWord, gazetteer, limit, requireHannoverScope = false) {
+function measureLocations(record, byFirstWord, gazetteer, limit, requireHannoverScope, facilities) {
   const document = (Array.isArray(record.locationEvidence) ? record.locationEvidence : [])
     .filter(paragraph => typeof paragraph === 'string' && paragraph.trim()).flatMap(paragraph =>
     paragraph.split(/(?<=[.!?])\s+(?=[\p{Lu}„])/u));
@@ -386,6 +446,8 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
   const evidence = scoped ? allEvidence.flatMap(proof => typeof proof.text === 'string'
     ? proof.text.split(/(?<=[.!?])\s+(?=[\p{Lu}„])|[\r\n]+/u).map(text => ({ source: proof.source, text })) : [])
     .filter(proof => hannoverLocationScope(proof.text, byFirstWord)) : allEvidence;
+  const source = gazetteer.publicFacilities?.source;
+  const publicFacilities = !source || source === record.source || requireHannoverScope ? facilities : null;
   const locations = new Map();
   const reasons = new Set();
   const general = [];
@@ -405,17 +467,25 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     const normalized = normalize(proof.text);
     if (MEETING_CUE.test(normalized) || COMPARISON_CUE.test(normalized)) continue;
     if (mentions(normalized, byFirstWord, true).some(hit => !hit.entry)) reasons.add('unverified_name');
-    const specific = parseMeasureLocations(proof.text, byFirstWord, gazetteer);
+    const specific = parseMeasureLocations(proof.text, byFirstWord, gazetteer, publicFacilities, record.date);
     for (const found of specific) keep(found, proof);
     if (!specific.length) {
       const match = matchSingleLocation(proof.text, byFirstWord, proof.source === 'document');
       if (match) general.push({ ...match, proof });
     }
   }
-  const specified = new Set([...locations.values()].flatMap(found =>
-    mentions(normalize(found.label), byFirstWord).map(hit => hit.entry)));
-  for (const { entry, geometry, proof } of general) {
-    if (!specified.has(entry)) keep(location(entry.kind, entry.name, geometry, [entry]), proof);
+  const specified = new Map();
+  for (const found of locations.values()) {
+    const placePoint = found.kind === 'place' && found.geometry?.type === 'Point';
+    for (const { entry } of mentions(normalize(found.label), byFirstWord)) {
+      specified.set(entry, specified.get(entry) || !placePoint);
+    }
+  }
+  for (const { entry, geometry, proof, namesRoadway } of general) {
+    // A named point along a street cannot stand in for an independent road measure.
+    if (!specified.has(entry) || namesRoadway && !specified.get(entry)) {
+      keep(location(entry.kind, entry.name, geometry, [entry]), proof);
+    }
   }
   let selected = [...locations.values()].slice(0, limit);
   const truncated = locations.size > limit;
@@ -447,6 +517,7 @@ function enrichRisLocations(records, { city, gazetteer, maxLocationsPerRecord = 
   }
   const byFirstWord = city && gazetteer?.city === city && Array.isArray(gazetteer.entries) && gazetteer.entries.length
     ? indexGazetteer(gazetteer) : null;
+  const facilities = byFirstWord ? indexPublicFacilities(gazetteer) : null;
   return records.map(record => {
     const official = record.locationSource === 'official' && validSourceGeometry(record.geometry);
     const sources = ['title'];
@@ -457,7 +528,7 @@ function enrichRisLocations(records, { city, gazetteer, maxLocationsPerRecord = 
     // The legacy format reserves one slot for official geometry. Partitioned
     // publication pages locations and can retain every identified mention.
     const result = byFirstWord ? measureLocations(record, byFirstWord, gazetteer, maxLocationsPerRecord - Number(official),
-      city === 'hannover' && record.source === 'region-hannover-ris')
+      city === 'hannover' && record.source === 'region-hannover-ris', facilities)
       : { locations: [], truncated: false, reasons: [], gazetteerApplicable: false };
     const reasons = [];
     if (!result.gazetteerApplicable) reasons.push('gazetteer_unavailable');

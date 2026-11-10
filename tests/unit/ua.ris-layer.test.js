@@ -165,6 +165,29 @@ describe('Ratsvorgänge in the V2 map', () => {
     expect(UA.RisCatalogue.loadMap).not.toHaveBeenCalled();
   });
 
+  test('the footer distinguishes published documents and mapped documents by political level', async () => {
+    mountPanelFooter();
+    loadScript('ua.ris-sources.js');
+    ctx.CITY_RAW = 'Hannover';
+    UA.RisCatalogue.loadManifest = jest.fn().mockResolvedValue({
+      schemaVersion: 2, generatedAt: new Date().toISOString(),
+      recordCount: 1100, mappedRecordCount: 16, geometryCount: 20, coverage: { complete: false, warnings: [] },
+      levelCounts: {
+        city: { records: 1000, mapped: 15 },
+        region: { records: 99, mapped: 1 },
+        unknown: { records: 1, mapped: 0 },
+      },
+      sourceStatuses: [{ source: 'landtag-catalogue', status: 'partial', recordCount: 0 }],
+    });
+    UA.refreshContextOverlays(ctx);
+    await flush();
+
+    const footer = document.querySelector('#panelBody #risCatalogueCount');
+    expect(footer.textContent).toMatch(/1\.100.*16 verortet.*Stadt 1\.000 \(15 verortet\).*Region 99 \(1 verortet\).*Land 0.*Ebene offen 1.*Teilbestand/);
+    expect(ctx.ui.statEl.textContent).toBe('Sichtbar: 34 Unfälle');
+    expect(UA.RisCatalogue.loadMap).not.toHaveBeenCalled();
+  });
+
   test('the footer drops a late result from the previous city and distinguishes unavailable counts from zero', async () => {
     mountPanelFooter();
     const bonn = deferred();
@@ -865,6 +888,90 @@ describe('Ratsvorgänge in the V2 map', () => {
     await flush();
     expect(risFeatures(ctx.map)[0]).toBe(layer);
     expect(layer.isPopupOpen()).toBe(true);
+  });
+
+  test('selection-only partitioned queries use the visible part of the marked area before loading geometries', async () => {
+    const bundle = partitionSnapshot([partitionFeature()]);
+    UA.RisCatalogue.loadMap.mockResolvedValue(bundle);
+    ctx.risView = { selectionOnly: true };
+    ctx.map.setZoom(14);
+    const viewport = ctx.map.getBounds();
+    ctx.selectionBounds = L.latLngBounds([50.69, viewport.getWest() - 0.01], [50.71, 7.11]);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+
+    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledWith('Bonn', expect.objectContaining({
+      bounds: [viewport.getWest(), 50.69, 7.11, 50.71], zoom: 14, maxFeatures: 1500,
+    }));
+    expect(risFeatures(ctx.map)).toHaveLength(1);
+    checkbox('Nur in markierter Fläche').click();
+    await flush();
+    expect(UA.RisCatalogue.loadMap).toHaveBeenLastCalledWith('Bonn', expect.objectContaining({
+      bounds: [viewport.getWest(), viewport.getSouth(), viewport.getEast(), viewport.getNorth()],
+    }));
+  });
+
+  test('local overview badges name geometry counts and drill into the associated group', async () => {
+    const group = { type: 'Feature', bounds: [7.08, 50.69, 7.12, 50.71],
+      geometry: { type: 'Point', coordinates: [7.1, 50.7] },
+      properties: { overview: true, spatialGroup: true, geometryId: 'group-a', geometryCount: 63 } };
+    const clipped = { ...group, bounds: [7.096, 50.69, 7.12, 50.71],
+      geometry: { type: 'Point', coordinates: [7.108, 50.7] } };
+    UA.RisCatalogue.loadMap
+      .mockResolvedValueOnce({ ...partitionSnapshot([group]), overview: true })
+      .mockResolvedValue({ ...partitionSnapshot([clipped]), overview: true });
+    UA.RisCatalogue.loadFeatureRecords = jest.fn();
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+
+    const marker = risFeatures(ctx.map)[0];
+    expect(marker.getElement().textContent).toBe('63');
+    expect(marker.getElement().getAttribute('aria-label')).toContain('63 Kartenlagen');
+    marker.openPopup();
+    ctx.map.panBy([10, 0], { animate: false });
+    await flush();
+    expect(risFeatures(ctx.map)[0]).toBe(marker);
+    expect(marker.isPopupOpen()).toBe(true);
+    expect(marker.getLatLng().lng).toBe(7.1);
+    marker.closePopup();
+    expect(marker.getLatLng().lng).toBe(7.108);
+    marker.openPopup();
+    const popup = document.querySelector('.ua-ris-popup');
+    expect(popup.textContent).toContain('63 Kartenlagen');
+    expect(popup.textContent).not.toContain('undefined');
+    const zoom = ctx.map.getZoom();
+    [...popup.querySelectorAll('button')].find(button => button.textContent === 'Für Details vergrößern').click();
+    expect(ctx.map.getZoom()).toBeGreaterThan(zoom);
+    expect(ctx.map.getCenter().lng).toBeCloseTo(7.108, 5);
+    expect(UA.RisCatalogue.loadFeatureRecords).not.toHaveBeenCalled();
+  });
+
+  test('a late selection-only result cannot replace the restored viewport', async () => {
+    const outside = partitionFeature('outside');
+    const inside = { ...partitionFeature('inside'), bounds: [7.12, 50.7, 7.12, 50.7],
+      geometry: { type: 'Point', coordinates: [7.12, 50.7] } };
+    const pendingSelection = deferred();
+    const full = partitionSnapshot([outside, inside]);
+    UA.RisCatalogue.loadMap.mockResolvedValue(full)
+      .mockResolvedValueOnce(full).mockReturnValueOnce(pendingSelection.promise);
+    ctx.selectionBounds = L.latLngBounds([50.69, 7.115], [50.71, 7.125]);
+    UA.refreshContextOverlays(ctx);
+    checkbox('Ratsvorgänge').click();
+    await flush();
+
+    const selection = checkbox('Nur in markierter Fläche');
+    selection.click();
+    await flush();
+    selection.click();
+    const restored = risFeatures(ctx.map).find(layer => layer.feature.properties.geometryId === 'outside');
+    expect(restored).toBeDefined();
+    pendingSelection.resolve(partitionSnapshot([inside]));
+    await flush();
+
+    expect(UA.RisCatalogue.loadMap).toHaveBeenCalledTimes(2);
+    expect(risFeatures(ctx.map)).toContain(restored);
   });
 
   test('partitioned overview renders aggregate rectangles and explains missing coverage', async () => {

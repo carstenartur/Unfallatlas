@@ -518,25 +518,33 @@ test.describe('compact mobile map controls', () => {
 test.describe('tablet map settings', () => {
   test.use({ viewport: { width: 768, height: 1024 }, hasTouch: true });
 
-  test('one readable Karte surface fits beside the analysis panel and preserves settings across resize', async ({ page }) => {
+  test('starts with the map free and switches between analysis, settings and legend on a tablet', async ({ page }) => {
     await installMobileContextFixture(page);
     await page.goto(MOBILE_CONTEXT_URL, { waitUntil: 'domcontentloaded' });
     await waitForMobileMap(page);
     const settings = page.getByRole('button', { name: 'Karte', exact: true });
+    const analysis = page.locator('#collapseBtn');
+    const legend = page.locator('.context-overlay-legend .mapControlToggle');
     await expect(settings).toHaveCount(1);
+    await expect(settings).toHaveAttribute('aria-expanded', 'false');
+    await expect(analysis).toHaveAttribute('aria-expanded', 'false');
+    await expect(legend).toHaveAttribute('aria-expanded', 'false');
+    await analysis.tap();
+    await expect(analysis).toHaveAttribute('aria-expanded', 'true');
+    await settings.tap();
+    await expect(analysis).toHaveAttribute('aria-expanded', 'false');
     await expect(settings).toHaveAttribute('aria-expanded', 'true');
-    const card = page.locator('.carte-control');
-    const panelRect = await page.locator('#panel').boundingBox();
-    const cardRect = await card.boundingBox();
-    expect(panelRect.x + panelRect.width).toBeLessThanOrEqual(cardRect.x);
     await page.locator('#mapModeHybrid').click({ trial: true });
     await page.locator('#toggleCluster').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#toggleCluster')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#toggleHeat')).toHaveAttribute('aria-pressed', 'true');
+    await legend.tap();
+    await expect(legend).toHaveAttribute('aria-expanded', 'true');
+    await expect(settings).toHaveAttribute('aria-expanded', 'false');
+    await expect(analysis).toHaveAttribute('aria-expanded', 'false');
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(settings).toHaveAttribute('aria-expanded', 'false');
-    await expect(settings).toBeFocused();
     await settings.tap();
     await expect(page.locator('#toggleCluster')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#toggleHeat')).toHaveAttribute('aria-pressed', 'true');

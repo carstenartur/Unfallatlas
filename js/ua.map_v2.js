@@ -914,13 +914,19 @@
   // Unified map settings and layer legend
   // ----------------------------
   const mapControlDisclosures = new WeakMap();
-  const compactMapQuery = '(max-width: 640px), (max-height: 500px) and (pointer: coarse)';
+
+  function mapControlProfile(state) {
+    if (state.mobile) return 'mobile';
+    return state.workspace ? 'workspace' : 'desktop';
+  }
 
   function mapControlState(ctx) {
     let state = mapControlDisclosures.get(ctx);
     if (state) return state;
-    const media = window.matchMedia?.(compactMapQuery);
-    state = { mobile: !!media?.matches, choices: new Map(), controls: new Map() };
+    const media = window.matchMedia?.(UA.COMPACT_MAP_QUERY);
+    const view = ctx.risView;
+    const workspace = !!((view?.recordId && !view.collapsed) || (view?.listOpen && !view.listCollapsed));
+    state = { mobile: !!media?.matches, workspace, choices: new Map(), controls: new Map() };
     mapControlDisclosures.set(ctx, state);
     const resize = () => {
       state.mobile = !!media?.matches;
@@ -968,6 +974,13 @@
     syncMapPanelOcclusion(ctx, state);
   };
 
+  UA.setWorkspaceMapControls = function setWorkspaceMapControls(ctx, open) {
+    const state = mapControlDisclosures.get(ctx);
+    if (!state || state.workspace === open) return;
+    state.workspace = open;
+    if (!state.mobile) for (const entry of state.controls.values()) entry.apply();
+  };
+
   // Only the disclosure changes: selected layers and their data keep running.
   // State belongs to the map context because lazy loading rebuilds controls.
   function mapControlBody(ctx, control, container, key, label, desktopPosition) {
@@ -989,7 +1002,8 @@
     body.className = 'mapControlBody';
     button.setAttribute('aria-controls', body.id);
     const apply = () => {
-      const collapsed = choices[state.mobile ? 'mobile' : 'desktop'] ?? state.mobile;
+      const profile = mapControlProfile(state);
+      const collapsed = choices[profile] ?? (profile !== 'desktop');
       if (collapsed && body.contains(document.activeElement)) button.focus({ preventScroll: true });
       body.hidden = collapsed;
       button.setAttribute('aria-expanded', String(!collapsed));
@@ -997,12 +1011,15 @@
     };
     button.addEventListener('click', () => {
       const collapsed = !body.hidden;
-      choices[state.mobile ? 'mobile' : 'desktop'] = collapsed;
-      // On a phone, one open map card leaves room for the map and its controls.
-      if (state.mobile && !collapsed) {
+      // One open surface on a compact map. Folding the RIS workspace keeps its
+      // search, record and selection, so the user can return without redoing work.
+      if (state.mobile && !collapsed) UA.PoliticalContext?.collapseWorkspace?.(ctx);
+      const profile = mapControlProfile(state);
+      choices[profile] = collapsed;
+      if (profile !== 'desktop' && !collapsed) {
         for (const [otherKey, entry] of state.controls) {
           if (otherKey === key) continue;
-          state.choices.get(otherKey).mobile = true;
+          state.choices.get(otherKey)[profile] = true;
           entry.apply();
         }
       }
@@ -1014,7 +1031,7 @@
       if (event.key !== 'Escape' || body.hidden) return;
       event.preventDefault();
       event.stopPropagation();
-      choices[state.mobile ? 'mobile' : 'desktop'] = true;
+      choices[mapControlProfile(state)] = true;
       apply();
       button.focus({ preventScroll: true });
       syncMapPanelOcclusion(ctx, state);
@@ -1617,8 +1634,42 @@
     }
   };
 
+  const pendingAccidentClusters = new WeakMap();
+
+  UA.waitForAccidentClusterPaint = function waitForAccidentClusterPaint(map, deadline) {
+    const raf = typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : callback => setTimeout(callback, 16);
+    return new Promise(resolve => {
+      let finished = false;
+      let readyFrames = 0;
+      const finish = ok => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        resolve(ok);
+      };
+      const timer = setTimeout(() => finish(false), Math.max(0, deadline - Date.now()));
+      const check = () => {
+        if (finished) return;
+        if (Date.now() >= deadline) {
+          finish(false);
+          return;
+        }
+        const pending = pendingAccidentClusters.get(map);
+        const building = pending && (typeof map.hasLayer !== 'function' || map.hasLayer(pending));
+        readyFrames = building ? 0 : readyFrames + 1;
+        // A queued render-limit commit can replace the cluster during the first frame.
+        if (readyFrames >= 2) finish(true);
+        else raf(check);
+      };
+      raf(check);
+    });
+  };
+
   UA.waitForMapFullyRendered = function waitForMapFullyRendered(map, opts = {}) {
     const timeoutMs = Math.max(1000, Number(opts.timeoutMs) || 30000);
+    const deadline = Date.now() + timeoutMs;
     const ctx = opts.ctx || null;
     const tileTimeoutMs = Math.min(timeoutMs, Number(opts.tileTimeoutMs) || 15000);
     const tileStableMs = Math.max(0, Number(opts.tileStableMs) || 0);
@@ -1785,13 +1836,8 @@
           if (!tilesOk) return false;
           return waitForTileImages();
         })
-        .then((contextOk) => {
-          if (!contextOk) {
-            finish(false);
-            return;
-          }
-          new Promise((r) => raf(() => raf(r))).then(() => finish(true)).catch(() => finish(false));
-        })
+        .then((tilesOk) => tilesOk && !settled && UA.waitForAccidentClusterPaint(map, deadline))
+        .then(finish)
         .catch(() => {
           finish(false);
         });
@@ -2279,20 +2325,19 @@
         })
       : null;
 
+    const reportClusterProgress = (processed) => {
+      if (lifecycleRevision == null) return;
+      lifecycleReporter.reportLayer(lifecycleRevision, "cluster", {
+        expected: pts.length,
+        processed,
+        visible: processed,
+        complete: processed >= pts.length,
+      });
+    };
+
     // ---- Cluster (zoom-adaptiv, but only rebuild when needed)
     if (ctx.showCluster && shouldRebuildCluster) {
       const clusterLayer = L.markerClusterGroup({
-        chunkedLoading: true,
-        chunkInterval: 250,
-        chunkProgress: (processed, total) => {
-          if (lifecycleRevision == null || !lifecycleReporter) return;
-          lifecycleReporter.reportLayer(lifecycleRevision, "cluster", {
-            expected: total,
-            processed,
-            visible: processed,
-            complete: processed >= total
-          });
-        },
         spiderfyOnMaxZoom: true,
         zoomToBoundsOnClick: false,
         showCoverageOnHover: false,
@@ -2302,51 +2347,57 @@
         // Sonst gibt es bei Zoom 19 keine Cluster für Punkte gleicher Koordinate.
       });
 
-      // Batch operation: create all markers first, then add them all at once
-      const markers = pts.map(p => {
-        const ukategorie = String(p.props?.ukategorie || "");
-        const color = SEVERITY_COLORS[ukategorie] || SEVERITY_COLORS["default"];
-        const m = L.circleMarker([p.lat, p.lon], { 
-          radius: 4,
-          fillColor: color,
-          color: color,
-          weight: 1,
-          opacity: 0.8,
-          fillOpacity: 0.6
-        });
-        m._uaProps = p.props || {};
-        m._uaPoint = p;
-        return m;
-      });
-
       clusterLayer._uaPopupCtx = ctx;
+      clusterLayer._uaReportProgress = reportClusterProgress;
       if (typeof clusterLayer.on === "function") {
         clusterLayer.on("click", UA.materializeAccidentPopup);
       }
-      
-      // Use batch add for better performance
-      if (markers.length > 0) {
-        clusterLayer.addLayers(markers);
-      } else if (lifecycleRevision != null && lifecycleReporter) {
-        lifecycleReporter.reportLayer(lifecycleRevision, "cluster", {
-          expected: 0,
-          processed: 0,
-          visible: 0,
-          complete: true
-        });
-      }
 
-      clusterLayer.addTo(ctx.map);
+      const map = ctx.map;
+      clusterLayer.addTo(map);
       UA.bindClusterPopup(ctx, clusterLayer);
       ctx.clusterLayer = clusterLayer;
       ctx._lastClusterZoom = currentZoom;
+
+      // Adding to an unmounted MarkerClusterGroup repeatedly scans its
+      // pending array. Add small batches on the map and stop when replaced.
+      pendingAccidentClusters.set(map, clusterLayer);
+      let offset = 0;
+      const addBatch = () => {
+        if (pendingAccidentClusters.get(map) !== clusterLayer) return;
+        if (ctx.clusterLayer !== clusterLayer || ctx.map !== map
+            || (typeof map.hasLayer === 'function' && !map.hasLayer(clusterLayer))) {
+          pendingAccidentClusters.delete(map);
+          return;
+        }
+
+        const end = Math.min(offset + 400, pts.length);
+        const markers = pts.slice(offset, end).map(p => {
+          const ukategorie = String(p.props?.ukategorie || "");
+          const color = SEVERITY_COLORS[ukategorie] || SEVERITY_COLORS["default"];
+          const marker = L.circleMarker([p.lat, p.lon], {
+            radius: 4,
+            fillColor: color,
+            color: color,
+            weight: 1,
+            opacity: 0.8,
+            fillOpacity: 0.6,
+          });
+          marker._uaProps = p.props || {};
+          marker._uaPoint = p;
+          return marker;
+        });
+        if (markers.length) clusterLayer.addLayers(markers);
+        offset = end;
+        clusterLayer._uaReportProgress(offset);
+
+        if (offset < pts.length) setTimeout(addBatch, 0);
+        else if (pendingAccidentClusters.get(map) === clusterLayer) pendingAccidentClusters.delete(map);
+      };
+      addBatch();
     } else if (ctx.showCluster && lifecycleRevision != null && lifecycleReporter) {
-      const visible = countLayerChildren(ctx.clusterLayer);
-      lifecycleReporter.reportLayer(lifecycleRevision, "cluster", {
-        processed: pts.length,
-        visible,
-        complete: true
-      });
+      ctx.clusterLayer._uaReportProgress = reportClusterProgress;
+      reportClusterProgress(countLayerChildren(ctx.clusterLayer));
     }
 
     // ---- Heatmap (zoom-adaptiv + opacity per Canvas, only rebuild when needed)

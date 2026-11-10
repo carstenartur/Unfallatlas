@@ -147,7 +147,7 @@
         hourTo: value('hTo', 23),
         dayType: value('dayType', 'all'),
         roadCondition: value('roadCondition', 'all'),
-        maxPoints: value('maxPoints', 100000),
+        maxPoints: ctx.renderPointLimit ?? value('maxPoints', 100000),
         viewportPaddingPct: value('viewportPaddingPct', 20),
         heatRadius: value('heatRadius', 25),
         involvement: {

@@ -780,6 +780,38 @@
       if (Array.isArray(value)) return value;
       return [value.west, value.south, value.east, value.north];
     }
+    function overviewResult(manifest, features) {
+      return {
+        manifest, partitioned: true, features: { type: 'FeatureCollection', features },
+        coverage: { complete: false, missing: [], truncated: true },
+        overview: true, recordCount: manifest.mappedRecordCount,
+      };
+    }
+    async function packedOverviewMap(part, bounds) {
+      // The already verified root describes disjoint groups of geometry, so
+      // a dense city view can show their extent without loading all leaves.
+      const root = part.manifest.roots.spatial;
+      const node = await part.reader.asset(root);
+      const groups = node.type === 'branch' ? node.entries.map(([, reference]) => reference) : [root];
+      const grid = spatialGrid();
+      const features = [];
+      for (const group of groups) {
+        if (!group.featureCount || !grid.intersectsBounds(group.bounds, bounds)) continue;
+        const [west, south, east, north] = group.bounds;
+        const visible = [Math.max(west, bounds[0]), Math.max(south, bounds[1]),
+          Math.min(east, bounds[2]), Math.min(north, bounds[3])];
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [(visible[0] + visible[2]) / 2, (visible[1] + visible[3]) / 2] },
+          bounds: visible,
+          properties: {
+            overview: true, spatialGroup: true, geometryCount: group.featureCount,
+            geometryId: `spatial-group:${group.sha256}`,
+          },
+        });
+      }
+      return overviewResult(part.manifest, features);
+    }
     async function overviewMap(part, bounds) {
       part = {
         ...part,
@@ -829,21 +861,7 @@
           }
         });
       }
-      return {
-        manifest: part.manifest,
-        partitioned: true,
-        features: {
-          type: 'FeatureCollection',
-          features
-        },
-        coverage: {
-          complete: false,
-          missing: [],
-          truncated: true
-        },
-        overview: true,
-        recordCount: part.manifest.mappedRecordCount
-      };
+      return overviewResult(part.manifest, features);
     }
     async function loadPartitionMap(city, options = {}) {
       const originalPart = await partition(city, options);
@@ -852,15 +870,16 @@
         ...originalPart,
         reader: originalPart.reader.scoped()
       };
+      const bounds = requestedBounds(options.bounds);
+      const packed = part.manifest.spatialFormat === partitions().SPATIAL_FORMAT;
       try {
         const grid = spatialGrid(),
-          bounds = requestedBounds(options.bounds),
           budget = Math.min(2000, Math.max(1, options.maxFeatures || 1000));
-        if (part.manifest.spatialFormat === partitions().SPATIAL_FORMAT) {
+        if (packed) {
           const extent = grid.tileRange({west: bounds[0], south: bounds[1], east: bounds[2], north: bounds[3]}, 12);
           if (extent?.count > 64) return overviewMap(originalPart, bounds);
           const {features, truncated} = await part.reader.spatial(bounds, budget);
-          if (truncated) return overviewMap(originalPart, bounds);
+          if (truncated) return packedOverviewMap(originalPart, bounds);
           for (const feature of features) checkedFeature(feature, feature.properties.geometryId);
           return {
             manifest: part.manifest, partitioned: true, features: {type: 'FeatureCollection', features},
@@ -927,7 +946,9 @@
           recordCount: part.manifest.mappedRecordCount
         };
       } catch (failure) {
-        if (failure.code === 'RIS_QUERY_BUDGET') return overviewMap(originalPart, requestedBounds(options.bounds));
+        if (failure.code === 'RIS_QUERY_BUDGET') {
+          return packed ? packedOverviewMap(originalPart, bounds) : overviewMap(originalPart, bounds);
+        }
         throw failure;
       }
     }

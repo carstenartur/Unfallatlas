@@ -22,31 +22,34 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=2026-11-08-scalable-catalogue"`);
   });
 
-  test.each(['js/ua.filters.js'])('%s refreshes typed traffic controls', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-08-context-review"`);
-  });
-
-  test.each(['js/ua.ris-partitions.js'])('%s invalidates the cache for regional records and consultation histories', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
+  test('uses the verified AI proposal rollout version', () => {
+    expect(html).toContain('js/ua.ai_proposal.js?v=2026-11-07-ris"');
   });
 
   test.each([
-    'js/ua.ai_proposal.js',
-    'js/ua.report_v2.js',
-  ])('%s uses the verified RIS rollout version', asset => {
-    expect(html).toContain(`${asset}?v=${asset === 'js/ua.report_v2.js' ? '2026-11-08-frozen-export-scope' : '2026-11-07-ris'}`);
-  });
-
-  test.each([
-    'css/ua.css', 'js/ua.app_v2.js', 'js/ua.context_road_layer.js', 'js/ua.data_paths.js',
-    'js/ua.hannover_layers.js', 'js/ua.map_scene.js', 'js/ua.map_scene_url_codec.js',
-    'js/ua.tour.js',
+    'js/ua.context_road_layer.js', 'js/ua.hannover_layers.js', 'js/ua.map_scene_url_codec.js', 'js/ua.tour.js',
   ])('%s refreshes the mobility layers and compact map controls', asset => {
     expect(html).toContain(`${asset}?v=2026-11-09-mobility"`);
   });
 
-  test.each(['js/ua.map_v2.js', 'js/ua.map_layer_registry.js', 'js/ua.state.js'])('%s refreshes CARTO and layer configuration', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-10-carto"`);
+  test('refreshes the CARTO registry', () => {
+    expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-10-carto"');
+  });
+
+  test.each([
+    'css/ua.css', 'css/ris-record-view.css', 'js/ua.app_v2.js', 'js/ua.core.js',
+    'js/ua.data_paths.js', 'js/ua.filters.js', 'js/ua.map_scene.js', 'js/ua.map_store.js',
+    'js/ua.map_v2.js', 'js/ua.political-context.js', 'js/ua.report_v2.js', 'js/ua.ris-catalogue.js',
+    'js/ua.ris-details.js', 'js/ua.ris-layer.js', 'js/ua.ris-partitions.js', 'js/ua.ris-sources.js',
+    'js/ua.state.js', 'js/ua.ui.js', 'js/ua.video-export.js',
+  ])('%s loads the same map and RIS repair version', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-10-ris-map"`);
+  });
+
+  test('lazy analysis and capture use the current display and readiness contract', () => {
+    const dataPaths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
+    expect(dataPaths).toContain('js/ua.analysis_scope.js?v=2026-11-10-ris-map');
+    expect(dataPaths).toContain('js/ua.visible_tile_readiness.js?v=2026-11-10-ris-map');
   });
 
   test('both canonical template and export assets load the current defaults', () => {
@@ -64,20 +67,10 @@ describe('Werkbank deployment asset versions', () => {
     expect(paths).toContain('js/ua.ai_political_reference_bridge.js?v=2026-11-08-method-limits');
   });
 
-  test.each(['js/ua.ris-partitions.js'])('%s refreshes paged consultation history', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
-  });
-
-  test.each(['js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-record-view.js', 'js/ua.ris-details.js',
-    'js/ua.traffic_situation.js', 'js/ua.political-context.js', 'css/ris-record-view.css'])
-  ('%s refreshes the shareable RIS view', asset => {
-    expect(html).toContain(`${asset}?v=${['js/ua.app_v2.js', 'js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js',
-      'js/ua.ris-record-view.js', 'js/ua.ris-details.js', 'js/ua.political-context.js', 'css/ris-record-view.css'].includes(asset)
-      ? '2026-11-09-ris-workspace' : '2026-11-08-ris-view'}"`);
-  });
-
-  test.each(['js/ua.ris-layer.js', 'js/ua.ui.js'])('%s refreshes the RIS catalogue count', asset => {
-    expect(html).toContain(`${asset}?v=${asset === 'js/ua.ris-layer.js' ? '2026-11-09-ris-workspace' : '2026-11-09-ris-count'}"`);
+  test('loads the RIS URL and document views with the traffic-situation contract', () => {
+    expect(html).toContain('js/ua.ris_view_state.js?v=2026-11-09-ris-workspace"');
+    expect(html).toContain('js/ua.ris-record-view.js?v=2026-11-09-ris-workspace"');
+    expect(html).toContain('js/ua.traffic_situation.js?v=2026-11-08-ris-view"');
   });
 
   test('shared spatial budgets and partitions load before their consumers', () => {
@@ -112,11 +105,10 @@ describe('Werkbank deployment asset versions', () => {
 });
 
 
-test.each(['ua.core', 'ua.context_layers', 'ua.popup_context',
+test.each(['ua.context_layers', 'ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  const version = name === 'ua.core' ? '2026-11-08-provenance-context-copy' : '2026-11-08-context';
-  expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
+  expect(html.includes(`js/${name}.js?v=2026-11-08-context`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
   const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');

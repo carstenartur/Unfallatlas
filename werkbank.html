@@ -26,7 +26,7 @@
   <script src="vendor/leaflet-draw/leaflet.draw.js"></script>
 
   <!-- App CSS -->
-  <link rel="stylesheet" href="css/ua.css?v=2026-11-08-mobile-panels" />
+  <link rel="stylesheet" href="css/ua.css?v=2026-11-10-ris-map" />
 </head>
 <body>
   <!-- Deprecated V1 Banner -->
@@ -122,7 +122,7 @@
 
       <div class="row">
         <label for="maxPoints">Max Punkte</label>
-        <input id="maxPoints" type="number" min="500" step="500" value="100000" />
+        <input id="maxPoints" type="number" min="500" max="200000" step="500" value="100000" />
       </div>
 
       <div class="row">
@@ -190,15 +190,15 @@
 
   <!-- App JS (ohne Build, stabil in GitHub Pages) -->
   <script>window.UA = { BUILD: "2025-12-27 00:00 UTC" };</script>
-    <script src="js/ua.core.js?v=2026-11-08-provenance-context-copy"></script>
+    <script src="js/ua.core.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.utils.js?v=2026-07-19"></script>
-  <script src="js/ua.state.js?v=2025-12-27"></script>
-  <script src="js/ua.ui.js?v=2026-11-08-context-review"></script>
+  <script src="js/ua.state.js?v=2026-11-10-ris-map"></script>
+  <script src="js/ua.ui.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.fetch_gz.js?v=2026-07-11"></script>
   <script src="js/ua.data_paths.js?v=2026-11-08-method-limits"></script>
  
     <script src="js/ua.data.js?v=2026-07-11"></script>
-  <script src="js/ua.filters.js?v=2026-11-08-context-review"></script>
+  <script src="js/ua.filters.js?v=2026-11-10-ris-map"></script>
   <script src="js/ua.map.js?v=2025-12-27"></script>
   <script src="js/ua.export_template_defaults.js?v=2026-11-08-method-limits"></script>
   <script src="js/ua.export.js?v=2026-11-08-canonical-templates"></script>

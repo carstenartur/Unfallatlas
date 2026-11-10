@@ -127,6 +127,67 @@ describe('UA.ui - URL-Roundtrip and syncHourUI', () => {
 
   // ─── syncHourUI ───────────────────────────────────────────────────────────
 
+  describe('Max Punkte', () => {
+    function bindSettings(href) {
+      loadModules(href);
+      const fs = require('fs');
+      const path = require('path');
+      const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
+      document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
+      const ctx = makeCtx();
+      UA.bindDom(ctx);
+      UA.viewParamsPresent = () => false;
+      UA.selectionParamsPresent = () => false;
+      UA.initContextFilters = jest.fn();
+      UA.setQS = jest.fn();
+      UA.saveCityState = jest.fn();
+      UA.recomputeAndRender = jest.fn();
+      UA.bindUi(ctx);
+      ctx.ui.maxPointsEl.closest('details').open = true;
+      return ctx;
+    }
+
+    test('keeps spinner changes as a draft until Enter or blur', () => {
+      const ctx = bindSettings();
+      const field = ctx.ui.maxPointsEl;
+      field.focus();
+      expect(document.activeElement).toBe(field);
+      for (const draft of ['99500', '99000', '98500']) {
+        field.value = draft;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      expect(UA.recomputeAndRender).not.toHaveBeenCalled();
+
+      // A different setting may persist the view while the number is still a draft.
+      UA.syncAllToUrl(ctx);
+      expect(UA.setQS.mock.calls[0][0]).toMatchObject({ maxPoints: 100000 });
+      UA.setQS.mockClear();
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(UA.recomputeAndRender).toHaveBeenCalledWith(ctx, 'renderLimitChanged');
+      expect(UA.setQS.mock.calls[0][0]).toMatchObject({ maxPoints: 98500 });
+      field.blur();
+      expect(UA.recomputeAndRender).toHaveBeenCalledTimes(1);
+    });
+
+    test('normalizes a committed number and restores the last value for an empty edit', () => {
+      const ctx = bindSettings('http://localhost:8000/werkbank_v2.html?maxPoints=15000');
+      const field = ctx.ui.maxPointsEl;
+      field.focus();
+      field.value = '';
+      field.blur();
+      expect(field.value).toBe('15000');
+      expect(UA.recomputeAndRender).not.toHaveBeenCalled();
+
+      field.focus();
+      field.value = '34';
+      field.blur();
+      expect(field.value).toBe('500');
+      expect(UA.setQS.mock.calls[0][0]).toMatchObject({ maxPoints: 500 });
+      expect(UA.recomputeAndRender).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('syncHourUI', () => {
     test('from > to wird auf from korrigiert wenn "from" geändert', () => {
       loadModules();
