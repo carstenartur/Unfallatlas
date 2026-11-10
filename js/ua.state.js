@@ -64,6 +64,8 @@
     siteType: "siteType",
     siteInvolvement: "siteInvolvement",
     siteMapFilters: "siteMapFilters",
+    siteNetworkId: "siteNetworkId",
+    siteNetworkRev: "siteNetworkRev",
     accidentView: "accidentView",
     export: "export",
     tour: "tour"
@@ -223,7 +225,7 @@
     };
   }
 
-  function normalizeDiscoveryFocus(bounds, key, query = {}) {
+  function normalizeDiscoveryFocus(bounds, key, query = {}, site) {
     if (!bounds || (key != null && !/^(?:turning|[14567]):(?:[1-9]|[1-5]\d|6[0-3])$/.test(key))) return null;
     const { fromYear = null, toYear = null, severity = 'all', type = 'all', involvement = 'all', mapFilters } = query;
     const validYear = value => value === null || /^[1-9]\d{3}$/.test(value);
@@ -234,24 +236,32 @@
     if (!['all', 'serious', '1', '2', '3'].includes(severity)) return null;
     if (!['all', 'turning', '1', '2', '3', '4', '5', '6', '7'].includes(type)) return null;
     if (!['all', 'bike', 'foot', 'bike-foot', 'car', 'heavy'].includes(involvement)) return null;
-    return { bounds, key: key ?? null, query: { fromYear: from, toYear: to, severity, type, involvement, ...(mapFilters === true ? { mapFilters: true } : {}) } };
+    if (site && (typeof site.id !== 'string' || !/^[a-z0-9][a-z0-9:-]{0,95}$/.test(site.id)
+        || typeof site.revision !== 'string' || !/^[a-z0-9][a-z0-9-]{7,63}$/.test(site.revision))) return null;
+    return {
+      bounds, key: key ?? null,
+      query: { fromYear: from, toYear: to, severity, type, involvement, ...(mapFilters === true ? { mapFilters: true } : {}) },
+      ...(site ? { site: { id: site.id, revision: site.revision } } : {}),
+    };
   }
 
   UA.restoreDiscoveryFocus = function restoreDiscoveryFocus(ctx) {
     const search = UA.qs();
     const key = search.get('siteFocus');
+    const site = search.has('siteNetworkId') || search.has('siteNetworkRev')
+      ? { id: search.get('siteNetworkId'), revision: search.get('siteNetworkRev') } : null;
     ctx.discoveryFocus = key ? normalizeDiscoveryFocus(discoveryBounds(ctx), key === 'all' ? null : key, {
       fromYear: search.get('siteFrom'), toYear: search.get('siteTo'),
       severity: search.get('siteSeverity') ?? 'all', type: search.get('siteType') ?? 'all',
       involvement: search.get('siteInvolvement') ?? 'all', mapFilters: search.get('siteMapFilters') === '1',
-    }) : null;
+    }, site) : null;
     return ctx.discoveryFocus;
   };
 
   UA.setDiscoveryFocus = function setDiscoveryFocus(ctx, focus) {
     const bounds = discoveryBounds(ctx);
     const matchesSelection = focus?.bounds && bounds && Object.keys(bounds).every(key => bounds[key] === focus.bounds[key]);
-    const current = matchesSelection ? normalizeDiscoveryFocus(bounds, focus.key, focus.query) : null;
+    const current = matchesSelection ? normalizeDiscoveryFocus(bounds, focus.key, focus.query, focus.site) : null;
     ctx.discoveryFocus = current;
     UA.setQS({
       siteFocus: current ? (current.key ?? 'all') : null,
@@ -261,6 +271,8 @@
       siteType: current?.query.type ?? null,
       siteInvolvement: current?.query.involvement ?? null,
       siteMapFilters: current?.query.mapFilters ? 1 : null,
+      siteNetworkId: current?.site?.id ?? null,
+      siteNetworkRev: current?.site?.revision ?? null,
     });
     return current;
   };

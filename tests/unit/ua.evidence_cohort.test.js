@@ -96,6 +96,17 @@ describe('discovery filters versus complete application evidence', () => {
     expect(appendix.rows).toHaveLength(4);
   });
 
+  test.each([['available', [true, false, false, false]], ['unavailable', [false, false, false, false]]])
+  ('marks only the site cohort in the complete area annex when the network is %s', (status, expectedMatches) => {
+    const { UA, ctx, report, allPts } = fixture();
+    const site = { id: 'j:22', revision: '398a1a71f25db801' };
+    report.structured.siteNetwork = { status, site, mappedPoints: status === 'available' ? [allPts[0]] : [] };
+    const cohorts = api.buildCohorts(UA, ctx, report);
+    expect(cohorts.completeEvidenceCohort.count).toBe(4);
+    expect(cohorts.completeEvidenceCohort.rows.map(row => row.discoveryMatch)).toEqual(expectedMatches);
+    expect(cohorts.discoveryCohort.label).toBe('Netzzuordnung');
+  });
+
   test('blocks an AI result that omits area accidents or ignores vulnerable-user priority', () => {
     const { UA, ctx, report } = fixture();
     const cohorts = api.buildCohorts(UA, ctx, report);

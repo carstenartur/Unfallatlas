@@ -4,12 +4,16 @@ const fs = require('fs');
 const path = require('path');
 const L = require('leaflet');
 
-function setup() {
-  const win = { UA: {}, L };
-  for (const name of ['ua.ui', 'ua.map_v2', 'ua.site_discovery_ui']) {
+function loadScripts(win, names) {
+  for (const name of names) {
     const source = fs.readFileSync(path.resolve(__dirname, '../../js', name + '.js'), 'utf8');
     (function (window, L) { eval(source); })(win, L);
   }
+}
+
+function setup(beforeBind) {
+  const win = { UA: {}, L };
+  loadScripts(win, ['ua.ui', 'ua.map_v2', 'ua.site_discovery_ui']);
   const UA = win.UA;
   UA.setQS = jest.fn();
   UA.saveCityState = jest.fn();
@@ -52,8 +56,67 @@ function setup() {
     accidentDataCoverage: { mode: 'full-city', complete: true }
   };
   document.body.innerHTML = '<div class="taskActions"><button id="btnDiscover">Prüfbereiche finden</button></div>';
+  beforeBind?.({ win, UA, ctx, points, bounds });
   UA.SiteDiscoveryUI.bind(ctx);
   return { UA, ctx, points, bounds };
+}
+
+const networkId = 'friedrichswall-junction';
+const networkRevision = 'snapshot-2026-10-15';
+const networkQuery = { fromYear: null, toYear: null, severity: 'all', type: 'all', involvement: 'all' };
+
+function registerReviewNetwork({ win, UA, ctx, points, bounds }) {
+  loadScripts(win, ['ua.filters', 'ua.spatial-grid', 'ua.site_discovery']);
+  const area = { id: 'oster', label: 'Friedrichswall / Osterstraße', bounds, changes: [] };
+  UA.SiteDiscovery = { ...UA.SiteDiscovery, loadSites: async () => [area] };
+  for (const point of points) Object.assign(point.props, {
+    year: point.props.ujahr, utyp1: 3, istrad: '1', istpkw: '1', ustunde: '12',
+  });
+  // Three cases belong to this junction. Another turning case is in the same
+  // rectangle but has an ambiguous assignment, and a fifth is outside it.
+  const sites = [
+    { id: networkId, label: 'Knoten Friedrichswall', kind: 'junction', bounds, changes: [], coordinates: [52.37025, 9.73025] },
+    { id: 'oster-crossing', label: 'Querung Osterstraße', kind: 'crossing', bounds, changes: [], coordinates: [52.37031, 9.73031] },
+    { id: 'wall-segment', label: 'Abschnitt Friedrichswall', kind: 'segment', bounds, changes: [], coordinates: [52.3701, 9.7301, 52.3703, 9.7303] },
+  ];
+  ctx.allPts = [...points, { lat: 52.38, lon: 9.74, props: { year: 2025 } }];
+  const network = { city: ctx.CITY_RAW, revision: networkRevision, sites: new Map(sites.map(site => [site.id, site])), source: {
+    label: 'Kommunales Netzregister', url: 'https://example.com/netz', date: '2026-10-15',
+  } };
+  const row = (result, id, query, predicate) => {
+    const entry = result.bySite.get(id);
+    if (!entry) return null;
+    const members = UA.SiteDiscovery.filterPoints(predicate ? entry.points.filter(predicate) : entry.points, query);
+    return { ...entry, points: members, count: members.length,
+      severeCount: members.filter(point => point.props.ukategorie === 2).length,
+      pattern: UA.SiteDiscovery.patternForPoints(members) };
+  };
+  UA.ReviewNetwork = {
+    load: jest.fn(async () => network),
+    analyze: (loaded, allPoints) => ({ network: loaded,
+      counts: { total: 5, assigned: 3, ambiguous: 1, unmatched: 1 },
+      bySite: new Map(sites.map(site => [site.id, { ...site, points: site.id === networkId ? allPoints.slice(0, 3) : [] }])) }),
+    row,
+    rows: (result, query, { kind, onlyEmpty }) => sites
+      .map(site => row(result, site.id, query))
+      .filter(item => (kind === 'all' || item.kind === kind) && (onlyEmpty ? item.count === 0 : item.count > 0)),
+  };
+}
+
+function restoreNetworkFocus(ctx, bounds, options = {}) {
+  const { revision = networkRevision, query = networkQuery, key = 'turning:5' } = options;
+  ctx.selectionBounds = L.latLngBounds([bounds.south, bounds.west], [bounds.north, bounds.east]);
+  ctx.discoveryFocus = { bounds, key, query, site: { id: networkId, revision } };
+}
+
+function changeControl(panel, labelText, value) {
+  const label = [...panel.querySelectorAll('label')].find(item => item.firstChild?.textContent === labelText
+    || item.textContent.trim() === labelText);
+  expect(label).toBeDefined();
+  const control = label.querySelector('select, input');
+  if (control.type === 'checkbox') control.checked = value;
+  else control.value = [...control.options].find(option => option.textContent === value).value;
+  control.dispatchEvent(new Event('change'));
 }
 
 function clickButton(root, name) {
@@ -188,5 +251,113 @@ describe('site discovery controls', () => {
     expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(1);
     expect(panel.textContent).toContain('1 geladener Fall im Rechteck');
     expect(ctx.map.removeLayer).toHaveBeenCalledWith(oldLayer);
+  });
+});
+
+describe('optional network register', () => {
+  test('loads on open and keeps assigned cases separate from the rectangle search', async () => {
+    const { UA, ctx, bounds } = setup(registerReviewNetwork);
+    expect(UA.ReviewNetwork.load).not.toHaveBeenCalled();
+    document.querySelector('#btnDiscover').click();
+    const result = await ctx.reviewNetworkPromise;
+    expect(result?.counts).toEqual({ total: 5, assigned: 3, ambiguous: 1, unmatched: 1 });
+    expect(result).toBe(ctx.reviewNetworkResult);
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    expect(panel.querySelector('#siteDiscoveryMode').selectedOptions[0]?.textContent).toBe('Netzregister');
+    expect(panel.textContent).toMatch(/5 Fälle insgesamt.*3 zugeordnet.*1 mehrdeutig.*1 ohne Zuordnung/);
+    expect(panel.querySelector('a[href="https://example.com/netz"]')?.parentElement.textContent).toMatch(/3 Netzstellen.*15\.10\.2026/);
+    clickButton(panel, 'Knoten Friedrichswall');
+    expect(ctx.discoveryFocus).toEqual({ bounds, query: networkQuery, key: 'turning:5',
+      site: { id: networkId, revision: networkRevision } });
+    expect(panel.textContent).toContain('3 zugeordnete Fälle nach Suchkriterien');
+    expect(panel.textContent).toContain('4 Fälle insgesamt im Rechteck');
+    expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(3);
+    expect(panel.querySelectorAll('.site-discovery-focus-case')).toHaveLength(3);
+
+    changeControl(panel, 'Suchmodus', 'Prüfbereiche');
+    clickButton(panel, 'Friedrichswall / Osterstraße');
+    expect(ctx.discoveryFocus.site).toBeUndefined();
+    expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(4);
+  });
+
+  test.each([
+    ['Querung', 'Querung Osterstraße', 'oster-crossing', [[52.37031, 9.73031]]],
+    ['Straßenabschnitt', 'Abschnitt Friedrichswall', 'wall-segment', [[52.3701, 9.7301], [52.3703, 9.7303]]],
+  ])('highlights an inventoried %s without an assigned case', async (kind, label, id, coordinates) => {
+    const { ctx } = setup(registerReviewNetwork);
+    document.querySelector('#btnDiscover').click();
+    await ctx.reviewNetworkPromise;
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    changeControl(panel, 'Netztyp', kind);
+    expect(panel.querySelectorAll('[data-discovery-candidate]')).toHaveLength(0);
+    changeControl(panel, 'Ohne zugeordneten Fall nach Suchkriterien', true);
+    expect(panel.querySelectorAll('[data-discovery-candidate]')).toHaveLength(1);
+    clickButton(panel, label);
+    expect(ctx.discoveryFocus.site.id).toBe(id);
+    expect(panel.textContent).toContain('0 zugeordnete Fälle nach Suchkriterien');
+    expect(panel.textContent).toContain('4 Fälle insgesamt im Rechteck');
+    expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(0);
+    expect(panel.querySelector('.site-discovery-case-list')).toBeNull();
+    expect(ctx.map.addLayer).toHaveBeenCalledTimes(1);
+    const [geometry] = ctx.map.addLayer.mock.lastCall[0].getLayers();
+    expect(geometry.options.interactive).toBe(false);
+    expect((geometry.getLatLngs?.() || [geometry.getLatLng()]).map(({ lat, lng }) => [lat, lng])).toEqual(coordinates);
+  });
+
+  test.each([true, false])('keeps the original area controls without a usable register (complete data: %s)', async complete => {
+    const { UA, ctx } = setup(options => {
+      registerReviewNetwork(options);
+      options.ctx.accidentDataCoverage.complete = complete;
+      if (complete) options.UA.ReviewNetwork.load.mockResolvedValue(null);
+    });
+    document.querySelector('#btnDiscover').click();
+    await ctx.reviewNetworkPromise;
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    expect([...panel.querySelectorAll('label')].some(label => !label.closest('[hidden]')
+      && label.firstChild?.textContent === 'Suchmodus')).toBe(false);
+    expect(UA.ReviewNetwork.load).toHaveBeenCalledTimes(complete ? 1 : 0);
+    clickButton(panel, 'Friedrichswall / Osterstraße');
+    expect(ctx.discoveryFocus.site).toBeUndefined();
+  });
+
+  test('loads a report-link focus behind the export panel and reapplies the saved pattern to the filtered assigned cases', async () => {
+    const { ctx } = setup(options => {
+      registerReviewNetwork(options);
+      options.UA.qBool = name => name === 'export';
+      options.ctx.ui = {
+        severityEl: { value: '3' }, roadConditionEl: { value: 'all' }, dayTypeEl: { value: 'all' },
+        hFromEl: { value: '0' }, hToEl: { value: '23' }, incBikeEl: { checked: true },
+        incPedEl: { checked: false }, incCarEl: { checked: false }, incMotoEl: { checked: false },
+      };
+      options.ctx.involvementMode = 'or';
+      restoreNetworkFocus(options.ctx, options.bounds, { query: { ...networkQuery, mapFilters: true } });
+    });
+    expect(ctx.reviewNetworkPromise).toBeInstanceOf(Promise);
+    await ctx.reviewNetworkPromise;
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    expect(panel.hidden).toBe(true);
+    expect(panel.textContent).toContain('2 zugeordnete Fälle nach Such- und Kartenfiltern der Musterkarte');
+    expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(2);
+    expect(panel.querySelectorAll('.site-discovery-focus-case')).toHaveLength(2);
+    expect(ctx.discoveryFocus.key).toBe('turning:5');
+  });
+
+  test.each(['revision', 'bounds', 'profile'])('retains the original rectangle when the saved %s is unavailable', async mismatch => {
+    const { ctx } = setup(options => {
+      registerReviewNetwork(options);
+      const bounds = mismatch === 'bounds' ? { ...options.bounds, east: 9.731 } : options.bounds;
+      const revision = mismatch === 'revision' ? 'older-snapshot' : networkRevision;
+      if (mismatch === 'profile') options.UA.ReviewNetwork.load.mockResolvedValue(null);
+      restoreNetworkFocus(options.ctx, bounds, { revision });
+    });
+    const original = ctx.discoveryFocus;
+    await ctx.reviewNetworkPromise;
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    const detail = panel.querySelector('.site-discovery-detail');
+    expect(detail.textContent).toMatch(/gespeicherte Netzstand ist nicht verfügbar/i);
+    expect(detail.textContent).toContain('4 Fälle insgesamt im Rechteck');
+    expect(detail.querySelectorAll('.site-discovery-focus-case')).toHaveLength(0);
+    expect(ctx.discoveryFocus).toEqual(original);
+    expect(ctx.selectionBounds.getEast()).toBe(original.bounds.east);
   });
 });

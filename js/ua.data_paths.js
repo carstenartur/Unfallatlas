@@ -51,6 +51,21 @@
       cache: 'no-cache',
       path: ({ city }) => `data/mobility/${slug(city)}-discovery-sites.json`,
     }),
+    reviewNetworkCatalog: Object.freeze({
+      compression: COMPRESSION.RAW,
+      cache: 'no-cache',
+      path: () => 'data/mobility/review-network/catalog.json',
+    }),
+    reviewNetworkIndex: Object.freeze({
+      compression: COMPRESSION.RAW,
+      cache: 'no-cache',
+      path: ({ city }) => 'data/mobility/review-network/' + slug(city) + '/index.json',
+    }),
+    reviewNetworkPart: Object.freeze({
+      compression: COMPRESSION.GZIP_ONLY,
+      cache: 'no-cache',
+      path: ({ city, part }) => 'data/mobility/review-network/' + slug(city) + '/' + integer(part, 'part') + '.json',
+    }),
     speed30Rules: Object.freeze({
       compression: COMPRESSION.GZIP_ONLY,
       cache: 'no-cache',
@@ -327,7 +342,7 @@
     // Load after the pattern and AI adapters so it can bind one canonical
     // numbered A### cohort into report, map, appendix and both AI stages.
     evidenceCohort: injectOptionalModuleAfterDomReady(
-      'js/ua.evidence_cohort.js?v=2026-11-10-report-maps',
+      'js/ua.evidence_cohort.js?v=2026-11-10-review-network',
       'data-ua-evidence-cohort'
     ),
   });

@@ -347,7 +347,10 @@
     }
 
     const completePoints = allAreaPoints(source, bounds).sort((a, b) => compareTuple(pointSortKey(UA, a), pointSortKey(UA, b)));
-    const discoveryPoints = activeDiscoveryPoints(UA, source, bounds);
+    const networkSite = report?.structured?.siteNetwork;
+    const discoveryPoints = networkSite
+      ? list(networkSite.status === 'available' && networkSite.mappedPoints)
+      : activeDiscoveryPoints(UA, source, bounds);
     const discoveryFingerprints = new Set(discoveryPoints.map(point => fingerprintForPoint(UA, point)));
     const width = Math.max(3, String(Math.max(1, completePoints.length)).length);
     const rows = completePoints.map((point, index) => rowFromPoint(
@@ -371,7 +374,9 @@
       numberedMapUrl: numberedMapUrl || null,
       discoveryCohort: {
         purpose: 'Mustererkennung und Priorisierung nach dem Prinzip hoher Sicherheitsnutzen pro eingesetzter Ressource',
-        rule: 'alle aktiven Beteiligungs-, Schwere-, Zeit-, Straßen- und Kontextfilter innerhalb des Gebiets',
+        rule: networkSite ? 'räumlich zugeordnete Fälle am Netzobjekt unter aktiven Such- und Kartenfiltern'
+          : 'alle aktiven Beteiligungs-, Schwere-, Zeit-, Straßen- und Kontextfilter innerhalb des Gebiets',
+        ...(networkSite ? { label: 'Netzzuordnung' } : {}),
         count: discoveryIds.length,
         accidentIds: discoveryIds,
       },
@@ -616,7 +621,7 @@
       + `<td>${escHtml(row.involvementLabel)}</td><td>${row.hour == null ? '—' : `${String(row.hour).padStart(2, '0')}:00`}</td>`
       + `<td>${escHtml(row.weekdayLabel)}</td><td>${escHtml(row.roadConditionLabel)}</td>`
       + `<td>${Number.isFinite(row.lat) && Number.isFinite(row.lon) ? `${row.lat.toFixed(5)}, ${row.lon.toFixed(5)}` : '—'}</td>`
-      + `<td>${row.discoveryMatch ? 'Suchmuster' : 'weitere Gebietsevidenz'}</td><td>${escHtml(row.mapRef || '—')}</td></tr>`).join('');
+      + `<td>${row.discoveryMatch ? (cohorts?.discoveryCohort?.label || 'Suchmuster') : 'weitere Gebietsevidenz'}</td><td>${escHtml(row.mapRef || '—')}</td></tr>`).join('');
     return `<section data-ua-evidence-appendix="1" style="margin-top:18px;">`
       + `<h2>Vollständige nummerierte Unfallbeweisanlage</h2>`
       + `<p>Die aktiven Filter haben ${cohorts?.discoveryCohort?.count || 0} Unfälle als Entdeckungsteilmenge hervorgehoben. `
@@ -643,7 +648,7 @@
         row.hour == null ? '—' : `${String(row.hour).padStart(2, '0')}:00`,
         row.weekdayLabel, row.roadConditionLabel,
         Number.isFinite(row.lat) && Number.isFinite(row.lon) ? `${row.lat.toFixed(5)}, ${row.lon.toFixed(5)}` : '—',
-        row.discoveryMatch ? 'Suchmuster' : 'weitere Gebietsevidenz', row.mapRef || '—',
+        row.discoveryMatch ? (cohorts?.discoveryCohort?.label || 'Suchmuster') : 'weitere Gebietsevidenz', row.mapRef || '—',
       ].join(' | '));
     }
     return lines.join('\n');
@@ -1040,7 +1045,7 @@
       String(row.year ?? '—'), row.severityLabel, row.involvementLabel,
       row.hour == null ? '—' : `${String(row.hour).padStart(2, '0')}:00`,
       row.roadConditionLabel,
-      row.discoveryMatch ? 'Suchmuster' : 'weitere Gebietsevidenz',
+      row.discoveryMatch ? (cohorts?.discoveryCohort?.label || 'Suchmuster') : 'weitere Gebietsevidenz',
       row.mapRef || '—',
     ]);
     return [header, ...rows];
@@ -1172,7 +1177,7 @@
         children: [
           row.displayId, row.year ?? '—', row.severityLabel, row.involvementLabel,
           row.hour == null ? '—' : `${String(row.hour).padStart(2, '0')}:00`, row.roadConditionLabel,
-          row.discoveryMatch ? 'Suchmuster' : 'weitere Gebietsevidenz', row.mapRef || '—',
+          row.discoveryMatch ? (cohorts?.discoveryCohort?.label || 'Suchmuster') : 'weitere Gebietsevidenz', row.mapRef || '—',
         ].map((value, index) => cell(value, index === 0 && row.discoveryMatch, row.discoveryMatch ? 'FFF2A8' : undefined, index)),
       })),
     ];

@@ -90,3 +90,39 @@ test('does not reuse a discovery query after the marked rectangle changes', asyn
   expect(report.structured.discoveryFocus.key).toBe('automatic');
   expect(report.structured.discoveryFocus.points.map(({ props }) => props.id)).toEqual(['older bike', 'recent bike']);
 });
+
+test('a network report preserves the assigned cohort and the rectangular evidence separately', async () => {
+  discoveryProvider();
+  require('../../js/ua.review_network.js');
+  const site = { id: 'j:22', revision: '398a1a71f25db801' };
+  const result = {
+    network: {
+      city: 'hannover', revision: site.revision,
+      sites: new Map([[site.id, { id: site.id, label: 'Testknoten', kind: 'junction', bounds: selected }]]),
+      source: { label: 'OSM', url: 'https://www.openstreetmap.org/', date: '2026-11-08' },
+    },
+    bySite: new Map([[site.id, [points[1], points[3]]]]),
+  };
+  const report = await window.UA.computeExportReport(context({
+    discoveryFocus: { query, key: 'turning:5', bounds: selected, site },
+    reviewNetworkPromise: Promise.resolve(result),
+  }));
+  expect(report.structured.siteNetwork).toMatchObject({
+    status: 'available', site, label: 'Testknoten', assignedCount: 2, queryCount: 2, mapCount: 1, mappedPoints: [points[1]],
+  });
+  expect(report.structured.discoveryFocus).toMatchObject({ site, points: [points[1]] });
+  expect(report.structured.totalAccidents).toBe(3);
+  expect(report.text).toContain('Testknoten');
+});
+
+test('an unavailable network revision does not turn the rectangle into an assigned cohort', async () => {
+  discoveryProvider();
+  const site = { id: 'j:22', revision: '398a1a71f25db801' };
+  const report = await window.UA.computeExportReport(context({
+    discoveryFocus: { query, key: 'turning:5', bounds: selected, site },
+    reviewNetworkPromise: Promise.resolve(null),
+  }));
+  expect(report.structured.siteNetwork).toMatchObject({ status: 'unavailable', site });
+  expect(report.structured.discoveryFocus).toBeNull();
+  expect(report.structured.totalAccidents).toBe(3);
+});
