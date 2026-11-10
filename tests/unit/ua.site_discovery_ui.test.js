@@ -198,6 +198,27 @@ describe('site discovery controls', () => {
     expect(document.activeElement).toBe(selected);
   });
 
+  test.each(['before', 'after'])('keeps the clicked case when tiles commit %s the marker click', async timing => {
+    const { UA, ctx, points } = setup();
+    document.querySelector('#btnDiscover').click();
+    await Promise.resolve();
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    clickButton(panel, 'Friedrichswall / Osterstraße');
+    clickButton(panel, 'Schließen');
+    const marker = ctx.map.addLayer.mock.lastCall[0].getLayers().find(m => m.getLatLng().lat === points[0].lat);
+
+    // extractPoints creates new point wrappers for the same cached tile features.
+    const refreshed = [{ ...points[0] }];
+    if (timing === 'before') ctx.allPts = refreshed;
+    marker.fire('click');
+    if (timing === 'after') ctx.allPts = refreshed;
+    UA.SiteDiscoveryUI.dataChanged(ctx);
+
+    const selected = panel.querySelector('[data-discovery-case][aria-current="true"]');
+    expect(selected?.textContent).toContain('2023');
+    expect(document.activeElement).toBe(selected);
+  });
+
   test('offers newly loaded years in both filters while preserving the chosen range', () => {
     const { UA, ctx, points } = setup();
     const trigger = document.querySelector('#btnDiscover');

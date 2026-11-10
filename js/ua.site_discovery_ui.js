@@ -46,6 +46,7 @@
     if (state?.markerLayer) ctx.map.removeLayer(state.markerLayer);
     if (!state) return;
     state.markerLayer = null;
+    state.activeCase = null;
     state.detail.replaceChildren();
     state.detail.hidden = true;
     state.selection = null;
@@ -128,10 +129,16 @@
     ].join(' · ');
   }
 
-  function addCaseMarkers(ctx, state, selection, list, listDetails, status) {
+  function addCaseMarkers(ctx, state, selection, list, status, previousPoint) {
     const locationGroups = new Map();
     const focused = new Set(selection.pattern?.points || []);
     const { yearOf } = UA.SiteDiscovery;
+    const selectCase = entry => {
+      state.activeCase?.link.removeAttribute('aria-current');
+      state.activeCase = entry;
+      entry.link.setAttribute('aria-current', 'true');
+      status.textContent = entry.label + ' auf der Karte ausgewählt.';
+    };
     const rows = selection.points
       .slice().sort((a, b) => yearOf(b) - yearOf(a))
       .map((point, index) => {
@@ -139,9 +146,7 @@
         const row = el('li');
         const isFocus = focused.has(point);
         const link = button(label + (isFocus ? ' · Schwerpunkt' : ''), () => {
-          list.querySelector('[aria-current]')?.removeAttribute('aria-current');
-          link.setAttribute('aria-current', 'true');
-          status.textContent = label + ' auf der Karte ausgewählt.';
+          selectCase(entry);
           const marker = locationGroups.get(coordinates).marker;
           if (marker) {
             ctx.map.fitBounds(window.L.latLngBounds([point.lat, point.lon], [point.lat, point.lon]), fitOptions(ctx));
@@ -153,7 +158,12 @@
         row.append(link);
         const coordinates = point.lat + ',' + point.lon;
         if (!locationGroups.has(coordinates)) locationGroups.set(coordinates, { point, rows: [] });
-        locationGroups.get(coordinates).rows.push({ link, isFocus, label });
+        const entry = { point, link, isFocus, label };
+        locationGroups.get(coordinates).rows.push(entry);
+        // Reloaded tiles reuse the feature properties even when point wrappers change.
+        if (previousPoint && point.props === previousPoint.props && point.lat === previousPoint.lat && point.lon === previousPoint.lon) {
+          selectCase(entry);
+        }
         return row;
       });
     list.append(...rows);
@@ -177,13 +187,13 @@
         ? countText(group.rows.length, 'Fall an diesem Kartenpunkt', 'Fälle an diesem Kartenpunkt')
         : target.label));
       marker.on('click', () => {
-        showPanel(ctx, state, { fromMap: true });
-        listDetails.open = true;
-        list.querySelector('[aria-current]')?.removeAttribute('aria-current');
-        target.link.setAttribute('aria-current', 'true');
-        target.link.focus({ preventScroll: true });
-        target.link.scrollIntoView?.({ block: 'nearest' });
+        selectCase(target);
         status.textContent = group.rows.map(row => row.label.split(' · ')[0]).join(', ') + ' an diesem Kartenpunkt.';
+        showPanel(ctx, state, { fromMap: true });
+        const link = state.activeCase?.link;
+        if (link) link.closest('details').open = true;
+        (link || state.heading).focus({ preventScroll: true });
+        link?.scrollIntoView?.({ block: 'nearest' });
       });
       markers.push(marker);
     }
@@ -252,6 +262,10 @@
   }
 
   function showSelection(ctx, state, selection) {
+    const previous = state.selection;
+    const activeCase = previous?.query === selection.query && sameBounds(previous?.bounds, selection.bounds)
+      ? state.activeCase : null;
+    const restoreFocus = activeCase?.link === document.activeElement;
     resetDetail(ctx, state);
     state.selection = selection;
     const { label, total, points, pattern, changes, visibleCount, complete } = selection;
@@ -291,7 +305,8 @@
     listDetails.append(el('summary', '', 'Einzelfälle auf der Karte'), status, list);
     state.detail.append(listDetails);
     state.detail.hidden = false;
-    addCaseMarkers(ctx, state, selection, list, listDetails, status);
+    addCaseMarkers(ctx, state, selection, list, status, activeCase?.point);
+    if (restoreFocus) (state.activeCase?.link || heading).focus({ preventScroll: true });
     appendFacilities(ctx, state, selection);
     const fieldCheck = el('details');
     fieldCheck.append(el('summary', '', 'Vor Ort prüfen'), el('p', '',
