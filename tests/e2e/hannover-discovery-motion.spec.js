@@ -4,32 +4,52 @@ import JSZip from 'jszip';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const intersection = 'Brühlstraße / Escherstraße';
+const councilSources = ['15-1243-2021', '15-2403-2022F1', '15-2377-2023F1'].map(id =>
+  'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/' + id);
 
 function checkMotion(text) {
   // Inspect the formal request and its reasons, before the maps or the statistics.
   // A correct caption in the annex must not hide a proposal about another pattern.
-  const motion = text.replace(/\s+/g, ' ').match(/Beschlussvorschlag\s*:? (.+?Begründung.+?)(?:KURZBEWERTUNG|Anlagen 1 Karten|Anlage 1 [–-] Karten|DATENQUELLEN|$)/i)?.[1];
+  const normalized = text.replace(/\s+/g, ' ');
+  const cover = normalized.split(/Beschlussvorschlag/i, 1)[0];
+  expect(cover).toContain('Prüfung und Verbesserung der Verkehrssicherheit im Bereich ' + intersection);
+  const [motion, rationale] = normalized.match(/Beschlussvorschlag\s*:? (.+?) Begründung\s*:? (.+?)(?:Amtliche Vorbefassung am Netzobjekt|KURZBEWERTUNG|Anlagen? 1\b|DATENQUELLEN|$)/i)?.slice(1) || [];
   expect(motion).toBeTruthy();
+  expect(rationale).toBeTruthy();
   expect(motion).toContain('Brühlstraße');
   expect(motion).toContain('Escherstraße');
-  expect(motion).toMatch(/\b17\b/);
-  expect(motion).toMatch(/2021.*2025/);
+  expect(rationale).toMatch(/\b17 Fälle am Netzobjekt/i);
+  expect(rationale).toMatch(/2021.*2025/);
   expect(motion).toMatch(/Rad/i);
   expect(motion).toMatch(/Pkw/i);
   expect(motion).toMatch(/Abbiege/i);
   expect(motion).toMatch(/Unfallskizzen/i);
   expect(motion).toContain('Stadtbezirksrat Mitte');
   expect(motion).toMatch(/Wirkungskontrolle/i);
+  expect(motion).toContain('15-1243/2021');
+  expect(motion).toMatch(/Aufpflasterung/i);
+  expect(motion).toMatch(/15-2377\/2023\s*F1/);
+  expect(motion).toMatch(/04\.12\.2023|2023-12-04/);
+  expect(motion).toMatch(/Personalengpäss/i);
+  expect(motion).toMatch(/(?:aktuell|heut)[^.!?]{0,180}Umsetzungsstand/i);
+  expect(motion).toMatch(/für umgesetzte Schritte[^.!?]+Wirkung/i);
+  expect(motion).toMatch(/für ausstehende Schritte[^.!?]+Termin/i);
   expect(motion).not.toMatch(/Schienenrillen|Gleisquerungen/i);
 }
 
-async function readFirstPage(bytes) {
+async function readPdf(bytes) {
   const document = pdfjs.getDocument({ data: new Uint8Array(bytes), disableWorker: true });
   try {
     const pdf = await document.promise;
-    const firstPage = await pdf.getPage(1);
-    const text = await firstPage.getTextContent();
-    return text.items.map(item => item.str).join(' ');
+    const paragraphs = [];
+    const links = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const [content, annotations] = await Promise.all([page.getTextContent(), page.getAnnotations()]);
+      paragraphs.push(content.items.map(item => item.str).join(' '));
+      links.push(...annotations.map(annotation => annotation.url).filter(Boolean));
+    }
+    return { text: paragraphs.join(' '), links, title: (await pdf.getMetadata()).info.Title };
   } finally {
     await document.destroy();
   }
@@ -38,10 +58,17 @@ async function readFirstPage(bytes) {
 async function readWordDocument(bytes) {
   const archive = await JSZip.loadAsync(bytes);
   const xml = await archive.file('word/document.xml').async('string');
-  return [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match => match[1]).join(' ');
+  const rels = await archive.file('word/_rels/document.xml.rels').async('string');
+  const hyperlinks = new Set([...xml.matchAll(/<w:hyperlink\b[^>]*\br:id="([^"]+)"/g)].map(match => match[1]));
+  const links = [...rels.matchAll(/<Relationship\b[^>]+>/g)].map(match => match[0])
+    .filter(element => hyperlinks.has(element.match(/\bId="([^"]+)"/)?.[1]))
+    .map(element => element.match(/\bTarget="([^"]+)"/)?.[1]);
+  const text = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match => match[1]).join(' ');
+  const core = await archive.file('docProps/core.xml').async('string');
+  return { text, links, title: core.match(/<dc:title>([^<]*)<\/dc:title>/)?.[1] };
 }
 
-test('a Hannover network search carries its actual bicycle/car turning crashes into the motion, PDF and Word', async ({ page, baseURL }) => {
+test('a Hannover network search carries its actual bicycle/car turning crashes and council record into the motion, PDF and Word', async ({ page, baseURL }, testInfo) => {
   test.setTimeout(120_000);
   const localOrigin = new URL(baseURL).origin;
   await page.route('**/*', route => new URL(route.request().url()).origin === localOrigin
@@ -95,9 +122,14 @@ test('a Hannover network search carries its actual bicycle/car turning crashes i
   expect(summary[0]).toContain('Rad + Pkw');
   expect(summary[1]).toMatch(/\b17 Fälle/);
 
-  for (const [selector, extract] of [['#btnExportPDF', readFirstPage], ['#btnExportWord', readWordDocument]]) {
+  for (const [selector, extract] of [['#btnExportPDF', readPdf], ['#btnExportWord', readWordDocument]]) {
     const [file] = await Promise.all([page.waitForEvent('download'), page.locator(selector).click()]);
-    const bytes = await readFile(await file.path());
-    checkMotion(await extract(bytes));
+    const path = testInfo.outputPath(file.suggestedFilename());
+    await file.saveAs(path);
+    const bytes = await readFile(path);
+    const { text, links, title } = await extract(bytes);
+    checkMotion(text);
+    expect(title).toContain(intersection);
+    expect(links).toEqual(expect.arrayContaining(councilSources));
   }
 });

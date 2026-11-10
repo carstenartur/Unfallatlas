@@ -31,7 +31,7 @@ describe('offline review network producer', () => {
   beforeEach(() => { directory = fs.mkdtempSync(path.join(os.tmpdir(), 'review-network-')); });
   afterEach(() => { fs.rmSync(directory, { recursive: true, force: true }); });
 
-  function runProducer(records, features = [polygon(rectangle(9, 52, 9.01, 52.01))]) {
+  function runProducer(records, features = [polygon(rectangle(9, 52, 9.01, 52.01))], args = []) {
     const osm = path.join(directory, 'fixture.osm.gz');
     const boundary = path.join(directory, 'districts.geojson');
     const output = path.join(directory, 'output');
@@ -44,7 +44,7 @@ describe('offline review network producer', () => {
 
     const result = spawnSync('python3', [
       producer, '--city', 'test_city', '--osm', osm, '--boundary', boundary, '--output', output,
-      '--source-url', 'https://example.org/osm', '--source-date', '2026-11-08',
+      '--source-url', 'https://example.org/osm', '--source-date', '2026-11-08', ...args,
     ], { encoding: 'utf8' });
     return { output, result };
   }
@@ -139,6 +139,26 @@ describe('offline review network producer', () => {
     expect(result.status).toBe(0);
     const context = JSON.parse(gunzipSync(fs.readFileSync(path.join(output, 'test_city', 'crossings.json.gz'))));
     expect(context.features['c:n:2']).toEqual(['unmarked']);
+  });
+
+  test('writes reviewed council records only for the bound node and original coordinates', () => {
+    const records = [node(1, 52.004, 9.003), node(2, 52.004, 9.004),
+      node(3, 52.004, 9.005), node(4, 52.003, 9.004), way(100, [1, 2, 3]), way(101, [4, 2])];
+    const changes = [{ label: 'Beschluss', date: '2021-06-07', precision: 'documented-by',
+      url: 'https://example.org/council', kind: 'council-decision' }];
+    const pathToHistory = path.join(directory, 'history.json');
+    const binding = { id: 'j:2', coordinates: [52.004, 9.004] };
+    const run = (coordinates) => {
+      fs.writeFileSync(pathToHistory, JSON.stringify([{ networkSite: { ...binding, coordinates }, changes }]));
+      const { output, result } = runProducer(records, undefined, ['--site-history', pathToHistory]);
+      expect(result.status).toBe(0);
+      return JSON.parse(fs.readFileSync(path.join(output, 'test_city', 'index.json')));
+    };
+    const matched = run(binding.coordinates);
+    expect(matched.caseHistory).toEqual([{ ...binding, changes }]);
+    const moved = run([52.004, 9.005]);
+    expect(moved.caseHistory).toBeUndefined();
+    expect(moved.revision).toBe(matched.revision);
   });
 
   test('clips through city coverage with outside endpoints and preserves a hole', () => {

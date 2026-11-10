@@ -14,6 +14,8 @@ Für Querungen können ausdrücklich kartierte OSM-Angaben zu Markierung, Beleuc
 
 Die Detailansicht zeigt vorhandene geprüfte Verkehrszählungen und Modellwerte mit Einheit und Zeitraum. Für Hannover werden zusätzlich die über die Kartenebene lokal eingelesenen VMZ-Radzählstellen im ausgewählten Rechteck mit ihren gemeldeten Werten aus den gewählten Jahren angezeigt. Tages- und Monatswerte einer Station beschreiben den Verkehr an diesem Zählpunkt. Eine Unfallrate für die gesamte Kreuzung erfordert zusätzliche richtungs- und zeitraumbezogene Verkehrsmengen.
 
+Für Brühlstraße / Escherstraße sind der Beschluss zur Aufpflasterung von 2021 und die Antworten zum Planungsstand von 2022 und 2023 hinterlegt. Der Generator ordnet solche geprüften Quellen über `networkSite.id` und die genaue Geometrie aus der städtischen Datei `<stadt>-discovery-sites.json` zu. Ändert sich der Bezugspunkt, wird die Zuordnung bis zur erneuten Prüfung ausgelassen. Das Datum einer Auskunft bezeichnet den damals berichteten Stand.
+
 ## Eine weitere Stadt hinzufügen
 
 Der Katalog unter `data/mobility/review-network/` enthält die freigeschalteten Städte. Der Generator erstellt den Eintrag, den Index und die komprimierten Teile in einem Durchlauf. Der Stadtschlüssel entspricht den vorhandenen Unfalldaten, etwa `frankfurt_am_main`. Eingaben sind ein datierter OSM-XML-Auszug und ein WGS84-Grenzdatensatz mit Herkunft und Lizenz.

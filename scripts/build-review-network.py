@@ -20,10 +20,12 @@ import math
 import os
 from pathlib import Path
 import re
+import sys
 from tempfile import TemporaryDirectory
 from xml.etree import ElementTree
 
 
+MOBILITY_DATA = Path(__file__).resolve().parents[1] / 'data/mobility'
 SCHEMA_VERSION = 1
 MAX_PART_BYTES = 160 * 1024
 ROWS_PER_PART = 4000
@@ -582,7 +584,7 @@ def publish_network(output, stage, index):
         os.close(descriptor)
 
 
-def write_network(output, city, source, boundary_source, sites, features):
+def write_network(output, city, source, boundary_source, sites, features, case_history):
     counts = dict.fromkeys(('segment', 'junction', 'crossing'), 0)
     counts.update(Counter(site[1] for site in sites))
     if not counts['segment']:
@@ -603,6 +605,8 @@ def write_network(output, city, source, boundary_source, sites, features):
                 (stage / f'{parts[-1]}.json.gz').write_bytes(payload)
         index = {'schemaVersion': SCHEMA_VERSION, 'city': city, 'revision': revision,
                  'source': source, 'boundarySource': boundary_source, 'parts': parts, 'counts': counts}
+        if case_history:
+            index['caseHistory'] = case_history
         if features:
             index['crossingContext'] = True
             payload = packed_json({'revision': revision, 'features': features})
@@ -612,12 +616,34 @@ def write_network(output, city, source, boundary_source, sites, features):
     return index
 
 
+def network_case_history(path, sites):
+    if not path.is_file():
+        return []
+    geometry = {site[0]: site[4] for site in sites}
+    history = []
+    seen = set()
+    for area in json.loads(path.read_text(encoding='utf-8')):
+        binding = area.get('networkSite')
+        if not binding:
+            continue
+        site_id = binding['id']
+        if site_id not in geometry or geometry[site_id] != binding['coordinates']:
+            print(f'Skipping case history for changed or removed network site {site_id}', file=sys.stderr)
+            continue
+        if site_id in seen:
+            raise ValueError(f'Duplicate case history for network site {site_id}')
+        seen.add(site_id)
+        history.append({'id': site_id, 'coordinates': geometry[site_id], 'changes': area['changes']})
+    return history
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--city', required=True, help='Unfallwerkbank city key, for example frankfurt_am_main')
     parser.add_argument('--osm', type=Path, required=True, help='Local OSM XML snapshot (.osm or .osm.gz)')
     parser.add_argument('--boundary', type=Path, required=True, help='City or district boundary GeoJSON')
-    parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[1] / 'data/mobility/review-network')
+    parser.add_argument('--output', type=Path, default=MOBILITY_DATA / 'review-network')
+    parser.add_argument('--site-history', type=Path, help='Optional reviewed discovery sites for this city')
     parser.add_argument('--source-label', default='© OpenStreetMap contributors (ODbL 1.0)')
     parser.add_argument('--source-url', required=True, help='OSM extract download URL')
     parser.add_argument('--source-license-url', default=OSM_LICENSE)
@@ -647,7 +673,11 @@ def main():
         if not all(boundary_source.values()):
             parser.error('Boundary source label, URL and license URL are required in GeoJSON or via flags')
         sites, features = network_sites(args.osm, Boundary(geojson))
-        index = write_network(args.output, args.city, source, boundary_source, sites, features)
+        history_file = args.site_history or (MOBILITY_DATA / f'{args.city}-discovery-sites.json')
+        if args.site_history and not history_file.is_file():
+            raise ValueError(f'Site history not found: {history_file}')
+        history = network_case_history(history_file, sites)
+        index = write_network(args.output, args.city, source, boundary_source, sites, features, history)
     except (OSError, ValueError, KeyError, ElementTree.ParseError) as error:
         parser.error(str(error))
     print(packed_json(index).decode('utf-8'))

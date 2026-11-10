@@ -563,6 +563,9 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
     const motion = aiInput?.deterministicAnalysisDigest?.selectedSiteMotion;
     const requests = list(motion?.requests).filter(request => typeof request === 'string' && request.trim());
     const resolution = requests.length ? [motion.intro, ...requests].filter(Boolean).join(' ') : null;
+    const councilSources = list(motion?.priorWork).filter(record => record?.label && /^https?:\/\//i.test(record.url));
+    const sourcedRationale = [motion?.rationale, ...councilSources.map(record =>
+      `${record.label} (${record.date}, ${record.url})`)].filter(Boolean).join(' ');
     return {
       schemaVersion: 'proposalBrief.v1',
       title: `Verkehrssicherheitsprüfung im Bereich ${area}`.trim(),
@@ -575,7 +578,7 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
         + 'Die zuständige Verwaltung beziehungsweise Unfallkommission soll deshalb Unfalltypen, Lage, Infrastruktur und alternative Erklärungen prüfen, Optionen aus der Maßnahmenbibliothek bewerten und dem Gremium berichten.',
       sachverhalt:
         `Im markierten Bereich wurden im Auswertungszeitraum ${counts.total || 0} Unfälle erfasst.`,
-      begruendung: motion?.rationale ||
+      begruendung: sourcedRationale ||
         'Das dokumentierte Unfallgeschehen und seine Schwere rechtfertigen einen nachvollziehbaren fachlichen Prüfauftrag.'
         + (patterns.length
           ? ` Deterministisch erkannte Konflikt- oder Prüfmuster: ${patterns.slice(0, 3).map(pattern => pattern.label).join('; ')}.`

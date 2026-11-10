@@ -251,7 +251,7 @@
       history.append(item);
     }
     const details = el('details');
-    details.append(el('summary', '', 'Dokumentierte Änderungen'), history);
+    details.append(el('summary', '', changes.some(change => change.kind === 'council-decision') ? 'Beschlüsse und Umsetzungsstand' : 'Dokumentierte Änderungen'), history);
     container.append(details);
   }
 

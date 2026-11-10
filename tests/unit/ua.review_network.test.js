@@ -148,3 +148,15 @@ test.each([true, false])('only applies a matching optional crossing snapshot (ma
   expect(network.sites.get('q:25').crossingFeatures).toEqual(matches ? ['unlit'] : undefined);
   expect(network.sites.get('j:22').crossingFeatures).toBeUndefined();
 });
+
+test('uses dated decisions at the exact surveyed node and rejects another node or outdated coordinates', async () => {
+  const change = { kind: 'council-decision', label: 'Beschluss', url: 'https://www.hannover.de/', date: '2021-06-07', precision: 'documented-by' };
+  const caseHistory = [
+    { id: 'j:22', coordinates: nodes[0][4], changes: [change] },
+    { id: 'q:25', coordinates: nodes[0][4], changes: [change] },
+  ];
+  const UA = setup(undefined, { caseHistory });
+  const result = UA.ReviewNetwork.analyze(await UA.ReviewNetwork.load('Hannover'), []);
+  expect(UA.ReviewNetwork.row(result, 'j:22').changes).toEqual([change]);
+  expect(UA.ReviewNetwork.row(result, 'q:25').changes).toEqual([]);
+});

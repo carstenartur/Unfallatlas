@@ -123,7 +123,11 @@ describe('site discovery', () => {
     try {
       await expect(discovery.loadSites('Bonn')).resolves.toEqual([]);
       const sites = await discovery.loadSites(' HANNOVER ');
-      expect(sites).toHaveLength(2);
+      expect(sites).toHaveLength(3);
+      expect(sites[2]).toMatchObject({ label: 'Brühlstraße / Escherstraße', networkSite: {
+        id: 'j:60655478', coordinates: [52.3757176, 9.7267899],
+      } });
+      expect(sites[2].changes.map(change => change.kind)).toContain('council-decision');
       expect(sites[0]).toMatchObject({
         label: expect.stringContaining('Osterstraße'),
         bounds: { south: 52.36770600225075, west: 9.739235043525698, north: 52.3688753291183, east: 9.741144776344301 },

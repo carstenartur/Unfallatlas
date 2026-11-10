@@ -683,6 +683,7 @@ test('selected-site motion reaches both the model prompt and the blocked offline
     intro: 'Die Verwaltung prüft den Testknoten.',
     requests: ['Unfallskizzen mit Abbiegebeziehungen und vorhandenen Signalphasen abgleichen.'],
     rationale: '17 zugeordnete Fälle mit Rad- und Pkw-Beteiligung.',
+    priorWork: [{ kind: 'council-decision', date: '2021-06-07', label: 'Beschluss zur Aufpflasterung', url: 'https://example.org/ratsinfo/7' }],
     discoveryEvidence: { key: 'turning:5', count: 17, label: 'Rad + Pkw · Typ 2/3' },
   };
   const structured = { ...STRUCTURED_FIXTURE, motion };
@@ -691,8 +692,11 @@ test('selected-site motion reaches both the model prompt and the blocked offline
   const { user } = prompt;
   expect(user).toContain(motion.discoveryEvidence.label);
   expect(user).toContain(motion.requests[0]);
+  expect(user).toContain(motion.priorWork[0].url);
+  expect(user).toContain(motion.priorWork[0].label);
   const fallback = v2.buildDeterministicFallback({ aiInput, mode: 'proposal-brief' });
   expect(fallback.beschlussvorschlag).toContain(motion.requests[0]);
   expect(fallback.begruendung).toContain(motion.rationale);
+  expect(fallback.begruendung).toContain(motion.priorWork[0].url);
   expect(fallback.filingReadinessVerdict.status).toBe('blocked');
 });

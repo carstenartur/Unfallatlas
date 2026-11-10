@@ -55,6 +55,12 @@
       }
     }
     if (!sites.size || Object.keys(counts).some(kind => counts[kind] !== index.counts?.[kind])) return null;
+    for (const record of Array.isArray(index.caseHistory) ? index.caseHistory : []) {
+      const site = sites.get(record?.id);
+      if (!site || !Array.isArray(record.coordinates) || record.coordinates.length !== site.coordinates.length
+          || !site.coordinates.every((value, i) => value === record.coordinates[i])) continue;
+      if (Array.isArray(record.changes) && record.changes.every(UA.SiteDiscovery.validChange)) site.changes = record.changes;
+    }
     return { city, revision, sites, counts, source: index.source, boundarySource: index.boundarySource };
   }
 
@@ -210,7 +216,7 @@
       id: site.id, label: site.label, kind: site.kind, bounds: site.bounds, coordinates: site.coordinates,
       crossingFeatures: site.crossingFeatures, points, count: points.length, assignedCount: assigned.length,
       severeCount: points.filter(point => ['1', '2'].includes(String(point.props?.ukategorie))).length,
-      pattern: UA.SiteDiscovery.patternForPoints(points), changes: [],
+      pattern: UA.SiteDiscovery.patternForPoints(points), changes: site.changes || [],
     };
   }
 

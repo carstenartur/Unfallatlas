@@ -204,3 +204,14 @@ The fixture update contains only that explained runtime hash change. No second
 browser run or new external-source/live-map observation is claimed. The earlier
 bounded live evidence above remains historical; actual model, manual Word,
 scientific and positive political acceptance are not granted by this update.
+
+
+## Official prior decisions for the station area, 2026-11-10
+
+The Bonn council adopted item 5.2 (DS 232044) on 14 March 2024. Point 10 asked the administration to investigate a continuous pedestrian width of at least 3.00 m north of the planned cycle lane on Maximilianstraße up to Am Hauptbahnhof, and to report the consequences. The council commissioned further design work, with a construction decision to follow the detailed design. [Official minutes, item 5.2, pages 36–37](https://www.bonn.de/medien-global/amt-13/amtsblatt/34_2024_Amtsblatt-Niederschrift-Rat-14.03.2024.pdf)
+
+On 8 May 2025 the council directed planners to continue the cycle route along Maximilianstraße and consider physical measures to reduce conflicts with pedestrians. A new motion for this part of the Golden area can request the current design, implementation date and planned monitoring for the existing decisions. The 37 bicycle–car crashes cover the whole selected area. Attribution to this particular route or to pedestrian–cycle conflicts requires separate case-level evidence. [City announcement of 9 May 2025](https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php)
+
+A separate run of the production portal search used the Golden area and bounds with Münsterplatz, Maximilianstraße and Thomas-Mann-Straße. The existing public OParl QA guard recorded two initial network requests and blocked six out-of-scope fallback attempts. The production service reported `POLITICAL_PROVIDER_UNAVAILABLE` before returning a catalogue or findings. The two council records above were verified in city publications. This run supplies no complete automated search or zero-result evidence.
+
+The production model service reported `isAvailable() === false`. Its execution receipt had no model version, execution time or response hash. A real response and provider receipt bound to the Golden input and prompt, followed by an independent rubric and subject-matter review, remain outstanding.

@@ -189,7 +189,7 @@ function patternRow(row, localTotal, baselineTotal) {
 }
 
 function buildDeterministicDigest(structured, features) {
-  const selectedSiteMotion = structured?.motion?.discoveryEvidence ? structured.motion : null;
+  const selectedSiteMotion = structured?.motion?.discoveryEvidence || structured?.motion?.priorWork?.length ? structured.motion : null;
   let existing = object(
     structured?.deterministicAnalysisDigest
     || structured?.aiResearchHandoff?.deterministicAnalysisDigest

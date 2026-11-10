@@ -140,11 +140,14 @@ function buildPrompt(aiInput, mode) {
   lines.push('Verbindliche Einordnung: dokumentierte Ereignisse und mitgelieferte Unfallattribute bestimmt wiedergeben; Unsicherheit über Ursachen nicht mit Unsicherheit über das Ereignis verwechseln.');
 
   lines.push('');
-  if (selectedMotion?.discoveryEvidence) {
+  if (selectedMotion?.discoveryEvidence || selectedMotion?.priorWork?.length) {
     lines.push('=== AUSGEWÄHLTE STELLE UND PRÜFAUFTRAG ===');
-    lines.push(`Gewähltes Muster: ${selectedMotion.discoveryEvidence.label}`);
+    if (selectedMotion.discoveryEvidence) lines.push(`Gewähltes Muster: ${selectedMotion.discoveryEvidence.label}`);
     lines.push(selectedMotion.intro, selectedMotion.rationale);
     if (Array.isArray(selectedMotion.requests)) lines.push(...selectedMotion.requests);
+    for (const record of selectedMotion.priorWork || []) {
+      lines.push(`Amtlicher Beleg zur ausgewählten Netzstelle (${record.date}): ${record.label} · ${record.url}`);
+    }
     lines.push('Halte diese Fallgruppe, das Gesamtgebiet und den Stadtvergleich auseinander. Stelle jede Variante unter die im Prüfauftrag genannten Voraussetzungen. Begründe jede Änderung am gewählten Schwerpunkt mit überprüfbaren Belegen.');
     lines.push('');
   }
