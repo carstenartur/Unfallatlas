@@ -16,7 +16,6 @@
   const kindLabels = { site: 'Dokumentierter Ort', segment: 'Straßenabschnitt', cell: 'Suchzelle' };
   const number = new Intl.NumberFormat('de-DE');
   const sameBounds = (a, b) => !!a && !!b && ['south', 'west', 'north', 'east'].every(k => a[k] === b[k]);
-  const yearOf = point => Number(point.props?.ujahr ?? point.props?.UJAHR ?? point.props?.year ?? point.props?.Jahr) || 0;
 
   function areaBounds(ctx) {
     const b = ctx.selectionBounds;
@@ -105,6 +104,7 @@
   }
 
   function showPanel(ctx, state, { fromMap = false } = {}) {
+    const opening = state.panel.hidden;
     if (window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches) {
       UA.PoliticalContext?.collapseWorkspace?.(ctx);
       UA.closeMapControls?.(ctx);
@@ -112,7 +112,7 @@
     if (fromMap) UA.revealAnalysisPanel?.(ctx);
     state.panel.hidden = false;
     state.trigger.setAttribute('aria-expanded', 'true');
-    dataChanged(ctx);
+    dataChanged(ctx, opening);
   }
 
   function caseLabel(point, index) {
@@ -120,7 +120,7 @@
     const type = props.utyp1 ?? props.UTYP1 ?? props.accidentType;
     const severity = props.ukategorie ?? props.UKATEGORIE ?? props.severity;
     const month = Number(props.umonat ?? props.UMONAT ?? props.month);
-    const year = yearOf(point);
+    const year = UA.SiteDiscovery.yearOf(point);
     const date = year && month >= 1 && month <= 12 ? String(month).padStart(2, '0') + '/' + year : year;
     return [
       'Fall ' + (index + 1), date || 'Jahr unbekannt',
@@ -131,6 +131,7 @@
   function addCaseMarkers(ctx, state, selection, list, listDetails, status) {
     const locationGroups = new Map();
     const focused = new Set(selection.pattern?.points || []);
+    const { yearOf } = UA.SiteDiscovery;
     const rows = selection.points
       .slice().sort((a, b) => yearOf(b) - yearOf(a))
       .map((point, index) => {
@@ -387,9 +388,9 @@
     renderRows(ctx, state);
   }
 
-  function dataChanged(ctx) {
+  function dataChanged(ctx, opening = false) {
     const state = panels.get(ctx);
-    if (!state || state.panel.hidden) return;
+    if (!state) return;
     if (state.city !== ctx.CITY_RAW) {
       selectionChanged(ctx);
       state.city = ctx.CITY_RAW;
@@ -397,23 +398,28 @@
       state.sites = null;
       state.siteRequest = null;
     }
+    const visible = !state.panel.hidden;
+    if (!visible && !state.selection) return;
     const coverage = ctx.accidentDataCoverage;
     const scope = coverage?.complete === true
       ? 'Vollständiger verfügbarer Stadtdatensatz. Fälle mit Personenschaden.'
       : 'Stadtdatensatz unvollständig. Die gesamte Liste bezieht sich nur auf die geladenen Unfalldaten.';
     if (state.coverage.textContent !== scope) state.coverage.textContent = scope;
     const selection = state.selection;
-    if (selection && (state.points && state.points !== ctx.allPts
-        || selection.query.mapFilters && state.mapPoints !== ctx.filteredAll)) {
+    const pointsChanged = state.points !== ctx.allPts;
+    const mapChanged = state.mapPoints !== ctx.filteredAll;
+    if (selection && (pointsChanged || (selection.query.mapFilters && mapChanged))) {
       showSelection(ctx, state, { ...selection, ...buildSelection(ctx, {
         ...selection, key: ctx.discoveryFocus?.key, useExactKey: true,
       }) });
     }
     state.mapPoints = ctx.filteredAll;
-    if (state.points !== ctx.allPts) {
+    if (pointsChanged) {
       state.points = ctx.allPts;
-      refreshCandidates(ctx, state);
+      refreshYearControls(ctx, state);
     }
+    if (!visible) return;
+    if (opening || pointsChanged) refreshCandidates(ctx, state);
     if (!state.siteRequest) {
       const requested = Promise.resolve(UA.SiteDiscovery.loadSites(ctx.CITY_RAW));
       state.siteRequest = requested;
@@ -432,15 +438,31 @@
     }
   }
 
+  function setSelectOptions(select, choices) {
+    select.replaceChildren(...choices.map(([value, title]) => {
+      const option = el('option', '', title);
+      option.value = value;
+      return option;
+    }));
+  }
+
+  function refreshYearControls(ctx, state) {
+    const years = new Set((ctx.allPts || []).map(UA.SiteDiscovery.yearOf).filter(Boolean));
+    const { fromYear, toYear } = state.query;
+    if (fromYear) years.add(fromYear);
+    if (toYear) years.add(toYear);
+    const options = [['', 'Alle'], ...[...years].sort((a, b) => a - b).map(year => [year, year])];
+    setSelectOptions(state.fromYearSelect, options);
+    setSelectOptions(state.toYearSelect, options);
+    state.fromYearSelect.value = fromYear || '';
+    state.toYearSelect.value = toYear || '';
+  }
+
   function selectControl(id, label, choices) {
     const wrapper = el('label', '', label);
     const select = el('select');
     select.id = id;
-    for (const [value, title] of choices) {
-      const option = el('option', '', title);
-      option.value = value;
-      select.append(option);
-    }
+    setSelectOptions(select, choices);
     wrapper.append(select);
     return { wrapper, select };
   }
@@ -467,11 +489,8 @@
     head.append(title, button('Schließen', close));
 
     const grid = el('div', 'site-discovery-criteria');
-    const years = [...new Set((ctx.allPts || []).map(yearOf).filter(Boolean))].sort((a, b) => a - b);
-    const selectedYears = [ctx.discoveryFocus?.query?.fromYear, ctx.discoveryFocus?.query?.toYear].filter(Boolean);
-    const yearOptions = [['', 'Alle'], ...[...new Set([...years, ...selectedYears])].sort((a, b) => a - b).map(year => [year, year])];
-    const from = selectControl('siteDiscoveryFromYear', 'Von Jahr', yearOptions);
-    const to = selectControl('siteDiscoveryToYear', 'Bis Jahr', yearOptions);
+    const from = selectControl('siteDiscoveryFromYear', 'Von Jahr', []);
+    const to = selectControl('siteDiscoveryToYear', 'Bis Jahr', []);
     const severity = selectControl('siteDiscoverySeverity', 'Unfallschwere', [
       ['all', 'Alle'], ['serious', 'Getötete oder Schwerverletzte'], ...Object.entries(severityLabels),
     ]);
@@ -506,16 +525,16 @@
 
     const savedQuery = ctx.discoveryFocus?.query || allQuery;
     const { mapFilters: _mapFilters, ...query } = savedQuery;
-    from.select.value = query.fromYear || '';
-    to.select.value = query.toYear || '';
     severity.select.value = query.severity;
     type.select.value = query.type;
     involvement.select.value = query.involvement || 'all';
     const state = {
       panel, trigger, coverage, status, rows, more, detail, sort: sort.select,
-      limit: listPage, query, city: ctx.CITY_RAW, candidates: [],
+      fromYearSelect: from.select, toYearSelect: to.select,
+      limit: listPage, query, city: ctx.CITY_RAW, candidates: [], points: ctx.allPts, mapPoints: ctx.filteredAll,
     };
     panels.set(ctx, state);
+    refreshYearControls(ctx, state);
     for (const control of [from, to, severity, type, involvement]) {
       control.select.addEventListener('change', () => {
         state.query = {

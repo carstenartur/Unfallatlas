@@ -48,8 +48,8 @@ describe('site discovery', () => {
 
   test('scopes inclusively by year, severity and the turning/crossing codes', () => {
     const oldest = point('old', 52.36, 9.75, { year: 2021, ukategorie: '1' });
-    const start = point('start', 52.36, 9.75, { year: '2022', ukategorie: '2', utyp1: 2 });
-    const end = point('end', 52.36, 9.75, { year: 2024, ukategorie: '1', utyp1: '3' });
+    const start = point('start', 52.36, 9.75, { year: undefined, ujahr: '2022', ukategorie: '2', utyp1: 2 });
+    const end = point('end', 52.36, 9.75, { year: '', UJAHR: 2024, ukategorie: '1', utyp1: '3' });
     const light = point('light', 52.36, 9.75, { year: 2023 });
     const otherType = point('other', 52.36, 9.75, { year: 2023, ukategorie: '2', utyp1: 4 });
     const undated = point('unknown', 52.36, 9.75, { year: '', ukategorie: '2' });
@@ -64,8 +64,8 @@ describe('site discovery', () => {
   });
 
   test('focuses the exact involvement and uses only its latest year', () => {
-    const first = point('18', 52.36, 9.75, { year: 2023, utyp1: '3' });
-    const second = point('18', 52.36, 9.75, { year: 2025, utyp1: '2' });
+    const first = point('18', 52.36, 9.75, { year: undefined, ujahr: 2023, utyp1: '3' });
+    const second = point('18', 52.36, 9.75, { year: undefined, UJAHR: 2025, utyp1: '2' });
     const third = point('19', 52.36, 9.75, { year: 2025, utyp1: '3' });
     const extraMode = point('extra', 52.36, 9.75, { year: 2025, istfuss: '1' });
     const newerOtherType = point('newer', 52.36, 9.75, { year: 2026, utyp1: '4' });
