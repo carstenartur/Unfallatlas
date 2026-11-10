@@ -3,10 +3,10 @@
 
   const UA = (window.UA = window.UA || {});
   const PROFILE_ID = 'public-preview-core-v1';
-  const DISABLED_CAPABILITIES = Object.freeze(['video-export']);
+  const DISABLED_CAPABILITIES = Object.freeze(['priorities', 'video-export']);
   const SERVER_REQUIRED_CAPABILITIES = Object.freeze([
     'political-context-search',
-    'video-export',
+    ...DISABLED_CAPABILITIES,
   ]);
   const DEFAULT_CITY_LIST_WARNING_MS = 1500;
 
@@ -330,9 +330,10 @@
       'line-height:1.35',
     ].join(';');
     notice.innerHTML =
-      '<summary style="cursor:pointer;font-weight:700">Öffentliche Browser-Version · nur Videoexport nicht verfügbar</summary>' +
+      '<summary style="cursor:pointer;font-weight:700">Öffentliche Browser-Version · Funktionsumfang</summary>' +
       '<p style="margin:6px 0 2px">Karte, Filter, Bereichsauswahl sowie CSV-, GeoJSON-, KML-, Word- und PDF-Export sind verfügbar. ' +
       'Die politische Suche nutzt veröffentlichte Ratsdaten je Stadt. Live-Recherche und Videoexport benötigen ein Server-Backend. ' +
+      'Prioritäten und gespeicherte Briefs benötigen zusätzlich einen verbundenen Analysis Service. ' +
       'Nach aktuellem Stand gilt: eine bekannte Lizenzbeschränkung für diese Browserfunktionen besteht nicht. ' +
       'Technische Provenienz-Härtung wird transparent in ' +
       '<a href="https://github.com/carstenartur/Unfallatlas/issues/406" target="_blank" rel="noopener">Issue #406</a> dokumentiert.</p>';

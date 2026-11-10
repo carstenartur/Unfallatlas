@@ -107,9 +107,11 @@ describe('public Pages QA hardening', () => {
     expect(notice).toBeInstanceOf(HTMLDetailsElement);
     expect(notice.open).toBe(false);
     expect(notice.querySelector('summary').textContent)
-      .toContain('nur Videoexport nicht verfügbar');
+      .toBe('Öffentliche Browser-Version · Funktionsumfang');
     expect(notice.textContent)
       .toContain('Live-Recherche und Videoexport benötigen ein Server-Backend');
+    expect(notice.textContent)
+      .toContain('Prioritäten und gespeicherte Briefs benötigen zusätzlich einen verbundenen Analysis Service');
   });
 
   test('suppresses the impossible Pages POST and exposes official Bonn links without a backend', async () => {

@@ -60,6 +60,8 @@ function validateHtml(siteRoot) {
   assert(canonical.includes(`name="unfallwerkbank:distribution-profile" content="${PROFILE_ID}"`),
     'canonical page lacks the distribution-profile marker');
   assert(canonical.includes('js/ua.public-preview.js'), 'canonical page lacks the public browser runtime');
+  assert(canonical.includes('<div id="prioritiesControl" hidden '), 'public page exposes the server-only priorities control');
+  assert(!canonical.includes('src="js/ua.priorities.js'), 'public page loads the server-only priorities client');
 
   for (const reference of [
     LEAFLET_HEAT_ASSET,
@@ -78,8 +80,10 @@ function validateHtml(siteRoot) {
 
   const publicRuntime = fs.readFileSync(path.join(siteRoot, 'js', 'ua.public-preview.js'), 'utf8');
   assert(publicRuntime.includes(PROFILE_ID), 'public runtime does not declare the expected profile');
-  exactSorted(DISABLED_CAPABILITIES, ['video-export'], 'disabled capabilities policy');
-  assert(publicRuntime.includes("'video-export'"), 'public runtime does not disable the backend-only video export');
+  exactSorted(DISABLED_CAPABILITIES, ['priorities', 'video-export'], 'disabled capabilities policy');
+  for (const capability of DISABLED_CAPABILITIES) {
+    assert(publicRuntime.includes(`'${capability}'`), `public runtime lacks the server-only capability ${capability}`);
+  }
   assert(!publicRuntime.includes('UA.ensureExportLibraries ='), 'public runtime still blocks Word/PDF libraries');
   assert(!publicRuntime.includes("hideElement(document.getElementById('exportGroupAntrag'))"),
     'public runtime still hides Word/PDF export controls');
@@ -303,7 +307,7 @@ function validatePublicPagesProfile(options = {}) {
   process.stdout.write(
     `[validate-public-pages-profile] ${PROFILE_ID}: ${PUBLIC_ASSET_PATHS.length} locked assets, ` +
     `${packageNames.length} direct packages, ${expectedGapIds.length} declared hardening gaps, ` +
-    `only video-export disabled.\n`
+    `${DISABLED_CAPABILITIES.join(', ')} disabled.\n`
   );
   return {
     profile: PROFILE_ID,

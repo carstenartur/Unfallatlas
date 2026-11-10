@@ -43,7 +43,7 @@ describe('video export public distribution boundary', () => {
     delete global.fetch;
   });
 
-  test('public browser profile disables only backend video and does not probe it', async () => {
+  test('public browser profile disables backend video and does not probe it', async () => {
     evaluate(publicPreviewSource);
     evaluate(videoSource);
 
@@ -53,7 +53,7 @@ describe('video export public distribution boundary', () => {
       complianceMode: 'declared-known-provenance-gaps',
       provenanceGapsBlockCapabilities: false,
       knownLicenseRestrictions: [],
-      disabledCapabilities: ['video-export'],
+      disabledCapabilities: expect.arrayContaining(['video-export']),
     });
     expect(window.UA.videoExportClient.backendProbeDisabled()).toBe(true);
 

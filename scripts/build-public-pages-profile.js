@@ -19,7 +19,7 @@ const TRACKING_ISSUE = 'https://github.com/carstenartur/Unfallatlas/issues/406';
 const NOTICE_PATH = 'vendor/third-party-notices.json';
 const SBOM_PATH = 'vendor/sbom.cdx.json';
 const POLICY_PATH = 'vendor/provenance-policy.json';
-const DISABLED_CAPABILITIES = Object.freeze(['video-export']);
+const DISABLED_CAPABILITIES = Object.freeze(['priorities', 'video-export']);
 const EXCLUDED_VENDOR_ROOTS = Object.freeze([]);
 const EXCLUDED_PACKAGE_NAMES = Object.freeze([]);
 const LEGACY_HTML = Object.freeze([
@@ -121,6 +121,8 @@ function patchCanonicalHtml(siteRoot) {
     );
   }
   html = html.replace(/<title>([^<]*)<\/title>/, `<title>${PROFILE_LABEL}</title>`);
+  html = html.replace('<div id="prioritiesControl" style=', '<div id="prioritiesControl" hidden style=');
+  html = html.replace(/^[ \t]*<script src="js\/ua\.priorities\.js(?:\?[^"\r\n]*)?"><\/script>\r?\n/m, '');
 
   if (!html.includes('js/ua.public-preview.js')) {
     const appScript = /(<script src="js\/ua\.app_v2\.js[^>]*><\/script>)/;
@@ -129,7 +131,7 @@ function patchCanonicalHtml(siteRoot) {
     }
     html = html.replace(
       appScript,
-      `<script src="js/ua.public-preview.js?v=4"></script>\n  $1`
+      `<script src="js/ua.public-preview.js?v=5"></script>\n  $1`
     );
   }
 
@@ -309,7 +311,7 @@ function applyPublicPagesProfile(options = {}) {
 
   process.stdout.write(
     `[public-pages-profile] Materialized ${PROFILE_LABEL} with ${result.assetCount} locked browser assets; ` +
-    `only ${DISABLED_CAPABILITIES.join(', ')} disabled; ${result.knownGapCount} provenance-hardening gaps declared.\n`
+    `${DISABLED_CAPABILITIES.join(', ')} disabled; ${result.knownGapCount} provenance-hardening gaps declared.\n`
   );
   return result;
 }
