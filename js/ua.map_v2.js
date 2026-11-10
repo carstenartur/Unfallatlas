@@ -638,21 +638,7 @@
   };
 
   function _defaultLayerDefinition(id) {
-    if (id === 'hybrid-labels') {
-      return {
-        id,
-        displayName: 'Beschriftungen & Straßennamen',
-        provider: 'CARTO / OpenStreetMap',
-        layerType: 'overlay',
-        technicalType: 'XYZ',
-        url: 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
-        subdomains: 'abcd',
-        minZoom: 0,
-        maxZoom: 20,
-        attribution: '&copy; OpenStreetMap-Mitwirkende, &copy; CARTO',
-        license: 'ODbL 1.0 / CARTO'
-      };
-    }
+    if (id !== 'standard-osm') return null;
     return {
       id: 'standard-osm',
       displayName: 'OpenStreetMap Standard',
@@ -736,6 +722,11 @@
     const mode = (typeof UA.resolveMapMode === 'function')
       ? UA.resolveMapMode(ctx && ctx.mapMode)
       : ((ctx && ctx.mapMode) || 'standard');
+    let warning = state?.fallbackReason || '';
+    if (activeOrthophoto && (mode === 'hybrid' || mode === 'analysis') && !state.labelLayer) {
+      const note = 'Straßenbeschriftungen sind für diese Installation nicht konfiguriert.';
+      warning = warning ? `${warning} ${note}` : note;
+    }
     ctx._activeMapLayerInfo = Object.assign({
       mode,
       modeLabel: LOCAL_MAP_MODE_LABELS[mode] || LOCAL_MAP_MODE_LABELS.standard,
@@ -744,7 +735,7 @@
       orthophoto: activeOrthophoto,
       orthophotoFallbackFrom: (activeOrthophoto && fallbackSource && activeOrthophoto.id !== fallbackSource.id) ? fallbackSource : null,
       orthophotoOpacity: _effectiveOrthophotoOpacity(ctx, mode),
-      warning: state && state.fallbackReason ? state.fallbackReason : ''
+      warning
     }, extra || {});
     if (typeof UA.renderMapLayerStatus === 'function') {
       try { UA.renderMapLayerStatus(ctx); } catch (_) {}
@@ -1301,6 +1292,8 @@
         traffic: UA.contextRoadLayer.buildTrafficLayer,
         speed30: UA.contextRoadLayer.buildSpeed30Layer,
       };
+      const build = builders[kind];
+      if (typeof build !== 'function') return null;
       if (kind === 'speed30') {
         if (isHannover(ctx)) opts.speedRules = reg.speed30Rules;
         // A popup tied to a polyline closes when autopan rebuilds the tiled group.
@@ -1312,7 +1305,7 @@
           reg.speed30Popup = popup.openOn(ctx.map);
         };
       }
-      const layer = builders[kind](state, opts);
+      const layer = build(state, opts);
       reg.pending[kind] = false;
       return layer;
     } catch (e) {

@@ -54,10 +54,19 @@ function classifyLiveBasemapUrl(rawUrl) {
   return null;
 }
 
-function requiredLiveBasemapKinds(testTitle) {
-  if (testTitle.startsWith('23 ')) return ['orthophoto', 'labels'];
-  if (testTitle.startsWith('22 ') || testTitle.startsWith('24 ')) return ['orthophoto'];
+function requiredLiveBasemapKinds(testTitle, labelsConfigured = false) {
+  if (testTitle.startsWith('23 ') || testTitle.startsWith('24 ')) {
+    if (labelsConfigured) return ['orthophoto', 'labels'];
+    return ['orthophoto'];
+  }
+  if (testTitle.startsWith('22 ')) return ['orthophoto'];
   return ['standard'];
+}
+
+function liveBasemapEvidenceUrl(rawUrl) {
+  const url = new URL(rawUrl);
+  if (classifyLiveBasemapUrl(rawUrl) === 'labels') url.searchParams.delete('key');
+  return url.href;
 }
 
 function roundedTileMetric(value) {
@@ -203,19 +212,21 @@ async function readVisibleLiveBasemapTiles(page) {
           : 'pane-' + String(pane && pane.className || 'unknown')
       };
     });
-    return { mapRect, animationState, observedTiles };
+    const labelsConfigured = Boolean(document.querySelector('meta[name="unfallwerkbank-carto-basemaps-key"]')?.content.trim());
+    return { mapRect, animationState, observedTiles, labelsConfigured };
   });
 
   const live = LIVE_BASEMAP_PROVENANCE.get(page);
   const successfulUrls = new Set((live && live.successfulResponses || []).map(response =>
     new URL(response.url).href
   ));
-  const requiredKinds = live && Array.isArray(live.requiredKinds) ? live.requiredKinds : [];
+  const requiredKinds = live ? requiredLiveBasemapKinds(live.testTitle, observed.labelsConfigured) : [];
+  if (live) live.requiredKinds = requiredKinds;
   const normalized = observed.observedTiles.map(tile => {
     let url = '';
     let kind = null;
     try {
-      url = new URL(tile.url).href;
+      url = liveBasemapEvidenceUrl(tile.url);
       kind = classifyLiveBasemapUrl(url);
     } catch (_) {
       url = String(tile.url || '');
@@ -359,19 +370,20 @@ async function proxyLiveBasemapRequest(route, kind) {
     await route.fulfill({
       status: 504,
       contentType: 'text/plain; charset=utf-8',
-      body: 'Timed out while loading live ' + kind + ' tile: ' +
-        String(error && error.message || error)
+      body: 'Timed out while loading live ' + kind + ' tile' +
+        (kind === 'labels' ? '.' : ': ' + String(error && error.message || error))
     });
   }
 }
 
 async function setupLiveBasemapTiles(page, options = {}) {
-  const { orthophotoAvailable = true, requiredKinds = ['standard'] } = options;
+  const { orthophotoAvailable = true, testTitle = '' } = options;
   const unexpectedExternalRequests = [];
   const successfulResponses = [];
   UNEXPECTED_EXTERNAL_REQUESTS.set(page, unexpectedExternalRequests);
   LIVE_BASEMAP_PROVENANCE.set(page, {
-    requiredKinds,
+    testTitle,
+    requiredKinds: requiredLiveBasemapKinds(testTitle),
     successfulResponses,
     visibleTiles: [],
     observedTiles: [],
@@ -393,7 +405,7 @@ async function setupLiveBasemapTiles(page, options = {}) {
         kind,
         status: response.status(),
         contentType,
-        url: response.url()
+        url: liveBasemapEvidenceUrl(response.url())
       });
     }
   });
@@ -546,7 +558,7 @@ async function captureDataScreenshot(page, options) {
   transformed = replaceOnce(
     transformed,
     "    await setupDeterministicBasemapTiles(page, {\n      orthophotoAvailable: !testInfo.title.startsWith('25 ')\n    });",
-    "    await setupLiveBasemapTiles(page, {\n      orthophotoAvailable: !testInfo.title.startsWith('25 '),\n      requiredKinds: requiredLiveBasemapKinds(testInfo.title)\n    });",
+    "    await setupLiveBasemapTiles(page, {\n      orthophotoAvailable: !testInfo.title.startsWith('25 '),\n      testTitle: testInfo.title\n    });",
     'documentation beforeEach'
   );
   transformed = replaceOnce(

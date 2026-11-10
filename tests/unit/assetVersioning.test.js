@@ -40,9 +40,13 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'css/ua.css', 'js/ua.app_v2.js', 'js/ua.context_road_layer.js', 'js/ua.data_paths.js',
     'js/ua.hannover_layers.js', 'js/ua.map_scene.js', 'js/ua.map_scene_url_codec.js',
-    'js/ua.map_v2.js', 'js/ua.state.js', 'js/ua.tour.js',
+    'js/ua.tour.js',
   ])('%s refreshes the mobility layers and compact map controls', asset => {
     expect(html).toContain(`${asset}?v=2026-11-09-mobility"`);
+  });
+
+  test.each(['js/ua.map_v2.js', 'js/ua.map_layer_registry.js', 'js/ua.state.js'])('%s refreshes CARTO and layer configuration', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-10-carto"`);
   });
 
   test('both canonical template and export assets load the current defaults', () => {

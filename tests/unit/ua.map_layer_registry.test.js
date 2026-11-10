@@ -29,7 +29,8 @@ describe('map layer registry and map modes', () => {
   }
 
   beforeEach(() => {
-    win = { UA: {}, L: makeLeafletStub() };
+    document.head.innerHTML = '';
+    win = { UA: {}, L: makeLeafletStub(), document };
     load('ua.map_layer_registry.js');
     load('ua.map_v2.js');
     UA = win.UA;
@@ -52,6 +53,10 @@ describe('map layer registry and map modes', () => {
   });
 
   test('applies hybrid mode with orthophoto and labels', () => {
+    const config = document.createElement('meta');
+    config.name = 'unfallwerkbank-carto-basemaps-key';
+    config.content = ' test+key&value ';
+    document.head.appendChild(config);
     const map = {
       layers: [],
       addLayer(layer) { layer._map = this; if (!this.layers.includes(layer)) this.layers.push(layer); return this; },
@@ -64,9 +69,26 @@ describe('map layer registry and map modes', () => {
     expect(ctx.baseMapState.activeOrthophotoDef.id).toBe('bonn-orthophoto');
     expect(map.layers.map(layer => layer.url)).toEqual(expect.arrayContaining([
       'https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer',
-      'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png'
+      'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png?key=test%2Bkey%26value'
     ]));
     expect(map.layers.map(layer => layer.url)).not.toContain('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+  });
+
+  test.each(['hybrid', 'analysis'])('keeps the orthophoto in %s without requesting unauthenticated labels', mapMode => {
+    const map = {
+      layers: [],
+      addLayer(layer) { this.layers.push(layer); }
+    };
+    const ctx = { CITY_RAW: 'Hannover', map, mapMode };
+
+    UA.applyMapMode(ctx);
+    ctx.baseMapState.orthophotoLayer.events.load();
+
+    expect(map.layers).toEqual([ctx.baseMapState.orthophotoLayer]);
+    expect(UA.getActiveMapLayerInfo(ctx)).toMatchObject({
+      mode: mapMode,
+      warning: 'Straßenbeschriftungen sind für diese Installation nicht konfiguriert.',
+    });
   });
 
   test('analysis mode clamps orthophoto opacity for overlay readability', () => {

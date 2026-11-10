@@ -595,6 +595,17 @@ function buildSite(options = {}) {
     assertSymlinkFreeTree(source, `static source ${entry}`);
     copyEntry(source, path.join(outputRoot, entry));
   }
+  const cartoKey = process.env.CARTO_BASEMAPS_KEY?.trim();
+  if (cartoKey) {
+    const htmlPath = path.join(outputRoot, 'werkbank_v2.html');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const placeholder = '<meta name="unfallwerkbank-carto-basemaps-key" content="" />';
+    if (!html.includes(placeholder)) throw new Error('[build-site] CARTO browser key placeholder is missing');
+    const escaped = cartoKey.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
+      .replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    fs.writeFileSync(htmlPath, html.replace(placeholder, () =>
+      `<meta name="unfallwerkbank-carto-basemaps-key" content="${escaped}" />`));
+  }
   const vendorAssets = copyVendorAssets(repoRoot, outputRoot);
   const thirdPartyNotices = copyVendorLicenses(repoRoot, outputRoot, undefined, vendorAssets);
   if (thirdPartyNotices.complete !== true) {

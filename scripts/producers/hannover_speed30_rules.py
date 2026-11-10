@@ -60,7 +60,12 @@ def main():
 
     with osmium.io.Reader(str(args.pbf)) as reader:
         extract_timestamp = reader.header().get("osmosis_replication_timestamp")
-    extract_date = datetime.fromisoformat(extract_timestamp).date().isoformat()
+    if not extract_timestamp:
+        parser.error("the OSM extract has no osmosis_replication_timestamp")
+    try:
+        extract_date = datetime.fromisoformat(extract_timestamp.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        parser.error("the OSM extract has an invalid osmosis_replication_timestamp")
 
     ways = {}
     for way in osmium.FileProcessor(str(args.pbf), osmium.osm.WAY):

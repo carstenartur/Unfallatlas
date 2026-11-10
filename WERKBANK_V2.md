@@ -89,6 +89,17 @@ als Sekundärwerkzeug erhalten und blenden Unfallpunkte unabhängig von
 den Map-Layern aus. URL-Keys (`ctxSlope`, `ctxTraffic`,
 `ctxOnlyMatched`) sind unverändert.
 
+### CARTO-Beschriftungen einrichten
+
+Hybrid und Analyseansicht verwenden für Straßennamen einen eigenen
+[CARTO-Basemaps-Browserschlüssel](https://carto.com/basemaps/apikey/).
+Beschränke den Schlüssel bei CARTO auf die Domain der Installation.
+Für GitHub Pages liest der Build das Actions-Repository-Secret
+`CARTO_BASEMAPS_KEY`. Ein lokaler Build mit `npm run build:site` liest
+dieselbe Umgebungsvariable. Der Browserschlüssel ist im ausgelieferten
+HTML und in den Kachelanfragen sichtbar. Ohne Konfiguration verwenden
+beide Modi das Luftbild und zeigen im Kartenmenü einen Hinweis.
+
 > Screenshot-Platzhalter: *Karten-Layer Straßensteigung / Verkehrsbelastung*
 
 

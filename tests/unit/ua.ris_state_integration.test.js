@@ -174,6 +174,7 @@ describe('RIS URL and local storage integration', () => {
     const ctx = makeContext(UA);
     const registry = ctx.contextOverlays;
     registry.layers = { slope: { live: true } };
+    registry.active.speed30 = true;
     const saved = savedState();
     localStorage.setItem('ua_state_hannover', JSON.stringify(saved));
 
@@ -181,7 +182,7 @@ describe('RIS URL and local storage integration', () => {
 
     expect(ctx.risView).toEqual({ ...workedView, recordId: 'region-hannover-ris:saved' });
     expect(ctx.contextOverlays).toBe(registry);
-    expect(ctx.contextOverlays.active).toEqual({ slope: false, traffic: true, ris: true });
+    expect(ctx.contextOverlays.active).toEqual({ slope: false, traffic: true, ris: true, speed30: true });
     expect(ctx.contextOverlays.layers.slope).toEqual({ live: true });
   });
 

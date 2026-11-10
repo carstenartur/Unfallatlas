@@ -54,6 +54,7 @@ jobs:
 
       - name: Generate data and verify Pages through Maven
         env:
+          CARTO_BASEMAPS_KEY: ${{ secrets.CARTO_BASEMAPS_KEY }}
           PAGES_REFRESH_RIS: '1'
         run: mvn -B -ntp clean verify -Ppages-regenerated
 

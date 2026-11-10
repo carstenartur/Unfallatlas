@@ -118,6 +118,21 @@ function makeCtx(UA) {
 }
 
 describe('ua.map_v2 context overlays', () => {
+  test('an unavailable Tempo 30 renderer is ignored when requested programmatically', async () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextLayerState = { ways: {}, geometries: {} };
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      UA.setContextOverlayActive(ctx, 'speed30', true);
+      await Promise.resolve();
+      expect(ctx.map._layers).toHaveLength(0);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('switching off Tempo 30 while its OSM metadata loads leaves the layer off', async () => {
     const UA = loadMapModule();
     const ctx = makeCtx(UA);

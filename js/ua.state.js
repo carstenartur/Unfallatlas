@@ -289,8 +289,9 @@
         ctx.contextOverlays = ctx.contextOverlays || {};
         ctx.contextOverlays.active = ctx.contextOverlays.active || {};
         for (const kind of UA.MapScene?.overlayKinds || ['slope', 'traffic', 'ris']) {
-          const enabled = st.contextOverlays.active[kind] === true;
-          if (enabled || Object.hasOwn(ctx.contextOverlays.active, kind)) ctx.contextOverlays.active[kind] = enabled;
+          if (Object.hasOwn(st.contextOverlays.active, kind)) {
+            ctx.contextOverlays.active[kind] = st.contextOverlays.active[kind] === true;
+          }
         }
       }
       if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize(st.risView);
