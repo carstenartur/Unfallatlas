@@ -87,14 +87,8 @@
       }
 
       // Context map overlays
-      const ovl = scene.contextOverlays && scene.contextOverlays.active;
-      if (ovl) {
-        const layers = [];
-        if (ovl.slope)   layers.push('slope');
-        if (ovl.traffic) layers.push('traffic');
-        if (ovl.ris)     layers.push('ris');
-        if (layers.length) set('mapLayer', layers.join(','));
-      }
+      const overlays = UA.serializeMapLayerCsv(scene.contextOverlays?.active);
+      if (overlays) set('mapLayer', overlays);
 
       for (const [key, value] of Object.entries(UA.RisViewState?.toQuery(scene.risView) || {})) set(key, value);
 
@@ -140,16 +134,6 @@
       const slopeRaw   = qs.has('ctxSlope')   ? qs.get('ctxSlope').split(',').filter(Boolean)   : [];
       const trafficRaw = qs.has('ctxTraffic') ? qs.get('ctxTraffic').split(',').filter(Boolean) : [];
 
-      let mapLayerSlope   = false;
-      let mapLayerTraffic = false;
-      let mapLayerRis     = false;
-      if (qs.has('mapLayer')) {
-        const parts = qs.get('mapLayer').split(',').map(part => part.trim());
-        mapLayerSlope   = parts.includes('slope');
-        mapLayerTraffic = parts.includes('traffic');
-        mapLayerRis     = parts.includes('ris');
-      }
-
       return UA.MapScene.create({
         city: get('city', ''),
         center,
@@ -187,7 +171,7 @@
         },
         accidentView: get('accidentView', 'bySeverity'),
         contextOverlays: {
-          active: { slope: mapLayerSlope, traffic: mapLayerTraffic, ris: mapLayerRis }
+          active: UA.parseMapLayerCsv(qs.get('mapLayer'))
         },
         risView: UA.RisViewState?.fromSearch(qs)
       });

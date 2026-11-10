@@ -143,10 +143,14 @@
         const city = String(step.value || "").trim();
         if (!city || city === ctx.CITY_RAW) break;
         ctx.CITY_RAW = city;
+        ctx.poiData = undefined;
+        ctx.contextCapabilities = null;
+        ctx.contextLayerState = null;
         if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize();
         if (UA.PoliticalContext?.resetCity) UA.PoliticalContext.resetCity(ctx);
         else UA.RisDetails?.refresh(ctx);
         UA.RisLayer?.refresh(ctx);
+        UA.refreshContextOverlays?.(ctx);
         // Update dropdown if present
         if (ctx.ui && ctx.ui.citySel) {
           ctx.ui.citySel.value = city;
@@ -160,6 +164,7 @@
           }
           await UA.loadCityData(ctx);
           await UA.loadPOIData(ctx);
+          UA.refreshContextOverlays?.(ctx);
           UA.recomputeAndRender(ctx);
         } catch (e) {
           console.warn("[Tour] setCity failed:", e);

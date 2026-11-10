@@ -57,7 +57,10 @@ function loadMapModule() {
   const L = makeLeafletStub();
   win.L = L;
   global.L = L;
-  (function (window) { eval(fs.readFileSync(p, 'utf8')); })(win);
+  (function (window) {
+    eval(fs.readFileSync(path.join(path.dirname(p), 'ua.map_scene.js'), 'utf8'));
+    eval(fs.readFileSync(p, 'utf8'));
+  })(win);
   return win.UA;
 }
 
@@ -115,6 +118,62 @@ function makeCtx(UA) {
 }
 
 describe('ua.map_v2 context overlays', () => {
+  test('an unavailable Tempo 30 renderer is ignored when requested programmatically', async () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextLayerState = { ways: {}, geometries: {} };
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      UA.setContextOverlayActive(ctx, 'speed30', true);
+      await Promise.resolve();
+      expect(ctx.map._layers).toHaveLength(0);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('switching off Tempo 30 while its OSM metadata loads leaves the layer off', async () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.CITY_RAW = 'Hannover';
+    ctx.contextCapabilities = { hasOsmContext: true };
+    ctx.contextLayerState = { ways: { W1: { maxspeed: 30 } }, geometries: { W1: [50, 7, 50.001, 7.001] } };
+    let resolveRules;
+    UA.DataResources = { fetchJson: jest.fn(() => new Promise(resolve => { resolveRules = resolve; })) };
+    UA.contextRoadLayer.buildSpeed30Layer = jest.fn(() => makeLayer('speed30', () => 1));
+    UA.refreshContextOverlays(ctx);
+    UA.setContextOverlayActive(ctx, 'speed30', true);
+    UA.setContextOverlayActive(ctx, 'speed30', false);
+    resolveRules({ ways: { W1: { kind: 'zone' } } });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(UA.contextRoadLayer.buildSpeed30Layer).not.toHaveBeenCalled();
+    expect(ctx.map._layers).toHaveLength(0);
+  });
+
+  test('reactivating a tiled Tempo 30 layer uses the new viewport even when its tiles are already loaded', async () => {
+    const UA = loadMapModule();
+    const ctx = makeCtx(UA);
+    ctx.contextCapabilities = { hasOsmContext: true };
+    ctx.contextLayerState = {
+      ways: { W1: { maxspeed: 30 } }, geometries: { W1: [50, 7, 50.001, 7.001] },
+      tileIndex: { z: 13, tiles: [], tileKeySet: new Set() }, _tileCache: new Map(),
+    };
+    UA.contextLayers = { loadTilesForBbox: jest.fn().mockResolvedValue({}) };
+    const build = UA.contextRoadLayer.buildSpeed30Layer = jest.fn(() => makeLayer('speed30', () => 1));
+    UA.refreshContextOverlays(ctx);
+    UA.setContextOverlayActive(ctx, 'speed30', true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const firstLayer = ctx.contextOverlays.layers.speed30;
+    UA.setContextOverlayActive(ctx, 'speed30', false);
+    const nextBounds = { ...ctx.map.getBounds(), getEast: () => 8.1 };
+    ctx.map.getBounds = () => nextBounds;
+    UA.setContextOverlayActive(ctx, 'speed30', true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(build).toHaveBeenLastCalledWith(ctx.contextLayerState, expect.objectContaining({ bounds: nextBounds }));
+    expect(ctx.contextOverlays.layers.speed30).not.toBe(firstLayer);
+  });
+
   test('RIS round-trips in the layer CSV without enabling either road overlay', () => {
     const UA = loadMapModule();
     expect(UA.parseMapLayerCsv(' ris,traffic,slope,ris,unknown,toString ')).toEqual({ slope: true, traffic: true, ris: true });

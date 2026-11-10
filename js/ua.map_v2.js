@@ -638,21 +638,7 @@
   };
 
   function _defaultLayerDefinition(id) {
-    if (id === 'hybrid-labels') {
-      return {
-        id,
-        displayName: 'Beschriftungen & Straßennamen',
-        provider: 'CARTO / OpenStreetMap',
-        layerType: 'overlay',
-        technicalType: 'XYZ',
-        url: 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
-        subdomains: 'abcd',
-        minZoom: 0,
-        maxZoom: 20,
-        attribution: '&copy; OpenStreetMap-Mitwirkende, &copy; CARTO',
-        license: 'ODbL 1.0 / CARTO'
-      };
-    }
+    if (id !== 'standard-osm') return null;
     return {
       id: 'standard-osm',
       displayName: 'OpenStreetMap Standard',
@@ -736,6 +722,11 @@
     const mode = (typeof UA.resolveMapMode === 'function')
       ? UA.resolveMapMode(ctx && ctx.mapMode)
       : ((ctx && ctx.mapMode) || 'standard');
+    let warning = state?.fallbackReason || '';
+    if (activeOrthophoto && (mode === 'hybrid' || mode === 'analysis') && !state.labelLayer) {
+      const note = 'Straßenbeschriftungen sind für diese Installation nicht konfiguriert.';
+      warning = warning ? `${warning} ${note}` : note;
+    }
     ctx._activeMapLayerInfo = Object.assign({
       mode,
       modeLabel: LOCAL_MAP_MODE_LABELS[mode] || LOCAL_MAP_MODE_LABELS.standard,
@@ -744,7 +735,7 @@
       orthophoto: activeOrthophoto,
       orthophotoFallbackFrom: (activeOrthophoto && fallbackSource && activeOrthophoto.id !== fallbackSource.id) ? fallbackSource : null,
       orthophotoOpacity: _effectiveOrthophotoOpacity(ctx, mode),
-      warning: state && state.fallbackReason ? state.fallbackReason : ''
+      warning
     }, extra || {});
     if (typeof UA.renderMapLayerStatus === 'function') {
       try { UA.renderMapLayerStatus(ctx); } catch (_) {}
@@ -988,7 +979,10 @@
     button.type = 'button';
     button.className = 'mapControlToggle';
     button.id = key + '-title';
-    button.textContent = label;
+    const caption = document.createElement('span');
+    caption.className = 'mapControlLabel';
+    caption.textContent = label;
+    button.appendChild(caption);
     button.setAttribute('aria-label', label);
     const body = document.createElement('div');
     body.id = key + '-body';
@@ -1047,13 +1041,17 @@
       container.setAttribute('aria-labelledby', 'context-overlay-control-title');
       const body = mapControlBody(ctx, control, container, 'context-overlay-control', 'Karte', 'topright');
       groups = {};
-      for (const [key, label] of Object.entries({ background: 'Hintergrund', accidents: 'Unfalldarstellung', surroundings: 'Umgebung', roads: 'Straßeninformationen', ris: 'Ratsvorgänge' })) {
+      const labels = { background: 'Hintergrund', accidents: 'Unfalldarstellung', surroundings: 'Umgebung', roads: 'Straßeninformationen' };
+      if (UA.HannoverLayers) labels.mobility = 'Mobilität';
+      labels.ris = 'Ratsvorgänge';
+      for (const [key, label] of Object.entries(labels)) {
         const group = document.createElement('fieldset');
         group.className = 'mapSettingsGroup';
         group.dataset.mapGroup = key;
         const title = document.createElement('legend');
         title.textContent = label;
         group.appendChild(title);
+        if (key === 'mobility') group.hidden = true;
         groups[key] = group;
         body.appendChild(group);
       }
@@ -1062,6 +1060,8 @@
       else groups.background.hidden = true;
       const accidents = document.getElementById('mapAccidentControls');
       if (accidents) groups.accidents.appendChild(accidents);
+      const surroundingsChoices = document.createElement('div');
+      surroundingsChoices.className = 'mapSettingsChoices';
       const items = [
         { id: 'cluster', label: 'Cluster', stateKey: 'showCluster', group: 'accidents', domId: 'toggleCluster' },
         { id: 'heatmap', label: 'Heatmap', stateKey: 'showHeatmap', group: 'accidents', domId: 'toggleHeat' },
@@ -1085,7 +1085,8 @@
             button.append(icon, document.createTextNode(' '));
           }
           button.appendChild(document.createTextNode(item.label));
-          groups[item.group].appendChild(button);
+          const target = item.id === 'schools' || item.id === 'kindergartens' ? surroundingsChoices : groups[item.group];
+          target.appendChild(button);
           button.addEventListener('click', () => {
             ctx[item.stateKey] = !ctx[item.stateKey];
             UA.syncLegendButtons(ctx);
@@ -1097,6 +1098,7 @@
         button.classList.toggle('active', !!ctx[item.stateKey]);
         button.setAttribute('aria-pressed', String(!!ctx[item.stateKey]));
       }
+      groups.surroundings.appendChild(surroundingsChoices);
       return container;
     };
     control.addTo(map);
@@ -1151,10 +1153,7 @@
   // `UA.app_v2`'s main() before `UA.refreshContextOverlays(ctx)` runs.
   // ----------------------------
 
-  const CONTEXT_OVERLAY_KINDS = ['slope', 'traffic'];
-  // RIS has its own catalogue loader. Only URL serialization includes it in
-  // this list; road geometry/tile/legend work stays scoped to the two above.
-  const MAP_LAYER_KINDS = ['slope', 'traffic', 'ris'];
+  const CONTEXT_OVERLAY_KINDS = ['slope', 'speed30', 'traffic'];
   const CONTEXT_TILE_DEFAULT_ZOOM = 13;
 
   function _lonToTileX(lon, z) {
@@ -1227,21 +1226,6 @@
     );
   }
 
-  UA.parseMapLayerCsv = function parseMapLayerCsv(raw) {
-    const out = { slope: false, traffic: false, ris: false };
-    if (!raw) return out;
-    const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
-    for (const p of parts) if (MAP_LAYER_KINDS.includes(p)) out[p] = true;
-    return out;
-  };
-
-  UA.serializeMapLayerCsv = function serializeMapLayerCsv(active) {
-    const a = active || {};
-    const out = [];
-    for (const k of MAP_LAYER_KINDS) if (a[k]) out.push(k);
-    return out.join(',');
-  };
-
   // Internal: returns `ctx.contextOverlays`, lazily creating it. The
   // registry holds the L.LayerGroup per kind (built on first toggle),
   // the desired-active flags, the layer control, and the legend control.
@@ -1303,9 +1287,25 @@
           opts.debug = { showPercent, showSamples };
         }
       }
-      const layer = (kind === 'slope')
-        ? UA.contextRoadLayer.buildSlopeLayer(state, opts)
-        : UA.contextRoadLayer.buildTrafficLayer(state, opts);
+      const builders = {
+        slope: UA.contextRoadLayer.buildSlopeLayer,
+        traffic: UA.contextRoadLayer.buildTrafficLayer,
+        speed30: UA.contextRoadLayer.buildSpeed30Layer,
+      };
+      const build = builders[kind];
+      if (typeof build !== 'function') return null;
+      if (kind === 'speed30') {
+        if (isHannover(ctx)) opts.speedRules = reg.speed30Rules;
+        // A popup tied to a polyline closes when autopan rebuilds the tiled group.
+        opts.openPopup = (latlng, content) => {
+          const popup = window.L.popup().setLatLng(latlng).setContent(content);
+          popup.once('remove', () => {
+            if (reg.speed30Popup === popup) reg.speed30Popup = null;
+          });
+          reg.speed30Popup = popup.openOn(ctx.map);
+        };
+      }
+      const layer = build(state, opts);
       reg.pending[kind] = false;
       return layer;
     } catch (e) {
@@ -1412,11 +1412,14 @@
     for (const kind of CONTEXT_OVERLAY_KINDS) {
       if (!reg.active[kind] || !reg.layers[kind]) continue;
       try {
-        body.appendChild(UA.contextRoadLayer.buildLegend(kind));
+        const legend = kind === 'speed30'
+          ? UA.contextRoadLayer.buildSpeed30Legend(ctx.CITY_RAW)
+          : UA.contextRoadLayer.buildLegend(kind);
+        body.appendChild(legend);
         added++;
       } catch (_) { /* ignore */ }
     }
-    if (added === 2) {
+    if (reg.active.slope && reg.layers.slope && reg.active.traffic && reg.layers.traffic) {
       const note = document.createElement('div');
       note.className = 'context-road-legend__combined-note';
       note.textContent = 'Kombiniert: Steigung außen, Verkehr gestrichelt innen.';
@@ -1437,19 +1440,17 @@
     if (!CONTEXT_OVERLAY_KINDS.includes(kind)) return;
     const reg = _ensureOverlayRegistry(ctx);
     const want = !!active;
-    if (reg.active[kind] === want) {
-      if (want && !reg.layers[kind]) {
-        _ensureViewportTilesLoaded(ctx).then(() => {
-          const layer = _buildOverlay(ctx, kind);
-          if (layer && ctx.map && typeof layer.addTo === 'function') {
-            try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
-          }
-          if (typeof UA.refreshContextOverlayZOrder === 'function') {
-            try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
-          }
-          _refreshContextLegend(ctx);
-        }).catch(() => { /* tile fetch failure handled in _ensureViewportTilesLoaded */ });
+    const load = () => _ensureViewportTilesLoaded(ctx).then(() => {
+      if (!reg.active[kind] || !ctx.map) return;
+      const layer = _buildOverlay(ctx, kind);
+      if (layer && typeof layer.addTo === 'function') {
+        try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
       }
+      UA.refreshContextOverlayZOrder(ctx);
+      _refreshContextLegend(ctx);
+    }).catch(() => { /* tile fetch failure handled in _ensureViewportTilesLoaded */ });
+    if (reg.active[kind] === want) {
+      if (want && !reg.layers[kind]) load();
       // Even when the desired state already matches, keep the
       // checkbox in sync — a previous teardown may have left it
       // stale. This is cheap (one DOM lookup).
@@ -1457,24 +1458,21 @@
       return;
     }
 
+    reg.active[kind] = want;
     if (want) {
       // PR-E: kick off a viewport-bounded tile fetch first so the
       // initial overlay build sees the data for the current viewport.
       // Best-effort — falls back silently to whatever's already in
       // state.geometries (v1/v2 path resolves immediately).
-      _ensureViewportTilesLoaded(ctx).then(() => {
-        const layer = _buildOverlay(ctx, kind);
-        if (layer && ctx.map && typeof layer.addTo === 'function') {
-          try { layer.addTo(ctx.map); } catch (_) { /* tolerate test stubs */ }
-        }
-        if (typeof UA.refreshContextOverlayZOrder === 'function') {
-          try { UA.refreshContextOverlayZOrder(ctx); } catch (_) {}
-        }
-      });
-    } else if (reg.layers[kind] && ctx.map && typeof reg.layers[kind].remove === 'function') {
-      try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
+      load();
+    } else {
+      if (kind === 'speed30') reg.speed30Popup?.remove();
+      if (reg.layers[kind]) {
+        try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
+        // The cached group only covered the viewport at the time it was built.
+        if (ctx.contextLayerState?.tileIndex) reg.layers[kind] = null;
+      }
     }
-    reg.active[kind] = want;
     _syncOverlayCheckbox(reg, kind, want);
     _refreshContextLegend(ctx);
     // PR-E: install / tear down the moveend handler the first time an
@@ -1489,21 +1487,38 @@
   // Internal: kick off a viewport tile fetch and re-render active
   // overlays once new data arrives. v1/v2 states resolve immediately
   // and the rebuild is a no-op.
+  function isHannover(ctx) {
+    return String(ctx.CITY_RAW || '').trim().toLowerCase() === 'hannover';
+  }
+
+  function _loadSpeed30Rules(ctx, reg) {
+    if (!reg.active.speed30 || !isHannover(ctx) || !UA.DataResources) return;
+    if (!reg.speed30RulesRequest) {
+      reg.speed30RulesRequest = UA.DataResources.fetchJson('speed30Rules', { city: ctx.CITY_RAW }, { optional: true })
+        .then(data => { if (data?.ways && typeof data.ways === 'object') reg.speed30Rules = data; });
+    }
+    return reg.speed30RulesRequest;
+  }
+
   function _ensureViewportTilesLoaded(ctx, opts = {}) {
     const state = ctx.contextLayerState;
     const cl = UA.contextLayers;
     const preDiag = _viewportTileDiagnostics(ctx);
-    if (!state || !ctx.map || !cl || typeof cl.loadTilesForBbox !== 'function') {
-      return Promise.resolve(preDiag);
-    }
+    if (!state || !ctx.map) return Promise.resolve(preDiag);
+    const reg = _ensureOverlayRegistry(ctx);
+    const rulesBefore = reg.speed30Rules;
     let bounds = null;
     try { bounds = (typeof ctx.map.getBounds === 'function') ? ctx.map.getBounds() : null; }
     catch (_) { bounds = null; }
-    if (!bounds) return Promise.resolve(preDiag);
     const before = state.geometries ? Object.keys(state.geometries).length : 0;
-    return cl.loadTilesForBbox(state, bounds).then(() => {
+    const tiles = bounds ? cl?.loadTilesForBbox?.(state, bounds) : undefined;
+    const speedRules = _loadSpeed30Rules(ctx, reg);
+    if (!tiles && !speedRules) return Promise.resolve(preDiag);
+    return Promise.all([tiles, speedRules]).then(() => {
       const after = state.geometries ? Object.keys(state.geometries).length : 0;
-      if (after > before && !opts.skipOverlayRebuild) _rebuildActiveOverlays(ctx);
+      if (!opts.skipOverlayRebuild && (after > before || rulesBefore !== reg.speed30Rules)) {
+        _rebuildActiveOverlays(ctx);
+      }
       return _viewportTileDiagnostics(ctx);
     }).catch(() => preDiag);
   }
@@ -1808,6 +1823,12 @@
     const settings = ensureMapSettings(ctx, ctx.map);
     const roadGroup = settings.groups.roads;
     const risGroup = settings.groups.ris;
+    const mobilityGroup = settings.groups.mobility;
+    const mobilityControl = UA.HannoverLayers?.controlContent(ctx);
+    if (mobilityGroup) {
+      mobilityGroup.hidden = !mobilityControl;
+      if (mobilityControl && mobilityControl.parentElement !== mobilityGroup) mobilityGroup.appendChild(mobilityControl);
+    }
     const focusedRis = risControl?.contains(document.activeElement) ? document.activeElement : null;
     const reg  = _ensureOverlayRegistry(ctx);
     const focusedControl = [reg.layerControl, reg.legendControl]
@@ -1847,6 +1868,7 @@
     const geomUnavailable  = (state !== null) && !hasGeom;
 
     // Detach any prior layers + controls so a city switch starts clean.
+    reg.speed30Popup?.remove();
     for (const kind of CONTEXT_OVERLAY_KINDS) {
       if (reg.layers[kind]) {
         try { reg.layers[kind].remove(); } catch (_) {}
@@ -1863,26 +1885,31 @@
     // is loaded lazily and may legitimately not be there yet on the
     // first call; resetting `reg.active` at that point would clobber
     // a `?mapLayer=…` deep link before it had a chance to take effect.
-    const showSlope   = !!(UA.contextRoadLayer && caps.hasSlope);
-    const showTraffic = !!(UA.contextRoadLayer && (caps.hasTrafficProxy || caps.hasTrafficEvidence));
-    if (!showSlope && !showTraffic) {
-      // City genuinely has no slope / no traffic data — drop any stale
-      // active flags so a city switch can't leak a hidden restriction
-      // into the URL.
-      let changed = false;
-      if (reg.active.slope)   { reg.active.slope   = false; changed = true; }
-      if (reg.active.traffic) { reg.active.traffic = false; changed = true; }
-      if (changed && typeof UA.syncAllToUrl === 'function') {
-        try { UA.syncAllToUrl(ctx); } catch (_) {}
+    const available = {
+      slope: !!(UA.contextRoadLayer && caps.hasSlope),
+      traffic: !!(UA.contextRoadLayer && (caps.hasTrafficProxy || caps.hasTrafficEvidence)),
+      speed30: !!(UA.contextRoadLayer?.buildSpeed30Layer && caps.hasOsmContext),
+    };
+    let changed = false;
+    for (const kind of CONTEXT_OVERLAY_KINDS) {
+      if (ctx.contextCapabilities && !available[kind] && reg.active[kind]) {
+        reg.active[kind] = false;
+        changed = true;
       }
-      roadGroup.hidden = true;
     }
-    // Drop active flags only for capabilities that actually disappeared
-    // (mirroring the chip-filter pruning in refreshContextFilterVisibility).
-    if (!showSlope)   reg.active.slope   = false;
-    if (!showTraffic) reg.active.traffic = false;
+    if (mobilityGroup && !mobilityControl) {
+      for (const kind of ['bikeCounts', 'schoolRoutes']) {
+        if (!reg.active[kind]) continue;
+        reg.active[kind] = false;
+        changed = true;
+      }
+    }
+    if (changed && typeof UA.syncAllToUrl === 'function') {
+      try { UA.syncAllToUrl(ctx); } catch (_) {}
+    }
 
-    roadGroup.hidden = !showSlope && !showTraffic;
+    const hasRoadLayers = Object.values(available).some(Boolean);
+    roadGroup.hidden = !hasRoadLayers;
     const body = roadGroup;
     // Pending vs. unavailable hint — the overlay control is built
     // even for capability-positive cities whose geometry table is
@@ -1891,14 +1918,14 @@
     //   * isLoadingGeom    → "(lädt …)" — transient, will resolve.
     //   * geomUnavailable  → permanent "Layer nicht verfügbar"
     //                        hint, no spinner-like wording.
-    if ((showSlope || showTraffic) && isLoadingGeom) {
+    if (hasRoadLayers && isLoadingGeom) {
       const hint = document.createElement('div');
       hint.textContent = '(lädt …)';
       hint.style.fontSize = '11px';
       hint.style.color    = '#555';
       hint.style.marginBottom = '4px';
       body.appendChild(hint);
-    } else if ((showSlope || showTraffic) && geomUnavailable) {
+    } else if (hasRoadLayers && geomUnavailable) {
       const hint = document.createElement('div');
       hint.textContent = 'Layer nicht verfügbar (alte Datenversion)';
       hint.style.fontSize = '11px';
@@ -1907,10 +1934,12 @@
       body.appendChild(hint);
     }
 
+    const roadChoices = document.createElement('div');
+    roadChoices.className = 'mapSettingsChoices';
+    body.appendChild(roadChoices);
     const add = (kind, label) => {
       const id  = 'ctxOverlay_' + kind;
       const row = document.createElement('label');
-      row.style.display = 'block';
       // Cursor: 'wait' for transient loading, default for permanent
       // unavailability so it doesn't look like a spinner forever.
       row.style.cursor  = hasGeom ? 'pointer' : (isLoadingGeom ? 'wait' : 'not-allowed');
@@ -1936,12 +1965,14 @@
       });
       row.appendChild(cb);
       row.appendChild(document.createTextNode(' ' + label));
-      body.appendChild(row);
+      roadChoices.appendChild(row);
     };
-    if (showSlope)   add('slope',   'Straßensteigung');
-    if (showTraffic) add('traffic', 'Verkehrsbelastung');
+    if (available.slope)   add('slope',   'Straßensteigung');
+    if (available.traffic) add('traffic', 'Verkehrsbelastung');
+    if (available.speed30) add('speed30', 'Tempo 30 (OSM)');
 
-    if (!showSlope && !showTraffic) {
+    if (!hasRoadLayers) {
+      _ensureMoveEndHandler(ctx);
       restoreControlFocus();
       syncMapPanelOcclusion(ctx, mapControlState(ctx));
       return;
@@ -1986,7 +2017,7 @@
     restoreControlFocus();
     syncMapPanelOcclusion(ctx, mapControlState(ctx));
     _ensureMoveEndHandler(ctx);
-    if (hasV3Tiles && CONTEXT_OVERLAY_KINDS.some(kind => reg.active[kind])) {
+    if (hasGeom && CONTEXT_OVERLAY_KINDS.some(kind => reg.active[kind])) {
       _ensureViewportTilesLoaded(ctx).then(() => {
         _refreshContextLegend(ctx);
       });

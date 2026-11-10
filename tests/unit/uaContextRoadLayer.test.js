@@ -142,6 +142,26 @@ describe('UA.contextRoadLayer — decodeGeometry', () => {
 });
 
 describe('UA.contextRoadLayer — buildSlopeLayer / buildTrafficLayer', () => {
+  test('Tempo 30 separates tagged zones, signed limits, restrictions and unclassified ways', () => {
+    const { UA } = loadModule();
+    const state = {
+      ways: { zone: { maxspeed: 30 }, signed: { maxspeed: 30 }, unknown: { maxspeed: 30 },
+        timed: { maxspeed: 50 }, other: { maxspeed: 50 } },
+      geometries: Object.fromEntries(['zone', 'signed', 'unknown', 'timed', 'other']
+        .map(id => [id, [52.37, 9.73, 52.38, 9.74]])),
+    };
+    const condition = { 'maxspeed:conditional': '30 @ (06:00-22:00)' };
+    const speedRules = { ways: { zone: { kind: 'zone' }, signed: { kind: 'signed' },
+      timed: { kind: 'conditional', name: 'Altenbekener Damm', rules: condition } } };
+    const lines = UA.contextRoadLayer.buildSpeed30Layer(state, { speedRules }).getLayers();
+    expect(Object.fromEntries(lines.map(line => {
+      const props = line.feature.properties;
+      return [props.way_id, props.class];
+    }))).toEqual({ zone: 'zone', signed: 'signed', unknown: 'unknown', timed: 'conditional' });
+    expect(lines.find(line => line.feature.properties.way_id === 'timed').feature.properties.rules)
+      .toEqual(condition);
+  });
+
   function fakeState() {
     return {
       ways: {

@@ -4,6 +4,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const vm = require('node:vm');
 
 const { buildLiveSpec, replaceOnce } = require('../../scripts/run-live-documentation-screenshots.cjs');
 
@@ -59,6 +60,23 @@ describe('live documentation screenshot boundary', () => {
     expect(liveLoadPage).not.toContain("waitForLoadState('networkidle')");
     expect(liveLoadPage).toContain("document.documentElement.dataset.mapSourceMode = 'live';");
     expect(liveLoadPage).not.toContain("document.documentElement.dataset.mapSourceMode = 'fixture';");
+  });
+
+  test('requires configured CARTO labels and keeps the key out of tile evidence', () => {
+    const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
+    const start = transformed.indexOf('function classifyLiveBasemapUrl(');
+    const last = transformed.indexOf('function liveBasemapEvidenceUrl(');
+    const end = transformed.indexOf('\n}', last) + 2;
+    const { requiredLiveBasemapKinds, liveBasemapEvidenceUrl } = vm.runInNewContext(
+      transformed.slice(start, end) + '\n({ requiredLiveBasemapKinds, liveBasemapEvidenceUrl })',
+      { URL },
+    );
+    expect(requiredLiveBasemapKinds('23 Hybrid')).toEqual(['orthophoto']);
+    expect(requiredLiveBasemapKinds('23 Hybrid', true)).toEqual(['orthophoto', 'labels']);
+    expect(requiredLiveBasemapKinds('24 Analyse', true)).toEqual(['orthophoto', 'labels']);
+    expect(requiredLiveBasemapKinds('22 Orthofoto', true)).toEqual(['orthophoto']);
+    const tile = 'https://a.basemaps.cartocdn.com/light_only_labels/15/17269/10767.png';
+    expect(liveBasemapEvidenceUrl(tile + '?key=example%2Bkey')).toBe(tile);
   });
 
   test('bounds live tile requests and advances the application fallback chain on provider stalls', () => {
@@ -169,7 +187,7 @@ describe('live documentation screenshot boundary', () => {
     const transformed = buildLiveSpec(fs.readFileSync(SCREENSHOT_SPEC, 'utf8'));
     const liveClassifier = transformed.slice(
       transformed.indexOf('function classifyLiveBasemapUrl(rawUrl) {'),
-      transformed.indexOf('function requiredLiveBasemapKinds(testTitle) {')
+      transformed.indexOf('function requiredLiveBasemapKinds(')
     );
 
     expect(transformed).toContain(

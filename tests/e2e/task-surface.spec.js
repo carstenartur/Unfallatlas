@@ -309,8 +309,15 @@ test.describe('compact mobile map controls', () => {
       const settings = page.getByRole('button', { name: 'Karte', exact: true });
       await expect(settings).toHaveCount(1);
       await expect(page.getByRole('button', { name: /^(Ebenen|Karten-Layer)$/ })).toHaveCount(0);
+      const card = page.locator('.carte-control');
+      const collapsed = await card.boundingBox();
+      expect(collapsed.width, 'collapsed Karte width').toBeLessThanOrEqual(52);
       await settings.tap();
       await expect(page.locator('#collapseBtn')).toHaveAttribute('aria-expanded', 'false');
+      const expanded = await card.boundingBox();
+      expect(expanded.width, 'expanded Karte width').toBeLessThanOrEqual(Math.min(256, viewport.width * 0.78));
+      const settingsBody = await card.locator('.mapControlBody').boundingBox();
+      expect(settingsBody.height, 'visible layer list height').toBeLessThanOrEqual(viewport.height / 2);
       for (const selector of ['#mapModeHybrid', '#toggleHeat', '[data-layer="schools"]', '#ctxOverlay_slope']) {
         const setting = page.locator(selector);
         await setting.scrollIntoViewIfNeeded();
@@ -318,6 +325,15 @@ test.describe('compact mobile map controls', () => {
         expect(rect.height, selector).toBeGreaterThanOrEqual(selector === '#ctxOverlay_slope' ? 22 : 44);
         await setting.click({ trial: true });
       }
+      const bikeCounts = card.getByRole('checkbox', { name: /Rad.*zählstellen/i });
+      const file = card.locator('input[type="file"]');
+      await expect(file).toBeHidden();
+      await bikeCounts.check();
+      await file.scrollIntoViewIfNeeded();
+      const fileBounds = await file.boundingBox();
+      expect(fileBounds.height, 'VMZ file picker touch height').toBeGreaterThanOrEqual(44);
+      expect(fileBounds.x, 'VMZ file picker left edge').toBeGreaterThanOrEqual(expanded.x);
+      expect(fileBounds.x + fileBounds.width, 'VMZ file picker right edge').toBeLessThanOrEqual(expanded.x + expanded.width);
       await page.keyboard.press('Escape');
       await expect(settings).toBeFocused();
       await expect(settings).toHaveAttribute('aria-expanded', 'false');

@@ -236,7 +236,7 @@
         showCluster: ctx.showCluster ? 1 : 0,
         showHeatmap: ctx.showHeatmap ? 1 : 0,
         showOnlyAboveAverage: ctx.showOnlyAboveAverage ? 1 : 0,
-        contextOverlays: { active: {
+        contextOverlays: { active: UA.MapScene?.overlaySelection?.(ctx.contextOverlays?.active) || {
           slope: !!ctx.contextOverlays?.active?.slope,
           traffic: !!ctx.contextOverlays?.active?.traffic,
           ris: !!ctx.contextOverlays?.active?.ris
@@ -288,11 +288,11 @@
         // into that registry instead of replacing live runtime objects.
         ctx.contextOverlays = ctx.contextOverlays || {};
         ctx.contextOverlays.active = ctx.contextOverlays.active || {};
-        Object.assign(ctx.contextOverlays.active, {
-          slope: st.contextOverlays.active.slope === true,
-          traffic: st.contextOverlays.active.traffic === true,
-          ris: st.contextOverlays.active.ris === true
-        });
+        for (const kind of UA.MapScene?.overlayKinds || ['slope', 'traffic', 'ris']) {
+          if (Object.hasOwn(st.contextOverlays.active, kind)) {
+            ctx.contextOverlays.active[kind] = st.contextOverlays.active[kind] === true;
+          }
+        }
       }
       if (UA.RisViewState) ctx.risView = UA.RisViewState.normalize(st.risView);
 

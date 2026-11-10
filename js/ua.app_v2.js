@@ -286,7 +286,8 @@
     const requestedOverlays = typeof UA.parseMapLayerCsv === 'function'
       ? UA.parseMapLayerCsv(UA.qGet('mapLayer', ''))
       : { slope: false, traffic: false, ris: false };
-    ctx.contextOverlays = { active: { slope: false, traffic: false, ris: !!requestedOverlays.ris } };
+    const { slope, traffic, speed30, ...otherOverlays } = requestedOverlays;
+    ctx.contextOverlays = { active: { ...otherOverlays, slope: false, traffic: false } };
     if (UA.RisViewState) ctx.risView = UA.RisViewState.fromSearch(UA.qs());
 
     UA.bindDom(ctx);
@@ -364,8 +365,9 @@
     // immediately. Default is "all off"; the controls themselves only
     // appear when the city carries the corresponding capability.
     if (!restoredCityState) {
-      ctx.contextOverlays.active.slope   = !!requestedOverlays.slope;
-      ctx.contextOverlays.active.traffic = !!requestedOverlays.traffic;
+      ctx.contextOverlays.active.slope = !!slope;
+      ctx.contextOverlays.active.traffic = !!traffic;
+      if (speed30) ctx.contextOverlays.active.speed30 = true;
     }
     if (typeof UA.refreshContextOverlays === 'function') {
       UA.refreshContextOverlays(ctx);

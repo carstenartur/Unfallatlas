@@ -284,55 +284,143 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
   vertical-align: middle;
 }
 
-/* The settings menu shares existing bindings, with readable full-text rows. */
+/* Karte keeps its layer list scrollable while leaving the map in view. */
 .carte-control {
-  width: min(300px, calc(100vw - 78px));
+  width: min(252px, calc(100vw - 78px));
+  padding: 4px;
+  gap: 0;
+  border: 1px solid rgba(24,35,48,.23);
   color: #222;
-  background: rgba(255,255,255,.96);
-  font: 13px/1.4 system-ui, sans-serif;
+  background: rgba(255,255,255,.88);
+  font: 12px/1.35 system-ui, sans-serif;
 }
-.carte-control:has(> .mapControlToggle[aria-expanded="false"]) { width: auto; min-width: 100px; }
-.carte-control .mapControlToggle { flex: 0 0 auto; min-height: 44px; }
+.carte-control:has(> .mapControlToggle[aria-expanded="false"]) {
+  width: auto;
+  padding: 0;
+}
+.carte-control .mapControlToggle {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  gap: 6px;
+  min-height: 44px;
+  border-color: rgba(24,35,48,.20);
+  background: rgba(255,255,255,.55);
+}
+.carte-control .mapControlToggle::before {
+  --map-layers-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3 2 8l10 5 10-5-10-5ZM2 12l10 5 10-5M2 16l10 5 10-5' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  content: '';
+  flex: 0 0 20px;
+  height: 20px;
+  background-color: currentColor;
+  -webkit-mask: var(--map-layers-icon) center / contain no-repeat;
+  mask: var(--map-layers-icon) center / contain no-repeat;
+}
+.carte-control .mapControlToggle::after { margin-left: auto; }
+.carte-control .mapControlToggle:focus-visible { outline-offset: -4px; }
+.carte-control .mapControlToggle[aria-expanded="false"] {
+  justify-content: center;
+  width: 44px;
+  padding: 0;
+  border: 0;
+}
+.carte-control .mapControlToggle[aria-expanded="false"]::after,
+.carte-control .mapControlToggle[aria-expanded="false"] .mapControlLabel { display: none; }
+@media (forced-colors: active) {
+  .carte-control .mapControlToggle::before {
+    background-color: ButtonText;
+    forced-color-adjust: none;
+  }
+}
 .carte-control .mapControlBody {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  margin-top: 2px;
+  padding: 2px 5px 5px;
   overflow: auto;
+  overflow-wrap: anywhere;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 .mapSettingsGroup {
   min-width: 0;
-  margin: 10px 0 0;
-  padding: 8px 0 0;
+  margin: 5px 0 0;
+  padding: 3px 0 0;
   border: 0;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid rgba(24,35,48,.18);
 }
 .mapSettingsGroup[hidden] { display: none; }
 .mapSettingsGroup legend { padding: 0 4px 0 0; font-weight: 800; }
-.carte-control .toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.carte-control .row { grid-template-columns: minmax(0, 1fr); }
+.carte-control .toggles,
+.mapSettingsChoices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr));
+  gap: 3px 5px;
+}
+.carte-control .toggles,
+.carte-control .row { margin-top: 0; }
+.carte-control .row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.carte-control .rangeWrap { gap: 0; }
 .carte-control .btn,
 .carte-control .mapSettingButton {
   min-height: 44px;
   width: 100%;
-  margin-bottom: 4px;
+  padding: 4px 6px;
+  border-color: rgba(24,35,48,.23);
+  background: rgba(250,250,250,.62);
   opacity: 1;
   color: #222;
   font-size: 12px;
   filter: none;
 }
 .carte-control .mapSettingButton { text-align: left; }
-.carte-control .mapSettingButton[aria-pressed="true"] { background: #e9f2ff; border-color: #4287f5; }
+.carte-control .mapSettingButton[aria-pressed="true"],
+.carte-control .btn[aria-pressed="true"] {
+  background: rgba(233,242,255,.88);
+  border-color: rgba(31,94,194,.60);
+}
 .carte-control label {
   display: flex;
   align-items: center;
   min-height: 44px;
-  gap: 4px;
-  padding: 6px 2px;
+  gap: 5px;
+  padding: 3px 1px;
 }
-.carte-control input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; }
+.mapSettingsChoices label { cursor: pointer; hyphens: auto; }
+.carte-control input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; margin: 0; }
 .carte-control input[type="range"] { min-height: 44px; }
+.carte-control .row > label { min-height: 0; padding: 0; }
+.carte-control [data-map-group="surroundings"] > .mapSettingButton { margin-bottom: 3px; }
+.carte-control [data-map-group="mobility"] .mapSettingsChoices label {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px 1px;
+}
+.carte-control [data-map-group="mobility"] a:not([hidden]) {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.carte-control .mobility-layer-tools label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 0;
+}
+.mobility-layer-tools input[type="file"] {
+  min-height: 44px;
+  padding: 0 4px;
+  border-color: rgba(24,35,48,.23);
+}
+.mobility-layer-tools ::file-selector-button {
+  min-height: 44px;
+  padding: 4px 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.mobility-layer-status { margin: 3px 0 0; color: #555; }
 .carte-control [data-map-group="ris"] > div { max-width: none !important; }
 @media (min-width: 641px) and (max-width: 780px) {
   .panel { width: calc(100vw - 330px); }
@@ -666,25 +754,16 @@ table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left;
   .panelSub { font-size: 11px; }
   .mapControl {
     max-width: calc(100vw - 78px);
-    padding: 4px !important;
     gap: 0;
   }
+  .context-overlay-legend { padding: 4px !important; }
   .mapControlToggle { min-width: 44px; min-height: 44px; }
   .mapControlBody {
     max-height: clamp(64px, calc(100dvh - 260px), 42dvh);
     overflow: auto;
     overscroll-behavior: contain;
   }
-  .context-overlay-control .mapControlBody {
-    max-width: none;
-    overflow-wrap: anywhere;
-  }
-  .context-overlay-control label {
-    min-height: 44px;
-    padding: 8px 2px;
-  }
-  .context-overlay-control input[type="checkbox"] { width: 22px; height: 22px; }
-  .carte-control .mapControlBody { max-height: 56dvh; }
+  .carte-control .mapControlBody { max-height: 50vh; max-height: 50dvh; }
   .layerLegendItems { flex-direction: row; flex-wrap: wrap; max-width: 150px; }
   .legend-item { width: 44px; height: 44px; flex: 0 0 44px; }
   .row {

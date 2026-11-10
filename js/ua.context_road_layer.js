@@ -127,9 +127,56 @@
       weight: Number.isFinite(opts.weight) ? opts.weight : 4,
       opacity: Number.isFinite(opts.opacity) ? opts.opacity : 0.85,
       dashArray: typeof opts.dashArray === 'string' && opts.dashArray ? opts.dashArray : null,
-      lineCap: 'round', lineJoin: 'round', interactive: false,
+      lineCap: 'round', lineJoin: 'round', interactive: opts.interactive === true,
       renderer: opts.renderer || undefined,
     };
+  }
+
+  const SPEED30_STYLES = {
+    zone: { label: 'Tempo-30-Zone (Straßenabschnitte)', color: '#652eb1' },
+    signed: { label: 'Beschilderter Tempo-30-Abschnitt', color: '#9b2045' },
+    conditional: { label: 'Zeit-, richtungs- oder spurabhängig', color: '#14516d', dash: '7 4' },
+    unknown: { label: '30 km/h, Art nicht erfasst', color: '#4e4f60', dash: '2 5' },
+  };
+
+  const SPEED_RULE_LABELS = {
+    maxspeed: 'Grundlimit',
+    'maxspeed:conditional': 'Bedingung',
+    'maxspeed:forward': 'In OSM-Wegrichtung',
+    'maxspeed:backward': 'Gegen OSM-Wegrichtung',
+    'maxspeed:forward:conditional': 'Bedingung in OSM-Wegrichtung',
+    'maxspeed:backward:conditional': 'Bedingung gegen OSM-Wegrichtung',
+    'maxspeed:lanes': 'Je Fahrstreifen',
+    'maxspeed:lanes:forward': 'Je Fahrstreifen in OSM-Wegrichtung',
+    'maxspeed:lanes:backward': 'Je Fahrstreifen gegen OSM-Wegrichtung',
+  };
+
+  function speed30Class(attrs, rule) {
+    if (rule?.kind === 'conditional') return 'conditional';
+    if (attrs?.maxspeed !== 30) return null;
+    return rule?.kind === 'zone' || rule?.kind === 'signed' ? rule.kind : 'unknown';
+  }
+
+  function speed30Popup(properties) {
+    const popup = document.createElement('div');
+    const heading = document.createElement('strong');
+    heading.textContent = properties.name || 'Tempo 30';
+    popup.appendChild(heading);
+    const kind = document.createElement('div');
+    kind.textContent = SPEED30_STYLES[properties.class].label;
+    popup.appendChild(kind);
+    for (const [tag, value] of Object.entries(properties.rules || {})) {
+      const detail = document.createElement('div');
+      detail.textContent = `${SPEED_RULE_LABELS[tag] || tag} – ${value}`;
+      popup.appendChild(detail);
+    }
+    const link = document.createElement('a');
+    link.href = `https://www.openstreetmap.org/way/${encodeURIComponent(properties.way_id)}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = 'OpenStreetMap' + (properties.dataDate ? ' · Stand ' + properties.dataDate : '');
+    popup.appendChild(link);
+    return popup;
   }
 
   function buildLayer(state, kind, options) {
@@ -137,7 +184,10 @@
     if (!window.L || typeof window.L.layerGroup !== 'function') {
       throw new Error('UA.contextRoadLayer.buildLayer: Leaflet is not available');
     }
-    const group = window.L.layerGroup();
+    const isSpeed = kind === 'speed30';
+    const group = isSpeed
+      ? window.L.layerGroup([], { attribution: '&copy; OpenStreetMap-Mitwirkende (ODbL)' })
+      : window.L.layerGroup();
     if (!state || !state.geometries || !state.ways) return group;
 
     const classifier = opts.classifier ||
@@ -192,7 +242,8 @@
       const latlngs = decodeGeometry(state.geometries[wayId]);
       if (!latlngs || !intersectsBounds(latlngs)) continue;
       const attrs = resolveAttrs(wayId);
-      const cls = classifier(attrs);
+      const rule = isSpeed ? opts.speedRules?.ways?.[wayId] : null;
+      const cls = classifier(attrs, rule);
       const confidence = kind === 'slope' && attrs && typeof attrs.road_slope_confidence === 'string'
         ? attrs.road_slope_confidence : null;
       const lowConfidence = kind === 'slope' && confidence === 'low';
@@ -213,15 +264,25 @@
       if (!color) continue;
 
       try {
+        const dashArray = isSpeed ? SPEED30_STYLES[cls].dash
+          : kind === 'traffic' && UA.trafficProvider && UA.trafficProvider.hasUsableTypedEvidence(attrs)
+            ? (attrs.traffic_measurement_type === 'count' ? null : '3 4') : opts.dashArray;
         const line = window.L.polyline(latlngs, lineStyle(color, {
           renderer,
           weight: opts.weight,
           opacity: opts.opacity,
-          dashArray: kind === 'traffic' && UA.trafficProvider && UA.trafficProvider.hasUsableTypedEvidence(attrs)
-            ? (attrs.traffic_measurement_type === 'count' ? null : '3 4') : opts.dashArray,
+          dashArray,
+          interactive: isSpeed,
         }));
         const properties = { way_id: String(wayId), class: featureClass, kind };
-        if (kind === 'slope') {
+        if (isSpeed) {
+          properties.name = rule?.name;
+          properties.rules = rule?.rules;
+          properties.dataDate = rule ? opts.speedRules.extractDate : state.tileIndex?.extractDate;
+          if (opts.openPopup) {
+            line.on('click', event => opts.openPopup(event.latlng, speed30Popup(properties)));
+          }
+        } else if (kind === 'slope') {
           if (cls) properties.slope_class = cls;
           if (confidence) properties.slope_confidence = confidence;
           if (attrs) {
@@ -238,7 +299,7 @@
             (attrs.traffic_proxy_class ? 'proxy' : null);
           properties.traffic_proxy_class = attrs.traffic_proxy_class || cls;
         }
-        if (attrs) {
+        if (attrs && !isSpeed) {
           for (const key of Object.keys(attrs)) {
             if (/^(road_slope_|traffic_)/.test(key)) properties[key] = attrs[key];
           }
@@ -281,6 +342,42 @@
     return buildLayer(state, 'traffic', Object.assign({
       weight: 3, opacity: 0.95, dashArray: '10 6',
     }, options || {}));
+  }
+
+  function buildSpeed30Layer(state, options) {
+    return buildLayer(state, 'speed30', {
+      weight: 5,
+      opacity: 0.9,
+      classifier: speed30Class,
+      colorFor: cls => SPEED30_STYLES[cls]?.color,
+      ...options,
+    });
+  }
+
+  function buildSpeed30Legend(city) {
+    const legend = document.createElement('div');
+    legend.className = 'context-road-legend context-road-legend--speed30';
+    const title = document.createElement('strong');
+    title.textContent = 'Tempo 30 aus OpenStreetMap';
+    legend.appendChild(title);
+    for (const style of Object.values(SPEED30_STYLES)) {
+      const row = document.createElement('div');
+      row.className = 'context-road-legend__row';
+      const swatch = document.createElement('span');
+      swatch.className = 'context-road-legend__swatch';
+      swatch.style.borderTop = `3px ${style.dash ? 'dashed' : 'solid'} ${style.color}`;
+      row.append(swatch, document.createTextNode(style.label));
+      legend.appendChild(row);
+    }
+    if (String(city || '').trim().toLowerCase() === 'hannover') {
+      const source = document.createElement('a');
+      source.href = 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1046-2025';
+      source.target = '_blank';
+      source.rel = 'noopener noreferrer';
+      source.textContent = 'Städtische Dokumentation der Änderungen im Januar 2025';
+      legend.appendChild(source);
+    }
+    return legend;
   }
 
   function buildLegend(kind) {
@@ -371,6 +468,8 @@
     buildLayer,
     buildSlopeLayer,
     buildTrafficLayer,
+    buildSpeed30Layer,
+    buildSpeed30Legend,
     buildLegend,
   };
 })();

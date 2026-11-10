@@ -30,10 +30,6 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
   });
 
-  test('the tour invalidates the cache for the political research UI', () => {
-    expect(html).toContain('js/ua.tour.js?v=2026-11-08-ris-view');
-  });
-
   test.each([
     'js/ua.ai_proposal.js',
     'js/ua.report_v2.js',
@@ -41,8 +37,16 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=${asset === 'js/ua.report_v2.js' ? '2026-11-08-frozen-export-scope' : '2026-11-07-ris'}`);
   });
 
-  test.each(['js/ua.state.js', 'js/ua.app_v2.js'])('%s refreshes confirmed area scope', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-09-ris-workspace"`);
+  test.each([
+    'css/ua.css', 'js/ua.app_v2.js', 'js/ua.context_road_layer.js', 'js/ua.data_paths.js',
+    'js/ua.hannover_layers.js', 'js/ua.map_scene.js', 'js/ua.map_scene_url_codec.js',
+    'js/ua.tour.js',
+  ])('%s refreshes the mobility layers and compact map controls', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-09-mobility"`);
+  });
+
+  test.each(['js/ua.map_v2.js', 'js/ua.map_layer_registry.js', 'js/ua.state.js'])('%s refreshes CARTO and layer configuration', asset => {
+    expect(html).toContain(`${asset}?v=2026-11-10-carto"`);
   });
 
   test('both canonical template and export assets load the current defaults', () => {
@@ -50,7 +54,7 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/ua.export_v2.js?v=2026-11-08-frozen-export-scope"');
   });
 
-  test.each(['js/ua.area_name_control.js', 'js/ua.data_paths.js'])('%s refreshes confirmed research scope', asset => {
+  test.each(['js/ua.area_name_control.js'])('%s refreshes confirmed research scope', asset => {
     expect(html).toContain(`${asset}?v=2026-11-08-area-research"`);
   });
 
@@ -65,8 +69,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test.each(['js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js', 'js/ua.ris-record-view.js', 'js/ua.ris-details.js',
-    'js/ua.map_v2.js', 'js/ua.map_scene.js',
-    'js/ua.map_scene_url_codec.js', 'js/ua.traffic_situation.js', 'js/ua.political-context.js', 'css/ris-record-view.css', 'css/ua.css'])
+    'js/ua.traffic_situation.js', 'js/ua.political-context.js', 'css/ris-record-view.css'])
   ('%s refreshes the shareable RIS view', asset => {
     expect(html).toContain(`${asset}?v=${['js/ua.app_v2.js', 'js/ua.ris_view_state.js', 'js/ua.ris-catalogue.js',
       'js/ua.ris-record-view.js', 'js/ua.ris-details.js', 'js/ua.political-context.js', 'css/ris-record-view.css'].includes(asset)
@@ -89,6 +92,8 @@ describe('Werkbank deployment asset versions', () => {
     expect(scripts.indexOf('js/ua.ris-sources.js')).toBeLessThan(scripts.indexOf('js/ua.ris-catalogue.js'));
     expect(scripts.indexOf('js/ua.ris-partitions.js')).toBeLessThan(scripts.indexOf('js/ua.ris-catalogue.js'));
     expect(scripts.indexOf('js/ua.political-context.js')).toBeLessThan(scripts.indexOf('js/ua.app_v2.js'));
+    expect(scripts.indexOf('js/ua.hannover_layers.js')).toBeGreaterThan(scripts.indexOf('js/ua.data_paths.js'));
+    expect(scripts.indexOf('js/ua.hannover_layers.js')).toBeLessThan(scripts.indexOf('js/ua.map_v2.js'));
   });
 
   test('support metadata and runtime BUILD expose the same release timestamp', () => {
@@ -107,7 +112,7 @@ describe('Werkbank deployment asset versions', () => {
 });
 
 
-test.each(['ua.core', 'ua.context_layers', 'ua.context_road_layer', 'ua.popup_context',
+test.each(['ua.core', 'ua.context_layers', 'ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
   const version = name === 'ua.core' ? '2026-11-08-provenance-context-copy' : '2026-11-08-context';

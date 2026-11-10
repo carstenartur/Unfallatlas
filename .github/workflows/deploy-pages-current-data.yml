@@ -116,6 +116,7 @@ jobs:
 
       - name: Run the checkout-reproducible Maven build
         env:
+          CARTO_BASEMAPS_KEY: ${{ secrets.CARTO_BASEMAPS_KEY }}
           PAGES_REFRESH_RIS: '1'
           PAGES_RIS_CHECKPOINT_RETRY: ${{ steps.ris-checkpoint-retry.outputs.enabled }}
           PAGES_RIS_SOURCE_CACHE_KEY: ${{ steps.ris-checkpoint-retry.outputs.cache-key }}

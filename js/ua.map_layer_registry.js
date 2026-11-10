@@ -250,9 +250,15 @@
       });
     }
     if (typeof window.L.tileLayer !== 'function') return null;
+    let url = definition.url;
+    if (definition.id === 'hybrid-labels') {
+      const key = window.document?.querySelector('meta[name="unfallwerkbank-carto-basemaps-key"]')?.content.trim();
+      if (!key) return null;
+      url += '?key=' + encodeURIComponent(key);
+    }
     const xyzOptions = { ...common };
     setDefinedOption(xyzOptions, 'subdomains', definition.subdomains);
-    return window.L.tileLayer(definition.url, xyzOptions);
+    return window.L.tileLayer(url, xyzOptions);
   }
 
   UA.MAP_MODE_LABELS = MAP_MODE_LABELS;

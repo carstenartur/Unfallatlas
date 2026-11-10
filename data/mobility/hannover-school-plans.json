@@ -1,0 +1,676 @@
+{
+  "source": "https://www.hannover.de/Leben-in-der-Region-Hannover/Soziales/Kinder-Jugendliche/Grundschulzeit/Schulwegpl%C3%A4ne",
+  "year": 2026,
+  "schools": [
+    {
+      "name": "Grundschule Ahlem",
+      "osmId": "osm:way:184944765",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/598714/file/01_Schulwegplan_GS_Ahlem.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Albert-Schweitzer-Schule",
+      "osmId": "osm:way:49494211",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/598715/file/02_Schulwegplan_GS_Albert-Schweitzer-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Alemannstraße",
+      "osmId": "osm:way:1133072249",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/598718/file/03_Schulwegplan_GS_Alemannstra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Am Buchholzer Grün",
+      "osmId": "osm:way:1135759885",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599330/file/73_Schulwegplan_GS_Grundschule%20Am%20Buchholzer%20Gr%C3%BCn.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Am Lindener Markt",
+      "osmId": "osm:way:23720006",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/598721/file/04_Schulwegplan_GS_Am%20Lindener%20Markt.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Am Sandberge",
+      "osmId": "osm:way:434587342",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/598723/file/05_Schulwegplan_GS_Am%20Sandberge.pdf"
+        },
+        {
+          "name": "Kleinerer Umgebungsausschnitt",
+          "url": "https://www.hannover.de/content/download/598724/file/05_Schulwegplan_GS_Am%20Sandberge_A.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Am Stöckener Bach",
+      "osmId": "osm:way:1075562792",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/598890/file/40_Schulwegplan_GS_Am%20St%C3%B6ckener%20Bach.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Am Welfenplatz",
+      "osmId": "osm:way:672073332",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599280/file/71_Schulwegplan_GS_Am%20Welfenplatz.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule An der Feldbuschwende",
+      "osmId": "osm:way:91728052",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599281/file/62_Schulwegplan_GS_An%20der%20Feldbuschwende.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule An der Uhlandstraße",
+      "osmId": "osm:way:142386358",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/598896/file/07_Schulwegplan_GS_An%20der%20Uhlandstra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Auf dem Loh",
+      "osmId": "osm:way:26594349",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599282/file/08_Schulwegplan_GS_Auf%20dem%20Loh.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Beuthener Straße",
+      "osmId": "osm:way:88853391",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599293/file/09_Schulwegplan_GS_Beuthener%20Stra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Bonifatiusschule",
+      "osmId": "osm:way:1078238221",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599308/file/0_Schulwegplan_GS_Bonifatiusschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Brüder-Grimm-Schule",
+      "osmId": "osm:way:41377026",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599328/file/12_Schulwegplan_GS_Br%C3%BCder-Grimm-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Comeniusschule",
+      "osmId": "osm:way:1349939639",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599332/file/13_Schulwegplan_GS_Comeniusschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Egestorffschule",
+      "osmId": "osm:way:839661314",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599335/file/14_Schulwegplan_GS_Egestorffschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Eichendorffschule",
+      "osmId": "osm:way:175488325",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599343/file/0_Schulwegplan_GS_Eichendorffschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Entenfang",
+      "osmId": "osm:way:89475866",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599351/file/35_Schulwegplan_GS_Entenfang.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Fichteschule",
+      "osmId": "osm:way:53550638",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599356/file/16_Schulwegplan_GS_Fichteschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Fridtjof-Nansen-Schule",
+      "osmId": "osm:way:124799322",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599383/file/17_Schulwegplan_GS_Fridjof-Nansen-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Friedrich-Ebert-Schule",
+      "osmId": "osm:way:1016617587",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/599524/file/18_Schulwegplan_GS_Friedrich-Ebert-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Fuhsestraße",
+      "osmId": "osm:way:289695047",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603200/file/20_Schulwegplan_GS_Fuhsestra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Gartenheimstraße",
+      "osmId": "osm:way:216879236",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603211/file/21_Schulwegplan_GS_Gartenheimstra%C3%9Fe.pdf"
+        },
+        {
+          "name": "Kleinerer Umgebungsausschnitt",
+          "url": "https://www.hannover.de/content/download/603212/file/21_Schulwegplan_GS_Gartenheimstra%C3%9Fe_A.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Gebrüder-Körting-Schule",
+      "osmId": "osm:way:93337186",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603215/file/63_Schulwegplan_GS_Gebr%C3%BCder-K%C3%B6rting-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Glockseeschule",
+      "osmId": "osm:way:1428836790",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604755/file/0_Schulwegplan_Glockseeschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Glücksburger Weg",
+      "osmId": "osm:way:8599278",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603216/file/22_Schulwegplan_GS_Gl%C3%BCcksburger%20Weg.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Goetheplatz",
+      "osmId": "osm:way:43914814",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603291/file/23_Schulwegplan_GS_Goetheplatz.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Grimsehlweg",
+      "osmId": "osm:way:216876854",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603292/file/24_Schulwegplan_GS_Grimsehlweg.pdf"
+        },
+        {
+          "name": "Kleinerer Umgebungsausschnitt",
+          "url": "https://www.hannover.de/content/download/603295/file/24_Schulwegplan_GS_Grimsehlweg_A.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Groß-Buchholzer-Kirchweg",
+      "osmId": "osm:way:16588365",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603296/file/25_Schulwegplan_GS_Gro%C3%9F-Buchholzer-Kirchweg.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Hägewiesen",
+      "osmId": "osm:way:87984753",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603301/file/26_Schulwegplan_GS_H%C3%A4gewiesen.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Heinrich-Wilhelm-Olbers-Grundschule",
+      "osmId": "osm:way:45394217",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603302/file/45_Schulwegplan_GS_Heinrich-Wilhelm-Olbers-Grundschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Henning-von-Tresckow-Grundschule",
+      "osmId": "osm:way:164764575",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603304/file/59_Schulwegplan_GS_Henning-von-Tresckow-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Herrenhausen",
+      "osmId": "osm:relation:2827004",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604450/file/54_Schulwegplan_GS_Herrenhausen.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Hoffmann-von-Fallersleben-Schule",
+      "osmId": "osm:way:1076389724",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603307/file/29_Schulwegplan_GS_Hoffmann-von-Fallersleben-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Im Kleefelde",
+      "osmId": "osm:way:1367327497",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603314/file/28_Schulwegplan_GS_Im%20Kleefelde.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule In der Steinbreite",
+      "osmId": "osm:way:1054625083",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/603981/file/31_Schulwegplan_GS_In%20der%20Steinbreite.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Johanna-Friesen-Schule",
+      "osmId": "osm:way:184159256",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604013/file/19_Schulwegplan_GS_Johanna-Friesen-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Kardinal-Bertram-Schule",
+      "osmId": "osm:way:965243445",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604017/file/0_Schulwegplan_GS_Kardinal-Bertram-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Kardinal-Galen-Schule",
+      "osmId": "osm:way:1348476309",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604027/file/0_Schulwegplan_GS_Kardinal-Galen-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Kastanienhof",
+      "osmId": "osm:way:192400082",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604033/file/27_Schulwegplan_GS_Kastanienhof.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Kestnerstraße",
+      "osmId": "osm:way:1372420737",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604201/file/34_Schulwegplan_GS_Kestnerstra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Kronsberg",
+      "osmId": "osm:way:1367318249",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604202/file/72_Schulwegplan_GS_Kronsberg.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Käthe-Paulus-Schule",
+      "osmId": "osm:way:1367978321",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/1002765/file/75_Schulwegplan_GS_K%C3%A4the-Paulus-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Kurt-Schumacher-Schule",
+      "osmId": "osm:way:669736892",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604296/file/36_Schulwegplan_GS_Kurt-Schumacher-Schule.pdf"
+        },
+        {
+          "name": "Kleinerer Umgebungsausschnitt",
+          "url": "https://www.hannover.de/content/download/604297/file/36_Schulwegplan_GS_Kurt-Schumacher-Schule_A.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Loccumer Straße",
+      "osmId": "osm:way:1156029523",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604298/file/37_Schulwegplan_GS_Loccumer%20Stra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Lüneburger Damm",
+      "osmId": "osm:way:1367310488",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604299/file/38_Schulwegplan_GS_L%C3%BCneburger%20Damm.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Marienwerder",
+      "osmId": "osm:way:1132924699",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604305/file/39_Schulwegplan_GS_Marienwerder.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Mengendamm",
+      "osmId": "osm:way:53329886",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604328/file/41_Schulwegplan_GS_Mengendamm.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Mühlenberg",
+      "osmId": "osm:way:339339924",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604329/file/43_Schulwegplan_GS_M%C3%BChlenberg.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Mühlenweg",
+      "osmId": "osm:way:377903422",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604330/file/44_Schulwegplan_GS_M%C3%BChlenweg.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Nackenberger Straße",
+      "osmId": "osm:way:753122817",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/1002771/file/74_Schulwegplan_GS_Nackenberger%20Stra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Otfried-Preußler-Schule",
+      "osmId": "osm:way:10358736",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604382/file/42_Schulwegplan_GS_Otfried-Preu%C3%9Fler-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Pestalozzi-Grundschule",
+      "osmId": "osm:way:1348476308",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604399/file/46_Schulwegplan_GS_GS%20Pestalozzi-Grundschule.pdf"
+        },
+        {
+          "name": "Kleinerer Umgebungsausschnitt",
+          "url": "https://www.hannover.de/content/download/604401/file/46_Schulwegplan_GS_GS%20Pestalozzi-Grundschule_A.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Rosa-Parks-Grundschule",
+      "osmId": "osm:way:95258379",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604383/file/70_Schulwegplan_GS_Rosa-Parks-Grundschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Salzmannstraße",
+      "osmId": "osm:way:681341550",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604406/file/61_Schulwegplan_GS_Salzmannstra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Stammestraße",
+      "osmId": "osm:way:288893230",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604409/file/49_Schulwegplan_GS_Stammestra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Südstadtschule",
+      "osmId": "osm:way:961115971",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604759/file/47_Schulwegplan_S%C3%BCdstadtschule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Suthwiesenstraße",
+      "osmId": "osm:way:113286598",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604414/file/50_Schulwegplan_GS_Suthwiesenstra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Tegelweg",
+      "osmId": "osm:way:218053657",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604416/file/51_Schulwegplan_GS%20Tegelweg.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Tiefenriede",
+      "osmId": "osm:way:52092131",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604420/file/11_Schulwegplan_GS_Tiefenriede.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Vinnhorst",
+      "osmId": "osm:way:24537428",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604424/file/52_Schulwegplan_GS_Vinnhorst.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Wasserkampstraße",
+      "osmId": "osm:way:350617249",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604443/file/53_Schulwegplan_GS_Wasserkampstra%C3%9Fe.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Wettbergen",
+      "osmId": "osm:way:164936923",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604452/file/55_Schulwegplan_GS_Wettbergen.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Grundschule Wilhelm-Busch-Schule",
+      "osmId": "osm:way:771164734",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/604469/file/56_Schulwegplan_GS_Wilhelm-Busch-Schule.pdf"
+        }
+      ]
+    },
+    {
+      "name": "Integrierte Gesamtschule Roderbruch",
+      "osmId": "osm:way:220685012",
+      "plans": [
+        {
+          "name": "Schulwegplan",
+          "url": "https://www.hannover.de/content/download/700615/file/0_Schulwegplan_IGS_Roderbruch.pdf"
+        }
+      ]
+    }
+  ]
+}

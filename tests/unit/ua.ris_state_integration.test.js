@@ -36,7 +36,7 @@ function loadModules() {
       replace(url) { navigation.push(url); },
     },
   };
-  for (const name of ['ua.utils.js', 'ua.ris_view_state.js', 'ua.state.js', 'ua.ui.js', 'ua.map_v2.js']) load(win, name);
+  for (const name of ['ua.utils.js', 'ua.ris_view_state.js', 'ua.state.js', 'ua.ui.js', 'ua.map_scene.js', 'ua.map_v2.js']) load(win, name);
   return { win, UA: win.UA, navigation };
 }
 
@@ -174,6 +174,7 @@ describe('RIS URL and local storage integration', () => {
     const ctx = makeContext(UA);
     const registry = ctx.contextOverlays;
     registry.layers = { slope: { live: true } };
+    registry.active.speed30 = true;
     const saved = savedState();
     localStorage.setItem('ua_state_hannover', JSON.stringify(saved));
 
@@ -181,7 +182,7 @@ describe('RIS URL and local storage integration', () => {
 
     expect(ctx.risView).toEqual({ ...workedView, recordId: 'region-hannover-ris:saved' });
     expect(ctx.contextOverlays).toBe(registry);
-    expect(ctx.contextOverlays.active).toEqual({ slope: false, traffic: true, ris: true });
+    expect(ctx.contextOverlays.active).toEqual({ slope: false, traffic: true, ris: true, speed30: true });
     expect(ctx.contextOverlays.layers.slope).toEqual({ live: true });
   });
 
@@ -213,6 +214,16 @@ describe('RIS URL and local storage integration', () => {
 });
 
 describe('RIS application hydration', () => {
+  test('a shared Hannover URL restores mobility overlays and stores only their visibility', async () => {
+    history.replaceState(null, '', '/werkbank_v2.html?city=Hannover&mapLayer=ris,speed30,bikeCounts,schoolRoutes');
+    const { ctx } = await startApp();
+    const expected = { slope: false, traffic: false, ris: true, speed30: true, bikeCounts: true, schoolRoutes: true };
+    expect(ctx.contextOverlays.active).toEqual(expected);
+    expect(new URL(window.location.href).searchParams.get('mapLayer')).toBe('ris,speed30,bikeCounts,schoolRoutes');
+    const stored = JSON.parse(localStorage.getItem('ua_state_hannover'));
+    expect(stored.contextOverlays).toEqual({ active: expected });
+  });
+
   test('an explicit share overrides local storage before controls mount, then opens details after URL and selection hydration', async () => {
     localStorage.setItem('ua_state_hannover', JSON.stringify(savedState()));
     history.replaceState(null, '', `/werkbank_v2.html?${new URLSearchParams({
@@ -257,13 +268,22 @@ describe('RIS application hydration', () => {
   });
 });
 
-test('an in-place tour city switch invalidates the selected record before loading the next city', async () => {
+test('an in-place tour city switch clears the old city data before requesting the new city', async () => {
   history.replaceState(null, '', `/werkbank_v2.html?${new URLSearchParams({ city: 'Hannover', ...risQuery, mapLayer: 'ris' })}`);
   const { UA, win } = loadModules();
   const ctx = makeContext(UA);
   ctx.contextOverlays.active = { slope: false, traffic: false, ris: true };
+  ctx.poiData = { features: [{ id: 'hannover-school' }] };
+  ctx.contextLayerState = { geometries: { W1: [52.37, 9.73, 52.38, 9.74] } };
+  ctx.contextCapabilities = { hasOsmContext: true };
   let stateAtDataRequest;
-  UA.loadCityData = async () => { stateAtDataRequest = { ...ctx.risView }; };
+  UA.refreshContextOverlays = jest.fn();
+  UA.loadCityData = async () => {
+    stateAtDataRequest = {
+      ris: { ...ctx.risView }, poi: ctx.poiData, roads: ctx.contextLayerState,
+      capabilities: ctx.contextCapabilities, refreshed: UA.refreshContextOverlays.mock.calls.length,
+    };
+  };
   UA.loadPOIData = async () => {};
   UA.recomputeAndRender = () => {};
   load(win, 'ua.tour.js');
@@ -275,7 +295,7 @@ test('an in-place tour city switch invalidates the selected record before loadin
   UA.tourStop();
 
   expect(ctx.CITY_RAW).toBe('Bonn');
-  expect(stateAtDataRequest).toEqual(defaults);
+  expect(stateAtDataRequest).toEqual({ ris: defaults, poi: undefined, roads: null, capabilities: null, refreshed: 1 });
   expect(ctx.risView).toEqual(defaults);
   expect(Object.fromEntries(new URL(window.location.href).searchParams)).toEqual({ city: 'Bonn', mapLayer: 'ris' });
 });

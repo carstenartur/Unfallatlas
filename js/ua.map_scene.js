@@ -12,7 +12,24 @@
   // MapScene.fromCtx() to snapshot the current mutable ctx.
   // ----------------------------
 
+  const OVERLAY_KINDS = Object.freeze(['slope', 'traffic', 'ris', 'speed30', 'bikeCounts', 'schoolRoutes']);
+  const selected = active => OVERLAY_KINDS.filter(kind => active?.[kind]);
+
+  function overlayFlags(enabled) {
+    return { slope: false, traffic: false, ris: false, ...Object.fromEntries(enabled.map(kind => [kind, true])) };
+  }
+
+  UA.parseMapLayerCsv = function parseMapLayerCsv(raw) {
+    const requested = new Set(String(raw || '').split(',').map(part => part.trim()));
+    return overlayFlags(OVERLAY_KINDS.filter(kind => requested.has(kind)));
+  };
+
+  UA.serializeMapLayerCsv = active => selected(active).join(',');
+
   UA.MapScene = {
+    overlayKinds: OVERLAY_KINDS,
+    overlaySelection: active => overlayFlags(selected(active)),
+
     /**
      * Create a MapScene with sensible defaults, merged with any overrides.
      * The returned object is a plain value — no hidden state or prototypes.
@@ -167,7 +184,7 @@
         },
         accidentView:   ctx.accidentView   || "bySeverity",
         exportOptions:  ctx.exportOptions  || {},
-        contextOverlays: { active: { slope: !!active.slope, traffic: !!active.traffic, ris: !!active.ris } },
+        contextOverlays: { active: UA.MapScene.overlaySelection(active) },
         risView: UA.RisViewState?.normalize(ctx.risView)
       });
     }
