@@ -3,6 +3,7 @@
 // These are adapters for observed public documents, not a NILAS/ALLRIS API.
 const { createHash } = require('node:crypto');
 const LANDTAG = 'https://www.landtag-niedersachsen.de';
+const LANDTAG_SEARCH = `${LANDTAG}/service/suche/`;
 const REGION = 'https://bekanntmachungen.region-hannover.de';
 const REGION_INDEX = `${REGION}/Regionsversammlung-und-Aussch%C3%BCsse`;
 const HOSTS = new Set(['www.landtag-niedersachsen.de', 'www.nilas.niedersachsen.de', 'bekanntmachungen.region-hannover.de']);
@@ -122,6 +123,35 @@ function anchors(html) {
   return [...html.matchAll(/<a\b([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*)>([\s\S]*?)<\/a\s*>/gi)]
     .map(m => ({ href: entities(m[2]), attributes: m[1] + m[3], label: text(m[4]) }));
 }
+
+function landtagDocumentNumber(href, base = LANDTAG) {
+  let pathname;
+  try { pathname = new URL(officialUrl(href, base, 'www.landtag-niedersachsen.de')).pathname; }
+  catch (_) { return null; }
+  const match = pathname.match(/^\/drucksachen\/drucksachen_(\d{2})_\d+\/\d+-\d+\/(\d{2})-(\d{1,6})\.pdf$/i);
+  return match && match[1] === match[2] && Number(match[3]) > 0 ? `${match[1]}/${Number(match[3])}` : null;
+}
+
+function parseLandtagSearch(value, pageUrl) {
+  const html = input(value);
+  officialUrl(pageUrl, LANDTAG_SEARCH, 'www.landtag-niedersachsen.de');
+  if (!/class=["'][^"']*\bresults-list\b/.test(html)) throw new Error('Unrecognised Landtag search result shape');
+  const summary = classText(html, 'result-set');
+  if (/^Nichts gefunden für\b/.test(summary)) return [];
+  const headings = [...html.matchAll(/<h3\b[^>]*class=["'][^"']*\bresults-topic\b[^"']*["'][^>]*>([\s\S]*?)<\/h3\s*>/gi)];
+  if (!/^\d[\d.]*\s+Treffer für\b/.test(summary) || !headings.length) {
+    throw new Error('Unrecognised Landtag search result shape');
+  }
+  const numbers = new Set();
+  for (const [, heading] of headings) {
+    const link = anchors(heading)[0];
+    if (!link || !hasLocalTrafficEvidence({ title: link.label })) continue;
+    const number = landtagDocumentNumber(link.href, pageUrl);
+    if (number) numbers.add(number);
+  }
+  return [...numbers];
+}
+
 function parseLandtagCatalogue(value, pageUrl) {
   const html = input(value);
   officialUrl(pageUrl, LANDTAG, 'www.landtag-niedersachsen.de');
@@ -219,14 +249,16 @@ function substantiveText(record) {
     .replace(/(?:Treffpunkt|Sitzungssaal|Veranstaltungsort)\s*[^\n]*/gi, '')
     .replace(/(?:Hannah-Arendt-Platz|Hildesheimer Straße)\s+\d+\s*,?\s*30\d{3}\s+Hannover/gi, '')
     .replace(/Hannover,?\s*(?:den\s*)?\d{1,2}\.\s*(?:\d{1,2}\.|\w+)\s*\d{4}/gi, '')
-    .replace(/(?:ÜSTRA\s+)?Hannoversche(?:n)? Verkehrsbetriebe(?:\s+AG)?|(?:Polizeidirektion|Region|regiobus|Zoo|Klinikum|Sparkasse|Versorgungs- und Verkehrsgesellschaft)\s+Hannover(?:\s+GmbH)?/gi, '');
+    .replace(/(?:ÜSTRA\s+)?Hannoversche(?:n)? Verkehrsbetriebe(?:\s+AG)?|(?:Polizeidirektion|regiobus|Zoo|Klinikum|Sparkasse|Versorgungs- und Verkehrsgesellschaft)\s+Hannover(?:\s+GmbH)?/gi, '')
+    .replace(/\b((?:in|durch|innerhalb)\s+(?:der|die)\s+)?Region Hannover\b/gi, (phrase, geographic) => geographic ? phrase : '');
 }
 function hasLocalTrafficEvidence(record) {
   const plain = substantiveText(record);
-  const traffic = /Verkehr|Radweg|Radwege|Radfahr|Fahrrad|Fußgänger|Gehweg|Gehwege|Tempo.?30|Stadtbahn|Straßenbahn|Busverkehr|Zug|Züge|Fahrplan|zusätzlichen Linie|Ampel|Kreuzung|Unfall/i.test(plain);
+  const traffic = /Verkehr|Radweg|Radfahr|Fahrrad|Fußgänger|Gehweg|Tempo.?30|Stadtbahn|Straßenbahn|Schnellweg|Zug|Züge|Fahrplan|zusätzlichen Linie|Ampel|Kreuzung|Unfall/i.test(plain);
   const local = /\bHannover\b|hannoverschen Eilenriede|\bEilenriede\b/i.test(plain);
   return traffic && local;
 }
 
-module.exports = { LANDTAG, REGION, REGION_INDEX, officialUrl, text, entities, dateOnly, sourceContext,
-  parseLandtagCatalogue, parseLandtagFeed, parseRegionIndex, parseRegionNotice, hasLocalTrafficEvidence, substantiveText };
+module.exports = { LANDTAG, LANDTAG_SEARCH, REGION, REGION_INDEX, officialUrl, text, entities, dateOnly, sourceContext,
+  landtagDocumentNumber, parseLandtagSearch, parseLandtagCatalogue, parseLandtagFeed, parseRegionIndex, parseRegionNotice,
+  hasLocalTrafficEvidence, substantiveText };

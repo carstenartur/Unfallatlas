@@ -382,7 +382,8 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
   const allEvidence = [...document.map(text => ({ source: 'document', text })), ...titles.map(text => ({ source: 'title', text }))];
   // Scope stays with its original sentence/line, including multi-sentence
   // titles. A publisher, heading or another paragraph cannot license a street.
-  const evidence = requireHannoverScope ? allEvidence.flatMap(proof => typeof proof.text === 'string'
+  const scoped = requireHannoverScope || (gazetteer.city === 'hannover' && record.source === 'niedersachsen-landtag');
+  const evidence = scoped ? allEvidence.flatMap(proof => typeof proof.text === 'string'
     ? proof.text.split(/(?<=[.!?])\s+(?=[\p{Lu}„])|[\r\n]+/u).map(text => ({ source: proof.source, text })) : [])
     .filter(proof => hannoverLocationScope(proof.text, byFirstWord)) : allEvidence;
   const locations = new Map();
@@ -428,7 +429,7 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     selected = selected.map(found => found.kind === 'address'
       ? { kind: found.kind, label: found.label, evidence: found.evidence } : found);
   }
-  return { locations: selected, truncated, reasons: [...reasons], gazetteerApplicable: !requireHannoverScope || evidence.length > 0 };
+  return { locations: selected, truncated, reasons: [...reasons], gazetteerApplicable: !scoped || evidence.length > 0 };
 }
 
 /**

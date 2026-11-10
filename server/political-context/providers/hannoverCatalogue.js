@@ -111,7 +111,7 @@ async function collectCombinedHannoverCatalogue({ now = new Date(), from = `${HA
     // with consultation histories. Zero work budget remains entirely offline.
     collectAdditional({ now, sourceCache, checkpoint, workBudget,
       ...(checkpointOnly ? { request: denySourceRead } : {}),
-      maxPages: workBudget === 0 ? 0 : 2, maxNotices: workBudget === 0 ? 0 : 4 }),
+      includeArchive: true, maxPages: workBudget === 0 ? 0 : 2, maxNotices: workBudget === 0 ? 0 : 4 }),
   ]);
   const failures = outcomes.filter(outcome => outcome.status === 'rejected');
   // A collector may catch transport failure and return retained data. The

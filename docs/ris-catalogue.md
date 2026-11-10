@@ -178,8 +178,12 @@ derselbe Einstiegspunkt mit `--city bonn` und dem bisherigen Standardjahr 2014. 
 Quellseiten. Hannover teilt ein gesetztes Budget zwischen SIM und ALLRIS: SIM zählt neu
 versuchte Dokumentdetails, ALLRIS die öffentlichen Seiten- und Detailabrufe. Die bestehende
 ergänzende Landtags-/Bekanntmachungssuche hat eigene Grenzen von zwei Katalogseiten und
-vier Bekanntmachungen zuzüglich der RSS-Ausschnitte. `--work-budget 0` ruft auch dort keine
-neuen Quellen ab. Ohne `--city` werden beide konfigurierten Städte bearbeitet.
+vier Bekanntmachungen zuzüglich der RSS-Ausschnitte. Der Hannover-Datenlauf prüft außerdem
+die jeweils erste Seite von fünf Suchanfragen in der öffentlichen Volltextsuche des
+Niedersächsischen Landtags. Bis zu 24 passende Drucksachen werden anhand ihrer Nummer im
+amtlichen Dokumentenkatalog verifiziert und mit dem Original-PDF in der Ebene „Land“
+geführt. Der Suchumfang bildet einen Ausschnitt des Archivs ab. `--work-budget 0` ruft auch
+dort keine neuen Quellen ab. Ohne `--city` werden beide konfigurierten Städte bearbeitet.
 
 Erfolgreiche öffentliche Antworten werden mit Quell- und Parserrevision im vorhandenen
 Cache gespeichert. Zusätzliche Arbeitsstände unter `.cache/ris-sources/checkpoints/`
