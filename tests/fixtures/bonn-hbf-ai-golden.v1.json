@@ -1,6 +1,6 @@
 {
   "case": {
-    "analysisUrl": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16",
+    "analysisUrl": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16",
     "areaName": "Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße",
     "bounds": {
       "east": 7.101,
@@ -169,7 +169,7 @@
           "severity": "all"
         },
         "involvementMode": "and",
-        "link": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+        "link": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
       },
       "officialAccidentFacts": {
         "fatal": 0,
@@ -1734,7 +1734,7 @@
       "reason": "Hermetic generation blocks external tiles. Scene/input fingerprints are not live image verification.",
       "status": "not-captured"
     },
-    "mapInputsFingerprint": "8e0c04b6255f8865954ddaacb1a40d187d642e34368f34fec3dd949ffcbc829f",
+    "mapInputsFingerprint": "641614f3db4424e59df1d088af924de3e3407e8c79ab42e79b7992146e504ac3",
     "mapScene": {
       "accidentView": "bySeverity",
       "center": {
@@ -1785,42 +1785,42 @@
       {
         "id": "standard-structure",
         "mapMode": "standard",
-        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
       },
       {
         "id": "hybrid-conflict-space",
         "mapMode": "hybrid",
-        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=hybrid&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=hybrid&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
       },
       {
         "id": "orthophoto-layout",
         "mapMode": "orthophoto",
-        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=orthophoto&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=orthophoto&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
       },
       {
         "id": "analysis-density",
         "mapMode": "analysis",
-        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=analysis&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101000&selNorth=50.735500&selSouth=50.730000&selWest=7.091000&severity=all&showArgumentation=1&showCluster=1&showHeatmap=1&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
+        "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=analysis&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=1&showHeatmap=1&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16"
       }
     ],
     "runtimeFiles": {
       "js/ua.ai_political_evidence.js": "96a34bb01ef8374268b1fda2b9ea9dfc60783b818258f47c35b40465f04edfb6",
       "js/ua.ai_political_reference_bridge.js": "16b30782ddd4e9bede89279b437a02f28f6e188120f14081cb56e0e2d82172bc",
-      "js/ua.analysis_scope.js": "b687d68387985a41a71963e36453b6a1be9a9927d418ef1977c70e110b1b28d4",
+      "js/ua.analysis_scope.js": "43d456e3711a77f9188770865697ed74bf50f93b082553b92a9288f3aa31cf1d",
       "js/ua.area_name_control.js": "879b4582ef15e8ee335c78b6431f21109bf0150e3c9226ac0bbaa2d2966bbdb1",
       "js/ua.evidence_safe_semantics.js": "cf022eed045f94f6da257ffdd2d73069c294db7e0c08e225e51fdc6629afa6f4",
       "js/ua.evidence_safe_semantics_hardening.js": "f0dc5155752e32444b38a138f8e5a6270ef881b93ca834ef82da715e48ddc98e",
       "js/ua.export_template_defaults.js": "ea0ad38191251a56c6de6c7c4a97b3eb5774a5ee0da84dff43a2802e5d5a3c22",
-      "js/ua.export_v2.js": "ef54b394c82018167808b10f61f0dd10d03ee4c8e49ec7bda7f7dd52ec078eb8",
-      "js/ua.filters.js": "0600a8b1cac3ab3fcd2dc1da58f8b75579474fa76f279b0228fefd0d07d61450",
+      "js/ua.export_v2.js": "5e9d903629d4ddb9fc12da775fea2d5392c06ba7de74e3a13e1dde6e55c80f46",
+      "js/ua.filters.js": "6201ff418e290414164459ce7541148bf44a6248830794b73d7e7c680418dfe1",
       "js/ua.heatmap.js": "d65c22f2a07d871fb38b1c18b88877e14f2d461357458d1e4e5330cb161a86c5",
       "js/ua.stats.js": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",
       "js/ua.trend.js": "2bbb47165228ad8f564bb6ca18e34ce430b13ae236562108043b5a6815ff0012"
     },
-    "sourceDataFingerprint": "969d6aa0ec8657e3d3f7bee83274103c6d984905265de6d6a4a5fdaeb42f2cca",
+    "sourceDataFingerprint": "dbceb2c695cec6083a8365357691271c23e925a6e879d013d4550b4cecd57902",
     "sourceFiles": {
-      "out/output_all_years_bonn.enrichment.meta.json.gz": "1514c06b7176d9a00a68bdfcac5606d1ac6350e98afbd6a36a8cd929e32d83fe",
-      "out/output_all_years_bonn.geojson.gz": "23afbd7bc25ad170e849734db9499ce60dbf15f792a79a41cc1f357413755cce",
+      "out/output_all_years_bonn.enrichment.meta.json.gz": "363b985798a2d55d19247258d02749d8f80bd9ccf18775656253e4af76bffdb3",
+      "out/output_all_years_bonn.geojson.gz": "4727e48f62c124c819733271e42eb6985cdd21a48f0f8b78069a0f46ccb58f5e",
       "out/poi_bonn.geojson.gz": "8bfd444ddb74494a0ef99c9dc745e7935d0a2f740660884338ca1fdd4d52ad12",
       "templates/gremien_bonn.json": "10285c9fcb7762b76f3b52f9df6c7bb523fdcfdbbf6ac5964c64734dbef25419"
     }
