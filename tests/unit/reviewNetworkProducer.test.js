@@ -78,6 +78,22 @@ describe('offline review network producer', () => {
       .toEqual([[52.004, 9.003, 52.004, 9.004], [52.004, 9.004, 52.004, 9.005]]);
   });
 
+  test('splits a road at a branching node revisited by the same way', () => {
+    const { sites } = generate([
+      node(1, 52.004, 9.003), node(2, 52.004, 9.004), node(3, 52.004, 9.0045),
+      node(4, 52.0045, 9.004), node(5, 52.003, 9.004),
+      way(100, [1, 2, 3, 4, 2, 5]),
+    ]);
+
+    expect(sites.filter(row => row[1] === 'junction').map(row => [row[0], row[3], row[4]]))
+      .toEqual([['j:2', ['100'], [52.004, 9.004]]]);
+    expect(sites.filter(row => row[1] === 'segment').map(row => row[4])).toEqual([
+      [52.004, 9.003, 52.004, 9.004],
+      [52.004, 9.004, 52.004, 9.0045, 52.0045, 9.004, 52.004, 9.004],
+      [52.004, 9.004, 52.003, 9.004],
+    ]);
+  });
+
   test('uses explicit OSM crossing tags and consolidates ways at the same road node', () => {
     const crossingWay = '<tag k="highway" v="footway"/><tag k="footway" v="crossing"/>';
     const { sites } = generate([

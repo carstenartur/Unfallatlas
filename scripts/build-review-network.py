@@ -342,8 +342,7 @@ def road_topology(roads, nodes, boundary):
                     arms[node_id].add(run[index - 1][0])
                 if index + 1 < len(run):
                     arms[node_id].add(run[index + 1][0])
-    junctions = {node_id for node_id, neighbors in arms.items()
-                 if len(neighbors) >= 3 and len(way_ids[node_id]) >= 2}
+    junctions = {node_id for node_id, neighbors in arms.items() if len(neighbors) >= 3}
     return runs, way_ids, junctions
 
 
