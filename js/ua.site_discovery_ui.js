@@ -18,7 +18,6 @@
   };
   const number = new Intl.NumberFormat('de-DE');
   const sameBounds = (a, b) => !!a && !!b && ['south', 'west', 'north', 'east'].every(k => a[k] === b[k]);
-  const yearOf = point => Number(point.props?.ujahr ?? point.props?.UJAHR ?? point.props?.year ?? point.props?.Jahr) || 0;
 
   function areaBounds(ctx) {
     const b = ctx.selectionBounds;
@@ -49,6 +48,7 @@
     if (state?.markerLayer) ctx.map.removeLayer(state.markerLayer);
     if (!state) return;
     state.markerLayer = null;
+    state.activeCase = null;
     state.detail.replaceChildren();
     state.detail.hidden = true;
     state.selection = null;
@@ -123,7 +123,7 @@
     const type = props.utyp1 ?? props.UTYP1 ?? props.accidentType;
     const severity = props.ukategorie ?? props.UKATEGORIE ?? props.severity;
     const month = Number(props.umonat ?? props.UMONAT ?? props.month);
-    const year = yearOf(point);
+    const year = UA.SiteDiscovery.yearOf(point);
     const date = year && month >= 1 && month <= 12 ? String(month).padStart(2, '0') + '/' + year : year;
     return [
       'Fall ' + (index + 1), date || 'Jahr unbekannt',
@@ -131,9 +131,16 @@
     ].join(' · ');
   }
 
-  function addSelectionLayer(ctx, state, selection, list, listDetails, status) {
+  function addSelectionLayer(ctx, state, selection, list, status, previousPoint) {
     const locationGroups = new Map();
     const focused = new Set(selection.pattern?.points || []);
+    const { yearOf } = UA.SiteDiscovery;
+    const selectCase = entry => {
+      state.activeCase?.link.removeAttribute('aria-current');
+      state.activeCase = entry;
+      entry.link.setAttribute('aria-current', 'true');
+      status.textContent = entry.label + ' auf der Karte ausgewählt.';
+    };
     const rows = selection.points
       .slice().sort((a, b) => yearOf(b) - yearOf(a))
       .map((point, index) => {
@@ -141,9 +148,7 @@
         const row = el('li');
         const isFocus = focused.has(point);
         const link = button(label + (isFocus ? ' · Schwerpunkt' : ''), () => {
-          list.querySelector('[aria-current]')?.removeAttribute('aria-current');
-          link.setAttribute('aria-current', 'true');
-          status.textContent = label + ' auf der Karte ausgewählt.';
+          selectCase(entry);
           const marker = locationGroups.get(coordinates).marker;
           if (marker) {
             ctx.map.fitBounds(window.L.latLngBounds([point.lat, point.lon], [point.lat, point.lon]), fitOptions(ctx));
@@ -155,7 +160,12 @@
         row.append(link);
         const coordinates = point.lat + ',' + point.lon;
         if (!locationGroups.has(coordinates)) locationGroups.set(coordinates, { point, rows: [] });
-        locationGroups.get(coordinates).rows.push({ link, isFocus, label });
+        const entry = { point, link, isFocus, label };
+        locationGroups.get(coordinates).rows.push(entry);
+        // Reloaded tiles reuse the feature properties even when point wrappers change.
+        if (previousPoint && point.props === previousPoint.props && point.lat === previousPoint.lat && point.lon === previousPoint.lon) {
+          selectCase(entry);
+        }
         return row;
       });
     list.append(...rows);
@@ -188,13 +198,13 @@
         ? countText(group.rows.length, 'Fall an diesem Kartenpunkt', 'Fälle an diesem Kartenpunkt')
         : target.label));
       marker.on('click', () => {
-        showPanel(ctx, state, { fromMap: true });
-        listDetails.open = true;
-        list.querySelector('[aria-current]')?.removeAttribute('aria-current');
-        target.link.setAttribute('aria-current', 'true');
-        target.link.focus({ preventScroll: true });
-        target.link.scrollIntoView?.({ block: 'nearest' });
+        selectCase(target);
         status.textContent = group.rows.map(row => row.label.split(' · ')[0]).join(', ') + ' an diesem Kartenpunkt.';
+        showPanel(ctx, state, { fromMap: true });
+        const link = state.activeCase?.link;
+        if (link) link.closest('details').open = true;
+        (link || state.heading).focus({ preventScroll: true });
+        link?.scrollIntoView?.({ block: 'nearest' });
       });
       layers.push(marker);
     }
@@ -263,6 +273,10 @@
   }
 
   function showSelection(ctx, state, selection) {
+    const previous = state.selection;
+    const activeCase = previous?.query === selection.query && sameBounds(previous?.bounds, selection.bounds)
+      ? state.activeCase : null;
+    const restoreFocus = activeCase?.link === document.activeElement;
     resetDetail(ctx, state);
     state.selection = selection;
     const { label, total, points, pattern, changes, visibleCount, complete, site, networkStatus } = selection;
@@ -291,7 +305,10 @@
     }
     state.detail.append(el('p', '', networkStatus === 'pending' ? contextCount : cohortCount + ' · ' + contextCount));
     state.detail.hidden = false;
-    if (networkStatus === 'pending') return heading;
+    if (networkStatus === 'pending') {
+      if (restoreFocus) heading.focus({ preventScroll: true });
+      return heading;
+    }
     if (selection.coordinates?.length) state.detail.append(el('p', '', 'Türkise Kontur markiert die Netzstelle.'));
     if (visibleCount != null) {
       state.detail.append(el('p', '', countText(visibleCount, 'sichtbarer Clusterfall', 'sichtbare Clusterfälle')
@@ -319,7 +336,8 @@
     status.setAttribute('role', 'status');
     listDetails.append(el('summary', '', 'Einzelfälle auf der Karte'), status, list);
     if (!site || points.length) state.detail.append(listDetails);
-    addSelectionLayer(ctx, state, selection, list, listDetails, status);
+    addSelectionLayer(ctx, state, selection, list, status, activeCase?.point);
+    if (restoreFocus) (state.activeCase?.link || heading).focus({ preventScroll: true });
     appendFacilities(ctx, state, selection);
     const fieldCheck = el('details');
     fieldCheck.append(el('summary', '', 'Vor Ort prüfen'), el('p', '',
@@ -509,7 +527,7 @@
     const focus = ctx.discoveryFocus;
     const visible = !state.panel.hidden;
     const networkChanged = updateNetwork(ctx, state, visible || Boolean(focus?.site));
-    if (!visible && !focus?.site) return;
+    if (!visible && !focus?.site && !state.selection) return;
     const complete = ctx.accidentDataCoverage?.complete === true;
     const scope = complete
       ? 'Vollständiger verfügbarer Stadtdatensatz. Fälle mit Personenschaden.'
@@ -524,13 +542,16 @@
           || state.networkPending !== pending || (focus.query.mapFilters && mapChanged)) {
         restoreNetworkSelection(ctx, state, focus, pending);
       }
-    } else if (selection && (state.points && pointsChanged || selection.query.mapFilters && mapChanged)) {
+    } else if (selection && (pointsChanged || (selection.query.mapFilters && mapChanged))) {
       showSelection(ctx, state, { ...selection, ...buildSelection(ctx, {
         ...selection, key: focus?.key, useExactKey: true,
       }) });
     }
     state.mapPoints = ctx.filteredAll;
-    state.points = ctx.allPts;
+    if (pointsChanged) {
+      state.points = ctx.allPts;
+      refreshYearControls(ctx, state);
+    }
     state.complete = complete;
     state.networkPending = pending;
     if (!visible) return;
@@ -553,15 +574,31 @@
     }
   }
 
+  function setSelectOptions(select, choices) {
+    select.replaceChildren(...choices.map(([value, title]) => {
+      const option = el('option', '', title);
+      option.value = value;
+      return option;
+    }));
+  }
+
+  function refreshYearControls(ctx, state) {
+    const years = new Set((ctx.allPts || []).map(UA.SiteDiscovery.yearOf).filter(Boolean));
+    const { fromYear, toYear } = state.query;
+    if (fromYear) years.add(fromYear);
+    if (toYear) years.add(toYear);
+    const options = [['', 'Alle'], ...[...years].sort((a, b) => a - b).map(year => [year, year])];
+    setSelectOptions(state.fromYearSelect, options);
+    setSelectOptions(state.toYearSelect, options);
+    state.fromYearSelect.value = fromYear || '';
+    state.toYearSelect.value = toYear || '';
+  }
+
   function selectControl(id, label, choices) {
     const wrapper = el('label', '', label);
     const select = el('select');
     select.id = id;
-    for (const [value, title] of choices) {
-      const option = el('option', '', title);
-      option.value = value;
-      select.append(option);
-    }
+    setSelectOptions(select, choices);
     wrapper.append(select);
     return { wrapper, select };
   }
@@ -603,11 +640,8 @@
     networkControls.append(networkGrid, onlyEmptyLabel, networkMeta);
 
     const grid = el('div', 'site-discovery-criteria');
-    const years = [...new Set((ctx.allPts || []).map(yearOf).filter(Boolean))].sort((a, b) => a - b);
-    const selectedYears = [ctx.discoveryFocus?.query?.fromYear, ctx.discoveryFocus?.query?.toYear].filter(Boolean);
-    const yearOptions = [['', 'Alle'], ...[...new Set([...years, ...selectedYears])].sort((a, b) => a - b).map(year => [year, year])];
-    const from = selectControl('siteDiscoveryFromYear', 'Von Jahr', yearOptions);
-    const to = selectControl('siteDiscoveryToYear', 'Bis Jahr', yearOptions);
+    const from = selectControl('siteDiscoveryFromYear', 'Von Jahr', []);
+    const to = selectControl('siteDiscoveryToYear', 'Bis Jahr', []);
     const severity = selectControl('siteDiscoverySeverity', 'Unfallschwere', [
       ['all', 'Alle'], ['serious', 'Getötete oder Schwerverletzte'], ...Object.entries(severityLabels),
     ]);
@@ -642,8 +676,6 @@
 
     const savedQuery = ctx.discoveryFocus?.query || allQuery;
     const { mapFilters: _mapFilters, ...query } = savedQuery;
-    from.select.value = query.fromYear || '';
-    to.select.value = query.toYear || '';
     severity.select.value = query.severity;
     type.select.value = query.type;
     involvement.select.value = query.involvement || 'all';
@@ -651,9 +683,11 @@
       panel, trigger, title, coverage, status, rows, more, detail, sort: sort.select,
       networkControls, mode: mode.select, networkKind: networkKind.select, networkKindLabel: networkKind.wrapper,
       onlyEmpty, onlyEmptyLabel, networkMeta,
-      limit: listPage, query, city: ctx.CITY_RAW, candidates: [],
+      fromYearSelect: from.select, toYearSelect: to.select,
+      limit: listPage, query, city: ctx.CITY_RAW, candidates: [], points: ctx.allPts, mapPoints: ctx.filteredAll,
     };
     panels.set(ctx, state);
+    refreshYearControls(ctx, state);
     for (const control of [from, to, severity, type, involvement]) {
       control.select.addEventListener('change', () => {
         state.query = {

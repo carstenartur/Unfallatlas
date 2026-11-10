@@ -25,6 +25,11 @@
     return Number.isInteger(year) && year > 0 ? year : null;
   }
 
+  function yearOf(point) {
+    const props = point?.props;
+    return yearNumber(props?.year) ?? yearNumber(props?.ujahr) ?? yearNumber(props?.UJAHR) ?? yearNumber(props?.Jahr);
+  }
+
   function isSerious(category) {
     return category === '1' || category === '2';
   }
@@ -42,7 +47,7 @@
     return point => {
       const props = point?.props;
       if (fromYear !== null || toYear !== null) {
-        const year = yearNumber(props?.year);
+        const year = yearOf(point);
         if (year === null || year < (fromYear ?? -Infinity) || year > (toYear ?? Infinity)) return false;
       }
       const category = String(props?.ukategorie);
@@ -67,7 +72,7 @@
     const patterns = new Map();
     for (const point of points) {
       const props = point?.props;
-      const year = yearNumber(props?.year);
+      const year = yearOf(point);
       const type = String(props?.utyp1);
       const family = isTurning(type) ? 'turning' : type;
       if (year === null || !Object.hasOwn(TYPES, family)) continue;
@@ -288,5 +293,5 @@
     }
   }
 
-  UA.SiteDiscovery = Object.freeze({ filterPoints, patternForPoints, candidates, boundsForPoints, loadSites });
+  UA.SiteDiscovery = Object.freeze({ yearOf, filterPoints, patternForPoints, candidates, boundsForPoints, loadSites });
 })();

@@ -13,7 +13,7 @@ function loadScripts(win, names) {
 
 function setup(beforeBind) {
   const win = { UA: {}, L };
-  loadScripts(win, ['ua.ui', 'ua.map_v2', 'ua.site_discovery_ui']);
+  loadScripts(win, ['ua.ui', 'ua.map_v2', 'ua.site_discovery', 'ua.site_discovery_ui']);
   const UA = win.UA;
   UA.setQS = jest.fn();
   UA.saveCityState = jest.fn();
@@ -28,6 +28,7 @@ function setup(beforeBind) {
   const turning = points.slice(0, 3);
   const pattern = { key: 'turning:5', label: 'Abbiegen / Einbiegen · Rad + Pkw', points: turning, recentYear: 2025, recentPoints: [turning[2]] };
   UA.SiteDiscovery = {
+    ...UA.SiteDiscovery,
     boundsForPoints: jest.fn(() => bounds),
     filterPoints: jest.fn((items, { type }) => type === 'turning'
       ? items.filter(p => [2, 3].includes(p.props.utyp1))
@@ -238,7 +239,7 @@ describe('site discovery controls', () => {
     expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(0);
   });
 
-  test('updates the case list when the loaded tiles are replaced', async () => {
+  test.each(['open', 'closed'])('updates the case list when the loaded tiles are replaced with the panel %s', async visibility => {
     const { UA, ctx, points } = setup();
     ctx.accidentDataCoverage = { complete: false };
     document.querySelector('#btnDiscover').click();
@@ -246,11 +247,66 @@ describe('site discovery controls', () => {
     const panel = document.querySelector('#siteDiscoveryPanel');
     clickButton(panel, 'Friedrichswall / Osterstraße');
     const oldLayer = ctx.map.addLayer.mock.lastCall[0];
+    if (visibility === 'closed') clickButton(panel, 'Schließen');
     ctx.allPts = [points[0]];
     UA.SiteDiscoveryUI.dataChanged(ctx);
     expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(1);
     expect(panel.textContent).toContain('1 geladener Fall im Rechteck');
     expect(ctx.map.removeLayer).toHaveBeenCalledWith(oldLayer);
+    const [marker] = ctx.map.addLayer.mock.lastCall[0].getLayers();
+    marker.fire('click');
+    expect(panel.hidden).toBe(false);
+    const selected = panel.querySelector('[data-discovery-case][aria-current="true"]');
+    expect(selected?.textContent).toContain('2023');
+    expect(document.activeElement).toBe(selected);
+  });
+
+  test.each(['before', 'after'])('keeps the clicked case when tiles commit %s the marker click', async timing => {
+    const { UA, ctx, points } = setup();
+    document.querySelector('#btnDiscover').click();
+    await Promise.resolve();
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    clickButton(panel, 'Friedrichswall / Osterstraße');
+    clickButton(panel, 'Schließen');
+    const marker = ctx.map.addLayer.mock.lastCall[0].getLayers().find(m => m.getLatLng().lat === points[0].lat);
+
+    // extractPoints creates new point wrappers for the same cached tile features.
+    const refreshed = [{ ...points[0] }];
+    if (timing === 'before') ctx.allPts = refreshed;
+    marker.fire('click');
+    if (timing === 'after') ctx.allPts = refreshed;
+    UA.SiteDiscoveryUI.dataChanged(ctx);
+
+    const selected = panel.querySelector('[data-discovery-case][aria-current="true"]');
+    expect(selected?.textContent).toContain('2023');
+    expect(document.activeElement).toBe(selected);
+  });
+
+  test('offers newly loaded years in both filters while preserving the chosen range', () => {
+    const { UA, ctx, points } = setup();
+    const trigger = document.querySelector('#btnDiscover');
+    trigger.click();
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    const from = panel.querySelector('#siteDiscoveryFromYear');
+    const to = panel.querySelector('#siteDiscoveryToYear');
+    from.value = '2023';
+    to.value = '2025';
+    to.dispatchEvent(new Event('change'));
+    clickButton(panel, 'Schließen');
+
+    ctx.allPts = [{ ...points[0], props: { UJAHR: '2026' } }];
+    UA.SiteDiscoveryUI.dataChanged(ctx);
+    trigger.click();
+
+    for (const control of [from, to]) {
+      expect([...control.options].map(option => option.value)).toEqual(['', '2023', '2025', '2026']);
+    }
+    expect(from.value).toBe('2023');
+    expect(to.value).toBe('2025');
+    to.value = '2026';
+    to.dispatchEvent(new Event('change'));
+    expect(UA.SiteDiscovery.candidates).toHaveBeenLastCalledWith(ctx.allPts,
+      expect.objectContaining({ fromYear: 2023, toYear: 2026 }), []);
   });
 });
 
