@@ -132,6 +132,7 @@ function matchSingleLocation(text, byFirstWord, fromDocument = false) {
   let entry = null;
   let explicit = false;
   let namesRoadway = false;
+  let namesStreetSubject = false;
   for (const word of subject.matchAll(WORD)) {
     for (const [name, candidate] of byFirstWord.get(word[0]) ?? []) {
       if (!subject.startsWith(name, word.index)) continue;
@@ -147,6 +148,7 @@ function matchSingleLocation(text, byFirstWord, fromDocument = false) {
       const locative = !PREPOSITIONAL_NAME.test(name) && LOCATIVE_CUE.test(before);
       const roadway = entry.kind === 'street' && ROADWAY_CUE.test(before);
       namesRoadway ||= roadway;
+      namesStreetSubject ||= streetCue || roadway;
       explicit ||= streetCue || locative || (fromDocument ? roadway : quoted || (topic && !PREPOSITIONAL_NAME.test(name)));
     }
   }
@@ -154,7 +156,7 @@ function matchSingleLocation(text, byFirstWord, fromDocument = false) {
   // A street in a reply may locate a stop or a building. Its full line is
   // appropriate only if the roadway itself is the subject of the statement.
   const geometry = !fromDocument || entry.kind === 'place' || namesRoadway ? entry.geometry : undefined;
-  return { entry, geometry, namesRoadway };
+  return { entry, geometry, namesRoadway, namesStreetSubject };
 }
 
 function mentions(subject, byFirstWord, includeUnverified = false) {
@@ -481,9 +483,9 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
       specified.set(entry, specified.get(entry) || !placePoint);
     }
   }
-  for (const { entry, geometry, proof, namesRoadway } of general) {
+  for (const { entry, geometry, proof, namesStreetSubject } of general) {
     // A named point along a street cannot stand in for an independent road measure.
-    if (!specified.has(entry) || namesRoadway && !specified.get(entry)) {
+    if (!specified.has(entry) || namesStreetSubject && !specified.get(entry)) {
       keep(location(entry.kind, entry.name, geometry, [entry]), proof);
     }
   }

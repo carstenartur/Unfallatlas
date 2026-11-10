@@ -97,6 +97,20 @@ test('keeps independently evidenced street work beside a named facility point', 
   ]);
 });
 
+test('keeps an explicit street-subject title beside facility evidence', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  const title = 'Umgestaltung der Straße Weidendamm';
+  const text = 'Neubau Feuerwache am Weidendamm';
+  const [record] = enrichRisLocations([{ title, source: 'hannover-sim', locationEvidence: [text] }],
+    { city: 'hannover', gazetteer });
+  expect(record.locations).toEqual([
+    expect.objectContaining({ kind: 'place', label: 'Feuer- und Rettungswache 1 (Weidendamm 50)',
+      evidence: { source: 'document', text }, geometry: { type: 'Point', coordinates: [9.725982, 52.38909] } }),
+    expect.objectContaining({ kind: 'street', label: 'Weidendamm', evidence: { source: 'title', text: title },
+      geometry: gazetteer.entries.find(entry => entry.name === 'Weidendamm').geometry }),
+  ]);
+});
+
 test('assigns the current Klappenburg building number only for a sufficiently recent title', () => {
   const [record] = enrichRisLocations([{
     title: 'Feuerwache 2 Auf der Klappenburg', source: 'hannover-sim', date: '2026-01-10',
