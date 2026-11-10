@@ -14,17 +14,21 @@ function edges(paths) {
   return paths.flatMap(path => path.slice(1).map((end, i) => [path[i], end])).filter(([a, b]) => !same(a, b));
 }
 
-function streetJunction(first, second) {
-  // The network has a shared vertex at a junction. A planar intersection of
-  // the lines alone could also be an overpass.
-  const vertices = new Set(lines(first).flat().map(point => point.join(',')));
-  let junction = null;
-  for (const point of lines(second).flat()) {
-    if (!vertices.has(point.join(','))) continue;
-    if (junction && !same(junction, point)) return null;
-    junction = point;
+function streetJunction(first, ...others) {
+  // Only network vertices shared by every named arm establish a junction.
+  // A planar crossing could be an overpass, and neighbouring junctions can
+  // share one road without being the same place.
+  let common = new Map(lines(first).flat().map(point => [point.join(','), point]));
+  for (const street of others) {
+    const shared = new Map();
+    for (const point of lines(street).flat()) {
+      const key = point.join(',');
+      if (common.has(key)) shared.set(key, point);
+    }
+    if (!shared.size) return null;
+    common = shared;
   }
-  return junction;
+  return common.size === 1 ? common.values().next().value : null;
 }
 
 function anchorOnRoad(anchor, segments) {

@@ -60,6 +60,25 @@
       "evidence": { "document": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1047-2026" }
     }
   ],
+  "regionalProjectAddresses": [
+    {
+      "project": "Neubau Werkstattgebäude (WSG)",
+      "street": "Ohestraße",
+      "streetKey": "0324100102099",
+      "houseNumber": "3b",
+      "postalCode": "30169",
+      "sourceUrl": "https://www.hannover.de/content/download/1029323/file/Brosch%C3%BCre_Schulsanierungen_04122024.pdf"
+    }
+  ],
+  "streetAliases": [
+    {
+      "spelling": "Ferdinand-Willhelm-Fricke-Weg",
+      "name": "Ferdinand-Wilhelm-Fricke-Weg",
+      "streetKey": "0324100100871",
+      "document": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0533-2023",
+      "verification": "https://www.hannover.de/content/download/1029082/file/WEB%20Bauenfu%CC%88rHannover2024_Stand_12_2024_DS.pdf"
+    }
+  ],
   "publicFacilities": {
     "source": "hannover-sim",
     "attribution": "Landeshauptstadt Hannover, Feuerwehr",

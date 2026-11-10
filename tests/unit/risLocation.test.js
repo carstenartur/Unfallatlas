@@ -19,10 +19,10 @@ function enrich(records, entries = [limmerstrasse, lutherkirche], city = 'hannov
 }
 
 function hannoverFacilityGazetteer() {
-  const { publicFacilities } = require('../../config/ris-locations/hannover.json');
+  const { publicFacilities, streetAliases, regionalProjectAddresses } = require('../../config/ris-locations/hannover.json');
   return {
     ...JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz')))),
-    publicFacilities,
+    publicFacilities, streetAliases, regionalProjectAddresses,
   };
 }
 
@@ -1585,4 +1585,169 @@ test.each([[false, false], [false, true], [true, false]])('bounds a parenthesize
   expect(record.locations.slice(0, 2).map(place => Boolean(place.geometry))).toEqual([!negativeGroup, !negativeGroup]);
   if (!negativeThird) expect(record.locations[2].geometry?.type).toBe('LineString');
   expect(record.locations.map(place => place.evidence)).toEqual(Array(3).fill({ source: 'document', text }));
+});
+
+const trafficAudit = require('../../docs/qa/ris-traffic-location-audit-2026-11-10.json');
+
+test.each([
+  ['hannover-sim:15-2140-2020F1', 'Hannoversche Straße / Grenzstraße / Louise-Schroeder-Straße', [9.827941, 52.384734]],
+  ['hannover-sim:15-1619-2025', 'Weidetorstraße / Pinkenburger Straße', [9.807731, 52.397536]],
+])('maps the complete audited intersection in the retained title of %s', (id, label, coordinates) => {
+  const { title } = trafficAudit.records.find(record => record.id === id);
+  const [record] = enrichRisLocations([{ id, source: 'hannover-sim', title, locationEvidenceUnavailable: true }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'junction', label,
+    geometry: { type: 'Point', coordinates }, evidence: { source: 'title', text: title } })]);
+  expect(record.locationAssessment.reasons).toContain('document_text_unavailable');
+});
+
+test('requires the same vertex on every named arm, even when the first two streets intersect', () => {
+  const evidence = 'Am Knotenpunkt Bauweg / Mittelweg / Kirchweg wird eine Ampel geprüft.';
+  const [record] = enrich([{ title: 'Ampel', locationEvidence: [evidence] }], [
+    street('Bauweg', [[9.70, 52.38], [9.71, 52.38]]),
+    street('Mittelweg', [[9.70, 52.37], [9.70, 52.38]]),
+    street('Kirchweg', [[9.71, 52.38], [9.71, 52.39]]),
+  ]);
+  expect(record.locations).toEqual([{ kind: 'junction', label: 'Bauweg / Mittelweg / Kirchweg',
+    evidence: { source: 'document', text: evidence } }]);
+});
+
+test('does not drop an unknown arm to publish a two-street intersection', () => {
+  const [record] = enrich([{ title: 'Ampel an der Kreuzung Bauweg / Mittelweg / Unbekanntstraße' }], [
+    street('Bauweg', [[9.70, 52.38], [9.71, 52.38]]),
+    street('Mittelweg', [[9.70, 52.37], [9.70, 52.38]]),
+  ]);
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'junction',
+    label: 'Bauweg / Mittelweg (weiterer Bezug im Beleg)' })]);
+  expect(record.locations[0].geometry).toBeUndefined();
+});
+
+test('keeps the parking places before the junction in SIM 2532/2003 as a text location', () => {
+  const evidence = 'Die Verwaltung wird gebeten, die vorgesehenen 2 Parkplätze kurz vor der Einmündung Große Straße in die Sackmannstr. zugunsten der Fußwegbreite an dieser Stelle aus der Planung herauszunehmen.';
+  const [record] = enrichRisLocations([{ id: 'hannover-sim:2532-2003', source: 'hannover-sim', title: 'Parkplätze', locationEvidence: [evidence] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([{ kind: 'place', label: 'Vor der Einmündung Große Straße / Sackmannstraße',
+    evidence: { source: 'document', text: evidence } }]);
+  expect(record.locationAssessment.reasons).toContain('unmapped_location');
+});
+
+test.each([
+  'Einladung zur Sitzung an der Kreuzung Hannoversche Straße/Grenzstraße/Louise-Schroeder-Straße',
+  'Verkehrssituation vor einem Kindergarten an der Weidetorstraße',
+  'Wie beispielsweise an der Weidetorstraße Ecke Pinkenburger Straße',
+])('does not promote the meeting location, general road or comparison: %s', title => {
+  const suffix = ' Sitzung des Stadtbezirksrates Mitte am 01.09.2020 TOP 8.3.7.';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title: title + suffix }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([]);
+});
+
+test('maps the full-length road in the mixed parking list of SIM 15-0533/2023 using its reviewed spelling', () => {
+  const evidence = 'Dies betrifft insbesondere den Parkplatz am Olympiastützpunkt, den Ferdinand-Willhelm-Fricke-Weg in voller Länge, die Parkflächen neben und gegenüber der Jugendherberge, den Parkplatz am Landessportbund, den Parkplatz an der Ritter-Brüning-Straße, den Parkplatz an der Seufzeralle, die Straße „am Schützenplatz“ sowie den Parkplatz am Waterloo-Biergarten.';
+  const gazetteer = hannoverFacilityGazetteer();
+  const expected = gazetteer.entries.find(entry => entry.streetKey === '0324100100871');
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title: 'Parkraumbewirtschaftung im Veranstaltungsbereich',
+    locationEvidence: [evidence] }], { city: 'hannover', gazetteer });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'street', label: expected.name, geometry: expected.geometry,
+    evidence: { source: 'document', text: evidence } })]);
+});
+
+test.each([
+  'Dies betrifft insbesondere den Parkplatz am Park, nicht den Ferdinand-Willhelm-Fricke-Weg in voller Länge.',
+  'Dies betrifft insbesondere den Parkplatz am Park, den Ferdinand-Willhelm-Fricke-Weg in voller Länge, ausgenommen den südlichen Abschnitt.',
+  'Dies betrifft insbesondere den Parkplatz am Ferdinand-Willhelm-Fricke-Weg in voller Länge, die Parkflächen am Stadion.',
+])('does not widen a qualified list item or a neighbouring parking site: %s', evidence => {
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title: 'Parkraumbewirtschaftung',
+    locationEvidence: [evidence] }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations.filter(location => location.geometry)).toEqual([]);
+});
+
+test.each([
+  'Prüfung des Abschnitts zwischen der Kreuzung Hannoversche Straße/Grenzstraße/Louise-Schroeder-Straße und dem Bahnhof Sitzung des Stadtbezirksrates Mitte am 07.10.2020 TOP 3.1.3.',
+  'Parkplätze im Umfeld der Weidetorstraße Ecke Pinkenburger Straße',
+  'Der Gehweg zwischen Weidetorstraße Ecke Pinkenburger Straße und dem Bahnhof',
+])('does not publish a crossing point for a wider area or an endpoint: %s', title => {
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations.filter(location => location.geometry)).toEqual([]);
+});
+
+test('preserves both independently named parking corners of SIM 15-0152/2007', () => {
+  const title = 'Parkplätze in den Straßen Ostergrube/Ecke Gollstraße und Sehnder Straße/Ecke Gollstraße';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations.map(location => [location.label, location.geometry?.coordinates])).toEqual([
+    ['Gollstraße / Ostergrube', [9.858788, 52.361239]],
+    ['Gollstraße / Sehnder Straße', [9.857634, 52.359558]],
+  ]);
+});
+
+test('merges both street orders at the same documented corner in SIM 15-0533/2015', () => {
+  const title = 'Anbringung von Fahrradbügeln oder Pollern auf dem Fußgängerweg Pfarrlandstraße / Ecke Elisenstraße';
+  const evidence = 'Die Verwaltung wird aufgefordert, Fahrradbügel oder Poller auf dem Bürgersteig Ecke Pfarrlandstraße / Elisenstraße anzubringen.';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title, locationEvidence: [evidence] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ label: 'Pfarrlandstraße / Elisenstraße',
+    evidence: { source: 'document', text: evidence }, geometry: { type: 'Point', coordinates: [9.70634, 52.37472] } })]);
+});
+
+test('maps the turning restriction at the unique junction in the random audit of SIM 15-1328/2007 S1', () => {
+  const evidence = 'der Oberbürgermeister wird gebeten zu veranlassen, dass das links Abbiegen aus der Uferzeile in die Hannoversche Straße nicht mehr gestattet wird.';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title: 'Linksabbiegen', locationEvidence: [evidence] }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'junction', label: 'Uferzeile / Hannoversche Straße',
+    geometry: { type: 'Point', coordinates: [9.834506, 52.386716] }, evidence: { source: 'document', text: evidence } })]);
+});
+
+test.each([
+  'Verkehrsberuhigung im Umfeld der Einmündung Große Straße in die Sackmannstraße',
+  'Parkplätze nahe der Einmündung Große Straße in die Sackmannstraße',
+  'Parkplatz 100 Meter südlich der Weidetorstraße Ecke Pinkenburger Straße',
+  'Gehwegsanierung von Weidetorstraße Ecke Pinkenburger Straße bis zum Stadtfriedhof',
+  'Für den Bereich um die Weidetorstraße Ecke Pinkenburger Straße wird ein Parkkonzept erbeten',
+])('keeps a qualified junction reference from substituting for the measure: %s', title => {
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations.filter(location => location.geometry)).toEqual([]);
+});
+
+test('keeps a house number following an inline corner for address lookup', () => {
+  const title = 'Fahrradbügel in der Weidetorstraße Ecke Pinkenburger Straße 12';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'address', label: 'Pinkenburger Straße 12' })]);
+});
+
+test('an obsolete alias cannot mask the official entry now bearing that spelling', () => {
+  const real = street('Mittelweg', [[9.70, 52.37], [9.70, 52.38]]);
+  const original = { ...street('Bauweg', [[9.70, 52.38], [9.71, 52.38]]), streetKey: 'a' };
+  const [record] = enrichRisLocations([{ title: 'Mittelweg' }], { city: 'hannover', gazetteer: {
+    city: 'hannover', entries:[original,real], streetAliases:[{spelling:'Mittelweg',name:'Bauweg',streetKey:'a'}],
+  } });
+  expect(record.locations).toEqual([expect.objectContaining({ label:'Mittelweg', geometry:real.geometry })]);
+});
+
+test('keeps the document abbreviation directly before Ecke inside original junction evidence', () => {
+  const text = 'Die Straßenlaterne an der Weidetorstr. Ecke Pinkenburger Str. wird saniert.';
+  const [record] = enrichRisLocations([{ title: 'Straßenlaterne', locationEvidence: [text] }], {
+    city: 'hannover', gazetteer: hannoverFacilityGazetteer(),
+  });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'junction',
+    geometry: { type: 'Point', coordinates: [9.807731, 52.397536] }, evidence: { source: 'document', text } })]);
+});
+
+const regionalWorkshop = 'Neubau Werkstattgebäude (WSG) Ohestrasse 3B, 30169 Hannover Änderung Entwurfsplanung / HU-Bau zu BDs Nr. 1343 (IV) vom 22.05.2018';
+test('recognizes the complete audited Region project address while keeping the non-traffic address off the map', () => {
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title: regionalWorkshop }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([{ kind: 'address', label: 'Ohestraße 3 B', evidence: { source: 'title', text: regionalWorkshop } }]);
+  expect(record.locationAssessment.reasons).toContain('non_traffic_address');
+  expect(record.locationAssessment.reasons).not.toContain('gazetteer_unavailable');
+});
+test.each([
+  regionalWorkshop.replace('30169 Hannover', '30926 Seelze'),
+  regionalWorkshop.replace('30169 Hannover', '30539 Hannover'),
+  regionalWorkshop.replace('3B,', '3B–3C,'),
+  'Kontaktadresse der Antragstellerin: ' + regionalWorkshop,
+  regionalWorkshop + ' und in Garbsen',
+])('rejects municipal scope for a mismatched project address: %s', title => {
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([]);
+  expect(record.locationAssessment.reasons).toContain('gazetteer_unavailable');
 });
