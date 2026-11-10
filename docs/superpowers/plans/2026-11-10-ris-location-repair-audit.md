@@ -25,3 +25,12 @@ Keep source quotations, address precision, ambiguity checks and original verific
 ## Baseline
 
 Main `3bb3e77e6244e442e6b4ecb6c4f23006c418bca8`; isolated branch `fix/ris-location-prose-audit`. Public data initially contained 109,560 records, 6,771 with geometry (snapshot checked 2026-11-10). Public counts may change during the repair and must be rechecked before reporting deployment.
+
+## Follow-up: preserve import progress across publication runs
+
+PR #773 was merged as `038fa8d730212da7769fe7f2986099b32022e85a`. Publication inspection then found two failed source-cache saves despite successful action steps. The pinned cache action's directory traversal reproduces a stack overflow for a large flat directory, matching the observed warning before archival. Without a durable save, later import runs can repeatedly spend their budget on the same early years.
+
+1. Reproduce the failure in the exact pinned `actions/cache` bundle with synthetic directory entries; distinguish this mechanism from a measured production file count.
+2. In the isolated `fix/ris-source-cache-shards` worktree, add failing storage-contract tests, then write new parsed entries into two-character hash-prefix subdirectories. Preserve flat-cache reads, metadata clocks, envelope validation, request deduplication and atomic replacement. Keep checkpoint formats, workflow paths and cache keys unchanged.
+3. Verify source-cache, SIM history/search and retained-evidence tests; obtain an independent review. Update the audit's evidence-scope and source-spelling distinctions without changing the fixed sample or its counts.
+4. Submit the small cache follow-up, verify required CI, and check the actual cache-save and publication results. Do not describe a green action step alone as a successful save.
