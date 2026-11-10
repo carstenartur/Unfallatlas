@@ -707,6 +707,7 @@ test.each([
   ['12 A –saniert.', 'Limmerstraße 12 A', [9.713, 52.37]],
   ['12-14 —überprüft.', 'Limmerstraße 12-14', undefined],
   ['12 -bislang geprüft.', 'Limmerstraße 12', [9.712, 52.37]],
+  ['12 -geprüft seit 14 Tagen.', 'Limmerstraße 12', [9.712, 52.37]],
 ])('retains the complete address before a dash attached to prose in %s', (tail, label, coordinates) => {
   const text = `Die Verkehrsmaßnahme wird in der Limmerstraße ${tail}`;
   const [record] = enrichRisLocations([{ title: 'Radverkehr', locationEvidence: [text] }], { city: 'hannover', gazetteer: addressGazetteer });
@@ -719,7 +720,12 @@ test.each(['12 -', '12 -a', '12 -b', '12 -ab', '12 -a/b', '12 bis', '12 /', '12 
   expect(record.locations).toEqual([]);
 });
 
-test.each(['12 -bis 14', '12 -bis', '12 -bis 8/10', '12 -und 14', '12 -und', '12 -oder 14', '12 -sowie 14', '12 -bzw 14'])('does not treat a dashed address operator as prose in titles or documents: %s', tail => {
+test.each([
+  '12 -bis 14', '12 -bis', '12 -bis 8/10', '12 -und 14', '12 -und', '12 -oder 14', '12 -sowie 14', '12 -bzw 14',
+  '12 -beziehungsweise 14', '12 -beziehungsweise', '12 -respektive 14', '12 -respektive',
+  '12 -alternativ 14', '12 -wahlweise 14', '12 -inklusive 14',
+  '12 -alternativ,14', '12 -inklusive , 14',
+])('does not treat a dashed address operator as prose in titles or documents: %s', tail => {
   const text = `Radverkehr in der Limmerstraße ${tail}`;
   const records = enrichRisLocations([{ title: text }, { title: 'Radverkehr', locationEvidence: [text] }],
     { city: 'hannover', gazetteer: addressGazetteer });
