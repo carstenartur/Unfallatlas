@@ -39,8 +39,8 @@ const audit = JSON.parse(fs.readFileSync(
   'utf8',
 ));
 const semantic = metadata.semanticEvidence || {};
-if (semantic.mapCount !== 4 || semantic.expectedMapCount !== 4) {
-  throw new Error(`Expected four final maps, got ${JSON.stringify(semantic)}`);
+if (semantic.mapCount !== 3 || semantic.expectedMapCount !== 3) {
+  throw new Error(`Expected three final maps, got ${JSON.stringify(semantic)}`);
 }
 if (semantic.tableRowCount !== 10 || semantic.expectedTableRowCount !== 10 ||
     semantic.tableHints !== 3 || semantic.tableSectionBindings !== 1) {
@@ -101,9 +101,8 @@ requirePagePattern(2, /Muster\s+Lokal\s+Lokal\s+%\s+Stadt\s+%\s+Faktor\s+95%-KI/
 requirePagePattern(2, /5\s+11\s+45,8\s*%\s+14,6\s*%\s+3,13×/u, 'deviation-table first row');
 requirePagePattern(2, /Unfälle im selben Gebiet vor Beteiligungsfilter\s*\(n\s*=\s*24\)/u, 'overview-map count n=24 before involvement filter');
 requirePagePattern(3, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'selection-map count n=24');
-requirePagePattern(4, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'detail-map parent count 24');
-requirePagePattern(4, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'detail-map count n=24');
-requirePagePattern(5, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'cluster-map parent count 24');
-requirePagePattern(5, /Punkte entsprechen exakt[^.]*\(n\s*=\s*11\)/u, 'cluster-map count n=11');
+requirePagePattern(4, /Abbildung 3:\s+Cluster-Karte/u, 'cluster-map caption');
+requirePagePattern(4, /Teilmenge der\s+24\s+Unfälle aus Abbildung 2/u, 'cluster-map parent count 24');
+requirePagePattern(4, /Punkte entsprechen exakt[^.]*\(n\s*=\s*11\)/u, 'cluster-map count n=11');
 
 console.log(`[document-render] Verified ${pageFiles.length} rendered DOCX page image(s) and semantic evidence.`);

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "hannover-friedrichswall-osterstrasse",
+    "label": "Friedrichswall / Osterstraße / Willy-Brandt-Allee",
+    "bounds": {
+      "south": 52.36770600225075,
+      "west": 9.739235043525698,
+      "north": 52.3688753291183,
+      "east": 9.741144776344301
+    },
+    "changes": [
+      {
+        "label": "Gesicherte Führung des Radverkehrs an der Osterstraße ohne gleichzeitige Freigabe rechtsabbiegender Kfz (Landeshauptstadt Hannover, Fachbereich Tiefbau, Folie 5)",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/BE61DEB15BEB6CEFC1258BD300251F18/%24FILE/2024%2008%2021%20Verkehrsrechner.pdf",
+        "date": "2024-08-21",
+        "precision": "documented-by"
+      }
+    ]
+  },
+  {
+    "id": "hannover-aegidientorplatz-west",
+    "label": "Aegidientorplatz – westlicher Bereich",
+    "bounds": {
+      "south": 52.36783538523368,
+      "west": 9.743059873580934,
+      "north": 52.36900471210124,
+      "east": 9.744969606399538
+    },
+    "changes": [
+      {
+        "label": "Geänderte Ampelschaltung an der Hildesheimer Straße mit getrennter Freigabe für querenden Radverkehr und rechtsabbiegende Kfz (Presseservice der Landeshauptstadt Hannover)",
+        "url": "https://presse.hannover-stadt.de/pmDetail.cfm?pmid=27598",
+        "date": "2024-03-01",
+        "precision": "documented-by"
+      },
+      {
+        "label": "Zwei Rechtsabbiegespuren vom Friedrichswall zur Hildesheimer Straße, ab März 2026 als Verkehrsversuch und anschließend dauerhaft eingerichtet (Landeshauptstadt Hannover)",
+        "url": "https://www.hannover.de/Service/Presse-Medien/Landeshauptstadt-Hannover/Aktuelle-Meldungen-und-Veranstaltungen/Neue-Verkehrsf%C3%BChrung-am-Aegidientorplatz-bleibt",
+        "date": "2026-03",
+        "precision": "month"
+      }
+    ]
+  }
+]

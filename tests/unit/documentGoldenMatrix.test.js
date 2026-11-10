@@ -32,7 +32,7 @@ describe('document Golden scenario matrix', () => {
     expect(scenarios.getScenario('few-cases').accidentCount).toBe(3);
     expect(
       scenarios.getScenario('long-multi-section-report').expectations.minimumRenderedPages,
-    ).toBeGreaterThanOrEqual(8);
+    ).toBeGreaterThanOrEqual(7);
     expect(scenarios.getScenario('uncertain-context').context.status).toBe('uncertain');
   });
 

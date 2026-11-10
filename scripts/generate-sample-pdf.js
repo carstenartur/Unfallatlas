@@ -35,7 +35,6 @@ async function generateSamplePdf(options = {}) {
   };
   for (const file of ['ua.utils.js', 'ua.report_v2.js']) new Function('window', fs.readFileSync(path.join(__dirname, '..', 'js', file), 'utf8'))(root);
   root.UA.captureExportMapImage = async (_ctx, opts = {}) => toDataUrl((opts.exportPoints ? maps.overview : maps.selection).png);
-  root.UA._captureDetailMap = async () => toDataUrl(maps.detail.png);
   root.UA._captureClusterMaps = async () => [{
     image: toDataUrl(maps.cluster.png),
     bounds: maps.cluster.receipt.bounds,
@@ -68,7 +67,7 @@ if (require.main === module) {
   const i = process.argv.indexOf('--out');
   generateSamplePdf({
     outPath: i >= 0 ? process.argv[i + 1] : undefined
-  }).then(r => console.log(`[generate-sample-pdf] ${r.bytes} bytes; four snapshot-bound maps → ${r.outPath}`)).catch(e => {
+  }).then(r => console.log(`[generate-sample-pdf] ${r.bytes} bytes; ${r.maps.length} snapshot-bound maps → ${r.outPath}`)).catch(e => {
     console.error(e.stack);
     process.exitCode = 1;
   });

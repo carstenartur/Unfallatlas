@@ -57,6 +57,13 @@
     selWest: "selWest",
     selNorth: "selNorth",
     selEast: "selEast",
+    siteFocus: "siteFocus",
+    siteFrom: "siteFrom",
+    siteTo: "siteTo",
+    siteSeverity: "siteSeverity",
+    siteType: "siteType",
+    siteInvolvement: "siteInvolvement",
+    siteMapFilters: "siteMapFilters",
     accidentView: "accidentView",
     export: "export",
     tour: "tour"
@@ -205,6 +212,57 @@
   UA.explicitAnalysisParamsPresent = () => {
     const search = UA.qs();
     return EXPLICIT_ANALYSIS_PARAMS.some(key => search.has(key));
+  };
+
+  function discoveryBounds(ctx) {
+    const selection = ctx.selectionBounds;
+    if (!selection) return null;
+    return {
+      south: selection.getSouth(), west: selection.getWest(),
+      north: selection.getNorth(), east: selection.getEast(),
+    };
+  }
+
+  function normalizeDiscoveryFocus(bounds, key, query = {}) {
+    if (!bounds || (key != null && !/^(?:turning|[14567]):(?:[1-9]|[1-5]\d|6[0-3])$/.test(key))) return null;
+    const { fromYear = null, toYear = null, severity = 'all', type = 'all', involvement = 'all', mapFilters } = query;
+    const validYear = value => value === null || /^[1-9]\d{3}$/.test(value);
+    if (!validYear(fromYear) || !validYear(toYear)) return null;
+    const from = fromYear === null ? null : Number(fromYear);
+    const to = toYear === null ? null : Number(toYear);
+    if (from !== null && to !== null && from > to) return null;
+    if (!['all', 'serious', '1', '2', '3'].includes(severity)) return null;
+    if (!['all', 'turning', '1', '2', '3', '4', '5', '6', '7'].includes(type)) return null;
+    if (!['all', 'bike', 'foot', 'bike-foot', 'car', 'heavy'].includes(involvement)) return null;
+    return { bounds, key: key ?? null, query: { fromYear: from, toYear: to, severity, type, involvement, ...(mapFilters === true ? { mapFilters: true } : {}) } };
+  }
+
+  UA.restoreDiscoveryFocus = function restoreDiscoveryFocus(ctx) {
+    const search = UA.qs();
+    const key = search.get('siteFocus');
+    ctx.discoveryFocus = key ? normalizeDiscoveryFocus(discoveryBounds(ctx), key === 'all' ? null : key, {
+      fromYear: search.get('siteFrom'), toYear: search.get('siteTo'),
+      severity: search.get('siteSeverity') ?? 'all', type: search.get('siteType') ?? 'all',
+      involvement: search.get('siteInvolvement') ?? 'all', mapFilters: search.get('siteMapFilters') === '1',
+    }) : null;
+    return ctx.discoveryFocus;
+  };
+
+  UA.setDiscoveryFocus = function setDiscoveryFocus(ctx, focus) {
+    const bounds = discoveryBounds(ctx);
+    const matchesSelection = focus?.bounds && bounds && Object.keys(bounds).every(key => bounds[key] === focus.bounds[key]);
+    const current = matchesSelection ? normalizeDiscoveryFocus(bounds, focus.key, focus.query) : null;
+    ctx.discoveryFocus = current;
+    UA.setQS({
+      siteFocus: current ? (current.key ?? 'all') : null,
+      siteFrom: current?.query.fromYear ?? null,
+      siteTo: current?.query.toYear ?? null,
+      siteSeverity: current?.query.severity ?? null,
+      siteType: current?.query.type ?? null,
+      siteInvolvement: current?.query.involvement ?? null,
+      siteMapFilters: current?.query.mapFilters ? 1 : null,
+    });
+    return current;
   };
 
   const CITY_STATE_KEY = (city) => `ua_state_${UA.normKey(city)}`;

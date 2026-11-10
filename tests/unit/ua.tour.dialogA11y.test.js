@@ -87,9 +87,10 @@ describe('Tour recorder dialog accessibility', () => {
     const actions = parsed.querySelector('.taskActions');
 
     expect(actions.getAttribute('role')).toBe('group');
-    expect(actions.getAttribute('aria-label')).toBe('Ausschnitt und Export');
+    expect(actions.getAttribute('aria-label')).toBe('Stellensuche und Export');
     expect([...actions.querySelectorAll(':scope > button')].map(button => button.id)).toEqual([
       'btnOpenExport',
+      'btnDiscover',
       'btnDraw',
       'btnClearDraw',
     ]);

@@ -46,6 +46,11 @@
       cache: 'no-cache',
       path: ({ city }) => `data/mobility/${slug(city)}-school-plans.json`,
     }),
+    discoverySites: Object.freeze({
+      compression: COMPRESSION.RAW,
+      cache: 'no-cache',
+      path: ({ city }) => `data/mobility/${slug(city)}-discovery-sites.json`,
+    }),
     speed30Rules: Object.freeze({
       compression: COMPRESSION.GZIP_ONLY,
       cache: 'no-cache',

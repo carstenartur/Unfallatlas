@@ -1061,7 +1061,7 @@ describe('UA.report_v2 - Export Functions', () => {
         expect(fitBoundsSpy).not.toHaveBeenCalled();
       }));
 
-    test('should call fitBounds with {animate: false} during detail map capture (via Word export)', () =>
+    test('fits the focus bounds without animation and restores the previous view', () =>
       withObjectURL(async () => {
         const fitBoundsSpy = jest.fn();
         const setViewSpy = jest.fn();
@@ -1080,13 +1080,11 @@ describe('UA.report_v2 - Export Functions', () => {
             getEast: () => 9.74
           }
         };
-        const reportData = { text: '', structured: null };
-
-        await UA.exportToWord(ctx, reportData, { includeMap: true });
+        await UA._captureDetailMap(ctx, { exportBounds: { south: 52.371, west: 9.721, north: 52.376, east: 9.728 } });
 
         // fitBounds should have been called with animate: false for the detail map
         expect(fitBoundsSpy).toHaveBeenCalledWith(
-          [[52.37, 9.72], [52.38, 9.74]],
+          [[52.371, 9.721], [52.376, 9.728]],
           expect.objectContaining({ animate: false })
         );
         // setView should restore the original position

@@ -352,6 +352,8 @@
 
 
     UA.bindUi(ctx);
+    UA.restoreDiscoveryFocus(ctx);
+    UA.SiteDiscoveryUI?.bind(ctx);
     // PR-D: After URL/DOM hydration, reveal context filter section based
     // on capabilities detected during loadCityData. Idempotent — also
     // re-runnable after an in-place city switch.

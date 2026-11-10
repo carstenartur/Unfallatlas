@@ -12,8 +12,8 @@
  *     mit fillColor — nicht als loser kursiver Text.
  *   - Numbered figure captions verwenden den `caption`-Style.
  *   - Vor der Bilderfolge steht der erklärende Lead-in-Absatz
- *     ("Die folgenden Karten zeigen unterschiedliche Detailebenen…").
- *   - Detail- und Cluster-Captions enthalten den Subset-Cross-Reference-
+ *     ("Die Übersicht zeigt die ausgewerteten Unfallorte…").
+ *   - Cluster-Captions enthalten den Subset-Cross-Reference-
  *     Satz ("Die N dargestellten Unfälle sind eine Teilmenge der M
  *     Unfälle aus Abbildung 1.").
  *
@@ -187,17 +187,16 @@ describe('UA.report_v2 – Layout-Pass (canonical styles + map dramaturgy)', () 
     });
     const def = await runPdfExport(ctx, makeReportData(), { includeMap: true });
     const texts = collectTexts(def.content).map(String);
-    const leadIdx = texts.findIndex(t => /Detail- und Clusteransichten sind Teilmengen der Gesamtansicht/.test(t));
+    const leadIdx = texts.findIndex(t => /Die Übersicht zeigt die ausgewerteten Unfallorte/.test(t));
     const firstCaptionIdx = texts.findIndex(t => /^Abbildung 1: /.test(t));
     expect(leadIdx).toBeGreaterThan(-1);
     expect(firstCaptionIdx).toBeGreaterThan(-1);
     expect(leadIdx).toBeLessThan(firstCaptionIdx);
   });
 
-  test('detail and cluster captions reference the parent count from Abbildung 1', async () => {
+  test('cluster captions reference the parent count from Abbildung 1', async () => {
     const PNG_DATAURL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=';
     UA.captureExportMapImage = jest.fn(async () => PNG_DATAURL);
-    UA._captureDetailMap = jest.fn(async () => PNG_DATAURL);
     UA._captureClusterMaps = jest.fn(async () => [{
       label: 'Hauptcluster',
       image: PNG_DATAURL,
@@ -210,7 +209,6 @@ describe('UA.report_v2 – Layout-Pass (canonical styles + map dramaturgy)', () 
         { lat: 52.374, lon: 9.734 }
       ]
     }]);
-    // Provide a fake selectionBounds to trigger the detail-map branch.
     const sw = { lat: 52.36, lng: 9.72 };
     const ne = { lat: 52.38, lng: 9.74 };
     const selectionBounds = {
@@ -243,14 +241,8 @@ describe('UA.report_v2 – Layout-Pass (canonical styles + map dramaturgy)', () 
     const def = await runPdfExport(ctx, reportData, { includeMap: true });
     const texts = collectTexts(def.content).map(String);
     const captionTexts = texts.filter(t => /^Abbildung \d+: /.test(t));
-    // Both detail (Abbildung 2) and cluster (Abbildung 3) captions should
-    // Refer to the 32 points rendered on the parent map, even when the
-    // older table fixture still has a different analytical population.
-    const subsetCaptions = captionTexts.filter(t => /Teilmenge der 32 Unfälle aus Abbildung 1\.$/.test(t));
-    expect(subsetCaptions.length).toBeGreaterThanOrEqual(2);
-    // And one of them must explicitly carry the detail count "Die 32 …".
-    expect(subsetCaptions.some(t => /Die 32 dargestellten Unfälle/.test(t))).toBe(true);
-    // And one must carry the cluster count "Die 5 …".
-    expect(subsetCaptions.some(t => /Die 5 dargestellten Unfälle/.test(t))).toBe(true);
+    // Reference the 32 rendered points even when the analytical table uses a different population.
+    expect(captionTexts).toHaveLength(2);
+    expect(captionTexts[1]).toMatch(/Die 5 dargestellten Unfälle sind eine Teilmenge der 32 Unfälle aus Abbildung 1\.$/);
   });
 });
