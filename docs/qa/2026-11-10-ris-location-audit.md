@@ -6,13 +6,13 @@ Die lokale Wiederholung mit dem reparierten Provider und Mapper verortet **1 von
 
 | Manuelle Einordnung nach Ausschluss des neu verorteten Falls | Anzahl |
 |---|---:|
-| F: Konkreter Ortsbezug vorhanden, Extraktion oder Zuordnung weiter unvollständig | 12 |
+| F: Konkreter Ortsbezug vorhanden, Zuordnung oder zulässige Belegbasis weiter offen | 12 |
 | A: Mehrdeutiger Ort oder genauer begrenzter Bereich als die verfügbare Geometrie | 7 |
 | K: Verwaltungs- oder bezirksweites Thema ohne konkreten Einzelort | 6 |
 | X: Regionaler Sachtext wegen Zugriffsprüfung nicht erneut prüfbar | 8 |
 | **Verbleibend** | **33** |
 
-Dies sind **Diagnosezahlen dieser gezielt geschichteten Stichprobe**, keine Schätzung für den Gesamtbestand. F bedeutet auch fehlende Einrichtungsdaten oder ungelöste Abschnittsgeometrie, nicht ausschließlich einen nachgewiesenen Parserfehler. Die acht regionalen Fälle wurden nicht mit einem reparierten Sachtext erneut gerechnet. Die Ergebnisse belegen weder eine Veröffentlichung noch eine bereits aktualisierte Live-Karte.
+Dies sind **Diagnosezahlen dieser gezielt geschichteten Stichprobe**, keine Schätzung für den Gesamtbestand. F umfasst auch fehlende Einrichtungsdaten, ungelöste Abschnittsgeometrie und zwei Ortsbelege ausschließlich in der Begründung; die zwölf Fälle sind keine zwölf bestätigten Parserfehler. Die acht regionalen Fälle wurden nicht mit einem reparierten Sachtext erneut gerechnet. Die Ergebnisse belegen weder eine Veröffentlichung noch eine bereits aktualisierte Live-Karte.
 
 ## Auswahl und Reproduktion
 
@@ -34,11 +34,23 @@ Innerhalb der Schicht und Jahresepoche wurde nach `SHA-256(Seed + LF + ID)` sort
 
 **Operative Überschriften:** Sechs Stichprobenquellen verwenden `Antrag,`, eine `Antrag zu beschließen:`. Diese Varianten werden nun gelesen. Ebenso wird die tatsächliche Verwaltungsantwort unter ihrer entsprechenden Einleitungsüberschrift erkannt; dadurch gewinnt Fall 06 die belegte Kreuzung. Die Änderung liest weiterhin ausgewählte operative Abschnitte. Ein pauschales Entfernen von Sitzungsangaben aus Titeln wäre kein ausreichender Ersatz: Bei Fall 15 ergäbe das die ganze Straße, obwohl die Entscheidung einen Punkt bei einem nicht benannten Kindergarten betrifft.
 
-**Weiter offen:** Mehrere unabhängige Maßnahmen oder Straßenabschnitte müssen getrennt erhalten bleiben (05, 08, 11, 12, 18). Bei 11 darf die mehrdeutige Angerstraße nicht die unabhängig beschriebene Eckerstraße verdrängen. Holzwiesen und Sonnenweg haben ebenfalls jeweils zwei Straßenkennungen im geprüften ATKIS-Bestandteil. Benannte Einrichtungen, neue Platznamen und Bäckereien als Abschnittsanker benötigen zusätzliche verifizierte Ortsdaten. Ein Straßenverlauf ist kein Ersatz für einen unbelegten genauen Maßnahmenort. Im Fall 23 steht der Veranstaltungsort erst in der Begründung; die Reparatur des operativen Antrags darf diese nicht pauschal als Maßnahmenbeleg übernehmen.
+**Weiter offen:** Mehrere unabhängige Maßnahmen oder Straßenabschnitte müssen getrennt erhalten bleiben (08, 11, 12, 18). Bei 11 darf die mehrdeutige Angerstraße nicht die unabhängig beschriebene Eckerstraße verdrängen. Bei 18 endet der erhaltene Beleg an `bzw.` und verliert den folgenden alternativen Endpunkt. Bei 21 muss die vollständige Aussage einschließlich ihrer Verneinung erhalten bleiben: Der zunächst erfasste Straßenabschnitt wird ausdrücklich nicht umbenannt. Holzwiesen und Sonnenweg haben ebenfalls jeweils zwei Straßenkennungen im geprüften ATKIS-Bestandteil. Benannte Einrichtungen, neue Platznamen und Bäckereien als Abschnittsanker benötigen zusätzliche verifizierte Ortsdaten. Ein Straßenverlauf ist kein Ersatz für einen unbelegten genauen Maßnahmenort.
+
+**Quellenschreibweise und komplexe Ortsliste (05):** Der amtliche Text schreibt `Ferdinand-Willhelm-Fricke-Weg`, der Gazetteer dagegen `Ferdinand-Wilhelm-Fricke-Weg`. Die Namenszuordnung scheitert auch bei einem isolierten eindeutigen Straßenbezug. Wird ausschließlich die Schreibweise im vollständigen Text korrigiert, bleibt dessen gemischte Liste aus Straßen, Parkplätzen und Einrichtungen ebenfalls ungelöst. Hier fehlen somit eine abgesicherte Namenszuordnung und eine genauere Verarbeitung des Listeneintrags; es ist kein einfacher Verlust einer bereits erkannten Straßenklausel.
+
+**Belegumfang (02, 23):** Der entscheidende Veranstaltungsort steht jeweils erst in der Begründung. Fall 02 nennt die Eisfabrik im operativen Antrag zunächst als Zuschussempfänger, Fall 23 nennt das Katholische Internationale Zentrum erst in der Begründung. Diese Fälle bleiben unter der bestehenden Beschränkung auf operative Ortsbelege nachvollziehbar offen. Eine spätere Erweiterung braucht eine ausdrückliche Regel für maßnahmenbezogene Begründungssätze mit eigener Quellenkennzeichnung.
 
 **Quellenzugriff:** Alle 26 städtischen Artikel waren abrufbar und wurden manuell gelesen. Acht regionale Abrufe lieferten HTTP 200 mit einer Zugriffsprüfung statt dem Dokument. Das ist von ihrem bisherigen Indexgrund `gazetteer_unavailable` zu unterscheiden; aus Katalogtiteln wurde keine neue Sach- oder Ortsprüfung abgeleitet. PDF-Anlagen wurden nicht geprüft. Manuelle Kontextprüfung und die technisch begrenzte Auswahl operativen HTMLs sind getrennte Evidenzstufen.
 
 Die zugehörigen Regressionen liegen in [Provider-Tests](../../tests/unit/hannoverSimCatalogue.test.js) und [Mapper-Tests](../../tests/unit/risLocation.test.js). Dieser Bericht behauptet keinen darüber hinausgehenden Test- oder Veröffentlichungsstatus.
+
+## Zusätzlich geprüft: dauerhafte Speicherung des Importfortschritts
+
+Die Speicher-Schritte der Veröffentlichungen [42793009408](https://github.com/carstenartur/Unfallatlas/actions/runs/42793009408/job/129766402725) und [42806710672](https://github.com/carstenartur/Unfallatlas/actions/runs/42806710672/job/129815162432) melden `Maximum call stack size exceeded`, bevor ein Archivierungs- oder Upload-Aufruf erscheint. Eine Bestätigung eines neu gespeicherten Caches fehlt. Beide Läufe hatten denselben älteren Cache `ris-sources-v1-Linux-42536474119-1` geladen. Der [gepinnt verwendete Action-Code](https://github.com/actions/cache/blob/55cc8345863c7cc4c66a329aec7e433d2d1c52a9/src/saveImpl.ts) behandelt die Ausnahme als Warnung; ein grüner Schritt allein belegt daher keinen erfolgreichen Speicherlauf.
+
+Die isolierte Pfadauflösung aus dem unveränderten [Save-only-Bundle](https://github.com/actions/cache/blob/55cc8345863c7cc4c66a329aec7e433d2d1c52a9/dist/save-only/index.js) von `actions/cache` 6.1.0 reproduziert unter Node 24.22.1 den Fehler mit 140.000 simulierten direkten Dateien. Der Stack zeigt auf `stack.push(...childItems.reverse())` im gebündelten Glob-Helfer. 110.000 simulierte alte Dateien plus 256 Präfixordner werden erfolgreich aufgelöst. Das ist ein nachgewiesener Mechanismus, der zu den Veröffentlichungsfehlern passt; die tatsächliche Dateizahl und der vollständige Stack des betroffenen Runners wurden nicht protokolliert.
+
+Ohne einen gespeicherten neuen Cache können spätere Runner wiederholt dieselben frühen Jahrgänge abarbeiten. Bereits veröffentlichte Ergebnisse bleiben im öffentlichen Katalog erhalten, dessen normalisierte Datensätze jedoch nicht sämtliche Import-Evidenz ersetzen. Die kleine Speicherreparatur verteilt deshalb neue Parsed-Cache-Dateien auf Hash-Präfixordner und liest alte flache Dateien einschließlich ihrer ursprünglichen Prüfzeitpunkte weiterhin. Checkpoints, Workflow-Cache-Pfad, Cache-Schlüssel und Archivformat bleiben kompatibel. Ein erfolgreicher künftiger Speicherlauf muss zusätzlich am tatsächlichen Veröffentlichungsprotokoll geprüft werden.
 
 ## Vollständige feste Stichprobe
 
@@ -47,10 +59,10 @@ Strata: **NS** `no_specific_location`, **UN** `unverified_name`, **UL** `unmappe
 | Nr. | ID und amtliche Quelle | Stratum | Kurzer Befund | Nach Reparatur |
 |---|---|---|---|---|
 | 01 | [hannover-sim:15-1044-2007S1](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1044-2007S1) | NS | Zentrum Bemerode gewünscht; kein konkretes Gebäude gewählt. | offen · A |
-| 02 | [hannover-sim:15-2726-2007](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2726-2007) | NS | Ausstellung in der Eisfabrik; benannte Einrichtung fehlt. | offen · F |
+| 02 | [hannover-sim:15-2726-2007](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2726-2007) | NS | Eisfabrik operativ als Empfänger; Ausstellungsort erst in Begründung. | offen · F |
 | 03 | [hannover-sim:15-0075-2014](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0075-2014) | NS | Bezirksweite Statistik zu Energiesperren, keine Einzeladresse. | offen · K |
 | 04 | [hannover-sim:15-2723-2018S1](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2723-2018S1) | NS | Verkehrszeichen im gesamten Bezirk, keine konkrete Straße. | offen · K |
-| 05 | [hannover-sim:15-0533-2023](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0533-2023) | NS | Mehrere Parkflächen/Straßen; Fricke-Weg ausdrücklich in voller Länge. | offen · F |
+| 05 | [hannover-sim:15-0533-2023](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0533-2023) | NS | Quellenschreibweise „Willhelm“ und komplexe Ortsliste; Fricke-Weg in voller Länge. | offen · F |
 | 06 | [hannover-sim:15-1541-2026F1](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1541-2026F1) | NS | Amtliche Antwort enthält Kreuzung Elmstraße/Schwarzwaldstraße. | **verortet** |
 | 07 | [hannover-sim:2535-2020](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2535-2020) | NS | Geschäftsordnung des Rates, kein räumliches Vorhaben. | offen · K |
 | 08 | [hannover-sim:15-2725-2008](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2725-2008) | UN | Zwei Wege zwischen Straßen; Abkürzungen und Hausnummernanker. | offen · F |

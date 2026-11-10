@@ -74,6 +74,11 @@ function fixture({ years = {}, documents = {}, formText = form() } = {}) {
 
 const options = { now: NOW, from: '2021-01-01', discovery: 'search', includeRss: false, strict: true, includeLocationEvidence: true };
 
+async function sourceCacheNames(directory) {
+  const fs = require('node:fs/promises');
+  return (await fs.readdir(directory, { recursive: true })).filter(name => name.endsWith('.json')).sort();
+}
+
 test('reads all six public year lists without a keyword and preserves distinct full document IDs', async () => {
   const keys = ['15-0001-2021', '1047-2026', '1047-2026F1', '15-1000-2026N1S1'];
   const { requestText, calls } = fixture({
@@ -339,14 +344,14 @@ test.each(['source cache', 'checkpoint details', 'checkpoint catalogue'])('norma
     await collectHannoverCatalogue({ ...collectOptions, now: firstCheckedAt });
     let cachedBytes;
     if (sourceCache) {
-      for (const name of await fs.readdir(folder)) {
+      for (const name of await sourceCacheNames(folder)) {
         const filename = path.join(folder, name);
         const entry = JSON.parse(await fs.readFile(filename, 'utf8'));
         delete entry.payload.locationEvidenceUnavailable;
         delete entry.payload.detailVerifiedAt;
         await fs.writeFile(filename, JSON.stringify(entry));
       }
-      cachedBytes = await Promise.all((await fs.readdir(folder)).sort().map(name => fs.readFile(path.join(folder, name), 'utf8')));
+      cachedBytes = await Promise.all((await sourceCacheNames(folder)).map(name => fs.readFile(path.join(folder, name), 'utf8')));
     } else {
       const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
       delete work.details[key].result.locationEvidenceUnavailable;
@@ -370,7 +375,7 @@ test.each(['source cache', 'checkpoint details', 'checkpoint catalogue'])('norma
     expect(calls.filter(call => call.url.includes('/DS/'))).toHaveLength(2);
     if (sourceCache) {
       expect(sourceCache.stats).toEqual({ hits: 2, misses: 2, writes: 2 });
-      expect(await Promise.all((await fs.readdir(folder)).sort().map(name => fs.readFile(path.join(folder, name), 'utf8')))).toEqual(cachedBytes);
+      expect(await Promise.all((await sourceCacheNames(folder)).map(name => fs.readFile(path.join(folder, name), 'utf8')))).toEqual(cachedBytes);
     } else {
       const work = await checkpoint.read('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1');
       expect(work.details[key].checkedAt).toBe(firstCheckedAt.toISOString());
@@ -453,7 +458,7 @@ test.each(['fresh retained details', 'historical catalogue'])('repairs a legacy 
     const earlierKnownClock = new Date(verifiedAt.getTime() - 60000).toISOString();
     work.details[usefulKey].result.detailVerifiedAt = earlierKnownClock;
     await checkpoint.write('hannover-sim', 'public-year-search:true', 2021, 'sim-history-v1', work);
-    const cacheNames = (await fs.readdir(sourceDirectory)).sort();
+    const cacheNames = await sourceCacheNames(sourceDirectory);
     const originalCache = await Promise.all(cacheNames.map(name => fs.readFile(path.join(sourceDirectory, name), 'utf8')));
     const readsBefore = calls.length;
     cacheTime = (mode === 'historical catalogue' ? later : inflatedAt).getTime();

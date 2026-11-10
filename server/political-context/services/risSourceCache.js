@@ -58,12 +58,30 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     return value;
   }
 
-  async function load(filename, key, revision, loader) {
+  function shardedFilename(digest) {
+    return path.join(folder, digest.slice(0, 2), `${digest}.json`);
+  }
+
+  async function readVerifiedEntry(digest, key, revision, checkedAt) {
+    const current = shardedFilename(digest);
+    // A valid current envelope is authoritative even when expired; age checks
+    // must not revive an older flat copy instead of renewing the source.
+    for (const filename of [current, path.join(folder, `${digest}.json`)]) {
+      try {
+        // O_NOFOLLOW protects the envelope itself. The new directory level must
+        // also be a real directory before following it to a cached response.
+        if (filename === current && !(await fs.lstat(path.dirname(filename))).isDirectory()) continue;
+        const entry = await readEntry(filename, maxEntryBytes);
+        if (matchesEntry(entry, key, revision, checkedAt)) return entry;
+      } catch (_) { /* Missing, unreadable or damaged entries can fall back to the legacy layout. */ }
+    }
+    return null;
+  }
+
+  async function load(digest, key, revision, loader) {
     const checkedAt = timestamp();
-    let entry;
-    try { entry = await readEntry(filename, maxEntryBytes); }
-    catch (_) { /* Missing, unreadable or damaged cache entries are misses. */ }
-    if (matchesEntry(entry, key, revision, checkedAt) && checkedAt - entry.cachedAt < maxAgeMs) {
+    const entry = await readVerifiedEntry(digest, key, revision, checkedAt);
+    if (entry && checkedAt - entry.cachedAt < maxAgeMs) {
       stats.hits += 1;
       return { payload: entry.payload, cachedAt: entry.cachedAt };
     }
@@ -81,7 +99,12 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     const bytes = Buffer.from(encoded);
     if (bytes.length > maxEntryBytes) throw new RangeError('RIS source cache entry exceeds its size limit');
 
-    await fs.mkdir(folder, { recursive: true });
+    // Keep directory fan-out bounded so the Actions cache globber can persist
+    // growing histories and multiple parser revisions without argument overflow.
+    const filename = shardedFilename(digest);
+    const shard = path.dirname(filename);
+    await fs.mkdir(shard, { recursive: true });
+    if (!(await fs.lstat(shard)).isDirectory()) throw new Error('Invalid RIS source cache directory');
     const temporary = `${filename}.${randomUUID()}.tmp`;
     try {
       await fs.writeFile(temporary, bytes, { flag: 'wx' });
@@ -100,7 +123,7 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     }
     const digest = createHash('sha256').update(JSON.stringify([key, revision])).digest('hex');
     if (!pending.has(digest)) {
-      const request = load(path.join(folder, `${digest}.json`), key, revision, loader)
+      const request = load(digest, key, revision, loader)
         .finally(() => pending.delete(digest));
       pending.set(digest, request);
     }
@@ -118,10 +141,8 @@ function createRisSourceCache({ directory, now = () => Date.now(),
     }
     const checkedAt = timestamp();
     const digest = createHash('sha256').update(JSON.stringify([key, revision])).digest('hex');
-    let entry;
-    try { entry = await readEntry(path.join(folder, `${digest}.json`), maxEntryBytes); }
-    catch (_) { return null; }
-    return matchesEntry(entry, key, revision, checkedAt) ? { cachedAt: entry.cachedAt } : null;
+    const entry = await readVerifiedEntry(digest, key, revision, checkedAt);
+    return entry ? { cachedAt: entry.cachedAt } : null;
   }
 
   return { getOrLoad, getOrLoadWithMetadata, getMetadata, stats };

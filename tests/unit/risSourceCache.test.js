@@ -10,6 +10,7 @@ const unicode = require('../../scripts/check-hidden-unicode');
 const KEY = 'https://example.org/public/paper/123';
 const REVISION = '2026-11-08';
 const PAYLOAD = { id: '123', title: 'Öffentliche Drucksache', text: 'Ein öffentlicher Maßnahmentext.' };
+const DIGEST = 'e3cc09cf4ba35dd1ae2629095d381b51bae58f276147d87d81990267ea8c6ed4';
 const unexpectedLoad = () => { throw new Error('A valid cache entry must not reload the source'); };
 let root;
 let directory;
@@ -30,9 +31,9 @@ function cache(options = {}) {
 }
 
 async function cacheFile() {
-  const names = await fs.readdir(directory);
+  const names = (await fs.readdir(directory, { recursive: true })).filter(name => name.endsWith('.json'));
   expect(names).toHaveLength(1);
-  expect(names[0]).toMatch(/^[a-f0-9]{64}\.json$/);
+  expect(path.basename(names[0])).toMatch(/^[a-f0-9]{64}\.json$/);
   return path.join(directory, names[0]);
 }
 
@@ -40,6 +41,99 @@ async function cacheFiles() {
   try { return await fs.readdir(directory); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
+
+async function writeEnvelope(layout, overrides = {}) {
+  const filename = path.join(directory, ...(layout === 'sharded' ? ['e3'] : []), `${DIGEST}.json`);
+  await fs.mkdir(path.dirname(filename), { recursive: true });
+  await fs.writeFile(filename, JSON.stringify({ schemaVersion: 1, key: KEY, revision: REVISION,
+    cachedAt: time, payload: PAYLOAD, ...overrides }));
+  return filename;
+}
+
+test('keeps a growing source cache resumable without adding flat files to the root', async () => {
+  const source = cache();
+  const keys = Array.from({ length: 512 }, (_, index) => `${KEY}/${index}`);
+  await Promise.all(keys.map((key, index) => source.getOrLoad(key, REVISION, () => ({ id: index }))));
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  expect(entries.every(entry => entry.isDirectory())).toBe(true);
+  expect(entries.length).toBeLessThanOrEqual(256);
+  const resumed = cache();
+  await expect(Promise.all(keys.map(key => resumed.getOrLoad(key, REVISION, unexpectedLoad))))
+    .resolves.toEqual(keys.map((_, index) => ({ id: index })));
+  expect(resumed.stats).toEqual({ hits: 512, misses: 0, writes: 0 });
+});
+
+test('resumes a legacy flat envelope without changing its verification clock or rewriting it', async () => {
+  const verifiedAt = time;
+  const filename = await writeEnvelope('flat');
+  const before = await fs.readFile(filename, 'utf8');
+  time += 6 * 86400000;
+  const resumed = cache();
+  await expect(resumed.getOrLoadWithMetadata(KEY, REVISION, unexpectedLoad))
+    .resolves.toEqual({ payload: PAYLOAD, cachedAt: verifiedAt });
+  await expect(resumed.getMetadata(KEY, REVISION)).resolves.toEqual({ cachedAt: verifiedAt });
+  expect(await fs.readFile(filename, 'utf8')).toBe(before);
+  expect(await fs.readdir(directory)).toEqual([`${DIGEST}.json`]);
+  expect(resumed.stats).toEqual({ hits: 1, misses: 0, writes: 0 });
+});
+
+test('retains expired legacy metadata without treating its payload as freshly verified', async () => {
+  const verifiedAt = time;
+  const filename = await writeEnvelope('flat');
+  const before = await fs.readFile(filename, 'utf8');
+  time += 19 * 86400000;
+  const source = cache();
+  await expect(source.getMetadata(KEY, REVISION)).resolves.toEqual({ cachedAt: verifiedAt });
+  await expect(source.getOrLoad(KEY, REVISION, () => { throw new Error('A source request is required'); }))
+    .rejects.toThrow('A source request is required');
+  expect(await fs.readFile(filename, 'utf8')).toBe(before);
+  expect(source.stats).toEqual({ hits: 0, misses: 1, writes: 0 });
+});
+
+test('prefers a verified sharded response over a retained older flat copy', async () => {
+  await writeEnvelope('flat', { cachedAt: time - 100, payload: { id: 'old' } });
+  await writeEnvelope('sharded');
+  const source = cache();
+  await expect(source.getOrLoadWithMetadata(KEY, REVISION, unexpectedLoad))
+    .resolves.toEqual({ payload: PAYLOAD, cachedAt: time });
+  await expect(source.getMetadata(KEY, REVISION)).resolves.toEqual({ cachedAt: time });
+  expect(source.stats).toEqual({ hits: 1, misses: 0, writes: 0 });
+});
+
+test.each(['corrupt', 'wrong-key', 'future', 'symlink'])('can use a verified legacy copy when the sharded envelope is unusable: %s', async fault => {
+  const verifiedAt = time - 100;
+  const legacy = await writeEnvelope('flat', { cachedAt: verifiedAt });
+  const filename = await writeEnvelope('sharded', fault === 'wrong-key' ? { key: `${KEY}/wrong` }
+    : fault === 'future' ? { cachedAt: time + 1 } : {});
+  if (fault === 'corrupt') await fs.writeFile(filename, '{unfinished');
+  if (fault === 'symlink') {
+    const outside = path.join(root, 'outside.json');
+    await fs.rename(filename, outside);
+    await fs.symlink(outside, filename);
+  }
+  const before = await fs.readFile(legacy, 'utf8');
+  const source = cache();
+  await expect(source.getOrLoadWithMetadata(KEY, REVISION, unexpectedLoad))
+    .resolves.toEqual({ payload: PAYLOAD, cachedAt: verifiedAt });
+  await expect(source.getMetadata(KEY, REVISION)).resolves.toEqual({ cachedAt: verifiedAt });
+  expect(await fs.readFile(legacy, 'utf8')).toBe(before);
+  expect(source.stats).toEqual({ hits: 1, misses: 0, writes: 0 });
+});
+
+test('does not read or write cache entries through a shard directory symlink', async () => {
+  const outside = path.join(root, 'outside');
+  const filename = await writeEnvelope('sharded');
+  await fs.rename(path.dirname(filename), outside);
+  await fs.symlink(outside, path.dirname(filename));
+  const outsideFile = path.join(outside, `${DIGEST}.json`);
+  const before = await fs.readFile(outsideFile, 'utf8');
+  const source = cache();
+  await expect(source.getMetadata(KEY, REVISION)).resolves.toBeNull();
+  await expect(source.getOrLoad(KEY, REVISION, () => ({ id: 'fresh' }))).rejects.toThrow(/cache directory/i);
+  expect(await fs.readFile(outsideFile, 'utf8')).toBe(before);
+  expect(await fs.readdir(outside)).toEqual([`${DIGEST}.json`]);
+  expect(source.stats).toEqual({ hits: 0, misses: 1, writes: 0 });
+});
 
 test('resumes from a completed source response in a fresh cache instance', async () => {
   const first = cache();
