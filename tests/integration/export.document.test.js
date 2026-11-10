@@ -250,7 +250,6 @@ describe('Document Export - Integration Tests', () => {
     const scenario=samples.resolveScenario();
     const ctx=samples.createContext(scenario);
     UA.captureExportMapImage=async()=>mockCanvas.toDataURL();
-    UA._captureDetailMap=async()=>mockCanvas.toDataURL();
     UA._captureClusterMaps=async()=>[{image:mockCanvas.toDataURL(),bounds:{south:52.3,west:9.6,north:52.4,east:9.8},
       total:1,points:[{}],label:'Cluster',zoom:15,lat:52.35,lon:9.7}];
     await UA.exportToPDF(ctx,samples.createReportData(scenario),scenario.exportOptions);
@@ -260,13 +259,13 @@ describe('Document Export - Integration Tests', () => {
       if(node.link&&typeof node.text==='string'&&node.text.includes('In Werkbank öffnen'))links.push(node);
       for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);};
     walk(definition.content);
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(2);
     const font=require('fontkit').openSync(require('pdfmake/fonts/Roboto').Roboto.normal);
     expect(links.flatMap(link=>[...link.text].filter(char=>!font.hasGlyphForCodePoint(char.codePointAt(0))))).toEqual([]);
     const targets=links.map(link=>new URL(link.link));
     expect(targets.every(url=>url.protocol==='http:'||url.protocol==='https:')).toBe(true);
     expect(targets[0].searchParams.get('city')).toBe(ctx.CITY_RAW);
-    expect(Number(targets[2].searchParams.get('selSouth'))).toBe(52.3);
+    expect(Number(targets[1].searchParams.get('selSouth'))).toBe(52.3);
     const pdf=window.pdfMake.createPdf.mock.results[0].value;
     expect(readPdfText(await pdf.getBuffer())).toContain('In Werkbank öffnen');
   });

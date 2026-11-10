@@ -992,18 +992,19 @@
   }
 
   /**
-   * Capture a detail map image zoomed to selectionBounds.
+   * Capture a detail map fitted to its own bounds.
    * Temporarily calls fitBounds (with animation disabled), waits for re-render,
    * captures, then restores the original view.
-   * Throws if ctx.map or ctx.selectionBounds are missing; capture errors propagate
+   * Throws if the map or usable bounds are missing; capture errors propagate
    * to the caller, which is responsible for graceful fallback.
    * @param {Object} ctx - Application context
    * @param {Object} options - Export options
-   * @returns {Promise<string>} Base64 image data URL
+   * @returns {Promise<Object>} Image data and map position
    */
   async function captureDetailMap(ctx, options) {
-    if (!ctx.map || !ctx.selectionBounds) {
-      throw new Error("No map or selectionBounds available for detail capture");
+    const bounds = options?.exportBounds || boundsToBbox(ctx.selectionBounds);
+    if (!ctx.map || !bounds) {
+      throw new Error("No map or bounds available for detail capture");
     }
 
     // Save current map state
@@ -1011,7 +1012,6 @@
     const origZoom = ctx.map.getZoom();
 
     try {
-      const bounds = options?.exportBounds || boundsToBbox(ctx.selectionBounds);
       fitDocumentMap(ctx, bounds);
       return await UA.captureDocumentMap(ctx, { ...options, exportBounds: bounds });
     } finally {
@@ -1304,6 +1304,88 @@
       points,
       allPoints: selection.hasRestriction ? getAllCombinationPointsInBounds(ctx, bounds) : null
     };
+  }
+
+  function reportDiscoveryFocus(plan, structured) {
+    const discovery = UA.SiteDiscovery;
+    const candidate = structured && Object.prototype.hasOwnProperty.call(structured, "discoveryFocus")
+      ? structured.discoveryFocus
+      : discovery?.patternForPoints?.(plan.points);
+    if (!candidate?.label || !Array.isArray(candidate.points)) return null;
+
+    // Document provenance can project the point objects after the report data
+    // was computed. Match published cases, then use the frozen map points.
+    const fingerprint = UA.EvidenceCohort?.fingerprintForPoint;
+    const identity = point => fingerprint ? fingerprint(UA, point) : point;
+    const members = new Set(candidate.points.map(identity));
+    const latest = new Set((candidate.recentPoints || []).map(identity));
+    const points = plan.points.filter(point => members.has(identity(point)));
+    if (!points.length) return null;
+
+    const recentCount = points.filter(point => latest.has(identity(point))).length;
+    const recentText = recentCount && Number.isInteger(candidate.recentYear)
+      ? `Im jüngsten Musterjahr ${candidate.recentYear} ${recentCount === 1 ? "wurde 1 Unfall" : `wurden ${recentCount} Unfälle`} dieses Musters erfasst.`
+      : "";
+    // A context margin preserves the connecting streets around the pattern.
+    // A focus with the same cases as the overview needs no separate image.
+    const bounds = points.length < plan.points.length
+      ? discovery?.boundsForPoints?.(points, { paddingMeters: 28 })
+      : null;
+    return { key: candidate.key, query: candidate.query, label: candidate.label, points, recentText, bounds };
+  }
+
+  function focusCaption(figure, focus, overviewN, overviewIndex) {
+    const n = focus.points.length;
+    const subset = n === 1 ? `Der dargestellte Unfall gehört zu den ${overviewN} Unfällen`
+      : `Die ${n} dargestellten Unfälle sind eine Teilmenge der ${overviewN} Unfälle`;
+    return `${figure.caption} ${subset} aus Abbildung ${overviewIndex}.`;
+  }
+
+  function focusCriteria(query) {
+    if (!query) return "";
+    const { fromYear, toYear, severity, type, involvement } = query;
+    const criteria = [];
+    if (fromYear && toYear) criteria.push(fromYear === toYear ? String(fromYear) : `${fromYear}–${toYear}`);
+    else if (fromYear) criteria.push(`ab ${fromYear}`);
+    else if (toYear) criteria.push(`bis ${toYear}`);
+    const severityLabels = { serious: "getötet oder schwer verletzt", 1: "getötet", 2: "schwer verletzt", 3: "leicht verletzt" };
+    if (severityLabels[severity]) criteria.push(severityLabels[severity]);
+    if (type && type !== "all") criteria.push(type === "turning" ? "Unfalltypen 2/3" : `Unfalltyp ${type}`);
+    const modeLabels = { "bike-foot": "Rad- oder Fußbeteiligung", bike: "Radbeteiligung", foot: "Fußbeteiligung", car: "Pkw-Beteiligung", heavy: "Güter-Kfz-Beteiligung" };
+    if (modeLabels[involvement]) criteria.push(modeLabels[involvement]);
+    return criteria.length ? `Suchkriterien der Musterkarte – ${criteria.join(", ")}.` : "";
+  }
+
+  function sourceDate(date) {
+    return String(date || "").replace(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/, (_date, year, month, day) =>
+      day ? `${day}.${month}.${year}` : `${month}/${year}`);
+  }
+
+  function reportSiteChanges(structured) {
+    return (structured?.siteChanges || []).filter(change => change?.label && change.date).map(change => {
+      const date = sourceDate(change.date);
+      const when = change.precision === "documented-by" ? `spätestens am ${date} dokumentiert`
+        : change.precision === "month" ? `Beginn im ${date}` : `Quellenstand ${date}`;
+      return { text: `${change.label} – ${when}.`, href: reportLink(change.url) };
+    });
+  }
+
+  const SITE_CHANGE_LIMIT = "Für einen belastbaren Vorher-Nachher-Vergleich fehlen hinreichend gesicherte und vergleichbare Zeitangaben.";
+  const FOCUS_MAP_LEGEND = "Der Rahmen markiert den Bereich der Musterkarte. Die Punkte zeigen veröffentlichte Unfallorte. Die Fahrtrichtungen bleiben offen.";
+
+  function reportFacilities(poi) {
+    return (poi?.facilities || []).filter(facility => facility?.name && facility.relation).slice(0, 5).map(facility => {
+      const sources = [facility.source, facility.locationSource, ...(facility.planSources || [])].filter(source => source?.label);
+      const unique = new Map(sources.map(source => [source.url || source.label, source]));
+      return {
+        text: `${facility.name} – ${facility.relation}`,
+        detail: facility.reason,
+        sources: [...unique.values()].map(source => ({
+          text: source.date ? `${source.label} (Stand ${sourceDate(source.date)})` : source.label,
+          href: reportLink(source.url)
+        }))
+      };
+    });
   }
 
   /**
@@ -2670,6 +2752,7 @@
     const mapsStart = children.length;
     if (hasMap) {
       const plan = reportMapPlan(ctx, filters);
+      const focus = reportDiscoveryFocus(plan, sd);
       const mapOptions = { ...options, exportPoints: plan.points, exportBounds: plan.bounds };
       const documentMap = UA.createDocumentMapContext(ctx);
       const mapCtx = documentMap.ctx;
@@ -2685,13 +2768,9 @@
           })
         );
 
-        // Layout-Pass / Spec-Item 6 + 7: erklärender Lead-in vor der
-        // Bilderfolge — stellt die Dramaturgie her (Text → Bild → Tabelle)
-        // und macht die Detail-/Cluster-Karten als Teilmengen der
-        // Übersichtskarte explizit verständlich.
         children.push(new Paragraph({
           children: [new TextRun({
-            text: "Die folgenden Karten zeigen unterschiedliche Detailebenen. Detail- und Clusteransichten sind Teilmengen der Gesamtansicht."
+            text: "Die Übersicht zeigt die ausgewerteten Unfallorte unter den aktiven Filtern."
           })],
           spacing: { after: 160 }
         }));
@@ -2838,76 +2917,43 @@
             spacing: { after: 200 }
           }));
         }
-        // Detail map: zoom to selection bounds if available
-        if (ctx.selectionBounds) {
+        let focusMapShown = false;
+        if (focus?.bounds) {
           try {
-            const detailResult = await (UA._captureDetailMap || captureDetailMap)(mapCtx, mapOptions);
-            const detailCapture = typeof detailResult === "string" ? { image: detailResult } : detailResult;
-            const detailImageData = detailCapture.image;
-            let detailRun;
-            try {
-              detailRun = pngImageRun(
-                detailImageData,
-                // Layout-PR „Bildverzerrung beheben": Aspektrate des PNG-
-                // Originals erhalten — kein hartes 600×400 mehr.
-                fitImageToMax(detailImageData, DOCX_MAP_MAX),
-                {
-                  title: "Detailkarte",
-                  description: "Detailansicht des markierten Auswahlbereichs mit den darin liegenden Unfällen"
-                }
-              );
-            } catch (e2) {
-              throw new Error("Detailkartenbild konnte nicht dekodiert werden");
-            }
+            const capture = await (UA._captureDetailMap || captureDetailMap)(mapCtx, {
+              ...mapOptions, exportPoints: focus.points, exportBounds: focus.bounds, heatmapExportOpacity: 0
+            });
+            const detailRun = pngImageRun(capture.image, fitImageToMax(capture.image, DOCX_MAP_MAX), {
+              title: "Unfallmuster im Detail", description: focus.label
+            });
+            const figure = figCounter.next(`Musterkarte – ${focus.label}`);
             children.push(new Paragraph({
-              text: "Detailansicht – markierter Bereich",
-              heading: HeadingLevel.HEADING_3,
-              // Layout-PR Spec-Item 3 + 5: Überschrift + Bild + Caption
-              // bleiben zusammen (kein Umbruch nach der Subheading).
-              keepNext: true,
+              text: "Unfallmuster im Detail", heading: HeadingLevel.HEADING_3, keepNext: true,
               spacing: { before: 200, after: 100 }
             }));
             children.push(new Paragraph({
-              children: [detailRun],
-              keepNext: true,
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 100 }
+              children: [detailRun], keepNext: true, alignment: AlignmentType.CENTER, spacing: { after: 100 }
             }));
-            // Verification sentence for detail map (Task 6).
-            const detailN = plan.points.length;
-            // PR 2 / Spec-Item 4: numbered figure caption.
-            // Layout-Pass: Subset-Cross-Reference auf die Auswahl-Karte
-            // (Abbildung 1, oder Abbildung 2 wenn zusätzlich eine
-            // „alle Beteiligungs-Kombinationen"-Übersicht davor gesetzt ist).
-            const detailFig = figCounter.next("Detailausschnitt – markiertes Auswahlrechteck");
-            const detailCaptionText = (docxParentNForSubset != null)
-              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${docxParentNForSubset} Unfälle aus Abbildung ${docxSelectionFigIndex}.`
-              : detailFig.caption;
             children.push(new Paragraph({
-              children: [new TextRun({
-                text: detailCaptionText,
-                italics: true
-              })],
-              spacing: { after: 80 }
+              text: focusCaption(figure, focus, overviewN, docxSelectionFigIndex),
+              italics: true, spacing: { after: 80 }
             }));
-            pushDocxMapSourceNote(children, ctx, 80, detailCapture);
-            addMapLink(detailCapture);
-            children.push(new Paragraph({
-              text: reportMapCount(detailN, cohorts),
-              italics: true,
-              spacing: { after: docxSelection.hasRestriction ? 80 : 200 }
-            }));
-            if (docxSelection.hasRestriction) {
-              children.push(new Paragraph({
-                text: selectionHintSentence(docxSelection.prose),
-                italics: true,
-                spacing: { after: 200 }
-              }));
-            }
-          } catch (detailErr) {
-            if (isMapRenderReadinessFailure(detailErr)) throw detailErr;
-            console.warn("Detail map capture failed (graceful fallback):", detailErr);
+            children.push(motionParagraph(FOCUS_MAP_LEGEND));
+            pushDocxMapSourceNote(children, ctx, 80, capture);
+            addMapLink(capture, { discoveryFocus: focus });
+            focusMapShown = true;
+          } catch (error) {
+            if (isMapRenderReadinessFailure(error)) throw error;
+            console.warn("Musterkarte konnte nicht erfasst werden:", error);
           }
+        }
+        if (focus) {
+          if (!focusMapShown) {
+            children.push(new Paragraph({ text: `Unfallmuster im Auswertungsgebiet – ${focus.label} (n = ${focus.points.length}).` }));
+          }
+          if (focus.recentText) children.push(new Paragraph({ text: focus.recentText, spacing: { after: 100 } }));
+          const criteria = focusCriteria(focus.query);
+          if (criteria) children.push(new Paragraph({ text: criteria, spacing: { after: 100 } }));
         }
 
         // Cluster maps: one zoom-in per dominant accident hotspot (Tasks 1–7).
@@ -2916,7 +2962,7 @@
         //   – a unique heading "<label> – n Unfälle (Zoom z)" matching the table
         //   – the verification sentence below the image
         try {
-          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(mapCtx, mapOptions);
+          const clusterMaps = focusMapShown ? [] : await (UA._captureClusterMaps || captureClusterMaps)(mapCtx, mapOptions);
           for (const cm of clusterMaps) {
             // Task 5: do not render a cluster map if the visible point count
             // would not match the stated total.
@@ -3029,13 +3075,28 @@
     }
     const mapSection = formalMotion ? children.splice(mapsStart) : [];
 
+    const siteChanges = reportSiteChanges(sd);
+    if (siteChanges.length) {
+      children.push(new Paragraph({
+        text: "Dokumentierte Veränderungen", heading: HeadingLevel.HEADING_2, keepNext: true
+      }));
+      for (const change of siteChanges) {
+        children.push(new Paragraph({
+          children: [new TextRun(change.text), ...(change.href ? [new TextRun(" "), linkedWordRun({ text: "Quelle", href: change.href })] : [])],
+          spacing: { after: 80 }, keepLines: true
+        }));
+      }
+      children.push(motionParagraph(SITE_CHANGE_LIMIT));
+    }
+
     // ---- 8. POI section (if enabled and data available) ----
     if (options.includePOIs) {
       // Prefer structured POI data for a real table
       const poi = sd && sd.poi;
       const hasPoi = poi && (poi.totalWithin > 0 || poi.totalNear > 0);
+      const facilities = reportFacilities(poi);
       const poiTextSection = extractSection(textLines, "POI-Analyse");
-      if (hasPoi || poiTextSection.length > 0) {
+      if (hasPoi || facilities.length || poiTextSection.length > 0) {
         children.push(
           new Paragraph({
             text: "SENSIBLE EINRICHTUNGEN",
@@ -3067,9 +3128,16 @@
             text: "Hinweis: Das Vorhandensein von Schulen, Kindergärten oder Kitas im oder nahe dem Unfallbereich erfordert besondere Aufmerksamkeit hinsichtlich der Verkehrssicherheit für Kinder und Jugendliche.",
             spacing: { after: 200 }
           }));
-        } else {
+        } else if (!facilities.length) {
           for (const line of poiTextSection) {
             children.push(new Paragraph({ text: line, spacing: { after: 100 } }));
+          }
+        }
+        for (const facility of facilities) {
+          children.push(new Paragraph({ children: [new TextRun({ text: facility.text, bold: true })], keepNext: true }));
+          if (facility.detail) children.push(motionParagraph(facility.detail));
+          for (const source of facility.sources) {
+            children.push(new Paragraph({ children: [linkedWordRun(source)], spacing: { after: 80 } }));
           }
         }
       }
@@ -3559,6 +3627,14 @@
     if (ctx.mapMode) params.set("mapMode", ctx.mapMode);
     if (Number.isFinite(Number(ctx.orthophotoOpacity))) {
       params.set("orthophotoOpacity", Math.round(Number(ctx.orthophotoOpacity) * 100));
+    }
+    if (ovr.discoveryFocus?.key) {
+      params.set("siteFocus", ovr.discoveryFocus.key);
+      const { fromYear, toYear, severity, type, involvement } = ovr.discoveryFocus.query || {};
+      for (const [name, value] of Object.entries({ siteFrom: fromYear, siteTo: toYear, siteSeverity: severity, siteType: type, siteInvolvement: involvement })) {
+        if (value != null && value !== "") params.set(name, value);
+      }
+      params.set("siteMapFilters", "1");
     }
 
     // Map position – override.center / override.zoom take precedence so each
@@ -4784,6 +4860,7 @@
     const mapsStart = docDefinition.content.length;
     if (hasMap) {
       const plan = reportMapPlan(ctx, filters);
+      const focus = reportDiscoveryFocus(plan, sd);
       const mapOptions = { ...options, exportPoints: plan.points, exportBounds: plan.bounds };
       const documentMap = UA.createDocumentMapContext(ctx);
       const mapCtx = documentMap.ctx;
@@ -4799,12 +4876,8 @@
           ...(formalMotion ? { pageBreak: "before", headlineLevel: 1 } : {})
         });
 
-        // Layout-Pass / Spec-Item 6 + 7: erklärender Absatz vor der Bilderfolge.
-        // Stellt die Dramaturgie her (Text → Bild → Tabelle) und macht die
-        // Detail- und Cluster-Karten als Teilmengen der Übersichtskarte
-        // explizit verständlich.
         docDefinition.content.push({
-          text: "Die folgenden Karten zeigen unterschiedliche Detailebenen. Detail- und Clusteransichten sind Teilmengen der Gesamtansicht.",
+          text: "Die Übersicht zeigt die ausgewerteten Unfallorte unter den aktiven Filtern.",
           style: "body"
         });
 
@@ -4927,65 +5000,49 @@
           });
         }
 
-        // Detail map: zoom to selection bounds if available
-        if (ctx.selectionBounds) {
+        let focusMapShown = false;
+        if (focus?.bounds) {
           try {
-            const detailResult = await (UA._captureDetailMap || captureDetailMap)(mapCtx, mapOptions);
-            const detailCapture = typeof detailResult === "string" ? { image: detailResult } : detailResult;
-            const detailWerkbankUrl = mapUrl(detailCapture);
-            const detailN = plan.points.length;
-            // Layout-PR „Bildverzerrung beheben": einheitliche Box
-            // (PDF_MAP_MAX) für alle Map-Typen; Bild + Caption als
-            // unbreakable-Stack (Spec-Items 1, 2, 3, 5).
-            const detailFig = pdfFigCounter.next("Detailausschnitt – markiertes Auswahlrechteck");
-            const detailCaptionText = (pdfParentNForSubset != null)
-              ? `${detailFig.caption} Die ${detailN} dargestellten Unfälle sind eine Teilmenge der ${pdfParentNForSubset} Unfälle aus Abbildung ${pdfSelectionFigIndex}.`
-              : detailFig.caption;
+            const capture = await (UA._captureDetailMap || captureDetailMap)(mapCtx, {
+              ...mapOptions, exportPoints: focus.points, exportBounds: focus.bounds, heatmapExportOpacity: 0
+            });
+            const focusUrl = mapUrl(capture, { discoveryFocus: focus });
+            const figure = pdfFigCounter.next(`Musterkarte – ${focus.label}`);
             docDefinition.content.push({
               unbreakable: true,
               stack: [
-                { text: "Detailansicht – markierter Bereich", style: "subsectionHeader" },
+                { text: "Unfallmuster im Detail", style: "subsectionHeader" },
                 {
-                  image: detailCapture.image,
+                  image: capture.image,
                   fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height],
                   alignment: "center",
                   margin: [0, 10, 0, 6],
-                  link: detailWerkbankUrl
+                  link: focusUrl
                 },
-                {
-                  text: detailCaptionText,
-                  style: "caption",
-                  alignment: "center"
-                }
+                { text: focusCaption(figure, focus, overviewN, pdfSelectionFigIndex), style: "caption", alignment: "center" },
+                { text: FOCUS_MAP_LEGEND, style: "small", margin: [0, 4, 0, 4] }
               ]
             });
-            pushPdfMapSourceNote(docDefinition, ctx, 4, detailCapture);
+            pushPdfMapSourceNote(docDefinition, ctx, 4, capture);
             docDefinition.content.push({
-              text: "In Werkbank öffnen",
-              link: detailWerkbankUrl,
-              color: "blue",
-              decoration: "underline",
-              style: "normal",
-              margin: [0, 5, 0, 4]
+              text: "In Werkbank öffnen", link: focusUrl, color: "blue", decoration: "underline",
+              style: "normal", margin: [0, 5, 0, 4]
             });
-            docDefinition.content.push({
-              text: reportMapCount(detailN, cohorts),
-              style: "small",
-              italics: true,
-              margin: [0, 0, 0, pdfSelection.hasRestriction ? 2 : 8]
-            });
-            if (pdfSelection.hasRestriction) {
-              docDefinition.content.push({
-                text: selectionHintSentence(pdfSelection.prose),
-                style: "small",
-                italics: true,
-                margin: [0, 0, 0, 8]
-              });
-            }
-          } catch (detailErr) {
-            if (isMapRenderReadinessFailure(detailErr)) throw detailErr;
-            console.warn("Detail map capture failed for PDF (graceful fallback):", detailErr);
+            focusMapShown = true;
+          } catch (error) {
+            if (isMapRenderReadinessFailure(error)) throw error;
+            console.warn("Musterkarte konnte nicht erfasst werden:", error);
           }
+        }
+        if (focus) {
+          if (!focusMapShown) {
+            docDefinition.content.push({
+              text: `Unfallmuster im Auswertungsgebiet – ${focus.label} (n = ${focus.points.length}).`, style: "small"
+            });
+          }
+          if (focus.recentText) docDefinition.content.push({ text: focus.recentText, style: "small", margin: [0, 4, 0, 8] });
+          const criteria = focusCriteria(focus.query);
+          if (criteria) docDefinition.content.push({ text: criteria, style: "small", margin: [0, 4, 0, 8] });
         }
 
         // Cluster maps: one zoomed-in PDF page section per dominant accident
@@ -4996,7 +5053,7 @@
         //   – heading "<label> – n Unfälle (Zoom z)" (matches the table)
         //   – verification sentence "Die dargestellten Punkte … (n = X)." (Task 6)
         try {
-          const clusterMaps = await (UA._captureClusterMaps || captureClusterMaps)(mapCtx, mapOptions);
+          const clusterMaps = focusMapShown ? [] : await (UA._captureClusterMaps || captureClusterMaps)(mapCtx, mapOptions);
           for (const cm of clusterMaps) {
             // Task 5: only render a cluster map when the visible point count
             // matches the stated total. This is the explicit consistency
@@ -5101,12 +5158,25 @@
     }
     const mapSection = formalMotion ? docDefinition.content.splice(mapsStart) : [];
 
+    const siteChanges = reportSiteChanges(sd);
+    if (siteChanges.length) {
+      docDefinition.content.push({ text: "Dokumentierte Veränderungen", style: "subheader" });
+      for (const change of siteChanges) {
+        docDefinition.content.push({
+          text: [{ text: change.text }, ...(change.href ? [" ", linkedPdfRun({ text: "Quelle", href: change.href })] : [])],
+          style: "normal"
+        });
+      }
+      docDefinition.content.push({ text: SITE_CHANGE_LIMIT, style: "small", margin: [0, 4, 0, 8] });
+    }
+
     // ---- POI section (if enabled) ----
     if (options.includePOIs) {
       const poi = sd && sd.poi;
       const hasPoi = poi && (poi.totalWithin > 0 || poi.totalNear > 0);
+      const facilities = reportFacilities(poi);
       const poiSection = extractSection(textLines, "POI-Analyse");
-      if (hasPoi || poiSection.length > 0) {
+      if (hasPoi || facilities.length || poiSection.length > 0) {
         docDefinition.content.push({
           text: "SENSIBLE EINRICHTUNGEN",
           style: "subheader"
@@ -5134,13 +5204,22 @@
             text: "Hinweis: Das Vorhandensein von Schulen, Kindergärten oder Kitas im oder nahe dem Unfallbereich erfordert besondere Aufmerksamkeit hinsichtlich der Verkehrssicherheit für Kinder und Jugendliche.",
             style: "small"
           });
-        } else {
+        } else if (!facilities.length) {
           for (const line of poiSection) {
             const content = textWithLinks(line);
             docDefinition.content.push({
               text: content,
               style: "normal"
             });
+          }
+        }
+        for (const facility of facilities) {
+          docDefinition.content.push({
+            text: facility.text, bold: true, style: "normal", margin: [0, 6, 0, 0]
+          });
+          if (facility.detail) docDefinition.content.push({ text: facility.detail, style: "small" });
+          for (const source of facility.sources) {
+            docDefinition.content.push({ ...linkedPdfRun(source), style: "small" });
           }
         }
       }

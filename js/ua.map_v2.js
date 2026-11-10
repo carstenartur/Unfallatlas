@@ -455,15 +455,8 @@
     if (!clusterLayer || clusterLayer.__uaPopupBound) return;
     clusterLayer.__uaPopupBound = true;
 
-    const esc = (s) =>
-      (UA.escHtml
-        ? UA.escHtml(s)
-        : String(s ?? "")
-            .replaceAll("&", "&amp;")
-            .replaceAll("<", "&lt;")
-            .replaceAll(">", "&gt;")
-            .replaceAll('"', "&quot;"));
-
+    const esc = value => UA.escHtml ? UA.escHtml(value) : String(value ?? '')
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
     const fmtPct = (x) => ((x * 100).toFixed(1)).replace(".", ",") + " %";
 
     const DEFAULT_COMBO_LABEL = {};
@@ -491,7 +484,7 @@
     };
 
     function computeClusterCounts(markers) {
-      const lc = { total: 0, byMask: {} };
+      const lc = { total: markers.length, classified: 0, byMask: {} };
       for (const mk of markers) {
         const pr =
           mk._uaProps ||
@@ -501,7 +494,7 @@
           {};
         const m = maskFromProps(pr);
         if (!m) continue;
-        lc.total++;
+        lc.classified++;
         lc.byMask[m] = (lc.byMask[m] || 0) + 1;
       }
       return lc;
@@ -514,45 +507,25 @@
         .sort((a, b) => b.c - a.c);
     }
 
-    function buildPopupHtml(lc, ev) {
+    function buildPopupHtml(lc) {
       const z = ctx.map ? ctx.map.getZoom() : 0;
-
-      // Bei weitem Zoom: bewusst degradieren (Cluster ist "Stadtteil-Klumpen")
       if (z <= 13) {
-        const b = ev?.layer?.getBounds?.();
-        const sw = b?.getSouthWest?.();
-        const ne = b?.getNorthEast?.();
-
-        let html =
-          `<div style="font:13px/1.35 system-ui; min-width:240px;">` +
-          `<div style="font-weight:900; margin-bottom:6px;">Cluster (Übersicht)</div>` +
-          `<div style="color:#444; margin-bottom:8px;">` +
-          `Zoom <strong>${z}</strong>: Dieser Cluster umfasst sehr viele Straßen/Strukturen. ` +
-          `Für eine belastbare Analyse bitte näher heranzoomen.</div>` +
+        return `<div style="font-weight:900; margin-bottom:6px;">Cluster (Übersicht)</div>` +
+          `<div style="color:#444; margin-bottom:8px;">Zoom <strong>${z}</strong>: ` +
+          `Für Details zu den Unfallklassen bitte näher heranzoomen.</div>` +
           `<div style="color:#444; margin-bottom:8px;">Cluster: <strong>${lc.total}</strong> Unfälle</div>`;
-
-        if (sw && ne) {
-          html +=
-            `<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">` +
-            `<button type="button" style="padding:6px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-weight:800; cursor:pointer;" ` +
-            `onclick="uaZoomToBounds(${sw.lat},${sw.lng},${ne.lat},${ne.lng})">🔍 Zoom auf Cluster</button>` +
-            `</div>`;
-        }
-
-        html += `</div>`;
-        return html;
       }
 
       // Nah genug: Muster/Verteilung anzeigen
       const topMasks = sortedMasks(lc.byMask).slice(0, 6);
 
-      const baseline = ctx.baselineCounts;
+      const baseline = ctx.accidentDataCoverage?.complete === true ? ctx.baselineCounts : null;
       let devRows = [];
-      if (baseline && baseline.total && baseline.byMask && lc.total) {
+      if (baseline && baseline.total && baseline.byMask && lc.classified) {
         devRows = topMasks
           .map((x) => {
             const baseCnt = Number(baseline.byMask[x.m] || 0);
-            const locR = x.c / lc.total;
+            const locR = x.c / lc.classified;
             const baseR = baseline.total ? baseCnt / baseline.total : 0;
             const f = baseR > 0 ? locR / baseR : null;
             return { ...x, locR, baseR, f };
@@ -561,16 +534,15 @@
       }
 
       let html =
-        `<div style="font:13px/1.35 system-ui; min-width:240px;">` +
         `<div style="font-weight:900; margin-bottom:6px;">Cluster-Analyse</div>` +
         `<div style="color:#444; margin-bottom:6px;">Cluster: <strong>${lc.total}</strong> Unfälle</div>`;
 
       if (!topMasks.length) {
-        html += `<div style="color:#666;">Keine auswertbaren Unfallklassen im Cluster.</div></div>`;
+        html += `<div style="color:#666;">Keine auswertbaren Unfallklassen im Cluster.</div>`;
         return html;
       }
 
-      html += `<div style="font-weight:800; margin:6px 0 4px;">Top-Klassen im Cluster</div>`;
+      html += `<div style="font-weight:800; margin:6px 0 4px;">Top-Klassen · ${lc.classified} auswertbare Fälle</div>`;
       html +=
         `<table style="width:100%; border-collapse:collapse; font-size:12px;">` +
         `<tr style="border-bottom:1px solid rgba(0,0,0,.15);">` +
@@ -584,7 +556,7 @@
           `<tr style="border-bottom:1px solid rgba(0,0,0,.06);">` +
           `<td>${esc(labelForMask(x.m))}</td>` +
           `<td style="text-align:right;">${x.c}</td>` +
-          `<td style="text-align:right;">${fmtPct(x.c / lc.total)}</td>` +
+          `<td style="text-align:right;">${fmtPct(x.c / lc.classified)}</td>` +
           `</tr>`;
       }
       html += `</table>`;
@@ -618,35 +590,59 @@
           `</div>`;
       }
 
-      // Zoom-Button auch hier
-      const b = ev?.layer?.getBounds?.();
-      const sw = b?.getSouthWest?.();
-      const ne = b?.getNorthEast?.();
-      if (sw && ne) {
-        html +=
-          `<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">` +
-          `<button type="button" style="padding:6px 10px; border:1px solid #ddd; border-radius:10px; background:#fff; font-weight:800; cursor:pointer;" ` +
-          `onclick="uaZoomToBounds(${sw.lat},${sw.lng},${ne.lat},${ne.lng})">🔍 Zoom auf Cluster</button>` +
-          `</div>`;
-      }
-
-      html += `</div>`;
       return html;
     }
 
-    clusterLayer.on("clusterclick", (ev) => {
+    function popupContent(ev, markers) {
+      const content = document.createElement('div');
+      content.className = 'site-discovery-cluster-popup';
+      content.innerHTML = buildPopupHtml(computeClusterCounts(markers));
+      const actions = document.createElement('div');
+      actions.className = 'site-discovery-cluster-actions';
+      const status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      const addButton = (action, label, handler) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn';
+        button.dataset.action = action;
+        button.textContent = label;
+        button.addEventListener('click', handler);
+        actions.append(button);
+      };
+      if (UA.SiteDiscoveryUI && markers.length) {
+        addButton('select-cluster', 'Bereich markieren', () => {
+          const result = UA.SiteDiscoveryUI.selectCluster(ctx, markers);
+          if (!result.ok) status.textContent = result.message;
+        });
+      }
+      const bounds = ev.layer.getBounds?.();
+      if (bounds) {
+        addButton('zoom-cluster', 'Zoom auf Cluster', () => {
+          ctx.map.fitBounds(bounds, { padding: [20, 20] });
+        });
+      }
+      content.append(actions, status);
+      return content;
+    }
+
+    function openPopup(ev, keyboard = false) {
       try {
         if (ev?.originalEvent) L.DomEvent.stop(ev.originalEvent);
       } catch {}
 
       try {
         const markers = ev.layer.getAllChildMarkers ? ev.layer.getAllChildMarkers() : [];
-        const lc = computeClusterCounts(markers);
-        const html = buildPopupHtml(lc, ev);
-        ev.layer.bindPopup(html, { maxWidth: 360 }).openPopup();
+        const content = popupContent(ev, markers);
+        ev.layer.bindPopup(content, { maxWidth: 360 }).openPopup();
+        if (keyboard) content.querySelector('button')?.focus({ preventScroll: true });
       } catch (e) {
         console.warn("Cluster popup failed:", e);
       }
+    }
+    clusterLayer.on('clusterclick', openPopup);
+    clusterLayer.on('clusterkeypress', ev => {
+      if (ev.originalEvent?.key === 'Enter' || ev.originalEvent?.keyCode === 13) openPopup(ev, true);
     });
   };
 
@@ -906,27 +902,8 @@
     ctx.drawControl = drawControl;
 
     map.on(L.Draw.Event.CREATED, (e) => {
-      ctx.drawnItems.clearLayers();
-      ctx.drawnItems.addLayer(e.layer);
-      ctx.selectionBounds = e.layer.getBounds();
-      UA.syncViewToUrl(ctx);
-      UA.recomputeAndRender(ctx);
+      UA.setSelectionArea(ctx, e.layer.getBounds(), { layer: e.layer });
     });
-
-    // helper for popup buttons
-    window.uaZoomToBounds = function (s, w, n, e) {
-      try {
-        map.fitBounds(
-          [
-            [s, w],
-            [n, e],
-          ],
-          { padding: [20, 20] }
-        );
-      } catch (err) {
-        console.warn(err);
-      }
-    };
 
     // Add layer legend control
     UA.addLayerLegend(ctx, map);
@@ -2463,7 +2440,8 @@
     // Update stats and store hotInfo in context
     ctx._lastHotInfo = hotInfo;
     UA.updateStats(ctx, hotInfo);
-    
+    UA.SiteDiscoveryUI?.dataChanged?.(ctx);
+
     // Reset data changed flag
     ctx._dataChanged = false;
     if (lifecycleRevision != null && lifecycleReporter) {

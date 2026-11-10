@@ -62,6 +62,19 @@ describe('UA.PatternPlugins', () => {
     jest.restoreAllMocks();
   });
 
+  test('uses school or childcare proximity only as a crossing verification lead', () => {
+    const UA = loadModules();
+    const findings = UA.PatternPlugins.contextCombinationFindings({
+      poi: { nearByType: { kindergarten: 1 }, nearArea: [{ name: 'Kita Beispiel' }] },
+    }, [{ id: 'ped-car-involvement-pattern' }]);
+
+    const school = findings.find(item => item.id === 'school-crossing-mechanism-candidate');
+    expect(school).toMatchObject({ status: 'candidate', causalStatus: 'mechanism-candidate' });
+    expect(school.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'contextKey', value: 'schulumfeld' }),
+    ]));
+  });
+
   test('runs deterministic detectors before the aggregate and exposes a canonical AI contract', async () => {
     const UA = loadModules();
     const points = Array.from({ length: 8 }, (_, index) =>

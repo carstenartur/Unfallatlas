@@ -258,13 +258,24 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
     },
   };
 
+  function makeFocusFixture() {
+    const ctx = makeFixtureCtx();
+    ctx.viewportPts = [{ lat: 52.37, lon: 9.73 }, { lat: 52.371, lon: 9.731 }];
+    UA.SiteDiscovery = { boundsForPoints: () => ({ south: 52.369, west: 9.729, north: 52.371, east: 9.731 }) };
+    return {
+      ctx,
+      report: { ...fixtureReport, structured: {
+        ...fixtureReport.structured,
+        discoveryFocus: { label: "Abbiegen", points: ctx.viewportPts.slice(0, 1) }
+      } }
+    };
+  }
+
   test("PDF: every map uses fit:[PDF_MAP_MAX.width, PDF_MAP_MAX.height]", async () => {
     const overviewPng = syntheticPng(1024, 512);
-    const detailPng = syntheticPng(800, 800);
     const clusterPng = syntheticPng(640, 480);
     UA._captureExportMapImage = async () => overviewPng;
     UA.captureExportMapImage = UA._captureExportMapImage; // public alias
-    UA._captureDetailMap = async () => detailPng;
     UA._captureClusterMaps = async () => [
       {
         image: clusterPng,
@@ -309,8 +320,8 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
       }
     })(captured.content);
 
-    // Drei Karten erwartet: Übersicht, Detail, Cluster.
-    expect(images.length).toBe(3);
+    // Übersicht und räumlicher Cluster bei fehlendem Unfallmuster.
+    expect(images.length).toBe(2);
     for (const img of images) {
       expect(img.fit).toEqual([UA.PDF_MAP_MAX.width, UA.PDF_MAP_MAX.height]);
     }
@@ -319,7 +330,8 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
   test("PDF: image and caption rendered as unbreakable stack (block stays together)", async () => {
     UA._captureExportMapImage = async () => syntheticPng(1024, 512);
     UA.captureExportMapImage = UA._captureExportMapImage;
-    UA._captureDetailMap = async () => syntheticPng(800, 800);
+    const { ctx, report } = makeFocusFixture();
+    UA._captureDetailMap = async () => ({ image: syntheticPng(800, 800) });
     UA._captureClusterMaps = async () => [];
 
     let captured;
@@ -331,7 +343,7 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
       return doc;
     });
 
-    await UA.exportToPDF(makeFixtureCtx(), fixtureReport, {
+    await UA.exportToPDF(ctx, report, {
       _skipQAGate: true,
       includeMap: true,
     });
@@ -344,8 +356,7 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
         Array.isArray(n.stack) &&
         n.stack.some((child) => child && typeof child.image === "string"),
     );
-    // Mindestens 2 — Übersicht + Detail; Cluster wäre zusätzlich, ist hier leer.
-    expect(unbreakableImageStacks.length).toBeGreaterThanOrEqual(2);
+    expect(unbreakableImageStacks).toHaveLength(2);
     // Jeder untrennbare Bildblock enthält Bild UND Caption. Andere zulässige
     // unbreakable-Stacks, etwa Überschrift plus erste Tabelle, sind nicht Bildblöcke.
     for (const s of unbreakableImageStacks) {
@@ -362,15 +373,13 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
   test("DOCX: ImageRun.transformation preserves PNG aspect ratio for all map types", async () => {
     const cases = [
       { name: "overview", png: syntheticPng(1024, 512) }, // 2:1 wide
-      { name: "detail", png: syntheticPng(800, 1000) }, // 4:5 tall
-      { name: "cluster", png: syntheticPng(640, 480) }, // 4:3 standard
+      { name: "cluster", png: syntheticPng(800, 1000) }, // 4:5 tall
     ];
     UA._captureExportMapImage = async () => cases[0].png;
     UA.captureExportMapImage = UA._captureExportMapImage;
-    UA._captureDetailMap = async () => cases[1].png;
     UA._captureClusterMaps = async () => [
       {
-        image: cases[2].png,
+        image: cases[1].png,
         bounds: { south: 52.36, west: 9.72, north: 52.38, east: 9.74 },
         total: 0,
         points: [],
@@ -397,7 +406,7 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
       includeMap: true,
     });
 
-    expect(transformations.length).toBe(3);
+    expect(transformations).toHaveLength(cases.length);
     for (let i = 0; i < cases.length; i++) {
       const before = UA.readPngDimensions(cases[i].png);
       const after = transformations[i];
@@ -421,7 +430,8 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
   test("DOCX: image paragraph carries keepNext (Bild + Caption als Einheit)", async () => {
     UA._captureExportMapImage = async () => syntheticPng(1024, 512);
     UA.captureExportMapImage = UA._captureExportMapImage;
-    UA._captureDetailMap = async () => syntheticPng(800, 800);
+    const { ctx, report } = makeFocusFixture();
+    UA._captureDetailMap = async () => ({ image: syntheticPng(800, 800) });
     UA._captureClusterMaps = async () => [];
 
     const docx = require("docx");
@@ -432,7 +442,7 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
       return new OrigParagraph(opts);
     });
 
-    await UA.exportToWord(makeFixtureCtx(), fixtureReport, {
+    await UA.exportToWord(ctx, report, {
       includeMap: true,
     });
 
@@ -445,7 +455,7 @@ describe("DOCX/PDF export: aspect-ratio regression", () => {
           (c) => c && c.constructor && c.constructor.name === "ImageRun",
         ),
     );
-    expect(imageParagraphs.length).toBeGreaterThanOrEqual(2);
+    expect(imageParagraphs).toHaveLength(2);
     for (const p of imageParagraphs) {
       expect(p.keepNext).toBe(true);
     }

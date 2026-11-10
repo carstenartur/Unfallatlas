@@ -12,7 +12,7 @@
  *     mit Beteiligung ‹X›" beschriftet.
  *   - Direkt unter der Auswahl-Karte erscheint der Hinweissatz
  *     "Nur Unfälle mit Beteiligung ‹X› dargestellt.".
- *   - Detail-/Cluster-Captions referenzieren weiterhin die Auswahl-Karte
+ *   - Muster-/Cluster-Captions referenzieren weiterhin die Auswahl-Karte
  *     ("Teilmenge der M Unfälle aus Abbildung 2."), nicht die alle-
  *     Kombinationen-Übersicht.
  *   - Ohne Restriktion (alle sechs Kategorien aktiv) bleibt das
@@ -191,7 +191,6 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
 
   test('PDF export with active involvement restriction renders dual maps + selection hint', async () => {
     UA.captureExportMapImage = jest.fn(async () => PNG_DATAURL);
-    UA._captureDetailMap = jest.fn(async () => PNG_DATAURL);
     UA._captureClusterMaps = jest.fn(async () => []);
     UA._getAllCombinationPointsInBounds = jest.fn(() => new Array(500));
 
@@ -211,9 +210,10 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
       }))
     });
 
-    const def = await runPdfExport(ctx,
-      reportDataWithFilters({ includeCyclist: true, includeCar: true }),
-      { includeMap: true });
+    const report = reportDataWithFilters({ includeCyclist: true, includeCar: true });
+    report.structured.discoveryFocus = { label: 'Rad + Pkw', points: ctx.viewportPts.slice(0, 4) };
+    UA.SiteDiscovery = { boundsForPoints: () => ({ south: 52.3698, west: 9.7298, north: 52.3703, east: 9.7303 }) };
+    const def = await runPdfExport(ctx, report, { includeMap: true });
     const texts = collectTexts(def.content).map(String);
 
     // 1) Übersichtskarte (alle Beteiligungs-Kombinationen) als Abbildung 1.
@@ -241,14 +241,14 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
       args => args[1] && Array.isArray(args[1].exportPoints));
     expect(callsWithExportPoints.length).toBeGreaterThanOrEqual(1);
 
-    // 5) Detail-Caption verweist auf die Auswahl-Karte (Abbildung 2) und
+    // 5) Muster-Caption verweist auf die Auswahl-Karte (Abbildung 2) und
     //    der Parent-N entspricht jetzt dem tatsächlichen Karten-Zähler
     //    der Auswahl-Karte (= involvement-gefilterte viewportPts im
     //    Export-bbox = 32) — NICHT mehr dem Tabellen-Total (262), das
     //    bei restringiertem Beteiligungs-Filter über der Karten-
     //    Population liegen würde.
     const detailCaption = texts.find(
-      t => /^Abbildung 3: Detailausschnitt/.test(t));
+      t => /^Abbildung 3: Musterkarte/.test(t));
     expect(detailCaption).toBeDefined();
     expect(detailCaption).toMatch(/Teilmenge der 32 Unfälle aus Abbildung 2\.$/);
 
@@ -347,7 +347,6 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
       __analysisScopeOriginalCtx: { allPts: [bike, anotherBike, car, outside] },
     });
     UA.captureExportMapImage = jest.fn(async () => PNG_DATAURL);
-    UA._captureDetailMap = jest.fn(async () => PNG_DATAURL);
     UA._captureClusterMaps = jest.fn(async () => []);
 
     const report = reportDataWithFilters({ includeCyclist: true });
@@ -358,7 +357,7 @@ describe('UA.report_v2 – Doppelte Karten + Caption-Transparenz', () => {
     ]);
     const texts = collectTexts(definition.content);
     expect(texts.some(text => /vor Beteiligungsfilter.*n = 3/.test(text))).toBe(true);
-    expect(texts.some(text => /Teilmenge der 2 Unfälle aus Abbildung 2/.test(text))).toBe(true);
+    expect(texts.some(text => /^Abbildung 3:/.test(text))).toBe(false);
   });
 
   test('primary PDF includes a numbered map for every evidence partition', async () => {

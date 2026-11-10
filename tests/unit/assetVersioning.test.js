@@ -36,22 +36,40 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-10-carto"');
   });
 
+  test('site discovery is available from the ordinary Werkbank entry point', () => {
+    const scripts = [...html.matchAll(/<script[^>]+src="([^"?]+)/g)].map(match => match[1]);
+    expect(html).toContain('id="btnDiscover"');
+    expect(html).toContain('css/ua.site-discovery.css?v=2026-11-10-site-discovery');
+    for (const script of ['js/ua.site_discovery.js', 'js/ua.facility_context.js', 'js/ua.site_discovery_ui.js']) {
+      expect(scripts).toContain(script);
+      expect(scripts.indexOf(script)).toBeLessThan(scripts.indexOf('js/ua.app_v2.js'));
+    }
+    expect(scripts.indexOf('js/ua.site_discovery.js')).toBeLessThan(scripts.indexOf('js/ua.report_v2.js'));
+    expect(scripts.indexOf('js/ua.facility_context.js')).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
+  });
+
   test.each([
-    'css/ua.css', 'css/ris-record-view.css', 'js/ua.app_v2.js',
+    'ua.app_v2', 'ua.state', 'ua.data_paths', 'ua.ui', 'ua.map_v2', 'ua.export_v2', 'ua.report_v2',
+  ])('%s refreshes the discovery and evidence export integration', asset => {
+    expect(html).toContain(`js/${asset}.js?v=2026-11-10-site-discovery"`);
+  });
+
+  test.each([
+    'css/ua.css', 'css/ris-record-view.css',
     'js/ua.filters.js', 'js/ua.map_scene.js', 'js/ua.map_store.js',
     'js/ua.political-context.js', 'js/ua.ris-catalogue.js',
     'js/ua.ris-details.js', 'js/ua.ris-layer.js', 'js/ua.ris-partitions.js', 'js/ua.ris-sources.js',
-    'js/ua.state.js', 'js/ua.video-export.js',
+    'js/ua.video-export.js',
   ])('%s loads the same map and RIS repair version', asset => {
     expect(html).toContain(`${asset}?v=2026-11-10-ris-map"`);
   });
 
-  test.each(['js/ua.core.js', 'js/ua.data_paths.js', 'js/ua.map_v2.js', 'js/ua.report_v2.js', 'js/ua.ui.js'])
+  test.each(['js/ua.core.js'])
   ('%s refreshes the combined map, RIS and application export repairs', asset => {
     expect(html).toContain(`${asset}?v=2026-11-10-ris-map-antrag"`);
   });
 
-  test.each(['js/ua.export_v2.js', 'js/ua.context_measures.js', 'js/ua.osm_context.js'])
+  test.each(['js/ua.context_measures.js', 'js/ua.osm_context.js'])
   ('%s refreshes application exports and local evidence', asset => {
     expect(html).toContain(`${asset}?v=2026-11-10-antrag-quality"`);
   });

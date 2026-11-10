@@ -982,87 +982,6 @@
   }
 
   // --------------------
-  // POI loading and analysis
-  // --------------------
-  async function loadPOIData(citySlug) {
-    const poiPath = `out/poi_${citySlug}.geojson`;
-    try {
-      if (typeof UA !== 'undefined' && typeof UA.fetchJsonCompressed === 'function') {
-        return await UA.fetchJsonCompressed(poiPath);
-      }
-      const r = await fetch(poiPath, { cache: "no-store" });
-      if (!r.ok) return null;
-      return await r.json();
-    } catch (e) {
-      console.warn(`POI data not available for ${citySlug}:`, e);
-      return null;
-    }
-  }
-
-  function analyzePOIs(poiData, bounds) {
-    if (!poiData || !poiData.features) return null;
-
-    const withinArea = [];
-    const nearArea = [];
-    const BUFFER_METERS = 200; // Define "near" as 200m from bounds
-
-    for (const feature of poiData.features) {
-      if (!feature.geometry || feature.geometry.type !== "Point") continue;
-      const [lon, lat] = feature.geometry.coordinates;
-      const props = feature.properties || {};
-
-      const isWithin = bounds.contains([lat, lon]);
-      
-      if (isWithin) {
-        withinArea.push({
-          lat, lon,
-          type: props.type || "unknown",
-          name: props.name || "Unbenannt",
-          id: props.id
-        });
-      } else {
-        // Simple distance check (approximate)
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
-        const center = bounds.getCenter();
-        
-        // Rough check if within buffer distance
-        const distToCenter = center.distanceTo([lat, lon]);
-        const boundsRadius = center.distanceTo(sw);
-        
-        if (distToCenter < boundsRadius + BUFFER_METERS) {
-          nearArea.push({
-            lat, lon,
-            type: props.type || "unknown",
-            name: props.name || "Unbenannt",
-            id: props.id
-          });
-        }
-      }
-    }
-
-    // Count by type
-    const withinByType = {};
-    const nearByType = {};
-    
-    for (const poi of withinArea) {
-      withinByType[poi.type] = (withinByType[poi.type] || 0) + 1;
-    }
-    for (const poi of nearArea) {
-      nearByType[poi.type] = (nearByType[poi.type] || 0) + 1;
-    }
-
-    return {
-      withinArea,
-      nearArea,
-      withinByType,
-      nearByType,
-      totalWithin: withinArea.length,
-      totalNear: nearArea.length
-    };
-  }
-
-  // --------------------
   // Reference documents loading
   // --------------------
 
@@ -1607,12 +1526,74 @@
     };
   }
 
+  const DISCOVERY_NOTE = "Die Gruppierung beruht auf Beteiligung und Unfalltyp. Fahrbewegungen und Ursachen bleiben anhand der Einzelfälle zu prüfen.";
+
+  function plainSelection(bounds) {
+    const sw = bounds?.getSouthWest();
+    const ne = bounds?.getNorthEast();
+    return sw && ne ? { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng } : null;
+  }
+
+  function reportDiscoveryFocus(ctx, points, markedArea) {
+    const discovery = UA.SiteDiscovery;
+    if (!discovery?.patternForPoints) return undefined;
+    let scoped = points.filter(point => {
+      if (UA.AnalysisScope?.matchesActiveFilters) return UA.AnalysisScope.matchesActiveFilters(ctx, point);
+      const mask = maskFromProps(point.props);
+      return mask > 0 && (!UA.matchesInvolvementFilter || UA.matchesInvolvementFilter(ctx, mask));
+    });
+    const active = ctx.discoveryFocus;
+    const selected = markedArea && active?.query && active.bounds
+      && Object.keys(markedArea).every(edge => markedArea[edge] === active.bounds[edge]);
+    const query = selected ? { ...active.query } : null;
+    if (query) scoped = discovery.filterPoints(scoped, query);
+    const pattern = discovery.patternForPoints(scoped, query ? active.key || undefined : undefined);
+    return pattern ? { ...pattern, ...(query ? { query } : {}), note: DISCOVERY_NOTE } : null;
+  }
+
+  async function loadSiteChanges(city, area) {
+    if (!area || !UA.SiteDiscovery?.loadSites) return [];
+    const centerIn = (inner, outer) => {
+      const lat = (inner.south + inner.north) / 2;
+      const lon = (inner.west + inner.east) / 2;
+      return lat >= outer.south && lat <= outer.north && lon >= outer.west && lon <= outer.east;
+    };
+    try {
+      const sites = await UA.SiteDiscovery.loadSites(city);
+      return sites.filter(site => site.bounds && (centerIn(site.bounds, area) || centerIn(area, site.bounds)))
+        .flatMap(site => site.changes || []);
+    } catch {
+      return [];
+    }
+  }
+
+  function sourceLink(source) {
+    const label = [source.label, source.date].filter(Boolean).join(" · ");
+    try {
+      const url = new URL(source.url);
+      if (["http:", "https:"].includes(url.protocol) && !url.username && !url.password) {
+        return `<a href="${UA.escHtml(url.href)}" target="_blank" rel="noopener noreferrer">${UA.escHtml(label)}</a>`;
+      }
+    } catch { /* Only render valid external links. */ }
+    return UA.escHtml(label);
+  }
+
+  function changeDate(change) {
+    if (change.precision === "documented-by") return `spätestens am ${change.date} dokumentiert`;
+    return change.date;
+  }
+
   // --------------------
   // Public API: UA.computeExportReport(ctx)
   // --------------------
   UA.computeExportReport = async function computeExportReport(ctx) {
     const markedBounds = ctx.selectionBounds;
     const bounds = boundsForExport(ctx);
+    const markedArea = plainSelection(markedBounds);
+    // The report's annex uses the non-involvement scope. The discovery focus
+    // further narrows that same point set without changing the annex.
+    const filteredPts = getPointsInBounds(ctx);
+    const discoveryFocus = reportDiscoveryFocus(ctx, filteredPts, markedArea);
     
     const center = bounds.getCenter ? bounds.getCenter() : null;
     let loc = null;
@@ -1647,9 +1628,6 @@
     const sev = severityStats(ctx, bounds);
     const range = yearsRange(ctx.allPts || []);
 
-    // Pre-filter points once: applies non-involvement filters + in-bounds check.
-    // Both new summary tables share this filtered list to avoid repeated full scans over ctx.allPts.
-    const filteredPts = getPointsInBounds(ctx);  // see getPointsInBounds() below
     const crossTable = crossTableSeverityByMask(filteredPts);
     const accidentViewId = ctx.accidentView || (UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
 
@@ -1683,16 +1661,10 @@
     }
     const accidentDetails = accidentDetailTable(filteredPts, undefined, accidentViewId, { clusters: timeClusters });
 
-    // Load POI data
-    let poiAnalysis = null;
-    try {
-      const poiData = await loadPOIData(citySlug);
-      if (poiData) {
-        poiAnalysis = analyzePOIs(poiData, bounds);
-      }
-    } catch (e) {
-      console.warn("POI analysis failed:", e);
-    }
+    const [poiAnalysis, siteChanges] = await Promise.all([
+      UA.FacilityContext?.load(CITY_RAW, bounds, ctx.poiData) || null,
+      loadSiteChanges(CITY_RAW, markedArea),
+    ]);
 
     // Load reference documents
     let refDocs = null;
@@ -2318,8 +2290,18 @@
       lines.push("");
     }
 
+    if (discoveryFocus) {
+      lines.push(`Muster im Ausschnitt: ${discoveryFocus.label} (${discoveryFocus.points.length} ${discoveryFocus.points.length === 1 ? "Fall" : "Fälle"})`);
+      lines.push(discoveryFocus.note, "");
+    }
+    if (siteChanges.length) {
+      lines.push("Dokumentierte örtliche Änderungen:");
+      for (const change of siteChanges) lines.push(`- ${change.label} (${changeDate(change)}) – ${change.url}`);
+      lines.push("");
+    }
+
     // Add POI information to text report
-    if (poiAnalysis && (poiAnalysis.totalWithin > 0 || poiAnalysis.totalNear > 0)) {
+    if (poiAnalysis?.facilities?.length) {
       lines.push("POI-Analyse (Schulen, Kindergärten, Kitas):");
       
       if (poiAnalysis.totalWithin > 0) {
@@ -2338,10 +2320,14 @@
         }
       }
       
-      if (poiAnalysis.totalWithin > 0 || poiAnalysis.totalNear > 0) {
-        lines.push("Hinweis: Das Vorhandensein von Schulen, Kindergärten oder Kitas im oder nahe dem Unfallbereich erfordert besondere Aufmerksamkeit hinsichtlich der Verkehrssicherheit für Kinder und Jugendliche.");
+      for (const item of poiAnalysis.facilities) {
+        lines.push(`  - ${item.name} – ${item.relation}. ${item.reason}`);
+        const sources = item.planSources.concat(item.locationSource);
+        for (const source of sources) {
+          lines.push(`    ${source.label}${source.date ? ` (${source.date})` : ""}: ${source.url}`);
+        }
       }
-      
+
       lines.push("");
     }
 
@@ -2524,7 +2510,7 @@
 
     // Build POI section for HTML report
     let poiHtmlSection = "";
-    if (poiAnalysis && (poiAnalysis.totalWithin > 0 || poiAnalysis.totalNear > 0)) {
+    if (poiAnalysis?.facilities?.length) {
       poiHtmlSection = `
         <div style="margin-top:12px; font-weight:900;">POI-Analyse (Schulen, Kindergärten, Kitas)</div>
         <div style="margin-top:6px; color:#444;">`;
@@ -2555,10 +2541,10 @@
         poiHtmlSection += `</div>`;
       }
       
-      poiHtmlSection += `<div style="margin-top:6px; font-style:italic; color:#666; font-size:13px;">
-        Hinweis: Das Vorhandensein von Schulen, Kindergärten oder Kitas im oder nahe dem Unfallbereich erfordert besondere Aufmerksamkeit hinsichtlich der Verkehrssicherheit für Kinder und Jugendliche.
-      </div>`;
-      poiHtmlSection += `</div>`;
+      poiHtmlSection += `<ul>${poiAnalysis.facilities.map(item => `
+        <li><strong>${UA.escHtml(item.name)}</strong> – ${UA.escHtml(item.relation)}. ${UA.escHtml(item.reason)}
+          <div>${item.planSources.concat(item.locationSource).map(sourceLink).join(" · ")}</div>
+        </li>`).join("")}</ul></div>`;
     }
 
     // Build reference documents section for HTML report
@@ -2905,6 +2891,11 @@
 
         ${accidentHtmlSection}
 
+        ${discoveryFocus ? `<div><strong>Muster im Ausschnitt:</strong> ${UA.escHtml(discoveryFocus.label)}
+          (${discoveryFocus.points.length} ${discoveryFocus.points.length === 1 ? "Fall" : "Fälle"}). ${UA.escHtml(discoveryFocus.note)}</div>` : ""}
+        ${siteChanges.length ? `<div><strong>Dokumentierte örtliche Änderungen</strong><ul>
+          ${siteChanges.map(change => `<li>${sourceLink({ ...change, date: changeDate(change) })}</li>`).join("")}
+        </ul></div>` : ""}
         ${poiHtmlSection}
         
         ${refDocsHtmlSection}
@@ -3105,6 +3096,8 @@
       deviations: dev,
       yearTable: yr,
       poi: poiAnalysis,
+      ...(discoveryFocus !== undefined ? { discoveryFocus } : {}),
+      siteChanges,
       references: refDocs,
       politicalReferences,
       patterns: matchedPatterns,

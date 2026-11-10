@@ -551,8 +551,16 @@
     if ((finite(osm.busStations) || 0) > 0) out.add('busbahnhof');
     if ((finite(osm.cobblestoneWays) || 0) > 0) out.add('kopfsteinpflaster');
     if ((finite(osm.mixedFootCycleWays) || 0) > 0) out.add('gemeinsame_fuss_rad_flaeche');
-    const poiText = JSON.stringify(structured?.poi || {}).toLowerCase();
-    if (/schule|kindergarten|kita/.test(poiText)) out.add('schulweg');
+    const poi = structured?.poi || {};
+    const poiText = JSON.stringify(poi).toLowerCase();
+    const schoolTypes = ['school', 'kindergarten', 'childcare'];
+    const hasSchoolContext = out.delete('schulweg')
+      || schoolTypes.some(type => poi.withinByType?.[type] > 0 || poi.nearByType?.[type] > 0)
+      || /schule|kindergarten|kita/.test(poiText);
+    if (hasSchoolContext) out.add('schulumfeld');
+    if (array(poi.facilities).some(item => item.type === 'school' && item.relation === 'Wegebezug belegt' && item.routeCrossing)) {
+      out.add('schulweg');
+    }
     if (/bahnhof|haltestelle|öpnv|oepnv|bus/.test(poiText)) out.add('oepnv');
     return out;
   }
@@ -596,13 +604,17 @@
         requiredVerification: ['Belag, Fugen, Rinnen, Niveauversätze und Griffigkeit ortsgenau und bei Nässe prüfen.'],
       }));
     }
-    if ((pedCar || bikePed) && contexts.has('schulweg')) {
+    if ((pedCar || bikePed) && (contexts.has('schulweg') || contexts.has('schulumfeld'))) {
+      const verifiedRoute = contexts.has('schulweg');
       findings.push(createFinding({
         id: 'school-crossing-mechanism-candidate', detectorId: DETECTOR_IDS.CONTEXT, family: 'context',
         label: 'Schulumfeld mit Querungs- oder Fuß-/Radkonflikt', classification: 'primary', status: 'candidate',
         causalStatus: CAUSAL_STATUS.CANDIDATE, confidence: 0.66,
-        evidence: [evidence('contextKey', 'schulweg'), evidence('matchingPatterns', { pedCar, bikePed })],
-        rationale: 'Die Kombination aus vulnerablem Verkehrsmuster und Schul-/Kita-Kontext erfordert eine zeit- und wegebezogene Querungsanalyse.',
+        evidence: [evidence('contextKey', verifiedRoute ? 'schulweg' : 'schulumfeld'), evidence('matchingPatterns', { pedCar, bikePed })],
+        rationale: verifiedRoute
+          ? 'Ein belegter Schulweg im Ausschnitt und das Unfallmuster begründen eine zeit- und wegebezogene Querungsprüfung.'
+          : 'Die räumliche Nähe zu einer Schule oder Kita ist ein Anlass, tatsächliche Wege und Querungen vor Ort zu prüfen.',
+        limitations: ['Aus der Lage lässt sich die Nutzung durch Unfallbeteiligte nicht ableiten.'],
         tags: ['school_zone', 'crossing'],
         requiredVerification: ['Bring-/Holzeiten, Wunschlinien, Sichtfelder, Halten/Parken und Querungsangebote beobachten.'],
       }));

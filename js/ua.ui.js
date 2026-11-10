@@ -199,6 +199,13 @@
     }
   }
 
+  UA.revealAnalysisPanel = function revealAnalysisPanel(ctx){
+    const ui = ctx.ui;
+    if (ui?.panelEl?.classList.contains('collapsed') && ui.collapseBtn) {
+      setCollapsed(ui, false);
+    }
+  };
+
   function setLegendExpanded(ui, expanded){
     if (!expanded && ui.legendBox.contains(document.activeElement)) {
       ui.legendBtn.focus({ preventScroll: true });
@@ -314,6 +321,34 @@
     }
     UA.setQS(upd);
     UA.saveCityState(ctx);
+  };
+
+  UA.setSelectionArea = function setSelectionArea(ctx, bounds, { layer, fit } = {}){
+    const coordinates = bounds && [
+      bounds.getSouth?.() ?? bounds.south,
+      bounds.getWest?.() ?? bounds.west,
+      bounds.getNorth?.() ?? bounds.north,
+      bounds.getEast?.() ?? bounds.east,
+    ];
+    if (coordinates) {
+      const [south, west, north, east] = coordinates;
+      if (!coordinates.every(Number.isFinite) || south < -90 || north > 90
+        || west < -180 || east > 180 || south >= north || west >= east) return false;
+      bounds = typeof bounds.getSouth === 'function'
+        ? bounds
+        : L.latLngBounds([south, west], [north, east]);
+    }
+    ctx.drawnItems.clearLayers();
+    ctx.selectionBounds = bounds || null;
+    if (bounds) {
+      ctx.drawnItems.addLayer(layer || L.rectangle(bounds, { color: "#2b7cff", weight: 2 }));
+    }
+    UA.SiteDiscoveryUI?.selectionChanged?.(ctx);
+    UA.AreaNameControl?.reconcile?.(ctx);
+    UA.recomputeAndRender(ctx, 'selectionChanged');
+    if (bounds && fit) ctx.map.fitBounds(bounds, fit);
+    UA.syncViewToUrl(ctx, !bounds);
+    return true;
   };
 
   UA.syncAllToUrl = function syncAllToUrl(ctx){
@@ -638,10 +673,7 @@
       if (rectTool) rectTool.enable();
     });
     ui.btnClearDraw.addEventListener('click', () => {
-      ctx.drawnItems.clearLayers();
-      ctx.selectionBounds = null;
-      UA.syncViewToUrl(ctx, true);
-      UA.recomputeAndRender(ctx);
+      UA.setSelectionArea(ctx, null);
     });
 
     // city change -> page reload but keep canonical params
@@ -653,6 +685,7 @@
       const u = new URL(window.location.href);
       u.searchParams.set("city", nextCity);
       ["centerLat","centerLon","zoom","selSouth","selWest","selNorth","selEast","export",
+        "siteFocus","siteFrom","siteTo","siteSeverity","siteType","siteInvolvement","siteMapFilters",
         ...Object.keys(UA.RisViewState?.toQuery() || {})].forEach(k => u.searchParams.delete(k));
       window.location.assign(u.toString());
     });
