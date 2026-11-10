@@ -688,6 +688,8 @@ body.map-layout-compact .ris-details.ris-details--collapsed {
 }
 body.map-layout-compact .ris-details--collapsed .ris-details__back { display: none; }
 body.map-layout-compact .ris-details__toolbar { gap: 7px; }
+body.map-layout-compact .ris-record-view__tabs { padding: 6px 10px; gap: 3px; }
+body.map-layout-compact .ris-record-view__tabs [role="tab"] { padding: 9px 4px; font-size: .75rem; }
 
 @media (max-height: 550px) {
   body.map-layout-compact .ris-browser__body { overflow-y: auto; overscroll-behavior: contain; }
