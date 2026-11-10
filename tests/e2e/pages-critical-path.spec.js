@@ -139,7 +139,8 @@ test.describe('Public Pages critical path', () => {
     const notice = page.locator('#publicPreviewNotice');
     await expect(notice).toBeVisible();
     await expect(notice).not.toHaveAttribute('open', '');
-    await expect(notice.locator('summary')).toContainText('nur Videoexport nicht verfügbar');
+    await expect(notice.locator('summary')).toHaveText('Öffentliche Browser-Version · Funktionsumfang');
+    await expect(page.locator('#btnPrioritiesOpen')).toBeHidden();
 
     const box = await notice.boundingBox();
     expect(box).toBeTruthy();

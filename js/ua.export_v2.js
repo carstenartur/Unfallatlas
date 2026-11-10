@@ -1198,16 +1198,33 @@
   function districtForSelection(features, sw, ne) {
     const midLon = (sw.lng + ne.lng) / 2;
     const midLat = (sw.lat + ne.lat) / 2;
+    function segmentIntersectsSelection(a, b) {
+      let start = 0;
+      let end = 1;
+      const bounds = [sw.lng, sw.lat, ne.lng, ne.lat];
+      for (let axis = 0; axis < 2; axis++) {
+        const delta = b[axis] - a[axis];
+        if (delta === 0) {
+          if (a[axis] < bounds[axis] || a[axis] > bounds[axis + 2]) return false;
+          continue;
+        }
+        const lower = (bounds[axis] - a[axis]) / delta;
+        const upper = (bounds[axis + 2] - a[axis]) / delta;
+        start = Math.max(start, Math.min(lower, upper));
+        end = Math.min(end, Math.max(lower, upper));
+        if (start > end) return false;
+      }
+      return true;
+    }
     function containsSelection(rings) {
       let contains = false;
       for (const ring of rings) {
         for (let i = 1; i < ring.length; i++) {
           const [ax, ay] = ring[i - 1];
           const [bx, by] = ring[i];
-          // A boundary near the selection is ambiguous. Check the envelope
-          // of each segment conservatively before testing the midpoint.
-          if (Math.max(ax, bx) >= sw.lng && Math.min(ax, bx) <= ne.lng &&
-              Math.max(ay, by) >= sw.lat && Math.min(ay, by) <= ne.lat) return false;
+          // Touching or crossing a boundary is ambiguous; an overlapping
+          // segment envelope alone does not imply an intersection.
+          if (segmentIntersectsSelection(ring[i - 1], ring[i])) return false;
           if ((ay > midLat) !== (by > midLat) &&
               midLon < ax + (bx - ax) * (midLat - ay) / (by - ay)) contains = !contains;
         }

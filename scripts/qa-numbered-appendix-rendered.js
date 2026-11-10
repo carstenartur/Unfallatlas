@@ -325,8 +325,9 @@ async function generateReleaseEvidence(options = {}) {
     },
     setView: () => {}
   };
-  UA.captureExportMapImage = async (_ctx, opts) => {
-    const mapRows = opts.evidenceRows,
+  UA.createDocumentMapContext = context => ({ ctx: context, close() {} });
+  UA.captureDocumentMap = async (_ctx, opts) => {
+    const mapRows = opts.evidenceRows.length ? opts.evidenceRows : rows,
       role = mapRows.length === rows.length ? 'overview' : `detail-${mapRows[0].mapRef.toLowerCase()}`;
     const map = createRoleMapFixture({
       role,
@@ -340,7 +341,7 @@ async function generateReleaseEvidence(options = {}) {
       snapshotHash: normalized.sha256
     });
     capturedMaps.push(map);
-    return toDataUrl(map.png);
+    return { image: toDataUrl(map.png) };
   };
   UA.__documentProvenanceOriginals = {
     exportToWord: () => evidence._internal.exportEvidenceWord(UA, root, ctx, report, cohorts),
@@ -477,7 +478,7 @@ function verifyRenderedMapCaptions(model, contract, format) {
     const overview = expected.role === 'overview';
     const mapRef = overview ? 'E0' : expected.role.replace(/^detail-/, '').toUpperCase();
     const title = overview ? 'Übersicht – vollständiges Gebietskollektiv' :
-      `Detail ${mapRef} – ${expected.accidentIds[0]} bis ${expected.accidentIds.at(-1)}`;
+      `Detailkarte ${mapRef} – nummerierte Unfallorte`;
     let heading;
     if (!overview) {
       const before = tables.clusterWordsIntoLines(page.words).filter(line => line.yMax <= image.yMin + 2);
@@ -494,11 +495,14 @@ function verifyRenderedMapCaptions(model, contract, format) {
       }
       heading = { text, page: page.number };
     }
-    const idCaption = format === 'docx-pdf' || !overview;
-    const expectedText = tables.normalizeText(`Abbildung ${index + 1}: ${
-      format === 'native-pdf' && !overview ? mapRef : title}; ${idCaption ?
-      `Unfall-IDs: ${expected.accidentIds.join(', ')}.` :
-      `dargestellt und nummeriert: ${expected.markerCount} Unfälle.`}`);
+    const idCaption = !overview;
+    const expectedText = tables.normalizeText(format === 'native-pdf'
+      ? (overview
+        ? `Abbildung 1: ${title}, dargestellt sind ${expected.markerCount} Unfälle. Die Unfall-IDs stehen auf den Detailkarten.`
+        : `Abbildung ${index + 1}: ${mapRef}; Unfall-IDs: ${expected.accidentIds.join(', ')}.`)
+      : `Abbildung ${index + 1}: ${title}. ${overview
+        ? `${expected.markerCount} Unfälle. Die Unfall-IDs stehen auf den Detailkarten.`
+        : `Unfall-IDs ${expected.accidentIds.join(', ')}.`}`);
     const nextImage = page.images.filter(other => other.yMin > image.yMax)
       .sort((a, b) => a.yMin - b.yMin)[0];
     const lines = tables.clusterWordsIntoLines(page.words).filter(line =>

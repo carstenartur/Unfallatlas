@@ -8,7 +8,7 @@ describe('Hannover committee attribution in the export report', () => {
     delete window.UA;
   });
 
-  async function computeReport(address, officialDistricts) {
+  async function computeReport(address, officialDistricts, corners) {
     jest.resetModules();
     global.fetch = jest.fn(async (url) => {
       if (url.startsWith('https://nominatim.openstreetmap.org/reverse?')) {
@@ -31,8 +31,8 @@ describe('Hannover committee attribution in the export report', () => {
       CITY_RAW: 'Hannover',
       allPts: [],
       selectionBounds: {
-        getSouthWest: () => ({ lat: 52.391108, lng: 9.719819 }),
-        getNorthEast: () => ({ lat: 52.391889, lng: 9.721093 }),
+        getSouthWest: () => corners?.sw || ({ lat: 52.391108, lng: 9.719819 }),
+        getNorthEast: () => corners?.ne || ({ lat: 52.391889, lng: 9.721093 }),
         getCenter: () => ({ lat: 52.3914985, lng: 9.720456 }),
         contains: () => false
       },
@@ -109,6 +109,36 @@ describe('Hannover committee attribution in the export report', () => {
 
   test('leaves the recipient open when the selection crosses an official boundary', async () => {
     const report = await computeReport({ city_district: 'Nord', suburb: 'Nordstadt' }, officialBoundaries(9.72));
+    expect(report.structured.meta.gremium.gremium).toBeNull();
+  });
+
+  test('assigns Nord when a diagonal official boundary envelope overlaps but misses the selection', async () => {
+    const districts = JSON.parse(require('fs').readFileSync(
+      require('path').join(__dirname, '../../data/mobility/hannover-stadtbezirke.geojson'), 'utf8'
+    ));
+    const report = await computeReport(null, districts, {
+      sw: { lat: 52.4046776, lng: 9.7207568 },
+      ne: { lat: 52.4048776, lng: 9.7210568 }
+    });
+    expect(report.structured.meta.gremium.gremium).toBe('Stadtbezirksrat Nord');
+  });
+
+  test('keeps the recipient open when the selection touches a district edge', async () => {
+    const report = await computeReport(null, officialBoundaries(9.721093));
+    expect(report.structured.meta.gremium.gremium).toBeNull();
+  });
+
+  test('keeps the recipient open when only a selection vertex touches a diagonal boundary', async () => {
+    const districts = {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature', properties: { district: 'Nord' },
+        geometry: { type: 'Polygon', coordinates: [[[-2, -2], [4, -2], [-2, 4], [-2, -2]]] }
+      }]
+    };
+    const report = await computeReport(null, districts, {
+      sw: { lat: 0, lng: 0 }, ne: { lat: 1, lng: 1 }
+    });
     expect(report.structured.meta.gremium.gremium).toBeNull();
   });
 });

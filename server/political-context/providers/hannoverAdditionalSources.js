@@ -2,9 +2,10 @@
 
 const https = require('node:https');
 const path = require('node:path');
+const { mapLimit } = require('../../../js/ua.data-budget');
 const { createRisSourceCache } = require('../services/risSourceCache');
 const { createRisSourceCheckpoint } = require('../services/risSourceCheckpoint');
-const { LANDTAG, REGION_INDEX, officialUrl, parseLandtagCatalogue, parseLandtagFeed,
+const { LANDTAG, LANDTAG_SEARCH, REGION_INDEX, officialUrl, landtagDocumentNumber, parseLandtagSearch, parseLandtagCatalogue, parseLandtagFeed,
   parseRegionIndex, parseRegionNotice, hasLocalTrafficEvidence } = require('./hannoverAdditionalFormats');
 
 const REVISION = 'hannover-additional-v2';
@@ -15,6 +16,11 @@ const FEEDS = [
   { source: 'landtag-rss-drucksachen', url: `${LANDTAG}/rss/drucksachen.xml` },
   { source: 'landtag-rss-steno', url: `${LANDTAG}/rss/stenoberichte.xml` },
 ];
+const ARCHIVE_QUERIES = [
+  '"Eilenriede" Radverkehr', '"Region Hannover" "B 217"', '"Hannover" "Südschnellweg"',
+  '"Hannover" "Pop-up-Radweg"', 'Hannover Radverkehr',
+];
+const MAX_ARCHIVE_DOCUMENTS = 24;
 const REGION_CATALOGUE_STATUS = Object.freeze({ source: 'region-hannover-ris', status: 'partial', url: 'https://ris.hannit.de/public/',
   retrievedAt: null, from: null, to: null, recordCount: 0,
   message: 'Regionale ALLRIS-Vorlagen sind nicht Bestandteil dieser Live-Suche; sie werden über den Dokumentenindex recherchiert.' });
@@ -140,6 +146,46 @@ async function collectLandtagCatalogue(options = {}) {
   }
 }
 
+async function collectLandtagArchive(options) {
+  const now = clock(options), { request, sourceCache, checkpoint } = dependencies(options, now);
+  const source = 'landtag-archive', scope = 'hannover-traffic', year = now.getUTCFullYear();
+  const prior = await checkpoint.read(source, scope, year, REVISION) || await checkpoint.read(source, scope, year - 1, REVISION);
+  const entries = new Map();
+  for (const entry of Array.isArray(prior?.entries) ? prior.entries.slice(0, MAX_ARCHIVE_DOCUMENTS) : []) {
+    const row = entry?.record;
+    if (row?.number && row.sourceContext?.level === 'state' && landtagDocumentNumber(row.url) === row.number &&
+        Number.isFinite(Date.parse(entry.retrievedAt)) && hasLocalTrafficEvidence(row)) entries.set(row.number, entry);
+  }
+  const result = (state, message) => {
+    const records = [...entries.values()].map(entry => entry.record);
+    return { records, sourceStatus: status(source, LANDTAG_SEARCH, records,
+      oldest([...entries.values()].map(entry => entry.retrievedAt)), state, message) };
+  };
+  if (options.workBudget === 0) return result('partial', 'Kein neuer Archivabruf; verifizierter Arbeitsstand bleibt erhalten.');
+
+  const hits = await mapLimit(ARCHIVE_QUERIES, 3, async query => {
+    const url = `${LANDTAG_SEARCH}?${new URLSearchParams({ 'tx_solr[q]': query })}`;
+    try { return (await cached(sourceCache, url, parseLandtagSearch, request, now)).value; }
+    catch (_) { return null; }
+  });
+  const numbers = [...new Set([...entries.keys(), ...hits.filter(Array.isArray).flat()])].slice(0, MAX_ARCHIVE_DOCUMENTS);
+  const verified = await mapLimit(numbers, 3, async number => {
+    try {
+      const page = await cached(sourceCache, buildCatalogueUrl({ number }), parseLandtagCatalogue, request, now);
+      const { records, total } = page.value;
+      const [row] = records;
+      if (total === 1 && records.length === 1 && row.number === number && row.sourceContext.documentKind === 'Drucksache' &&
+          landtagDocumentNumber(row.url) === number && hasLocalTrafficEvidence(row)) return { record: row, retrievedAt: page.retrievedAt };
+    } catch (_) { /* Keep the last verified record and its source clock. */ }
+    return null;
+  });
+  for (const entry of verified.filter(Boolean)) entries.set(entry.record.number, entry);
+  await checkpoint.write(source, scope, year, REVISION, { entries: [...entries.values()] });
+  return hits.includes(null) || verified.includes(null)
+    ? result('failed', 'Archivsuche oder Einzelprüfung teilweise nicht verfügbar; verifizierte Drucksachen bleiben erhalten.')
+    : result('partial', 'Begrenzter Archivabruf aus der öffentlichen Volltextsuche; Treffer per Drucksachennummer im amtlichen Katalog geprüft.');
+}
+
 async function collectRolling(feed, options) {
   const now = clock(options), { request, sourceCache, checkpoint } = dependencies(options, now), year = now.getUTCFullYear();
   let prior = await checkpoint.read(feed.source, 'rolling', year, REVISION);
@@ -201,12 +247,16 @@ async function collectRegionNotices(options = {}) {
 
 async function collectHannoverAdditionalSources(options = {}) {
   const now = clock(options), deps = dependencies(options, now), params = { ...options, ...deps, now };
-  const tasks = [...FEEDS.map(feed => () => collectRolling(feed, params)), () => collectRegionNotices(params),
-    ...(options.includeCatalogue === false ? [] : [() => collectLandtagCatalogue(params)])];
-  const outcomes = await Promise.allSettled(tasks.map(run => run()));
+  const tasks = [
+    ...FEEDS.map(feed => ({ ...feed, run: () => collectRolling(feed, params) })),
+    { source: 'region-hannover-bekanntmachungen', url: REGION_INDEX, run: () => collectRegionNotices(params) },
+  ];
+  if (options.includeCatalogue !== false) tasks.push({ source: 'landtag-catalogue', url: `${LANDTAG}/dokumentensuche/`,
+    run: () => collectLandtagCatalogue(params) });
+  if (options.includeArchive === true) tasks.push({ source: 'landtag-archive', url: LANDTAG_SEARCH, run: () => collectLandtagArchive(params) });
+  const outcomes = await Promise.allSettled(tasks.map(task => task.run()));
   const collected = outcomes.map((outcome, i) => outcome.status === 'fulfilled' ? outcome.value : {
-    records: [], sourceStatus: status(FEEDS[i]?.source || (i === 2 ? 'region-hannover-bekanntmachungen' : 'landtag-catalogue'),
-      FEEDS[i]?.url || (i === 2 ? REGION_INDEX : buildCatalogueUrl(params.filters)), [], null, 'failed', 'Quelle derzeit nicht verfügbar.') });
+    records: [], sourceStatus: status(tasks[i].source, tasks[i].url, [], null, 'failed', 'Quelle derzeit nicht verfügbar.') });
   const records = [...new Map(collected.flatMap(outcome => outcome.records).map(r => [r.id, r])).values()];
   const sourceStatuses = [...collected.map(c => c.sourceStatus), { ...REGION_CATALOGUE_STATUS }];
   const range = bounds(records);
