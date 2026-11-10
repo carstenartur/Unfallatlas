@@ -130,7 +130,12 @@
     state.back.hidden = !ctx.risView?.listOpen;
     state.share = button(actions, 'Ansicht teilen', 'Link zur aktuellen Ansicht kopieren', () => share(ctx, state));
     state.collapse = button(actions, 'Einklappen', 'Vorgangsansicht einklappen', () => {
-      change(ctx, state, { collapsed: !ctx.risView.collapsed });
+      const collapsed = !ctx.risView.collapsed;
+      change(ctx, state, { collapsed });
+      if (collapsed && ctx.risView.listOpen && !ctx.risView.listCollapsed
+          && window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches) {
+        UA.PoliticalContext?.focusResults?.();
+      }
     });
     button(actions, 'Schließen', 'Vorgangsansicht schließen', () => close(ctx));
     root.addEventListener('keydown', event => {
@@ -166,7 +171,7 @@
       state.status.textContent = '';
       if (!target) return;
       change(ctx, state, { collapsed: true,
-        ...(ctx.risView.listOpen && window.matchMedia?.('(max-width: 980px)').matches
+        ...(ctx.risView.listOpen && window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches
           ? { listCollapsed: true } : {}) });
       target.focus({ preventScroll: true });
     } catch (error) {

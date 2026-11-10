@@ -10,6 +10,7 @@
     FANOUT = 64,
     PAGE_SIZE = 64;
   const ROOTS = ['records', 'locations', 'relations', 'search', 'geometry', 'links', 'spatial'];
+  const SOURCE_LEVELS = ['city', 'region', 'state', 'federal', 'eu'];
   const key = (id, page = 0) => JSON.stringify([id, page]);
   const fold = value => String(value || '').toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   function invalid(message = 'Invalid RIS partition') {
@@ -34,6 +35,9 @@
     return Array.isArray(bounds) && bounds.length === 4 && bounds.every(Number.isFinite)
       && bounds[0] >= -180 && bounds[2] <= 180 && bounds[1] >= -90 && bounds[3] <= 90
       && bounds[0] <= bounds[2] && bounds[1] <= bounds[3];
+  }
+  function containsBounds(outer, inner) {
+    return outer[0] <= inner[0] && outer[1] <= inner[1] && outer[2] >= inner[2] && outer[3] >= inner[3];
   }
   function spatialDescriptor(ref, city) {
     return descriptor(ref, city) && ref.kind === 'spatial' && Number.isSafeInteger(ref.featureCount)
@@ -100,7 +104,7 @@
   }
   function validSourceContext(value) {
     return value === undefined || exactFields(value, ['level', 'publisher', 'issuer', 'documentKind', 'status', 'publicationDate', 'documentDate', 'meetingDate'])
-      && ['city', 'region', 'state', 'federal', 'eu'].includes(value.level) && factText(value.publisher, 512)
+      && SOURCE_LEVELS.includes(value.level) && factText(value.publisher, 512)
       && !/[<>]/.test([value.publisher, value.issuer, value.documentKind].join(''))
       && (value.issuer === null || factText(value.issuer, 512)) && factText(value.documentKind, 256)
       && ['proposal', 'answer', 'agenda', 'minutes', 'other'].includes(value.status)
@@ -136,6 +140,20 @@
         && Number.isFinite(Date.parse(v.retrievedAt)) && new Date(v.retrievedAt).toISOString() === v.retrievedAt)
       && factDay(v.from) && factDay(v.to) && !(v.from && v.to && v.from > v.to)
       && Number.isSafeInteger(v.recordCount) && v.recordCount >= 0 && (v.message === '' || factText(v.message, 512)));
+  }
+  function validLevelCounts(value, recordCount, mappedRecordCount) {
+    if (value === undefined) return true;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    let records = 0, mapped = 0;
+    for (const [level, counts] of Object.entries(value)) {
+      if (level !== 'unknown' && !SOURCE_LEVELS.includes(level)
+          || !exactFields(counts, ['records', 'mapped'])
+          || !Number.isSafeInteger(counts.records) || counts.records < 1
+          || !Number.isSafeInteger(counts.mapped) || counts.mapped < 0 || counts.mapped > counts.records) return false;
+      records += counts.records;
+      mapped += counts.mapped;
+    }
+    return records === recordCount && mapped === mappedRecordCount;
   }
   const canonicalTime = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)
     && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
@@ -201,6 +219,7 @@
         || (value.spatialFormat !== undefined && value.spatialFormat !== SPATIAL_FORMAT)
         || (value.spatialFormat === SPATIAL_FORMAT && (!spatialDescriptor(value.roots.spatial, city) || value.roots.spatial.featureCount !== value.geometryCount))) throw invalid('Invalid RIS partition manifest');
     if (!validSourceStatuses(value.sourceStatuses, value.sources)) throw invalid('Invalid RIS source statuses');
+    if (!validLevelCounts(value.levelCounts, value.recordCount, value.mappedRecordCount)) throw invalid('Invalid RIS level counts');
     if (value.withdrawalsRecordedAt !== undefined && !canonicalTime(value.withdrawalsRecordedAt)) throw invalid('Invalid RIS withdrawal timestamp');
     if (!validProvenance(value.provenance, value.generatedAt, value.recordCount, value.coverage)) throw invalid('Invalid RIS provenance');
     return value;
@@ -381,9 +400,15 @@
         const value = await asset(ref, budget);
         if (upper !== null && (value.entries.at(-1)?.[0] !== upper || lower !== null && value.entries[0]?.[0] <= lower)) throw invalid('Invalid RIS spatial directory range');
         if (!ref.featureCount || !grid.intersectsBounds(ref.bounds, bounds)) continue;
-        if (ref.featureCount > limit && bounds[0] <= ref.bounds[0] && bounds[1] <= ref.bounds[1]
-            && bounds[2] >= ref.bounds[2] && bounds[3] >= ref.bounds[3]) return {features, truncated: true};
+        if (features.length + ref.featureCount > limit && containsBounds(bounds, ref.bounds)) return {features, truncated: true};
         if (value.type === 'branch') {
+          // Avoid downloading detail leaves when the fully visible children
+          // already exceed the limit, even if the viewport cuts the outer edge.
+          let visibleCount = features.length;
+          for (const [, child] of value.entries) {
+            if (child.featureCount && containsBounds(bounds, child.bounds)) visibleCount += child.featureCount;
+            if (visibleCount > limit) return {features, truncated: true};
+          }
           for (let i = value.entries.length - 1; i >= 0; i--) {
             const [key, child] = value.entries[i];
             if (child.featureCount && grid.intersectsBounds(child.bounds, bounds)) {

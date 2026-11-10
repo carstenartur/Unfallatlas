@@ -22,6 +22,12 @@ und Kartenangaben zeigen die Quelle und den amtlichen Original-Link. Der bereits
 vorhandene Zusatzimport von regionalen Bekanntmachungen und Landtagsdokumenten bleibt
 erhalten. Sein begrenzter Umfang ist je Quelle in `sourceStatuses` ausgewiesen.
 
+Die Fußzeile zeigt, wie viele eindeutige Vorgänge je politischer Ebene im
+veröffentlichten Katalog stehen und wie viele davon einen Kartenbezug haben.
+`levelCounts` enthält diese Zahlen im Manifest. So kann die Fußzeile sie
+anzeigen, ohne die Dokumentpartitionen zu laden. Eine Null beschreibt den
+veröffentlichten Teilbestand der jeweiligen Ebene.
+
 Die Regionsquelle wird über das [öffentliche Vorlagenverzeichnis](https://ris.hannit.de/public/vo040)
 erschlossen. Der Import verwendet den gemeinsamen ALLRIS-Sitzungsclient und die von
 der Quelle angebotene Seitennavigation. Sitzungscookies, Prüfantworten und kurzlebige
@@ -98,12 +104,13 @@ Teile vorhanden und validiert sind. Suche, Karte und Bericht dürfen keine unter
 Generationen miteinander vermischen.
 
 Ein Kartenausschnitt darf für Details bis zu 3 MiB unkomprimierte Teilbestände und
-128 unterschiedliche Dateien lesen. Reicht dieses Budget nicht, wird eine räumliche
-Übersicht mit einem weiteren Budget von 1 MiB verwendet. Zellen sind als Zusammenfassung
-gekennzeichnet und ermöglichen das Näherzoomen. Sie werden nicht als genaue Punktlagen
-von Dokumenten ausgegeben. Linien, Straßenabschnitte und mehrteilige Geometrien bleiben
-anhand ihrer vollständigen räumlichen Grenzen auch über Blattgrenzen hinweg auffindbar.
-Die Vergrößerungsaktion verwendet den sichtbaren Teil einer Übersichtszelle, erhöht
+128 unterschiedliche Dateien lesen. Bei dichtem Ausschnitt verwendet das gepackte Format
+anklickbare Gruppen aus dem räumlichen Index. Ihre Zahl gibt die Kartenlagen in der
+jeweiligen Gruppe an. Große Ausschnitte und ältere Kachelbestände verwenden eine
+Rasterübersicht mit einem weiteren Budget von 1 MiB. Linien, Straßenabschnitte und
+mehrteilige Geometrien bleiben anhand ihrer vollständigen räumlichen Grenzen auch über
+Blattgrenzen hinweg auffindbar.
+Die Vergrößerungsaktion verwendet den sichtbaren Teil einer Gruppe oder Übersichtszelle, erhöht
 die Zoomstufe und respektiert die tatsächliche Kartengrenze. Am maximalen Zoom erklärt
 die Oberfläche, dass keine weitere Vergrößerung möglich ist.
 
@@ -302,6 +309,11 @@ keinen fehlenden Sachtext. Unveränderte verifizierte Kartenbelege bleiben erhal
 korrigierte Hausnummernbereiche übernehmen keinen Punkt ihrer früheren Anfangsnummer.
 Quellenzeiten werden nicht erneuert und fehlende Volltexte nicht ergänzt.
 
+Hannovers Ortsprüfrevision 6 bewertet außerdem belegte Kombinationen aus Feuerwache
+und Straße. Das amtliche Ortsverzeichnis liefert bei eindeutiger Zuordnung den
+Gebäudepunkt. Eigenständige Ortsbelege etwa für eine Kreuzung oder einen Radweg bleiben
+separat kartierbar.
+
 Ein Quellenfehler oder eine lokale Formatänderung erzeugt keine neue Quellenzeit.
 Auch beibehaltene Vorgänge, die im nächsten Abruf fehlen, behalten ihre ursprüngliche
 Verifikationszeit. Ein frisch aktualisierter Stadtteil des Katalogs erneuert keine
@@ -346,7 +358,9 @@ gemeinsame Vorgangsansicht mit **Beratungsverlauf**, **Zusammenhänge** und **Or
 Auf breiten Bildschirmen bleiben Trefferliste, Vorgang und die bedienbare Karte
 gleichzeitig sichtbar. Liste und Detail lassen sich unabhängig einklappen.
 
-Auf Telefonen und schmalen Tablets wechselt die Ansicht zwischen Liste und Dokument.
+Auf Telefonen und Tablets teilen sich Liste und Dokument denselben Platz. Beim Öffnen
+des Kartenmenüs klappt der Arbeitsbereich ein. Auf Tablets bleibt neben der Liste
+oder dem Dokument mehr als die Hälfte der Kartenbreite frei.
 **Trefferliste** führt zur bestehenden Suche zurück und erhält Suchtext, Quellenfilter,
 Suchseite und die für den Bericht markierten Dokumente. Der Beratungsverlauf zeigt
 Datum, Gremium und Ergebnis kompakt; vollständige Quellenzitate lassen sich über

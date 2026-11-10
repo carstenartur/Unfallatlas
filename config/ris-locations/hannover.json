@@ -59,5 +59,48 @@
       "attribution": "Landeshauptstadt Hannover, SIM",
       "evidence": { "document": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1047-2026" }
     }
-  ]
+  ],
+  "publicFacilities": {
+    "source": "hannover-sim",
+    "attribution": "Landeshauptstadt Hannover, Feuerwehr",
+    "entries": [
+      {
+        "name": "Feuer- und Rettungswache 1",
+        "aliases": ["Feuerwache", "Feuerwache 1", "Feuer- und Rettungswache", "Feuer- und Rettungswache (FRW 1)", "FRW 1"],
+        "street": "Weidendamm",
+        "houseNumber": "50",
+        "sourceUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Sicherheit-Ordnung/Feuerwehr-Hannover/Standorte/Feuer-und-Rettungswachen-der-Berufsfeuerwehr/Feuer-und-Rettungswache-1-Nordstadt"
+      },
+      {
+        "name": "Feuer- und Rettungswache 2",
+        "aliases": ["Feuerwache", "Feuerwache 2", "Feuer- und Rettungswache", "Feuer- und Rettungswache (FRW 2)", "FRW 2"],
+        "street": "Auf der Klappenburg",
+        "houseNumber": "3",
+        "from": "2023-12-31",
+        "sourceUrl": "https://www.hannover.de/content/download/985276/file/Jahresbericht%202023%20final.pdf"
+      },
+      {
+        "name": "Feuer- und Rettungswache 3",
+        "aliases": ["Feuerwache", "Feuerwache 3", "Feuer- und Rettungswache", "Feuer- und Rettungswache (FRW 3)", "FRW 3"],
+        "street": "Lange-Feld-Straße",
+        "houseNumber": "113",
+        "sourceUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Sicherheit-Ordnung/Feuerwehr-Hannover/Presse-und-%C3%96ffentlichkeitsarbeit/Pressemitteilungen/Oktober-2019/Feuer-und-Rettungswache-3-offiziell-er%C3%B6ffnet"
+      },
+      {
+        "name": "Feuer- und Rettungswache 4",
+        "aliases": ["Feuerwache", "Feuerwache 4", "Feuer- und Rettungswache", "Feuer- und Rettungswache (FRW 4)", "FRW 4"],
+        "street": "Nenndorfer Chaussee",
+        "houseNumber": "5",
+        "coordinates": [9.69729, 52.349],
+        "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Sicherheit-Ordnung/Feuerwehr-Hannover-Organisationsdatenbank/Feuer-und-Rettungswachen/Feuer-und-Rettungswache-4"
+      },
+      {
+        "name": "Feuer- und Rettungswache 5",
+        "aliases": ["Feuerwache", "Feuerwache 5", "Feuer- und Rettungswache", "Feuer- und Rettungswache (FRW 5)", "FRW 5"],
+        "street": "Karl-Wiechert-Allee",
+        "houseNumber": "60 A",
+        "sourceUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Sicherheit-Ordnung/Feuerwehr-Hannover/Standorte/Feuer-und-Rettungswachen-der-Berufsfeuerwehr/Feuer-und-Rettungswache-5-Roderbruch"
+      }
+    ]
+  }
 }

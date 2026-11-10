@@ -137,4 +137,25 @@ describe('UA.visibleTileReadiness', () => {
 
     await expect(readiness).resolves.toBe(true);
   });
+
+  test.each(['visible', 'legacy'])('requires a cluster paint after the %s tile proof wins', async (winner) => {
+    const original = winner === 'visible'
+      ? jest.fn(() => new Promise(() => {}))
+      : jest.fn(async () => true);
+    const { UA } = createRuntime({ images: [tile({ complete: winner === 'visible' })], original });
+    const map = {};
+    let finishCluster;
+    UA.waitForAccidentClusterPaint = jest.fn(() => new Promise(resolve => { finishCluster = resolve; }));
+    const finished = jest.fn();
+    const deadline = Date.now() + 50;
+
+    const readiness = UA.waitForMapFullyRendered(map, { minTileImages: 1, timeoutMs: 50 }).then(finished);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(UA.waitForAccidentClusterPaint).toHaveBeenCalledWith(map, deadline);
+    expect(finished).not.toHaveBeenCalled();
+
+    finishCluster(false);
+    await readiness;
+    expect(finished).toHaveBeenCalledWith(false);
+  });
 });

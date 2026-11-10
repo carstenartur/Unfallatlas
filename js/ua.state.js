@@ -223,7 +223,7 @@
         dayType: ui.dayTypeEl.value,
         hourFrom: Number(ui.hFromEl.value),
         hourTo: Number(ui.hToEl.value),
-        maxPoints: Number(ui.maxPointsEl.value),
+        maxPoints: ctx.renderPointLimit ?? Number(ui.maxPointsEl.value),
         viewportPaddingPct: Number(ui.viewportPaddingEl.value),
         heatRadius: Number(ui.heatRadiusEl.value),
         includeCyclist: ui.incBikeEl.checked ? 1 : 0,

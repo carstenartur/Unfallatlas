@@ -148,6 +148,7 @@
   }
 
   function maxRenderedPoints(ctx) {
+    if (ctx?.renderPointLimit != null) return ctx.renderPointLimit;
     const raw = Number(ctx && ctx.ui && ctx.ui.maxPointsEl && ctx.ui.maxPointsEl.value);
     return Number.isFinite(raw) ? Math.max(500, Math.floor(raw)) : 100000;
   }

@@ -158,7 +158,7 @@
           roadCondition:     ui.roadConditionEl   ? ui.roadConditionEl.value   : "all",
           hourFrom:          ui.hFromEl           ? Number(ui.hFromEl.value)   : 0,
           hourTo:            ui.hToEl             ? Number(ui.hToEl.value)     : 23,
-          maxPoints:         ui.maxPointsEl       ? Number(ui.maxPointsEl.value) : 100000,
+          maxPoints:         ctx.renderPointLimit ?? (ui.maxPointsEl ? Number(ui.maxPointsEl.value) : 100000),
           viewportPaddingPct: ui.viewportPaddingEl ? Number(ui.viewportPaddingEl.value) : 20,
           heatRadius:        ui.heatRadiusEl      ? Number(ui.heatRadiusEl.value) : 25,
           includeCyclist:    ui.incBikeEl         ? ui.incBikeEl.checked       : true,

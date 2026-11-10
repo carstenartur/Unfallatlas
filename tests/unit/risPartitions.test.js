@@ -66,6 +66,38 @@ function browser(requests = []) {
     }
   });
 }
+test('publishes exact level totals from unique documents, including those without geometry', async () => {
+  const positions = [7, 7.1].map((longitude, i) => ({
+    label: `Ort ${i}`, kind: 'place', evidence: { source: 'title', text: `Ort ${i}` },
+    geometry: { type: 'Point', coordinates: [longitude, 51] },
+  }));
+  const manifest = await write([
+    record('city-mapped', { source: 'hannover-sim', locations: positions }),
+    record('city-unmapped', { source: 'hannover-sim' }),
+    record('regional', { source: 'region-hannover-ris' }),
+    record('state', { source: 'niedersachsen-landtag' }),
+    record('unclassified'),
+  ]);
+  expect(manifest.levelCounts).toEqual({
+    city: { records: 2, mapped: 1 },
+    region: { records: 1, mapped: 0 },
+    state: { records: 1, mapped: 0 },
+    unknown: { records: 1, mapped: 0 },
+  });
+  const requests = [];
+  await expect(browser(requests).loadManifest('test')).resolves.toMatchObject({ levelCounts: manifest.levelCounts });
+  expect(requests).toEqual(['test.json']);
+
+  const swapped = { ...manifest.levelCounts,
+    city: { records: 1, mapped: 1 }, region: { records: 2, mapped: 0 } };
+  await fs.writeFile(path.join(dir, 'test.json'), JSON.stringify({ ...manifest, levelCounts: swapped }));
+  await expect(readRisSnapshot(dir, 'test')).rejects.toThrow(/level counts/i);
+  await fs.writeFile(path.join(dir, 'test.json'), JSON.stringify({
+    ...manifest, levelCounts: { ...swapped, city: { records: 1, mapped: 0 } },
+  }));
+  await expect(browser().loadManifest('test')).rejects.toMatchObject({ code: 'RIS_SNAPSHOT_INVALID' });
+});
+
 test('publishes >50k records with bounded directories and loads local geometry without record partitions', async () => {
   const rows = Array.from({
     length: 50001

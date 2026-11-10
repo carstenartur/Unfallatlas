@@ -49,10 +49,13 @@
     document.body.classList.toggle('ris-list-collapsed', view.listCollapsed);
     document.body.classList.toggle('ris-document-open', detailOpen);
     panel.classList.toggle('ris-browser--collapsed', view.listCollapsed);
-    const mobileDetail = detailOpen && window.matchMedia?.('(max-width: 980px)').matches;
-    panel.inert = !!mobileDetail;
+    const compact = !!window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches;
+    const listExpanded = view.listOpen && !view.listCollapsed && !(compact && detailOpen);
+    panel.inert = compact && (detailOpen || view.listCollapsed);
+    UA.setWorkspaceMapControls?.(ctx, detailOpen || listExpanded);
+    if (compact && (detailOpen || listExpanded)) UA.closeMapControls?.(ctx);
     for (const control of [document.getElementById('btnPolCtxOpen'), document.getElementById('btnRisBrowse')]) {
-      control?.setAttribute('aria-expanded', String(view.listOpen && !view.listCollapsed));
+      control?.setAttribute('aria-expanded', String(listExpanded));
     }
     const collapse = document.getElementById('polCtxBtnCollapse');
     if (collapse) {
@@ -687,14 +690,23 @@
     }
   };
 
+  UA.PoliticalContext.focusResults = function focusResults() {
+    (document.querySelector('#polCtxPanel .polCtxRef[aria-current="true"] [data-ris-open-record]')
+      || document.getElementById('polCtxSearchInput'))?.focus({ preventScroll: true });
+  };
+
   UA.PoliticalContext.returnToResults = function returnToResults(ctx) {
     UA.RisDetails?.setCollapsed?.(ctx, true);
     updateView(ctx, { listOpen: true, listCollapsed: false });
     const pending = UA.PoliticalContext.refreshPanel(ctx);
-    const panel = document.getElementById('polCtxPanel');
-    (panel?.querySelector('.polCtxRef[aria-current="true"] [data-ris-open-record]')
-      || document.getElementById('polCtxSearchInput'))?.focus({ preventScroll: true });
+    UA.PoliticalContext.focusResults();
     return pending;
+  };
+
+  UA.PoliticalContext.collapseWorkspace = function collapseWorkspace(ctx) {
+    const view = normalizeView(ctx.risView);
+    if (view.recordId && !view.collapsed) UA.RisDetails?.setCollapsed?.(ctx, true);
+    if (view.listOpen && !view.listCollapsed) updateView(ctx, { listCollapsed: true });
   };
 
   /**
@@ -707,8 +719,9 @@
     if (!panel) return;
 
     workspaceContext = ctx;
-    if (ctx.risView?.recordId && !ctx.risView.collapsed && window.matchMedia?.('(max-width: 980px)').matches) {
-      UA.RisDetails?.setCollapsed?.(ctx, true);
+    if (window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches) {
+      ctx.map?.closePopup?.();
+      if (ctx.risView?.recordId && !ctx.risView.collapsed) UA.RisDetails?.setCollapsed?.(ctx, true);
     }
     updateView(ctx, { listOpen: true, listCollapsed: false });
     showPanel(panel);
@@ -875,8 +888,12 @@
       Promise.resolve(UA.PoliticalContext.openPanel(ctx)).catch(() => {});
     });
     document.getElementById('polCtxBtnCollapse')?.addEventListener('click', () => {
-      updateView(ctx, { listCollapsed: !ctx.risView?.listCollapsed });
+      const listCollapsed = !ctx.risView?.listCollapsed;
+      updateView(ctx, { listCollapsed });
       UA.PoliticalContext.refreshPanel(ctx);
+      if (listCollapsed && window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches) {
+        document.getElementById('btnRisBrowse')?.focus({ preventScroll: true });
+      }
     });
     document.getElementById('polCtxLevel')?.addEventListener('change', () => {
       Promise.resolve(runSearch(ctx)).catch(() => {});
@@ -884,7 +901,7 @@
     document.getElementById('polCtxSearchInput')?.addEventListener('keydown', event => {
       if (event.key === 'Enter') { event.preventDefault(); Promise.resolve(runSearch(ctx)).catch(() => {}); }
     });
-    window.matchMedia?.('(max-width: 980px)').addEventListener?.('change', () => projectWorkspace(ctx));
+    window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.addEventListener?.('change', () => projectWorkspace(ctx));
 
     // Panel schließen
     if (btnClose) {
