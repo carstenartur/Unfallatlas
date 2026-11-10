@@ -99,6 +99,35 @@ test('zero catalogue work budget makes no catalogue request and exposes a resuma
   expect(result.continuation).toContain('/dokumentensuche/');
 });
 
+test('background search verifies archive hits against the official catalogue and recovers them without network', async () => {
+  const document = await fixture('landtag-catalogue.html');
+  const pdfPath = '/drucksachen/drucksachen_19_10000/08501-09000/19-08980.pdf';
+  const hit = number => `<h3 class="results-topic"><a href="${pdfPath.replace('08980', number)}">Radverkehr in der Eilenriede</a></h3>`;
+  const html = `<div class="result-set"><p>2 Treffer für „Radverkehr“.</p></div><div class="results-list">${hit('08980')}${hit('08981')}</div>`;
+  const request = jest.fn(async url => {
+    if (new URL(url).pathname === '/service/suche/') return html;
+    if (new URL(url).pathname === '/dokumentensuche/') return document;
+    throw new Error('source unavailable');
+  });
+  const options = { now: NOW, sourceCache, checkpoint, request, includeCatalogue: false, maxNotices: 0 };
+  const interactive = await collectHannoverAdditionalSources(options);
+  expect(interactive.sourceStatuses.some(s => s.source === 'landtag-archive')).toBe(false);
+  expect(request.mock.calls.some(([url]) => url.includes('/service/suche/'))).toBe(false);
+  request.mockClear();
+  const result = await collectHannoverAdditionalSources({ ...options, includeArchive: true });
+  expect(result.records).toEqual([expect.objectContaining({ number: '19/8980', sourceContext: expect.objectContaining({ level: 'state' }) })]);
+  expect(result.sourceStatuses).toContainEqual(expect.objectContaining({ source: 'landtag-archive', status: 'failed',
+    retrievedAt: NOW.toISOString(), recordCount: 1 }));
+  expect(request.mock.calls.filter(([url]) => url.includes('/dokumentensuche/')).map(([url]) =>
+    new URL(url).searchParams.get('nltdocuments-number')).sort()).toEqual(['19/8980', '19/8981']);
+  request.mockClear();
+  const recovered = await collectHannoverAdditionalSources({ ...options, includeArchive: true, workBudget: 0 });
+  expect(request).not.toHaveBeenCalled();
+  expect(recovered.records).toEqual(result.records);
+  expect(recovered.sourceStatuses).toContainEqual(expect.objectContaining({ source: 'landtag-archive', status: 'partial',
+    retrievedAt: NOW.toISOString(), recordCount: 1 }));
+});
+
 test('zero additional-source work budget performs no network request and reports uncollected sources as partial', async () => {
   let requests = 0;
   const result = await collectHannoverAdditionalSources({ now: NOW, sourceCache, checkpoint, workBudget: 0,

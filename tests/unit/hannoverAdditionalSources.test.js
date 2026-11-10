@@ -42,6 +42,23 @@ test('catalogue follows actual enabled next href while rejecting hostile continu
   expect(() => formats.parseLandtagCatalogue('<h1>Zugriff pruefen</h1>', BASE)).toThrow(/shape|protection/i);
 });
 
+test('discovers locally relevant Drucksachen in the Landtag full-text results', () => {
+  const base = 'https://www.landtag-niedersachsen.de/service/suche/';
+  const entries = [
+    [PDF, 'Radverkehr, Gehwege und Konfliktlagen in der hannoverschen Eilenriede'],
+    ['/drucksachen/drucksachen_19_02500/01501-02000/19-01812.pdf', 'Verkehrsverdichtung in der Region Hannover – Umbau der B 217'],
+    ['/drucksachen/drucksachen_17_2500/1501-2000/17-1711.pdf', 'Südschnellweg an der Hildesheimer Straße in Hannover'],
+    ['/drucksachen/drucksachen_19_2500/1501-2000/19-01813.pdf', 'Anfrage zum Radverkehr – Region Hannover (Auskunft)'],
+    ['https://example.org/drucksachen/drucksachen_19_10000/08501-09000/19-08981.pdf', 'Radverkehr in Hannover'],
+    [PDF, 'Radverkehr in der Eilenriede'],
+  ];
+  const html = `<div class="result-set"><p>6 Treffer für „Radverkehr“.</p></div><div class="results-list list-group">${entries.map(([href, title]) =>
+    `<h3 class="results-topic"><a href="${href}">${title}</a></h3>`).join('')}</div>`;
+  expect(formats.parseLandtagSearch(html, base)).toEqual(['19/8980', '19/1812', '17/1711']);
+  expect(formats.parseLandtagSearch('<div class="result-set"><p>Nichts gefunden für „Radverkehr“.</p></div><div class="results-list"></div>', base)).toEqual([]);
+  expect(() => formats.parseLandtagSearch('<p>6 Treffer für „Radverkehr“.</p>', base)).toThrow(/shape/i);
+});
+
 test('RSS publication dates stay distinct from sitting dates and statewide cycling is not local Hannover evidence', () => {
   const records = formats.parseLandtagFeed(fixture('landtag-rss.xml'), 'https://www.landtag-niedersachsen.de/rss/stenoberichte.xml');
   expect(records).toHaveLength(2);

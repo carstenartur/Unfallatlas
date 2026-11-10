@@ -502,6 +502,16 @@ test.each(['in Hannover', 'in der Stadt Hannover', 'in der Landeshauptstadt Hann
     attribution: 'LGLN', evidence: { source: 'title', text: title } }]);
 });
 
+test('maps a Landtag street only when its city can be established', () => {
+  const main = street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]]);
+  const records = enrich([
+    { source: 'niedersachsen-landtag', title: 'Radweg an der Hauptstraße in der Region Hannover' },
+    { source: 'niedersachsen-landtag', title: 'Radweg an der Hauptstraße in der Stadt Hannover' },
+  ], [main]);
+  expect(records[0].locations).toEqual([]);
+  expect(records[1].locations).toEqual([expect.objectContaining({ label: 'Hauptstraße', geometry: main.geometry })]);
+});
+
 test('requires city scope separately for every Region title and document sentence', () => {
   const main = street('Hauptstraße', [[9.71, 52.37], [9.72, 52.37]]);
   const evidence = 'Die Fahrbahn in der Hauptstraße in Hannover wird saniert.';
