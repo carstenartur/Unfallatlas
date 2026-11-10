@@ -15,6 +15,7 @@ const ADJACENT_CUE = /(?:^|\s)(?:neben|vor|hinter|parallel zu[rm])\s+(?:(?:der|d
 const SPECIFIC_TAIL = /^\s*"?\s*(?:,|\d|(?:nr\.|hausnr\.|(?:nr|hausnr|hausnummern?)(?=\b|\d))|(?:nord|süd|ost|west)\b)/u;
 const MULTIPLE_LOCATIONS = /[\/;&]|\b(?:und|oder|sowie|bzw)\b/u;
 const LIMITED_SCOPE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll|zwischen|bis|bereich|\p{L}*abschnitt(?:e|en|es|s)?|kreuzung(?:en)?|einmündung|abzweig|ecke|höhe|gegenüber|hausnummern?|unterführung(?:en)?|fussgängerzone(?:n)?)\b/u;
+const JUNCTION_CONTEXT_ONLY = /\b(?:umfeld|umgebung|umkreis|nähe|nahe|nördlich|südlich|östlich|westlich|nordöstlich|nordwestlich|südöstlich|südwestlich|zwischen|abschnitt(?:s|es|e|en)?|ausserhalb|anstatt|statt|nicht|bereich\s+(?:um|zwischen))\b/u;
 const MEETING_CUE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll)\b/u;
 const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispiel|im vergleich zu|als vorbild)\b/u;
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
@@ -91,6 +92,21 @@ function indexGazetteer(gazetteer) {
     } else {
       byName.set(name, { ...entry, attribution: attribution.trim() });
     }
+    byFirstWord.set(firstWord, byName);
+  }
+  const aliasNames = new Set();
+  for (const alias of gazetteer.streetAliases ?? []) {
+    const canonical = normalize(alias.name);
+    const entry = byFirstWord.get(canonical.match(WORD)?.[0])?.get(canonical);
+    const spelling = normalize(alias.spelling);
+    const firstWord = spelling.match(WORD)?.[0];
+    if (!firstWord || entry?.kind !== 'street' || !alias.streetKey || entry.streetKey !== alias.streetKey) continue;
+    const byName = byFirstWord.get(firstWord) ?? new Map();
+    // A reviewed spelling cannot displace an existing or ambiguous street.
+    if (!byName.has(spelling)) {
+      byName.set(spelling, entry);
+      aliasNames.add(spelling);
+    } else if (aliasNames.has(spelling) && byName.get(spelling) !== entry) byName.set(spelling, null);
     byFirstWord.set(firstWord, byName);
   }
   return byFirstWord;
@@ -292,15 +308,49 @@ function measureJunctions(subject, streets, used) {
     const first = streets[index];
     const second = streets[index + 1];
     const continuation = previousEnd >= 0 && /^\s*(?:,|und|sowie)\s*$/u.test(subject.slice(previousEnd, first.index));
-    if (first.entry === second.entry || (!continuation && !JUNCTION_CUE.test(subject.slice(0, first.index)))
-        || !/^(?:\s*\/\s*|\s+(?:mit|und|richtung)\s+(?:der\s+)?)$/u.test(subject.slice(first.end, second.index))) continue;
-    const point = streetJunction(first.entry, second.entry);
-    const label = `${first.entry.name} / ${second.entry.name}`;
-    results.push(location('junction', label, point && { type: 'Point', coordinates: point }, [first.entry, second.entry]));
-    used.add(first);
-    used.add(second);
-    previousEnd = second.end;
-    index++;
+    const prefix = subject.slice(0, first.index);
+    const join = subject.slice(first.end, second.index);
+    const slashCorner = /^\s*\/\s*ecke\s+$/u.test(join);
+    const inlineCorner = slashCorner || /^\s+ecke\s+$/u.test(join);
+    const junction = JUNCTION_CUE.exec(prefix);
+    const entersStreet = /\beinmündung\s+(?:der\s+)?$/u.test(prefix) && /^\s+in\s+die\s+$/u.test(join);
+    const turnsIntoStreet = /\b(?:links|rechts)\s*abbiegen aus der\s+$/u.test(prefix) && /^\s+in\s+die\s+$/u.test(join);
+    const linked = entersStreet || /^(?:\s*\/\s*|\s+(?:mit|und|richtung)\s+(?:der\s+)?)$/u.test(join);
+    if ((inlineCorner || entersStreet || turnsIntoStreet) && JUNCTION_CONTEXT_ONLY.test(prefix)) continue;
+    if (!inlineCorner && !turnsIntoStreet && !(linked && (junction || continuation))) continue;
+
+    const arms = [first, second];
+    while (index + arms.length < streets.length) {
+      const next = streets[index + arms.length];
+      if (!/^\s*\/\s*$/u.test(subject.slice(arms.at(-1).end, next.index))) break;
+      arms.push(next);
+    }
+    index += arms.length - 1;
+    const last = arms.at(-1);
+    const tail = subject.slice(last.end);
+    if ((inlineCorner || entersStreet || turnsIntoStreet)
+        && (HOUSE_NUMBER_CUE.test(tail) || /^\s+(?:bis|zwischen)\b/u.test(tail))) continue;
+    const entries = arms.map(hit => hit.entry);
+    // A slash followed by a missing/ambiguous street makes the chain incomplete.
+    if (new Set(entries).size !== entries.length) continue;
+    // With “A/Ecke Gollstraße und B/Ecke Gollstraße”, the common corner
+    // street comes first, preserving the retained label for the existing point.
+    const ordered = slashCorner && entries.length === 2 ? [entries[1], entries[0]] : entries;
+    const label = ordered.map(entry => entry.name).join(' / ');
+    const relative = /\b(vor|hinter|neben|nach|gegenüber)\s+(?:(?:der|dem)\s+)?$/u.exec(
+      junction ? prefix.slice(0, junction.index) : prefix);
+    if (/^\s*\//u.test(tail)) {
+      results.push(location('junction', label + ' (weiterer Bezug im Beleg)', null, []));
+    } else if (relative) {
+      const relation = relative[1][0].toUpperCase() + relative[1].slice(1);
+      const reference = entersStreet ? 'der Einmündung' : 'dem Knotenpunkt';
+      results.push(location('place', relation + ' ' + reference + ' ' + label, null, []));
+    } else {
+      const point = streetJunction(...entries);
+      results.push(location('junction', label, point && { type: 'Point', coordinates: point }, entries));
+    }
+    arms.forEach(hit => used.add(hit));
+    previousEnd = last.end;
   }
   return results;
 }
@@ -331,7 +381,7 @@ function addressTail(subject, city, allowClosingFence = false) {
     const postal = /^\s*,\s*\d{5}\s+([\p{L}\p{M}]+)(?:-[\p{L}\p{M}-]+)?(.*)$/u.exec(subject.slice(end));
     if (city && postal && normalize(postal[1]) === normalize(city)
         && (/^\s*[.!]?\s*$/u.test(postal[2])
-          || /^\s+(?:zum thema|des trägers|ersatzneubau|neubau|2\.\s*bauabschnitt)\b/u.test(postal[2]))) return { items, end, postal: true };
+          || /^\s+(?:zum thema|des trägers|ersatzneubau|neubau|änderung (?:der )?entwurfsplanung|2\.\s*bauabschnitt)\b/u.test(postal[2]))) return { items, end, postal: true };
     const separator = ADDRESS_SEPARATOR.exec(subject.slice(end));
     if (!separator || items.length === 8) break;
     end += separator[0].length;
@@ -394,6 +444,14 @@ function measurePublicFacilities(subject, streets, facilities, city, date, used)
   return results;
 }
 
+function listedFullStreets(subject, streets) {
+  if (!/^dies betrifft (?:insbesondere )?/u.test(subject)
+      || /\b(?:nicht|kein\p{L}*|ohne|ausser\p{L}*|ausgenommen|auszunehmen|ausnahme\p{L}*|jedoch|lediglich|teilweise|sofern|wenn)\b/u.test(subject)) return [];
+  return streets.filter(hit => /(?:^dies betrifft (?:insbesondere )?|,\s*)(?:den|die)\s+$/u.test(subject.slice(0, hit.index))
+    && /^\s+in voller länge\s*(?:[.!]?$|,\s*(?:den|die|das)\s+)/u.test(subject.slice(hit.end)))
+    .map(({ entry }) => location('street', entry.name, entry.geometry, [entry]));
+}
+
 function measurePlaceList(subject, hits) {
   const list = new Set();
   const bounded = [];
@@ -416,9 +474,33 @@ function measurePlaceList(subject, hits) {
 function measureSubject(text) {
   return normalize(text, true)
     .replace(/\bfeuer-\s*und\s+rettungswache\b/gu, 'feuer- und rettungswache')
+    .replace(/\bstr\.(?=\s|[/,;)]|$)/gu, 'strasse')
     .replace(/(\p{L})str(?:\.(?=\s|[/,;)]|$)|(?=\s+\d))/gu, '$1strasse')
     .replace(/([\p{L}\p{M}-]+)-\s+(und|sowie|oder)\s+((?:(?:die|der|den)\s+)?[\p{L}\p{M}-]+strasse)\b/gu,
       '$1strasse $2 $3');
+}
+
+// A postal address can occur as a contact, meeting or delivery address. Only
+// an independently documented public project at its exact official address
+// may use this alternative scope. The original relevance check still applies.
+function reviewedHannoverProject(text, byFirstWord, gazetteer) {
+  const subject = measureSubject(text);
+  for (const site of gazetteer.regionalProjectAddresses ?? []) {
+    const prefix = measureSubject(site.project);
+    if (!subject.startsWith(prefix + ' ')) continue;
+    const hits = mentions(subject, byFirstWord, true);
+    if (hits.length !== 1 || hits[0].index !== prefix.length + 1) continue;
+    const {entry, end} = hits[0];
+    if (entry?.name !== site.street || entry.streetKey !== site.streetKey
+        || !isPosition(gazetteer.addresses?.[entry.streetKey]?.[site.houseNumber])) continue;
+    const tail = subject.slice(end);
+    const address = addressTail(tail, gazetteer.city);
+    if (address?.items.length !== 1 || address.items[0].key !== site.houseNumber) continue;
+    const expected = ', ' + site.postalCode + ' hannover';
+    const suffix = tail.slice(address.end).trim();
+    if (suffix.startsWith(expected) && /^(?:[.!]?| änderung (?:der )?entwurfsplanung \/ hu-bau(?: zu bds nr\. \d+ \([ivxlcdm]+\) vom \d{2}\.\d{2}\.\d{4})?)$/u.test(suffix.slice(expected.length))) return true;
+  }
+  return false;
 }
 
 function hannoverLocationScope(text, byFirstWord) {
@@ -468,6 +550,7 @@ function parseMeasureLocations(text, byFirstWord, gazetteer, publicFacilities, d
     ...measureJunctions(subject, remainingStreets(), used),
     ...(publicFacilities?.size ? measurePublicFacilities(subject, remainingStreets(), publicFacilities, gazetteer.city, date, used) : []),
     ...measureAddresses(subject, remainingStreets(), gazetteer, used),
+    ...listedFullStreets(subject, remainingStreets()),
     ...measurePlaceList(subject, hits.filter(hit => !used.has(hit))),
   ];
 }
@@ -493,6 +576,7 @@ function evidenceSentences(text) {
     const sentence = text.slice(start, end);
     // These periods are part of a reference or an alternative, even when the
     // following street or label starts with an uppercase letter.
+    if (/str\.$/iu.test(sentence) && /^\s+Ecke\s+/u.test(text.slice(end))) continue;
     if (/\b(?:bzw|nr|hausnr)\.["“”'’»«]*$/iu.test(sentence)) continue;
     sentences.push(sentence);
     start = boundary.index + boundary[0].length;
@@ -516,7 +600,8 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
   const evidence = scoped ? allEvidence.flatMap(proof => typeof proof.text === 'string'
     ? evidenceSentences(proof.text).flatMap(sentence => sentence.split(/[\r\n]+/u))
       .map(text => ({ source: proof.source, text })) : [])
-    .filter(proof => hannoverLocationScope(proof.text, byFirstWord)) : allEvidence;
+    .filter(proof => hannoverLocationScope(proof.text, byFirstWord)
+      || requireHannoverScope && proof.source === 'title' && reviewedHannoverProject(proof.text, byFirstWord, gazetteer)) : allEvidence;
   const source = gazetteer.publicFacilities?.source;
   const publicFacilities = !source || source === record.source || requireHannoverScope ? facilities : null;
   const locations = new Map();
@@ -530,13 +615,31 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
       delete candidate.mapLabel;
       reasons.add('non_traffic_address');
     }
-    const key = `${found.kind}:${normalize(found.label)}`;
+    const label = normalize(found.label);
+    const identity = found.kind === 'junction' ? label.split(' / ').sort().join(' / ') : label;
+    const key = found.kind + ':' + identity;
     const existing = locations.get(key);
     if (!existing || (!existing.geometry && candidate.geometry)) locations.set(key, candidate);
   };
   for (const proof of evidence) {
     const normalized = normalize(proof.text);
-    if (MEETING_CUE.test(normalized) || COMPARISON_CUE.test(normalized)) continue;
+    if (COMPARISON_CUE.test(normalized)) continue;
+    if (MEETING_CUE.test(normalized)) {
+      // SIM appends the meeting and agenda position directly to some titles.
+      // Permit only explicitly named crossings before this complete suffix.
+      // Keep the verbatim source and never infer a whole road from the subject.
+      if (proof.source === 'title' && record.source === 'hannover-sim') {
+        const subject = measureSubject(proof.text);
+        const metadata = /\s+sitzung des stadtbezirksrates [\p{L}\p{M} -]+ am \d{2}\.\d{2}\.\d{4}\s+top\s+\d+(?:\.\d+)*\.?$/u.exec(subject);
+        const topic = metadata && subject.slice(0, metadata.index);
+        if (topic && !MEETING_CUE.test(topic) && !JUNCTION_CONTEXT_ONLY.test(topic)
+            && /\b(?:an der kreuzung|am knotenpunkt)\s+/u.test(topic)) {
+          const streets = mentions(topic, byFirstWord).filter(hit => hit.entry.kind === 'street');
+          for (const found of measureJunctions(topic, streets, new Set())) keep(found, proof);
+        }
+      }
+      continue;
+    }
     if (mentions(normalized, byFirstWord, true).some(hit => !hit.entry)) reasons.add('unverified_name');
     const specific = parseMeasureLocations(proof.text, byFirstWord, gazetteer, publicFacilities, record.date);
     for (const found of specific) keep(found, proof);
