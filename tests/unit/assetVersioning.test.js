@@ -53,9 +53,8 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-10-site-evidence"');
   });
 
-  test.each(['ua.review_network', 'ua.site_discovery_ui'])
-  ('%s loads the version that can recover an interrupted network selection', asset => {
-    expect(html).toContain('js/' + asset + '.js?v=2026-11-11-network-loading"');
+  test('loads the version that can recover an interrupted network selection', () => {
+    expect(html).toContain('js/ua.review_network.js?v=2026-11-11-network-loading"');
   });
 
   test.each(['ua.context_layers', 'ua.report_v2'])
@@ -89,7 +88,8 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test('loads the current discovery app and orthophoto fallback', () => {
-    expect(html).toContain('js/ua.app_v2.js?v=2026-11-10-site-discovery"');
+    expect(html).toContain('js/ua.app_v2.js?v=2026-11-11-area-draft"');
+    expect(html).toContain('js/ua.site_discovery_ui.js?v=2026-11-11-area-draft"');
     expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-nrw-tile-retry"');
   });
 
