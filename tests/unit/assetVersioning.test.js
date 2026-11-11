@@ -48,9 +48,14 @@ describe('Werkbank deployment asset versions', () => {
     expect(scripts.indexOf('js/ua.facility_context.js')).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
   });
 
-  test.each(['ua.site_discovery', 'ua.review_network', 'ua.site_discovery_ui', 'ua.hannover_layers', 'ua.export_v2'])
+  test.each(['ua.site_discovery', 'ua.hannover_layers', 'ua.export_v2'])
   ('%s loads the local evidence and motion update', asset => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-10-site-evidence"');
+  });
+
+  test.each(['ua.review_network', 'ua.site_discovery_ui'])
+  ('%s loads the version that can recover an interrupted network selection', asset => {
+    expect(html).toContain('js/' + asset + '.js?v=2026-11-11-network-loading"');
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {

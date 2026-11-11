@@ -518,12 +518,13 @@
 
   function updateNetwork(ctx, state, allowLoad) {
     const complete = ctx.accidentDataCoverage?.complete === true;
-    if (complete && allowLoad && !state.networkRequest && UA.ReviewNetwork?.load) {
+    if (complete && allowLoad && state.network === undefined && !state.networkRequest && UA.ReviewNetwork?.load) {
       const city = state.city;
       const request = Promise.resolve().then(() => UA.ReviewNetwork.load(city)).catch(() => null);
       state.networkRequest = request;
       ctx.reviewNetworkPromise = request.then(network => {
         if (state.networkRequest !== request || ctx.CITY_RAW !== city) return null;
+        state.networkRequest = null;
         state.network = network || null;
         dataChanged(ctx);
         network?.crossingContextReady?.then(() => {
@@ -578,6 +579,7 @@
       state.networkRequest = null;
       ctx.reviewNetworkPromise = null;
     }
+    if (opening && state.network === null) state.network = undefined;
     const focus = ctx.discoveryFocus;
     const visible = !state.panel.hidden;
     const networkChanged = updateNetwork(ctx, state, visible || Boolean(focus?.site));
@@ -772,6 +774,9 @@
       showPanel(ctx, state);
       title.focus();
     });
+    ctx.ui?.btnOpenExport?.addEventListener('click', () => {
+      if (ctx.discoveryFocus?.site && state.network === null) dataChanged(ctx, true);
+    }, { capture: true });
     panel.addEventListener('keydown', event => {
       if (event.key === 'Escape') { event.stopPropagation(); close(); }
     });

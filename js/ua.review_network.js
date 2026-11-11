@@ -6,7 +6,7 @@
   const METRES_PER_DEGREE = 111195.08;
   const TILE_ZOOM = 18;
   const AMBIGUITY_METRES = 3;
-  const LOAD_LIMIT_MS = 20000;
+  const LOAD_IDLE_LIMIT_MS = 20000;
   const MAX_SITES = 250000;
   const ID = /^[a-z0-9][a-z0-9:-]{0,95}$/;
   const REVISION = /^[a-z0-9][a-z0-9-]{7,63}$/;
@@ -64,15 +64,21 @@
     return { city, revision, sites, counts, source: index.source, boundarySource: index.boundarySource };
   }
 
-  async function readNetwork(city, signal) {
-    const read = (kind, params) => UA.DataResources.fetchJson(kind, params, {
-      optional: true,
-      fetch: (url, options) => fetch(url, { ...options, signal }),
-    });
-    catalog ||= await read('reviewNetworkCatalog', {});
-    if (catalog?.schemaVersion !== 1 || !catalog.cities || !Object.hasOwn(catalog.cities, city)) return null;
-    const revision = catalog.cities[city];
+  async function readNetwork(city, signal, onProgress) {
+    const read = async (kind, params) => {
+      const resource = await UA.DataResources.fetchJson(kind, params, {
+        optional: true,
+        fetch: (url, options) => fetch(url, { ...options, signal }),
+      });
+      if (signal.aborted) return null;
+      if (resource) onProgress();
+      return resource;
+    };
+    const available = catalog || await read('reviewNetworkCatalog', {});
+    if (available?.schemaVersion !== 1 || !available.cities || !Object.hasOwn(available.cities, city)) return null;
+    const revision = available.cities[city];
     if (typeof revision !== 'string' || !REVISION.test(revision)) return null;
+    catalog = available;
     const index = await read('reviewNetworkIndex', { city });
     if (index?.schemaVersion !== 1 || index.city !== city || index.revision !== revision
         || !validSource(index.source) || !validSource(index.boundarySource)
@@ -88,7 +94,7 @@
         }
         return payload;
       };
-      return scheduler ? scheduler.run(readPart) : readPart();
+      return scheduler ? scheduler.run(readPart, { signal }) : readPart();
     }));
     const network = signal.aborted ? null : parseNetwork(city, revision, index, parts);
     if (network && index.crossingContext === true) {
@@ -115,10 +121,16 @@
     if (!UA.DataResources) return null;
     const controller = new AbortController();
     let deadline;
+    const idle = new Promise(resolve => controller.signal.addEventListener('abort', () => resolve(null), { once: true }));
+    const onProgress = () => {
+      clearTimeout(deadline);
+      deadline = setTimeout(() => controller.abort(), LOAD_IDLE_LIMIT_MS);
+    };
     try {
+      onProgress();
       return await Promise.race([
-        readNetwork(UA.normKey(cityRaw), controller.signal),
-        new Promise(resolve => { deadline = setTimeout(() => resolve(null), LOAD_LIMIT_MS); }),
+        readNetwork(UA.normKey(cityRaw), controller.signal, onProgress),
+        idle,
       ]);
     } catch {
       return null;
