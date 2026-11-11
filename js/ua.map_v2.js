@@ -710,9 +710,7 @@
       candidateIndex: 0,
       activeOrthophotoDef: null,
       fallbackReason: '',
-      fallbackSourceDef: null,
-      orthophotoReady: false,
-      orthophotoErrorCount: 0
+      fallbackSourceDef: null
     };
     if (!state.standardLayer) {
       state.standardLayer = (typeof UA.createMapLayer === 'function' && UA.createMapLayer(_getLayerDefinition('standard-osm')))
@@ -769,8 +767,6 @@
     state.fallbackSourceDef = previous || state.fallbackSourceDef;
     state.orthophotoLayer = null;
     state.activeOrthophotoDef = null;
-    state.orthophotoReady = false;
-    state.orthophotoErrorCount = 0;
     state.fallbackReason = reason || 'Orthofoto-Dienst nicht erreichbar – Fallback aktiv.';
     state.candidateIndex += 1;
     UA.applyMapMode(ctx);
@@ -801,23 +797,24 @@
       }
       state.orthophotoLayer = layer;
       state.activeOrthophotoDef = def;
-      state.orthophotoReady = false;
-      state.orthophotoErrorCount = 0;
       if (typeof layer.on === 'function') {
-        layer.on('load', () => {
-          if (!ctx.baseMapState || ctx.baseMapState.activeOrthophotoDef !== def) return;
-          ctx.baseMapState.orthophotoReady = true;
-          ctx.baseMapState.orthophotoErrorCount = 0;
-          if (!ctx.baseMapState.fallbackReason) _setMapLayerInfo(ctx);
-        });
-        layer.on('tileerror', () => {
-          if (!ctx.baseMapState || ctx.baseMapState.activeOrthophotoDef !== def) return;
-          if (ctx.baseMapState.orthophotoReady) return;
-          ctx.baseMapState.orthophotoErrorCount += 1;
-          if (ctx.baseMapState.orthophotoErrorCount >= 3) {
-            _applyOrthophotoFallback(ctx, `${def.displayName} ist aktuell nicht erreichbar – Fallback aktiviert.`);
+        // Leaflet fires load after both successes and errors and finishes using the map
+        // after the event returns. Evaluate the current viewport before removing a layer.
+        layer.on('load', () => queueMicrotask(() => {
+          if (state.orthophotoLayer !== layer || !ctx.map.hasLayer(layer)) return;
+          const view = ctx.map.getContainer().getBoundingClientRect();
+          const visible = Array.from(layer.getContainer().querySelectorAll('img.leaflet-tile')).filter(tile => {
+            const box = tile.getBoundingClientRect();
+            return Math.min(box.right, view.right) > Math.max(box.left, view.left) &&
+              Math.min(box.bottom, view.bottom) > Math.max(box.top, view.top);
+          });
+          if (!visible.length || visible.some(tile => !tile.complete)) return;
+          if (visible.some(tile => tile.classList.contains('leaflet-tile-loaded'))) {
+            if (!state.fallbackReason) _setMapLayerInfo(ctx);
+            return;
           }
-        });
+          _applyOrthophotoFallback(ctx, `${def.displayName} ist aktuell nicht erreichbar – Fallback aktiviert.`);
+        }));
       }
       return layer;
     }

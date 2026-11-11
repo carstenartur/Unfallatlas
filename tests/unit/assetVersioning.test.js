@@ -62,10 +62,9 @@ describe('Werkbank deployment asset versions', () => {
     expect(registry).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
   });
 
-  test.each([
-    'ua.app_v2', 'ua.map_v2',
-  ])('%s refreshes the discovery and evidence export integration', asset => {
-    expect(html).toContain(`js/${asset}.js?v=2026-11-10-site-discovery"`);
+  test('loads the current discovery app and orthophoto fallback', () => {
+    expect(html).toContain('js/ua.app_v2.js?v=2026-11-10-site-discovery"');
+    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-orthophoto"');
   });
 
   test.each(['ua.state', 'ua.ui'])

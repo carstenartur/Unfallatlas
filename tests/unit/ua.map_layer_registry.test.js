@@ -92,7 +92,6 @@ describe('map layer registry and map modes', () => {
     const ctx = { CITY_RAW: 'Hannover', map, mapMode };
 
     UA.applyMapMode(ctx);
-    ctx.baseMapState.orthophotoLayer.events.load();
 
     expect(map.layers).toEqual([ctx.baseMapState.orthophotoLayer]);
     expect(UA.getActiveMapLayerInfo(ctx)).toMatchObject({
@@ -116,28 +115,93 @@ describe('map layer registry and map modes', () => {
     expect(UA.getActiveMapLayerInfo(ctx).modeLabel).toBe('Analyseansicht');
   });
 
-  test('reports fallback source from latest fallback hop', () => {
-    const map = {
-      layers: [],
-      addLayer(layer) { layer._map = this; if (!this.layers.includes(layer)) this.layers.push(layer); return this; },
-      removeLayer(layer) { this.layers = this.layers.filter(entry => entry !== layer); return this; }
-    };
-    const ctx = { CITY_RAW: 'Bonn', map, mapMode: 'orthophoto', orthophotoOpacity: 0.9 };
+  describe('orthophoto fallback after a visible Leaflet grid finishes', () => {
+    let ctx;
+    let container;
 
-    UA.applyMapMode(ctx);
-    const firstLayer = ctx.baseMapState.orthophotoLayer;
-    firstLayer.events.tileerror();
-    firstLayer.events.tileerror();
-    firstLayer.events.tileerror();
+    function openMap(tileOffsetX, tileOffsetY) {
+      win.L = require('leaflet');
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      Object.defineProperty(container, 'clientWidth', { value: 128 });
+      Object.defineProperty(container, 'clientHeight', { value: 128 });
+      container.getBoundingClientRect = () => ({ left: 0, top: 0, right: 128, bottom: 128 });
+      const map = win.L.map(container, { fadeAnimation: false, zoomAnimation: false });
+      // Inside a tile, on its edge or at its corner, Leaflet requests one, two or four tiles.
+      map.setView(map.unproject([138154 * 256 + tileOffsetX, 86155 * 256 + tileOffsetY], 18), 18);
+      ctx = { CITY_RAW: 'Hannover', map, mapMode: 'orthophoto' };
+      UA.applyMapMode(ctx);
+    }
 
-    const secondLayer = ctx.baseMapState.orthophotoLayer;
-    secondLayer.events.tileerror();
-    secondLayer.events.tileerror();
-    secondLayer.events.tileerror();
+    function activeTiles() {
+      const tiles = [...ctx.baseMapState.orthophotoLayer.getContainer().querySelectorAll('img.leaflet-tile')];
+      // jsdom has no layout engine or image decoder. Leaflet itself dispatches all grid events.
+      for (const tile of tiles) tile.getBoundingClientRect = container.getBoundingClientRect;
+      return tiles;
+    }
 
-    const info = UA.getActiveMapLayerInfo(ctx);
-    expect(info.orthophoto.id).toBe('bkg-orthophoto');
-    expect(info.orthophotoFallbackFrom.id).toBe('nrw-orthophoto');
+    function finishTile(tile, success) {
+      Object.defineProperty(tile, 'complete', { configurable: true, value: true });
+      tile.dispatchEvent(new Event(success ? 'load' : 'error'));
+    }
+
+    afterEach(() => {
+      ctx?.map.remove();
+      container?.remove();
+    });
+
+    test('keeps LGLN when three errors precede a successful tile', async () => {
+      openMap(0, 0);
+      const tiles = activeTiles();
+      expect(tiles).toHaveLength(4);
+      tiles.slice(0, 3).forEach(tile => finishTile(tile, false));
+      expect(UA.getActiveMapLayerInfo(ctx).orthophoto.id).toBe('niedersachsen-orthophoto');
+      finishTile(tiles[3], true);
+      await Promise.resolve();
+      expect(UA.getActiveMapLayerInfo(ctx).orthophoto.id).toBe('niedersachsen-orthophoto');
+    });
+
+    test.each([[128, 1], [0, 2]])('falls back after all tiles fail at x offset %i (%i tiles)', async (x, count) => {
+      openMap(x, 128);
+      const originalLayer = ctx.baseMapState.orthophotoLayer;
+      const tiles = activeTiles();
+      expect(tiles).toHaveLength(count);
+      tiles.forEach(tile => finishTile(tile, false));
+      await Promise.resolve();
+      expect(UA.getActiveMapLayerInfo(ctx).orthophoto.id).toBe('bkg-orthophoto');
+      originalLayer.fire('load');
+      await Promise.resolve();
+      expect(UA.getActiveMapLayerInfo(ctx).orthophoto.id).toBe('bkg-orthophoto');
+      activeTiles().forEach(tile => finishTile(tile, false));
+      await Promise.resolve();
+      expect(UA.getActiveMapLayerInfo(ctx)).toMatchObject({
+        orthophoto: { id: 'esri-world-imagery' }, orthophotoFallbackFrom: { id: 'bkg-orthophoto' }
+      });
+    });
+
+    test('ignores a completed failure after switching back to the standard map', async () => {
+      openMap(128, 128);
+      finishTile(activeTiles()[0], false);
+      ctx.mapMode = 'standard';
+      UA.applyMapMode(ctx);
+      await Promise.resolve();
+      expect(UA.getActiveMapLayerInfo(ctx).mode).toBe('standard');
+      ctx.mapMode = 'orthophoto';
+      UA.applyMapMode(ctx);
+      expect(UA.getActiveMapLayerInfo(ctx).orthophoto.id).toBe('niedersachsen-orthophoto');
+    });
+
+    test('handles a later grid outage after a previously successful viewport', async () => {
+      openMap(128, 128);
+      finishTile(activeTiles()[0], true);
+      await Promise.resolve();
+      // Move beyond Leaflet's cached ring without animation, then complete the new grid.
+      ctx.map.panBy([4096, 0], { animate: false });
+      activeTiles().filter(tile => !tile.classList.contains('leaflet-tile-loaded'))
+        .forEach(tile => finishTile(tile, false));
+      await Promise.resolve();
+      expect(UA.getActiveMapLayerInfo(ctx).orthophoto.id).toBe('bkg-orthophoto');
+    });
   });
 
   test('uses standard mode label when orthophoto cannot be resolved', () => {
