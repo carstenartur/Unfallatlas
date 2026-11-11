@@ -12,6 +12,7 @@ jest.mock('https');
 const https = require('https');
 const {
   callStructuredGemini,
+  callStructuredGeminiWithMetadata,
   RetryableError,
   FatalError,
   RateLimitError
@@ -416,4 +417,16 @@ describe('callStructuredGemini – fatal errors not retried', () => {
     await expect(callStructuredGemini({ user: 'hello' })).rejects.toBeInstanceOf(FatalError);
     expect(https.request).not.toHaveBeenCalled();
   });
+});
+
+test('the evidence call preserves the version returned by Gemini, including a missing version', async () => {
+  const response = JSON.parse(makeGeminiResponse('{"fact":37}'));
+  mockHttpsRequest([
+    { statusCode: 200, body: JSON.stringify({ ...response, modelVersion: 'served-001' }) },
+    { statusCode: 200, body: JSON.stringify(response) }
+  ]);
+  await expect(callStructuredGeminiWithMetadata({ user: 'facts' })).resolves.toMatchObject({
+    text: '{"fact":37}', model: 'gemini-2.0-flash', modelVersion: 'served-001'
+  });
+  await expect(callStructuredGeminiWithMetadata({ user: 'facts' })).resolves.toMatchObject({ modelVersion: null });
 });

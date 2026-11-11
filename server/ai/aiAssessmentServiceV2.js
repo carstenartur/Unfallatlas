@@ -95,14 +95,7 @@ async function runAssessmentV2(args) {
     throw new NotConfiguredError();
   }
 
-  const prompt = buildPrompt(aiInput, mode);
-  let system = prompt.system;
-  let user = prompt.user;
-  if (mode === 'proposal-brief') {
-    const valueAddPrompt = buildProposalValueAddPrompt(aiInput);
-    system += '\n\nDer nachfolgende Mehrwertvertrag ist verbindlich. Fehlende Pflichtteile müssen als blocked ausgewiesen werden.';
-    user += `\n\n${valueAddPrompt}`;
-  }
+  const { system, user } = buildProviderPrompt(aiInput, mode);
 
   const responseSchema = toGeminiSchema(
     mode === 'proposal-brief' ? schemaProposalV1 : schemaAssessmentV2
@@ -170,6 +163,15 @@ async function runAssessmentV2(args) {
 
   cache.set(cacheKey, parsed);
   return { result: parsed, source, cacheKey };
+}
+
+function buildProviderPrompt(aiInput, mode) {
+  const prompt = buildPrompt(aiInput, mode);
+  if (mode === 'proposal-brief') {
+    prompt.system += '\n\nDer nachfolgende Mehrwertvertrag ist verbindlich. Fehlende Pflichtteile müssen als blocked ausgewiesen werden.';
+    prompt.user += '\n\n' + buildProposalValueAddPrompt(aiInput);
+  }
+  return prompt;
 }
 
 function isAvailable() {
@@ -779,6 +781,7 @@ function tagToText(tag) {
 
 module.exports = {
   runAssessmentV2,
+  buildProviderPrompt,
   isAvailable,
   buildAiInputV2,
   buildDeterministicFallback,

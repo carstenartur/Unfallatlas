@@ -14,11 +14,13 @@ test('model evaluation stays blocked without a bound actual provider receipt or 
 });
 
 test('matching receipt binding is distinguishable from missing evidence and cannot upgrade the blocked case', () => {
-  const binding={inputSha256:'a',promptSha256:'b'};
-  const receipt={provider:'gemini',model:'unit-fixture',modelVersion:'unit-fixture-v1',executedAt:'2026-11-08T00:00:00Z',...binding};
+  const binding={inputSha256:'a'.repeat(64),promptSha256:'b'.repeat(64),schemaSha256:'c'.repeat(64),rubricSha256:'d'.repeat(64)};
+  const receipt={provider:'gemini',model:'unit-fixture',modelVersion:'unit-fixture-v1',executedAt:'2026-11-08T00:00:00Z',responseSha256:require('node:crypto').createHash('sha256').update('{}\n').digest('hex'),...binding};
   const result=qa.reviewModelResponse({},receipt,binding);
   expect(result.providerReceiptVerified).toBe(true);
   expect(result.schemaValidation.valid).toBe(false);
+  expect(qa.reviewModelResponse({altered:true},receipt,binding).providerReceiptVerified).toBe(false);
+  expect(qa.reviewModelResponse({}, {...receipt,schemaSha256:'0'.repeat(64)}, binding).providerReceiptVerified).toBe(false);
   expect(result.status).toBe('blocked');
 });
 
@@ -34,4 +36,31 @@ test('actual production committee configuration survives the server model-input 
     expect(buildAiInputV2({meta:{gremium:{gremium:name,typ:type}}},{},[]).meta.gremium).toEqual({name,type});
   }
   expect(buildAiInputV2({meta:{gremium:{gremium:null,typ:'Bezirksvertretung'}}},{},[]).meta.gremium.name).toBe('');
+});
+
+test('live QA saves the original provider response and rejects an unsupported ready verdict', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'ua-live-model-'));
+  const service = require('../../server/ai/aiAssessmentServiceV2');
+  const provider = require('../../server/ai/providers/geminiStructuredProvider');
+  const response = '{"filingReadinessVerdict":{"status":"ready"}}';
+  jest.spyOn(service, 'isAvailable').mockReturnValue(true);
+  jest.spyOn(service, 'activeProviderName').mockReturnValue('gemini');
+  const call = jest.spyOn(provider, 'callStructuredGeminiWithMetadata').mockResolvedValue({
+    text: response, model: 'test', modelVersion: 'test-001'
+  });
+  const binding = Object.fromEntries(['inputSha256','promptSha256','schemaSha256','rubricSha256'].map(key => [key,'a'.repeat(64)]));
+  try {
+    await expect(qa.runBoundModelReview({system:'s',user:'u'},binding,dir)).rejects.toThrow(/failed the blocked case/);
+    expect(call).toHaveBeenCalledWith({ system:'s', user:'u', responseSchema: expect.any(Object) });
+    const [name] = fs.readdirSync(dir);
+    const read = file => fs.readFileSync(path.join(dir, name, file), 'utf8');
+    expect(read('raw-response.txt')).toBe(response);
+    expect(JSON.parse(read('receipt.json')).modelVersion).toBe('test-001');
+    expect(JSON.parse(read('review.json'))).toMatchObject({ providerReceiptVerified:true, blockerCasePassed:false });
+  } finally {
+    jest.restoreAllMocks();
+    fs.rmSync(dir,{ recursive:true, force:true });
+  }
 });

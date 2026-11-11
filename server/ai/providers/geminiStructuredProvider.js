@@ -73,7 +73,13 @@ class RateLimitError extends RetryableError {
  * @param {number} [args.maxRetries]        – Standard aus Env (AI_ASSESSMENT_MAX_RETRIES)
  * @returns {Promise<string>}                 – roher JSON-String
  */
-async function callStructuredGemini({ system, user, responseSchema, temperature, maxRetries } = {}) {
+async function callStructuredGemini(options) {
+  const response = await callStructuredGeminiWithMetadata(options);
+  return response.text;
+}
+
+/** Retains the serving model version from the response for reproducible assessments. */
+async function callStructuredGeminiWithMetadata({ system, user, responseSchema, temperature, maxRetries } = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new FatalError('GEMINI_API_KEY ist nicht konfiguriert.', 0);
@@ -120,7 +126,7 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
         const reason = parsed?.candidates?.[0]?.finishReason || 'unknown';
         throw new RetryableError(`Gemini lieferte keine verwertbare Antwort (finishReason: ${reason}).`);
       }
-      return text;
+      return { text, model, modelVersion: parsed.modelVersion || null };
     } catch (err) {
       if (!err || !err.retryable) {
         throw err;
@@ -250,6 +256,7 @@ function parseRetryAfterMs(headers, bodyText) {
 }
 
 module.exports = {
+  callStructuredGeminiWithMetadata,
   callStructuredGemini,
   RetryableError,
   FatalError,
