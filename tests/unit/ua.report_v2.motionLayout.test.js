@@ -237,7 +237,10 @@ describe('Word annex layout', () => {
     const widths = [...table.matchAll(/<w:gridCol w:w="(\d+)"\s*\/>/g)].map(match => Number(match[1]));
     const [label, fatal, serious, slight, total] = widths;
     expect(widths).toHaveLength(5);
-    expect(label).toBeGreaterThan(widths.reduce((sum, n) => sum + n, 0) * 0.44);
+    const tableWidth = widths.reduce((sum, n) => sum + n, 0);
+    expect(label).toBeGreaterThan(tableWidth * 0.44);
+    expect(fatal).toBeGreaterThanOrEqual(tableWidth * 0.115);
+    expect(total).toBeGreaterThanOrEqual(tableWidth * 0.10);
     expect(Math.min(serious, slight)).toBeGreaterThan(Math.max(fatal, total));
   });
 

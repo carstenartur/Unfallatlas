@@ -2493,7 +2493,7 @@
           ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
           ctRows,
           ctHighlights,
-          { colWeights: [48, 10, 17, 16, 9] }
+          { colWeights: [45, 12, 17, 16, 10] }
         ));
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
