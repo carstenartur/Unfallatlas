@@ -141,3 +141,57 @@ test('report capture uses native raster zoom and leaves live accident layers out
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
   expect(pageErrors).toEqual([]);
 });
+
+test('a tainted numbered raster falls back to a labelled schematic PNG', async ({ page }) => {
+  const foreignTile = 'https://tile-fixture.invalid/uncorsed.png';
+  await page.route(foreignTile, route => route.fulfill({ contentType: 'image/png', body: RED_TILE }));
+  await page.goto('/');
+  const origin = new URL(page.url()).origin;
+  await page.setContent('<!doctype html><div id="map" style="width:400px;height:260px"></div>');
+  for (const file of ['vendor/leaflet/leaflet.js', 'js/ua.report_v2.js', 'js/ua.evidence_cohort.js']) {
+    await page.addScriptTag({ url: `${origin}/${file}` });
+  }
+
+  const result = await page.evaluate(async source => {
+    const map = L.map('map', { preferCanvas: true }).setView([50.73, 7.10], 17);
+    const ctx = { map, documentRasterAvailable: true };
+    const raster = document.createElement('canvas');
+    raster.width = 400;
+    raster.height = 260;
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    raster.getContext('2d').drawImage(image, 0, 0);
+    let denied;
+    try { raster.toDataURL(); } catch (error) { denied = error.name; }
+    UA.captureExportMapImage = async () => raster;
+    const row = { displayId: 'A017', lat: 50.73, lon: 7.10 };
+    const options = {
+      exportBounds: { south: 50.729, north: 50.731, west: 7.099, east: 7.101 },
+      exportPoints: [row],
+      evidenceRows: [row],
+    };
+    const recorded = [];
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+      if (this.canvas !== raster) recorded.push(text);
+      return fillText.call(this, text, ...args);
+    };
+    try {
+      const { image: png, schematic } = await UA.captureDocumentMap(ctx, options);
+      const decoded = new Image();
+      decoded.src = png;
+      await decoded.decode();
+      return { denied, schematic, recorded, width: decoded.width, height: decoded.height,
+        rasterAvailable: ctx.documentRasterAvailable, released: raster.width === 0 && raster.height === 0 };
+    } finally {
+      CanvasRenderingContext2D.prototype.fillText = fillText;
+      map.remove();
+    }
+  }, foreignTile);
+
+  expect(result).toMatchObject({ denied: 'SecurityError', schematic: true, rasterAvailable: false,
+    width: 400, height: 260, released: true });
+  expect(result.recorded).toContain('Schematische Unfallkarte ohne Basiskarte');
+  expect(result.recorded).toContain('A017');
+});

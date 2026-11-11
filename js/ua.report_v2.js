@@ -854,6 +854,10 @@
               }
 
               try {
+                if (options.returnCanvasForLabels) {
+                  finish(null, canvas);
+                  return;
+                }
                 // Convert canvas to base64 data URL (PNG format preserves transparency)
                 const dataUrl = canvas.toDataURL("image/png");
 
@@ -917,9 +921,11 @@
           : undefined;
         token = UA.beginExportMapMode(ctx, beginOpts);
       }
-      // A short wait gives Leaflet a tick to lay out the overlay layer
-      // before leaflet-image walks the layer list.
-      await new Promise(r => setTimeout(r, 50));
+      // Isolated document maps await tile, overlay and animation-frame readiness
+      // in captureMapImage. Legacy/live map captures also allow a layout tick.
+      if (ctx.documentRasterAvailable === undefined || typeof UA.waitForMapFullyRendered !== "function") {
+        await new Promise(r => setTimeout(r, 50));
+      }
       // leaflet-image ignores the canvas CSS opacity that beginExportMapMode
       // sets, so we additionally clamp the baked heatmap opacity used by
       // captureMapImage to the same ≤0.35 ceiling. Cloned to avoid mutating
@@ -1036,7 +1042,7 @@
     drawing.font = "bold 17px sans-serif";
     drawing.textAlign = "right";
     drawing.fillText("N ↑", size.x - 14, 24);
-    return canvas.toDataURL("image/png");
+    return canvas;
   }
 
   UA.captureDocumentMap = async function captureDocumentMap(ctx, options = {}) {
@@ -1047,12 +1053,31 @@
       [[bounds.south, bounds.west], [bounds.north, bounds.east]],
       { color: "#2563eb", weight: 2, fill: false, interactive: false }
     ).addTo(map) : null;
+    const labelRows = options.evidenceRows;
+    async function finishMap(rendered) {
+      const canvas = typeof rendered?.getContext === "function" ? rendered : null;
+      try {
+        const png = labelRows?.length
+          ? await UA.EvidenceCohort.annotateMapImage(window, ctx, rendered, labelRows)
+          : canvas ? canvas.toDataURL("image/png") : rendered;
+        if (typeof png !== "string" || !png.startsWith("data:image/png;base64,") || png.length === "data:image/png;base64,".length) {
+          throw new Error("Invalid map image data URL generated");
+        }
+        return png;
+      } finally {
+        // Each figure owns its bitmap. Free it before the next map, including
+        // after a tainted raster rejects PNG serialization.
+        if (canvas) canvas.width = canvas.height = 0;
+      }
+    }
     let image;
     let schematic = false;
     try {
       if (ctx.documentRasterAvailable !== false) {
         try {
-          image = await UA.captureExportMapImage(ctx, options);
+          const captureOptions = labelRows?.length ? { ...options, returnCanvasForLabels: true } : options;
+          const rendered = await UA.captureExportMapImage(ctx, captureOptions);
+          image = await finishMap(rendered);
         } catch (error) {
           if (!isolated) throw error;
           console.warn("Rasterkartenaufnahme fehlgeschlagen; schematische Karte wird erzeugt:", error);
@@ -1061,11 +1086,8 @@
         }
       }
       if (!image) {
-        image = drawSchematicMap(ctx, options.exportPoints || [], bounds);
+        image = await finishMap(drawSchematicMap(ctx, options.exportPoints || [], bounds));
         schematic = true;
-      }
-      if (options.evidenceRows?.length) {
-        image = await UA.EvidenceCohort.annotateMapImage(window, ctx, image, options.evidenceRows);
       }
       const center = map.getCenter?.();
       return { image, schematic, center: center && { lat: center.lat, lon: center.lng }, zoom: map.getZoom?.() };

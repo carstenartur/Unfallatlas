@@ -1587,69 +1587,71 @@
     return canvas.toDataURL('image/png');
   }
 
-  function annotateMapImage(rootValue, ctx, dataUrl, rows) {
-    return new Promise((resolve, reject) => {
+  async function annotateMapImage(rootValue, ctx, source, rows) {
+    // A regular capture already owns its finished canvas. Older capture
+    // providers can still supply a PNG instead.
+    let canvas = source;
+    if (typeof source === 'string') {
       const image = new rootValue.Image();
-      image.onload = () => {
-        try {
-          const canvas = rootValue.document.createElement('canvas');
-          canvas.width = image.naturalWidth || image.width;
-          canvas.height = image.naturalHeight || image.height;
-          const context = canvas.getContext('2d');
-          context.drawImage(image, 0, 0);
-          const mapSize = ctx?.map?.getSize?.() || { x: canvas.width, y: canvas.height };
-          const sx = canvas.width / Math.max(1, Number(mapSize.x) || canvas.width);
-          const sy = canvas.height / Math.max(1, Number(mapSize.y) || canvas.height);
-          context.font = 'bold 17px sans-serif';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          const lanes = [[], []];
-          for (const row of rows) {
-            const point = ctx.map.latLngToContainerPoint([row.lat, row.lon]);
-            const x = point.x * sx;
-            lanes[x < canvas.width / 2 ? 0 : 1].push({
-              x, y: point.y * sy, row, width: context.measureText(row.displayId).width + 16
-            });
-          }
-          lanes.forEach((labels, side) => {
-            labels.sort((a, b) => a.y - b.y || a.x - b.x || a.row.displayId.localeCompare(b.row.displayId));
-            const top = 44;
-            const bottom = canvas.height - 25;
-            const spacing = Math.min(30, (bottom - top) / Math.max(1, labels.length - 1));
-            let nextY = top;
-            for (const [index, label] of labels.entries()) {
-              label.boxX = side === 0 ? 12 + label.width / 2 : canvas.width - 12 - label.width / 2;
-              label.boxY = Math.max(nextY, Math.min(label.y, bottom - (labels.length - index - 1) * spacing));
-              nextY = label.boxY + spacing;
-            }
-          });
-          const labels = lanes.flat();
-          for (const label of labels) {
-            context.beginPath();
-            context.moveTo(label.x, label.y);
-            context.lineTo(label.boxX, label.boxY);
-            context.strokeStyle = '#fff';
-            context.lineWidth = 3;
-            context.stroke();
-            context.strokeStyle = '#374151';
-            context.lineWidth = 1;
-            context.stroke();
-          }
-          for (const { boxX, boxY, width, row } of labels) {
-            context.fillStyle = row.discoveryMatch ? '#fff2a8' : '#fff';
-            context.strokeStyle = '#374151';
-            context.lineWidth = 1.5;
-            context.fillRect(boxX - width / 2, boxY - 11, width, 22);
-            context.strokeRect(boxX - width / 2, boxY - 11, width, 22);
-            context.fillStyle = '#111827';
-            context.fillText(row.displayId, boxX, boxY);
-          }
-          resolve(canvas.toDataURL('image/png'));
-        } catch (error) { reject(error); }
-      };
-      image.onerror = () => reject(new Error('Die nummerierte Unfallkarte konnte nicht gelesen werden.'));
-      image.src = dataUrl;
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error('Die nummerierte Unfallkarte konnte nicht gelesen werden.'));
+        image.src = source;
+      });
+      canvas = rootValue.document.createElement('canvas');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      canvas.getContext('2d').drawImage(image, 0, 0);
+    }
+    const context = canvas.getContext('2d');
+    const mapSize = ctx?.map?.getSize?.() || { x: canvas.width, y: canvas.height };
+    const sx = canvas.width / Math.max(1, Number(mapSize.x) || canvas.width);
+    const sy = canvas.height / Math.max(1, Number(mapSize.y) || canvas.height);
+    context.font = 'bold 17px sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    const lanes = [[], []];
+    for (const row of rows) {
+      const point = ctx.map.latLngToContainerPoint([row.lat, row.lon]);
+      const x = point.x * sx;
+      lanes[x < canvas.width / 2 ? 0 : 1].push({
+        x, y: point.y * sy, row, width: context.measureText(row.displayId).width + 16
+      });
+    }
+    lanes.forEach((labels, side) => {
+      labels.sort((a, b) => a.y - b.y || a.x - b.x || a.row.displayId.localeCompare(b.row.displayId));
+      const top = 44;
+      const bottom = canvas.height - 25;
+      const spacing = Math.min(30, (bottom - top) / Math.max(1, labels.length - 1));
+      let nextY = top;
+      for (const [index, label] of labels.entries()) {
+        label.boxX = side === 0 ? 12 + label.width / 2 : canvas.width - 12 - label.width / 2;
+        label.boxY = Math.max(nextY, Math.min(label.y, bottom - (labels.length - index - 1) * spacing));
+        nextY = label.boxY + spacing;
+      }
     });
+    const labels = lanes.flat();
+    for (const label of labels) {
+      context.beginPath();
+      context.moveTo(label.x, label.y);
+      context.lineTo(label.boxX, label.boxY);
+      context.strokeStyle = '#fff';
+      context.lineWidth = 3;
+      context.stroke();
+      context.strokeStyle = '#374151';
+      context.lineWidth = 1;
+      context.stroke();
+    }
+    for (const { boxX, boxY, width, row } of labels) {
+      context.fillStyle = row.discoveryMatch ? '#fff2a8' : '#fff';
+      context.strokeStyle = '#374151';
+      context.lineWidth = 1.5;
+      context.fillRect(boxX - width / 2, boxY - 11, width, 22);
+      context.strokeRect(boxX - width / 2, boxY - 11, width, 22);
+      context.fillStyle = '#111827';
+      context.fillText(row.displayId, boxX, boxY);
+    }
+    return canvas.toDataURL('image/png');
   }
 
   function removeLiveLabelLayer(request) {

@@ -83,7 +83,12 @@ async function readWordDocument(bytes) {
     title: match[0].match(/\btitle="([^"]*)"/)?.[1],
     description: match[0].match(/\bdescr="([^"]*)"/)?.[1] || '',
   }));
-  return { text, links, drawings, title: core.match(/<dc:title>([^<]*)<\/dc:title>/)?.[1] };
+  const tableMapRefs = [...xml.matchAll(/<w:tr\b[^>]*>([\s\S]*?)<\/w:tr>/g)].flatMap(([, row]) => {
+    const id = row.match(/<w:t\b[^>]*>(A\d{3})<\/w:t>/)?.[1];
+    const ref = row.match(/<w:hyperlink\b[^>]*\bw:anchor="evidence_map_(K\d+)"/)?.[1];
+    return id ? [[id, ref]] : [];
+  });
+  return { text, links, drawings, tableMapRefs, title: core.match(/<dc:title>([^<]*)<\/dc:title>/)?.[1] };
 }
 
 test('a Hannover network search carries its actual bicycle/car turning crashes and council record into the motion, PDF and Word', async ({ page, baseURL }, testInfo) => {
@@ -195,12 +200,16 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
       expect(text).toMatch(/umfasst\s+20\.379\s+Unfälle/);
       expect(text).toContain('17 Unfälle an 12 veröffentlichten Unfallorten');
       const sheets = result.drawings.filter(image => /^Veröffentlichte Unfallorte auf K\d+$/.test(image.title));
-      expect(sheets.map(sheet => sheet.title)).toEqual(['Veröffentlichte Unfallorte auf K1', 'Veröffentlichte Unfallorte auf K2']);
-      expect(sheets[0].description.match(/A\d{3}/g)).toHaveLength(17);
-      expect(sheets[1].description.match(/A\d{3}/g)).toHaveLength(31);
-      const allIds = sheets.flatMap(image => image.description.match(/A\d{3}/g));
-      expect(allIds).toHaveLength(48);
-      expect(new Set(allIds).size).toBe(48);
+      const refs = ['K1', 'K2', 'K3', 'K4'];
+      expect(sheets.map(sheet => sheet.title)).toEqual(refs.map(ref => 'Veröffentlichte Unfallorte auf ' + ref));
+      const idsBySheet = sheets.map(sheet => sheet.description.match(/A\d{3}/g));
+      expect(idsBySheet.map(ids => ids.length)).toEqual([17, 13, 12, 6]);
+      // A006 and A046 are distinct close coordinates. Both belong on the same enlarged sheet.
+      expect(idsBySheet[3]).toEqual(expect.arrayContaining(['A006', 'A046']));
+      const expectedIds = Array.from({ length: 48 }, (_, i) => 'A' + String(i + 1).padStart(3, '0'));
+      expect(idsBySheet.flat().sort()).toEqual(expectedIds);
+      const mapRefs = idsBySheet.flatMap((ids, i) => ids.map(id => [id, refs[i]]));
+      expect(result.tableMapRefs).toEqual(mapRefs.sort(([a], [b]) => a.localeCompare(b)));
       expect(text).toContain('Gleiche Koordinaten');
     }
   }
