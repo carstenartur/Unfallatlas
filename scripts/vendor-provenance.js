@@ -269,6 +269,7 @@ function collectFontEvidence(repoRoot, outputRoot) {
   if (!pdfmakeMetadata.version) throw new Error('[vendor-provenance] Missing installed pdfmake version');
   const pdfmakePurl = npmPurl('pdfmake', pdfmakeMetadata.version);
   const vfs = require(path.join(repoRoot, 'node_modules/pdfmake/build/vfs_fonts.js'));
+  const release = JSON.parse(fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/roboto-release.json'), 'utf8'));
   const names = Object.keys(vfs).sort();
   if (names.length !== 4 || names.some(name => !/^Roboto-(?:Regular|Medium|Italic|MediumItalic)\.ttf$/.test(name))) {
     throw new Error(`[vendor-provenance] Unexpected pdfmake font set: ${names.join(', ')}`);
@@ -297,14 +298,22 @@ function collectFontEvidence(repoRoot, outputRoot) {
     if (decodedSha256 !== sourceSha256) {
       throw new Error(`[vendor-provenance] ${name} differs between vfs_fonts.js and the supplied TTF`);
     }
+    const upstream = release.files[name];
+    const nameTable = parseTrueTypeNameTable(decoded);
+    if (!upstream || decodedSha256 !== upstream.sha256 || nameTable.postscriptName !== upstream.postscriptName ||
+        nameTable.version !== upstream.version) {
+      throw new Error(`[vendor-provenance] ${name} differs from the pinned Roboto typeface release`);
+    }
     return {
       name,
+      upstreamRelease: { version: release.release, archiveUrl: release.archiveUrl,
+        archiveSha256: release.archiveSha256, path: upstream.path },
       bytes: decoded.length,
       decodedSha256,
       sourceSha256,
       decodedFrom: 'vendor/export/pdfmake-fonts.js',
       suppliedBy: pdfmakePurl,
-      nameTable: parseTrueTypeNameTable(decoded),
+      nameTable,
       licenseExpression: 'OFL-1.1',
       licenseTexts: [fontLicense],
       attestation: null,

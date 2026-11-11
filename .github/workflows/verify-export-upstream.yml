@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/verify-export-upstream.yml'
+      - 'vendor/docx-build/**'
       - 'vendor/pdfmake-build/**'
       - 'vendor/build-lock.recipe.json'
       - 'scripts/verify-*-upstream.sh'

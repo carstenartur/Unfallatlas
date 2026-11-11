@@ -204,6 +204,20 @@ describe('public Pages distribution profile', () => {
     }
   });
 
+  test('rejects an upstream font release path that names another variant', () => {
+    const file = 'vendor/third-party-notices.json';
+    const original = fs.readFileSync(path.join(OUTPUT, file));
+    const notice = JSON.parse(original);
+    notice.fontEvidence[0].upstreamRelease.path = 'android/static/' + notice.fontEvidence[0].name;
+    writeJson(file, notice);
+    try {
+      expect(() => validatePublicPagesProfile({ root: ROOT, site: OUTPUT_RELATIVE }))
+        .toThrow(/original Roboto release evidence drift/);
+    } finally {
+      fs.writeFileSync(path.join(OUTPUT, file), original);
+    }
+  });
+
   test('rejects an undeclared or hidden provenance gap', () => {
     const noticePath = 'vendor/third-party-notices.json';
     const notice = readJson(noticePath);
