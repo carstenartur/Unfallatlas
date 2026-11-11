@@ -28,6 +28,8 @@ function buildLiveSpec(source) {
 const LIVE_BASEMAP_PROVENANCE = new WeakMap();
 const LIVE_APPLICATION_ORIGIN = new URL(process.env.BASE_URL || 'http://localhost:8000').origin;
 const LIVE_TILE_REQUEST_TIMEOUT_MS = 8000;
+// Official WMS orthophotos are rendered on request and can take over eight seconds.
+const LIVE_ORTHOPHOTO_REQUEST_TIMEOUT_MS = 15000;
 const LIVE_TILE_PROVENANCE_TIMEOUT_MS = 30000;
 const LIVE_TILE_STABLE_SAMPLES = 3;
 const LIVE_TILE_SAMPLE_INTERVAL_MS = 250;
@@ -351,7 +353,7 @@ async function assertLiveBasemapProvenance(page, options = {}) {
 async function proxyLiveBasemapRequest(route, kind) {
   try {
     const response = await route.fetch({
-      timeout: LIVE_TILE_REQUEST_TIMEOUT_MS,
+      timeout: kind === 'orthophoto' ? LIVE_ORTHOPHOTO_REQUEST_TIMEOUT_MS : LIVE_TILE_REQUEST_TIMEOUT_MS,
       maxRetries: 1
     });
     const contentType = String(response.headers()['content-type'] || '').toLowerCase();
