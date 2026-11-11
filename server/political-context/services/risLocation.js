@@ -17,6 +17,7 @@ const MULTIPLE_LOCATIONS = /[\/;&]|\b(?:und|oder|sowie|bzw)\b/u;
 const LIMITED_SCOPE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll|zwischen|bis|bereich|\p{L}*abschnitt(?:e|en|es|s)?|kreuzung(?:en)?|einmündung|abzweig|ecke|höhe|gegenüber|hausnummern?|unterführung(?:en)?|fussgängerzone(?:n)?)\b/u;
 const JUNCTION_CONTEXT_ONLY = /\b(?:umfeld|umgebung|umkreis|nähe|nahe|nördlich|südlich|östlich|westlich|nordöstlich|nordwestlich|südöstlich|südwestlich|zwischen|abschnitt(?:s|es|e|en)?|ausserhalb|anstatt|statt|nicht|bereich\s+(?:um|zwischen))\b/u;
 const MEETING_CUE = /\b(?:sitzung(?:en|sort|sraum)?|einladung|tagesordnung|niederschrift|protokoll)\b/u;
+const SIM_MEETING_SUFFIX = /\s+sitzung des stadtbezirksrates [\p{L}\p{M} -]+ am \d{2}\.\d{2}\.\d{4}\s+top\s+\d+(?:\.\d+)*\.?$/u;
 const COMPARISON_CUE = /\b(?:wie (?:bereits|auch|etwa)|beispielsweise|zum beispiel|im vergleich zu|als vorbild)\b/u;
 const JUNCTION_CUE = /\b(?:kreuzung(?:en)?|einmündung(?:en)?|ecke(?:n)?|knotenpunkt(?:e|en)?)\s+(?:(?:der|von)\s+)?$/u;
 const ADDRESS_NUMBER = String.raw`\d{1,4}(?:[a-z]{1,2}|\s+[a-z](?!\p{L}))?`;
@@ -117,7 +118,10 @@ function indexPublicFacilities(gazetteer) {
   const facilities = gazetteer.publicFacilities;
   if (!facilities?.entries?.length || !facilities.attribution) return result;
   const streets = new Map(gazetteer.entries.filter(entry => entry.kind === 'street').map(entry => [entry.name, entry]));
-  for (const facility of facilities.entries) {
+  const schoolRegister = facilities.schoolBuildings;
+  const schools = (schoolRegister?.entries ?? []).map(school => ({ ...school, schoolBuilding: true,
+    from: school.from ?? schoolRegister.from, attribution: schoolRegister.attribution }));
+  for (const facility of [...facilities.entries, ...schools]) {
     const street = streets.get(facility.street);
     if (!street || !facility.name || !facility.houseNumber) continue;
     const number = normalize(facility.houseNumber).replace(/\s+/gu, '');
@@ -135,7 +139,8 @@ function indexPublicFacilities(gazetteer) {
     const found = location('place', facility.name + ' (' + address + ')', { type: 'Point', coordinates }, attribution);
     const entries = result.get(street.name) || [];
     entries.push({ preceding, following, address, number, from: facility.from, found,
-      subjectName: facility.namedSubject ? normalize(facility.name) : null });
+      schoolBuilding: facility.schoolBuilding === true,
+      subjectName: facility.namedSubject || facility.schoolBuilding ? normalize(facility.name) : null });
     result.set(street.name, entries);
   }
   return result;
@@ -431,6 +436,7 @@ function measurePublicFacilities(subject, streets, facilities, city, date, used)
     if (!address?.postal && HOUSE_NUMBER_CUE.test(after)) continue;
     if (!address && FACILITY_STREET_CONTINUATION.test(after)) continue;
     const matched = candidates.filter(facility => {
+      if (facility.schoolBuilding) return false;
       if (address && address.items[0].key !== facility.number) return false;
       if (!address && facility.from && (!/^\d{4}-\d{2}-\d{2}$/u.test(date) || date < facility.from)) return false;
       const leading = facility.preceding.exec(before);
@@ -608,6 +614,42 @@ function regionalPlatformProject(title, register, recordId) {
   return location('place', label, { type: 'Point', coordinates: site.coordinates }, [{ attribution }]);
 }
 
+// A transport title can name a station or abbreviate several different
+// intersections. Use the project-specific excerpt from the body, including
+// every named road arm, and require a unique shared official road node.
+function reviewedTrafficControls(record, gazetteer, byFirstWord) {
+  const register = gazetteer.trafficControlProjects;
+  if (record.source !== 'hannover-sim' || gazetteer.city !== 'hannover' || register?.source !== record.source) return [];
+  const project = register.records?.[record.id];
+  if (!project || typeof record.title !== 'string') return [];
+  const currentTitle = measureSubject(record.title).replace(SIM_MEETING_SUFFIX, '');
+  if (currentTitle !== measureSubject(project.title).replace(SIM_MEETING_SUFFIX, '')) return [];
+  return project.sites.flatMap(site => {
+    const streets = site.streets.map(label => {
+      const name = normalize(label);
+      return byFirstWord.get(name.match(WORD)?.[0])?.get(name);
+    });
+    if (streets.some(street => street?.kind !== 'street') || new Set(streets).size !== streets.length) return [];
+    const point = streetJunction(...streets);
+    const found = location('junction', site.streets.join(' / '), point && { type: 'Point', coordinates: point }, streets);
+    return [{ found, evidence: { source: 'document', text: site.text } }];
+  });
+}
+
+// These historic building proposals identify the childcare site by its full
+// address. The reviewed street key also distinguishes the two Waldstraße 11
+// addresses in the city, using the district from the original proposal.
+function reviewedDaycareProject(record, title, gazetteer) {
+  if (record.source !== 'hannover-sim' || gazetteer.city !== 'hannover' || !/kita|kindertagesstätte/iu.test(title)) return null;
+  const site = gazetteer.publicFacilities?.daycareProjects?.find(project => project.recordId === record.id && project.title === title);
+  const coordinates = site && gazetteer.addresses?.[site.streetKey]?.[site.houseNumber];
+  if (!isPosition(coordinates) || !gazetteer.addressAttribution) return null;
+  const address = site.street + ' ' + site.houseNumber + (site.district ? ' (' + site.district + ')' : '');
+  return location('place', 'Kindertagesstätte ' + address, { type: 'Point', coordinates }, [
+    { attribution: 'Landeshauptstadt Hannover, Beschlussvorlage zur Kita-Sanierung' }, { attribution: gazetteer.addressAttribution },
+  ]);
+}
+
 function parkingProposalStreet(title, byFirstWord) {
   // The SIM series explicitly labels the street after this heading. Preserve
   // an independently evidenced address or section in preference to its line.
@@ -618,10 +660,27 @@ function parkingProposalStreet(title, byFirstWord) {
   return entry?.kind === 'street' ? { entry, geometry: entry.geometry } : null;
 }
 
+// Only a repair to the school building can take its campus address from the
+// historical school register. A sports field, temporary site or new campus
+// may occupy a different parcel.
+function schoolBuildingTopic(title) {
+  if (!/grundschule/iu.test(title)) return null;
+  const subject = measureSubject(title).replace(SIM_MEETING_SUFFIX, '')
+    .replace(/^antwort der verwaltung auf die anfrage(?: der fraktion bündnis 90\/die grünen)?\s+/u, '');
+  const renovation = /^(?:(?:erste|zweite) anfrage zur )?sanierung und erweiterung der (grundschule [^,]+)$/u.exec(subject);
+  if (renovation) return renovation[1];
+  const caption = /^(grundschule [^,]+), (.+)$/u.exec(subject);
+  if (!caption) return null;
+  const maintenance = /^(?:brandschutz(?:massnahmen(?:, verbesserung der flucht- und rettungswege)?| - flucht- und rettungswege)|sicherheitsbeleuchtung|fenstererneuerung|deckenerneuerung schulgebäude|unterdeckenaustausch im treppenhaus und flur|teilsanierung(?: fachunterrichtstrakt| und herstellen der barrierefreiheit)?|installation eines aussenliegenden sonnenschutzes|sanierung des dachs und installation von aussenliegendem sonnenschutz am altbau|erneuerung und erweiterung der heizzentrale)$/u;
+  const element = /^(?:erneuerung|sanierung) (?:der |von )?(?:unterdecken|sicherheitsbeleuchtung|flachdachflächen|grundleitungen im kriechkeller)$/u;
+  return maintenance.test(caption[2]) || element.test(caption[2]) ? caption[1] : null;
+}
+
 function publicFacilityTopic(title, facilities, date) {
-  const match = /^(?:anhörung zum|(?:freibade|bade)saison im) (.+)$/u.exec(normalize(title));
-  if (!match || !facilities) return null;
-  const sites = [...facilities.values()].flat().filter(site => site.subjectName === match[1]
+  const pool = /^(?:anhörung zum|(?:freibade|bade)saison im) (.+)$/u.exec(normalize(title));
+  const subject = pool?.[1] || schoolBuildingTopic(title);
+  if (!subject || !facilities) return null;
+  const sites = [...facilities.values()].flat().filter(site => site.subjectName === subject && site.schoolBuilding === !pool
     && (!site.from || /^\d{4}-\d{2}-\d{2}$/u.test(date) && date >= site.from));
   return sites.length === 1 ? sites[0].found : null;
 }
@@ -662,6 +721,7 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     const existing = locations.get(key);
     if (!existing || (!existing.geometry && candidate.geometry)) locations.set(key, candidate);
   };
+  for (const { found, evidence } of reviewedTrafficControls(record, gazetteer, byFirstWord)) keep(found, evidence);
   for (const title of titles) {
     const found = requireHannoverScope ? regionalPlatformProject(title, gazetteer.regionalTramStops, record.id)
       : gazetteer.city === 'hannover' && record.source === 'hannover-sim' && publicFacilityTopic(title, publicFacilities, record.date);
@@ -676,7 +736,7 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
       // Keep the verbatim source and never infer a whole road from the subject.
       if (proof.source === 'title' && record.source === 'hannover-sim') {
         const subject = measureSubject(proof.text);
-        const metadata = /\s+sitzung des stadtbezirksrates [\p{L}\p{M} -]+ am \d{2}\.\d{2}\.\d{4}\s+top\s+\d+(?:\.\d+)*\.?$/u.exec(subject);
+        const metadata = SIM_MEETING_SUFFIX.exec(subject);
         const topic = metadata && subject.slice(0, metadata.index);
         if (topic && !MEETING_CUE.test(topic) && !JUNCTION_CONTEXT_ONLY.test(topic)
             && /\b(?:an der kreuzung|am knotenpunkt)\s+/u.test(topic)) {
@@ -684,6 +744,11 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
           for (const found of measureJunctions(topic, streets, new Set())) keep(found, proof);
         }
       }
+      continue;
+    }
+    const daycare = proof.source === 'title' && proof.text === record.title && reviewedDaycareProject(record, proof.text, gazetteer);
+    if (daycare) {
+      keep(daycare, proof);
       continue;
     }
     if (mentions(normalized, byFirstWord, true).some(hit => !hit.entry)) reasons.add('unverified_name');
@@ -753,6 +818,7 @@ function enrichRisLocations(records, { city, gazetteer, maxLocationsPerRecord = 
     const result = byFirstWord ? measureLocations(record, byFirstWord, gazetteer, maxLocationsPerRecord - Number(official),
       city === 'hannover' && record.source === 'region-hannover-ris', facilities)
       : { locations: [], truncated: false, reasons: [], gazetteerApplicable: false };
+    if (!sources.includes('document') && result.locations.some(site => site.evidence?.source === 'document')) sources.push('document');
     const reasons = [];
     if (!result.gazetteerApplicable) reasons.push('gazetteer_unavailable');
     if (record.locationEvidenceUnavailable === true) reasons.push('document_text_unavailable');

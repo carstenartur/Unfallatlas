@@ -32,7 +32,7 @@ const SOURCE_FINISH_MS = 2 * 60_000;
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
-const LOCATION_REVISIONS = { bonn: 5, hannover: 10 };
+const LOCATION_REVISIONS = { bonn: 5, hannover: 11 };
 const historyStartYears = { bonn: 2014, hannover: HANNOVER_HISTORY_START_YEAR };
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
@@ -334,7 +334,8 @@ async function loadGazetteer(city) {
     .map(entry => ({ ...entry, attribution: entry.attribution ?? curated.attribution }));
   return { ...atkis, entries: [...atkis.entries, ...additional], regionalProjectAddresses: curated?.regionalProjectAddresses,
     streetAliases: curated?.streetAliases, publicFacilities: curated?.publicFacilities,
-    regionalTramStops: JSON.parse(await fs.readFile(path.join(folder, 'hannover-stadtbahn.json'), 'utf8')) };
+    regionalTramStops: JSON.parse(await fs.readFile(path.join(folder, 'hannover-stadtbahn.json'), 'utf8')),
+    trafficControlProjects: JSON.parse(await fs.readFile(path.join(folder, 'hannover-verkehrsknoten.json'), 'utf8')) };
 }
 
 function snapshotInputs({ records, features }) {
