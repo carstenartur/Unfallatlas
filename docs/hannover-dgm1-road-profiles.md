@@ -93,6 +93,17 @@ Unsicherheitsgrund. Zu kurze Geometrien oder unvollständige Rasterabdeckung
 werden je Fenster als `status:"unavailable"` gespeichert. Es wird weder mit
 Nullwerten noch mit Nachbar-Ways aufgefüllt.
 
+Ein Profilfenster wird auch dann als Brückenübergang ausgeschlossen, wenn es an
+seinem Way einen Endpunkt eines als Brücke markierten OSM-Ways erreicht. Beide
+Geometrien müssen im ungerundeten OSM-Eingang exakt dieselbe Endkoordinate
+haben. Der Producer hält die zugehörigen Brücken-Way-IDs fest. Beim Prüfen der
+Fenster verwendet er die Distanz entlang der Linie. So kann bei einem längeren
+Weg das 20-m-Fenster eine Zahl liefern und das 50-m-Fenster an der Brücke enden.
+Ein ungültiges OSM-`layer` wie `-0,7` oder `0.5` bleibt im Quellensatz erhalten.
+Beide Fenster dieses Wegs erhalten `invalid_osm_layer` und keine Zahl. Fehlende
+Strukturabdeckung oder manipulierte abgeleitete Risikotags lassen die Validierung
+weiterhin scheitern. [QGIS-Vergleich und Befund im Hannoveraner Straßennetz](qa/hannover-dgm1-qgis-city.md)
+
 ## Abdeckung und Atomarität
 
 Das Top-Level-Artefakt enthält für jeden validierten Way exakt einen 20-m- und

@@ -155,7 +155,7 @@ describe('OSM elevation risk normalization', () => {
       sourceStructureFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       contract: {
         presenceValues: ['yes', 'no'],
-        layer: 'canonical-integer-string',
+        layer: 'canonical-integer-string-or-profile-unavailable',
         consumer: 'js/ua.elevation_provider.js#computeRoadGradient.osmTags',
       },
     }));
@@ -166,6 +166,22 @@ describe('OSM elevation risk normalization', () => {
       }),
     );
     expect(input.ways['3'].elevationRiskTags).toBeUndefined();
+  });
+
+  test('validates historical strict records and rejects forged exclusions and ground-level substitutions', () => {
+    const raw = dataset();
+    const legacy = producer.applyElevationRiskTags(raw);
+    legacy.elevationRiskTags.producerVersion = '1.0.0';
+    legacy.elevationRiskTags.contract.layer = 'canonical-integer-string';
+    expect(() => producer.validateElevationRiskContract(legacy)).not.toThrow();
+
+    raw.ways['3'].layer = '0.5';
+    const current = producer.applyElevationRiskTags(raw);
+    expect(current.ways['3'].elevationRiskTags).toEqual({ unavailableReason: 'invalid_osm_layer' });
+    current.ways['3'].elevationRiskTags = { ...current.ways['11'].elevationRiskTags, layer: '0' };
+    expect(() => producer.validateElevationRiskContract(current)).toThrow(/invalid_risk_contract/);
+    legacy.ways['11'].elevationRiskTags = { unavailableReason: 'invalid_osm_layer' };
+    expect(() => producer.validateElevationRiskContract(legacy)).toThrow(/invalid_risk_contract/);
   });
 
   test('rejects stale, tampered or structurally widened derived risk tags', () => {
