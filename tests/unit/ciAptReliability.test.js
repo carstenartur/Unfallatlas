@@ -30,6 +30,8 @@ describe('CI package installation reliability', () => {
       configure();
       const augmented = fs.readFileSync(runnerList, 'utf8');
       expect(augmented.startsWith(originalMirrors)).toBe(true);
+      expect(augmented).toContain('https://mirrors.edge.kernel.org/ubuntu\tpriority:0');
+      expect(fs.readFileSync(path.join(dir, 'apt.conf.d/80-unfallatlas-ci-languages'), 'utf8')).toContain('Acquire::Languages "none";');
       expect(augmented.match(/mirrors\.edge\.kernel\.org/g)).toHaveLength(1);
       fs.writeFileSync(runnerList, 'https://ports.ubuntu.com/ubuntu-ports\n');
       configure();
@@ -39,8 +41,8 @@ describe('CI package installation reliability', () => {
       expect(fs.readFileSync(ports, 'utf8')).toContain('http://ports.ubuntu.com/ubuntu-ports');
       for (const name of ['ua-ubuntu-mirrors.txt', 'apt-security-mirrors.txt']) {
         const mirrors = fs.readFileSync(path.join(dir, name), 'utf8').trim().split('\n');
-        expect(mirrors[0]).toContain(name === 'ua-ubuntu-mirrors.txt' ? 'https://archive.ubuntu.com/ubuntu' : 'https://security.ubuntu.com/ubuntu');
-        expect(mirrors[1]).toContain('https://mirrors.edge.kernel.org/ubuntu');
+        expect(mirrors[1]).toContain(name === 'ua-ubuntu-mirrors.txt' ? 'https://archive.ubuntu.com/ubuntu' : 'https://security.ubuntu.com/ubuntu');
+        expect(mirrors[0]).toBe('https://mirrors.edge.kernel.org/ubuntu\tpriority:0');
       }
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
