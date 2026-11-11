@@ -53,6 +53,7 @@ npm pkg set 'devDependencies.ajv=^8.20.0'
 node --version
 npm --version
 npm ci --legacy-peer-deps --no-audit --no-fund
+bash "$repo_root/scripts/verify-xmldoc-upstream.sh" "$PWD/node_modules/xmldoc"
 # Compare the five archived notices against the packages actually installed by this build.
 node - "$repo_root/vendor/pdfmake-build" <<'NODE'
 const fs = require('node:fs');

@@ -154,3 +154,11 @@ Google Fonts. `vendor/pdfmake-build/roboto-release.json` bindet das
 Releasearchiv, die vier Pfade, SHA-256, PostScript-Namen und Versionsfelder.
 Der normale Seitenbuild prüft die dekodierten VFS-Dateien gegen dieselben
 Hash- und Namensangaben und veröffentlicht den Archivnachweis je Schrift.
+
+Der PDF-Quellverweis `webpack://pdfmake/../xmldoc.ts` entsteht aus der
+Source Map des ES-Modul-Einstiegs von `xmldoc@2.0.3`. Der Hersteller liefert
+die TypeScript-Datei im Git-Quellarchiv. Die unabhängige Prüfung übersetzt
+sie mit TypeScript 5.9.3 und vergleicht das JavaScript und seine Source Map
+byteweise mit den tatsächlich für pdfmake installierten Dateien. Der
+Seitenbuild prüft die beiden Hashes und ordnet den Eintrag dem exakten
+PDF-Build-Lock und dem MIT-Lizenztext zu.

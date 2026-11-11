@@ -150,6 +150,11 @@ describe('public Pages distribution profile', () => {
     expect(pdf.contains).not.toContain('pkg:npm/sax@1.6.0');
     const sax = notice.components.find(item => item.purl === 'pkg:npm/sax@1.6.1');
     expect(sax.attestation.lockFile).toBe('vendor/pdfmake-build/npm-lock.json');
+    const xml = notice.components.find(component => component.purl === 'pkg:npm/xmldoc@2.0.3');
+    expect(xml.attestation.lockFile).toBe('vendor/pdfmake-build/npm-lock.json');
+    expect(xml.licenseExpression).toBe('MIT');
+    expect(pdf.contains).toContain(xml.purl);
+    expect(pdf.unresolvedDetectedComponents).not.toContain('webpack://pdfmake/../xmldoc.ts');
     expect(sax.licenseExpression).toBe('BlueOak-1.0.0');
     expect(fs.readFileSync(path.join(OUTPUT, sax.licenseTexts[0].path))).toEqual(
       fs.readFileSync(path.join(ROOT, 'vendor/pdfmake-build/licenses/sax-1.6.1.txt'))

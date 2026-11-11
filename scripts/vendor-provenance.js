@@ -117,10 +117,22 @@ function pdfmakeSourcePackages(repoRoot, appLock) {
   const lockSha256 = sha256File(path.join(repoRoot, lockFile));
   const sourceMap = JSON.parse(fs.readFileSync(path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.min.js.map'), 'utf8'));
   const archived = JSON.parse(fs.readFileSync(path.join(repoRoot, directory, 'license-files.json'), 'utf8'));
+  const xml = JSON.parse(fs.readFileSync(path.join(repoRoot, directory, 'xmldoc/source.json'), 'utf8'));
   const components = new Map();
   const unresolved = new Set();
   for (const source of sourceMap.sources) {
-    const relative = source.replace(/^webpack:\/\/pdfmake\/\.\//, '');
+    let relative = source.replace(/^webpack:\/\/pdfmake\/\.\//, '');
+    if (source === 'webpack://pdfmake/../xmldoc.ts') {
+      const root = path.join(repoRoot, 'node_modules/xmldoc');
+      const metadata = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+      const entry = metadata.exports?.['.']?.import;
+      if (metadata.version !== xml.version || entry !== './dist/xmldoc.js' ||
+          sha256File(path.join(root, entry)) !== xml.jsSha256 ||
+          sha256File(path.join(root, entry + '.map')) !== xml.mapSha256) {
+        throw new Error('[vendor-provenance] Remapped xmldoc source differs from its reproduced ES import');
+      }
+      relative = 'node_modules/xmldoc/dist/xmldoc.js';
+    }
     if (!relative.startsWith('node_modules/')) {
       if (!relative.startsWith('src/') && !source.startsWith('webpack://pdfmake/webpack/')) unresolved.add(source);
       continue;
