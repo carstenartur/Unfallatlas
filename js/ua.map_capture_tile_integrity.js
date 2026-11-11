@@ -284,6 +284,70 @@
       { url, attempts, cause: clean(lastError?.message || lastError) });
   }
 
+  // Obtain a separate, north-up photograph. It must work from the normal street
+  // map as well as from an orthophoto view and must never capture UI overlays.
+  UA.fetchDocumentOrthophoto = async function fetchDocumentOrthophoto(ctx, bounds) {
+    const crs = root.L?.CRS?.EPSG3857;
+    if (!crs || !bounds || ![bounds.south, bounds.west, bounds.north, bounds.east].every(Number.isFinite) ||
+        bounds.south > bounds.north || bounds.west > bounds.east ||
+        bounds.south < -85 || bounds.north > 85 || bounds.west < -180 || bounds.east > 180) return null;
+
+    // 240 dpi at the document's 6.25 inch picture width. Preserve an intersection's
+    // approaches even if every accident was registered at the same coordinate.
+    const width = 1500, height = 900;
+    const sw = crs.project({ lat: bounds.south, lng: bounds.west });
+    const ne = crs.project({ lat: bounds.north, lng: bounds.east });
+    const centerX = (sw.x + ne.x) / 2, centerY = (sw.y + ne.y) / 2;
+    const latitude = (bounds.south + bounds.north) * Math.PI / 360;
+    const projectedWidth = Math.max(100 / Math.cos(latitude), 1.25 * (ne.x - sw.x),
+      1.25 * (ne.y - sw.y) * width / height);
+    const halfWidth = projectedWidth / 2, halfHeight = halfWidth * height / width;
+    const west = centerX - halfWidth, east = centerX + halfWidth;
+    const south = centerY - halfHeight, north = centerY + halfHeight;
+    const lower = crs.unproject({ x: west, y: south }), upper = crs.unproject({ x: east, y: north });
+    const actualBounds = { south: lower.lat, west: lower.lng, north: upper.lat, east: upper.lng };
+    const providers = UA.resolveRegionalOrthophotoCandidates?.(ctx) || [];
+    for (const provider of providers) {
+      if (!provider.officialForExport || provider.technicalType !== 'WMS' || provider.projection !== crs.code) continue;
+      const request = new URL(provider.url);
+      const params = { SERVICE: 'WMS', VERSION: '1.1.1', REQUEST: 'GetMap', LAYERS: provider.layers,
+        STYLES: '', SRS: crs.code, BBOX: [west, south, east, north].join(','), WIDTH: width, HEIGHT: height,
+        FORMAT: 'image/png', TRANSPARENT: 'false', EXCEPTIONS: 'application/vnd.ogc.se_xml' };
+      for (const [key, value] of Object.entries(params)) request.searchParams.set(key, value);
+
+      const controller = new root.AbortController();
+      const timeout = root.setTimeout(() => controller.abort(), 20000);
+      try {
+        const image = await fetchTileDataUrl(request.href, { signal: controller.signal, attempts: 1 });
+        if (!image.startsWith('data:image/png;base64,')) continue;
+        const picture = new root.Image();
+        picture.src = image;
+        await picture.decode();
+        if (picture.naturalWidth !== width || picture.naturalHeight !== height) continue;
+        // WMS may return a valid, solid no-coverage image with HTTP 200.
+        const sample = root.document.createElement('canvas');
+        sample.width = 40;
+        sample.height = 24;
+        const drawing = sample.getContext('2d');
+        drawing.drawImage(picture, 0, 0, sample.width, sample.height);
+        const pixels = drawing.getImageData(0, 0, sample.width, sample.height).data;
+        for (let i = 0, firstColor; i < pixels.length; i += 4) {
+          if (!pixels[i + 3]) continue;
+          const color = pixels[i] * 65536 + pixels[i + 1] * 256 + pixels[i + 2];
+          if (firstColor === undefined) firstColor = color;
+          if (color !== firstColor) {
+            return { image, provider, bounds: actualBounds, width, height, url: request.href };
+          }
+        }
+      } catch (error) {
+        root.console?.warn('Luftbild nicht verfügbar:', provider.displayName, error.message);
+      } finally {
+        root.clearTimeout(timeout);
+      }
+    }
+    return null;
+  };
+
   async function mapConcurrent(values, limit, mapper) {
     const list = Array.from(values || []);
     const results = new Array(list.length);

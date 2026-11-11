@@ -48,9 +48,18 @@ describe('Werkbank deployment asset versions', () => {
     expect(scripts.indexOf('js/ua.facility_context.js')).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
   });
 
-  test.each(['ua.bootstrap', 'ua.data_paths', 'ua.site_discovery', 'ua.review_network', 'ua.site_discovery_ui', 'ua.hannover_layers', 'ua.export_v2', 'ua.report_v2'])
+  test.each(['ua.site_discovery', 'ua.review_network', 'ua.site_discovery_ui', 'ua.hannover_layers', 'ua.export_v2'])
   ('%s loads the local evidence and motion update', asset => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-10-site-evidence"');
+  });
+
+  test('loads the matching Word report, map capture and accident point renderers', () => {
+    for (const asset of ['ua.report_v2', 'ua.bootstrap', 'ua.data_paths']) {
+      expect(html).toContain(`js/${asset}.js?v=2026-11-11-word-maps"`);
+    }
+    const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
+    expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-word-maps');
+    expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
   });
 
   test('loads optional review-network support before site selection and document export', () => {

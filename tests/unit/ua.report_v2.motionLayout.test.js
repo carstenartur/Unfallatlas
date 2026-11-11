@@ -168,3 +168,42 @@ test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennunge
   expect([...evidenceTable.matchAll(/>(A\d{3})</g)].map(match => match[1])).toEqual(ids);
   expect(rels).toContain('Target="' + source + '?evidenceAccident=A001"');
 });
+
+test('Word links cited council numbers in the motion and the selected RIS document at its title', async () => {
+  const window = loadReport();
+  const data = reportData();
+  const decision = 'https://example.test/ris/2021-decision';
+  const reply = 'https://example.test/ris/2023-reply';
+  const selected = { title: 'Planung des Radwegs', number: '25-111/2025', url: 'https://example.test/ris/selected' };
+  data.structured.politicalReferences = [selected];
+  data.structured.motion = {
+    intro: 'Die Verwaltung wird gebeten zu berichten.',
+    requests: ['Zum Beschluss 15-1243/2021 und zur Antwort 15-2377/2023 F1 berichten.'],
+    rationale: 'Siehe DS 25-111/2025. Für 15-1243/2021 S1 ist hier kein Direktlink belegt.',
+    priorWork: [
+      { number: '15-1243/2021', date: '2021-06-07', url: decision },
+      { number: '15-2377/2023 F1', date: '2023-12-04', url: reply },
+    ],
+  };
+  await window.UA.exportToWord({ CITY_RAW: 'Hannover' }, data, { includeReferences: true });
+  const zip = await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
+  const xml = await zip.file('word/document.xml').async('string');
+  const rels = await zip.file('word/_rels/document.xml.rels').async('string');
+  const paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+  const linksAt = (phrase) => {
+    const paragraph = paragraphs.find(p => p.includes(phrase));
+    expect(paragraph).toBeDefined();
+    return [...paragraph.matchAll(/<w:hyperlink\b[^>]*r:id="([^"]+)"[^>]*>([\s\S]*?)<\/w:hyperlink>/g)]
+      .map(([, relId, runs]) => {
+        const relationship = (rels.match(/<Relationship\s[^>]*\/>/g) || []).find(r => r.includes('Id="' + relId + '"'));
+        const text = [...runs.matchAll(/<w:t(?:\s[^>]*)?>(.*?)<\/w:t>/g)].map(m => m[1]).join('');
+        expect(relationship).toContain('TargetMode="External"');
+        return [text, relationship.match(/Target="([^"]+)"/)[1]];
+      });
+  };
+  expect(linksAt('Zum Beschluss')).toEqual([['15-1243/2021', decision], ['15-2377/2023 F1', reply]]);
+  expect(linksAt('Siehe ')).toEqual([['DS 25-111/2025', selected.url]]);
+  expect(linksAt(selected.title)).toEqual([[selected.title, selected.url], ['DS 25-111/2025', selected.url]]);
+  const front = xml.slice(0, xml.indexOf('Anlage 1 – Vollständige Unfallliste'));
+  expect(front).toContain('Ratsvorgänge im Original');
+});

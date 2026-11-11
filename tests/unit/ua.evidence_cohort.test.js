@@ -157,3 +157,45 @@ describe('discovery filters versus complete application evidence', () => {
     expect(parts.every(part => part.length <= 2)).toBe(true);
   });
 });
+
+describe('printed point maps for a council motion', () => {
+  const row = (displayId, lat, lon) => ({ displayId, lat, lon });
+  test('uses every located case once, separating the actual focus and keeping coincident IDs together', () => {
+    const rows = [row('A001', 52.37570, 9.72678), row('A002', 52.375700000000026, 9.726780000000021),
+      row('A003', 52.37575, 9.72681), row('A004', 52.37581, 9.72677), row('A005', null, 9.72677)];
+    const sheets = api.documentPointSheets(rows, new Set(['A001', 'A002', 'A003']));
+    expect(sheets.map(s => [s.ref, s.kind, s.locations.length])).toEqual([['K1', 'focus', 2], ['K2', 'other', 1]]);
+    expect(sheets[0].locations.find(p => p.ids.includes('A001')).ids).toEqual(['A001', 'A002']);
+    expect(sheets.flatMap(s => s.locations.flatMap(p => p.ids)).sort()).toEqual(['A001', 'A002', 'A003', 'A004']);
+  });
+
+  test('groups a large cohort spatially without splitting identical locations or losing cases', () => {
+    const rows = Array.from({length: 60}, (_, i) => row('A' + i, 52.37 + i / 10000, 9.72));
+    rows.push(row('duplicate', rows[0].lat, rows[0].lon));
+    const sheets = api.documentPointSheets(rows, new Set());
+    expect(sheets.map(s => s.locations.length)).toEqual([30, 30]);
+    expect(sheets.every(s => s.kind === 'area')).toBe(true);
+    expect(sheets.flatMap(s => s.locations.flatMap(p => p.ids)).sort()).toEqual(rows.map(r => r.displayId).sort());
+    expect(sheets.flatMap(s => s.locations).find(p => p.ids.includes('duplicate')).ids).toContain('A0');
+  });
+  test('places true coordinate anchors across the printed frame and registers them to the aerial', () => {
+    const pen = Object.fromEntries(['arc', 'beginPath', 'drawImage', 'fill', 'fillRect', 'fillText',
+      'lineTo', 'moveTo', 'stroke', 'strokeRect'].map(key => [key, jest.fn()]));
+    pen.measureText = text => ({ width: 16 * text.length });
+    const root = { document: { createElement: () => ({ getContext: () => pen, toDataURL: () => 'png' }) } };
+    const rows = [row('A001', 52.37570, 9.726780), row('A002', 52.37572, 9.726800), row('A003', 52.37572, 9.726800)];
+    const [sheet] = api.documentPointSheets(rows, new Set());
+    const photo = { bitmap: {}, bounds: { west: 9.7267, east: 9.7269, south: 52.37565, north: 52.37577 } };
+    expect(api.drawDocumentPointMap(root, sheet, photo)).toBe('png');
+    expect(pen.arc).toHaveBeenCalledTimes(2);
+    const [[x1, y1], [x2, y2]] = pen.arc.mock.calls;
+    expect(x1).toBeLessThan(x2);
+    expect(y1 - y2).toBeGreaterThan(250);
+    const [[bitmap, left, , imageWidth]] = pen.drawImage.mock.calls;
+    expect(bitmap).toBe(photo.bitmap);
+    expect(x1).toBeCloseTo(left + imageWidth * 0.4);
+    expect(x2).toBeCloseTo(left + imageWidth * 0.5);
+    expect(pen.fillText.mock.calls.map(([t]) => t)).toContain('A002 ×2');
+  });
+
+});

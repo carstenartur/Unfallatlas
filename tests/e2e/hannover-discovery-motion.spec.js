@@ -65,7 +65,11 @@ async function readWordDocument(bytes) {
     .map(element => element.match(/\bTarget="([^"]+)"/)?.[1]);
   const text = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match => match[1]).join(' ');
   const core = await archive.file('docProps/core.xml').async('string');
-  return { text, links, title: core.match(/<dc:title>([^<]*)<\/dc:title>/)?.[1] };
+  const drawings = [...xml.matchAll(/<wp:docPr\b[^>]*>/g)].map(match => ({
+    title: match[0].match(/\btitle="([^"]*)"/)?.[1],
+    description: match[0].match(/\bdescr="([^"]*)"/)?.[1] || '',
+  }));
+  return { text, links, drawings, title: core.match(/<dc:title>([^<]*)<\/dc:title>/)?.[1] };
 }
 
 test('a Hannover network search carries its actual bicycle/car turning crashes and council record into the motion, PDF and Word', async ({ page, baseURL }, testInfo) => {
@@ -111,7 +115,7 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     matchingCases: 17, samePatternInRectangle: 20, rectangleInPeriod: 28, completeCases: 48,
   });
 
-  // The downloads exercise document text; map tile rendering has its own browser suite.
+  // Exercise the PDF text separately and inspect the Word download with its map appendix enabled.
   await detail.getByRole('button', { name: 'Antragsentwurf für diese Stelle öffnen' }).click();
   await page.locator('#cbIncludeMap').uncheck();
   await expect(page.locator('#exportProgress')).toHaveText('Fertig.', { timeout: 30000 });
@@ -123,13 +127,30 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
   expect(summary[1]).toMatch(/\b17 Fälle/);
 
   for (const [selector, extract] of [['#btnExportPDF', readPdf], ['#btnExportWord', readWordDocument]]) {
+    if (selector === '#btnExportWord') {
+      await page.locator('#cbIncludeMap').check();
+    }
     const [file] = await Promise.all([page.waitForEvent('download'), page.locator(selector).click()]);
     const path = testInfo.outputPath(file.suggestedFilename());
     await file.saveAs(path);
     const bytes = await readFile(path);
-    const { text, links, title } = await extract(bytes);
+    const result = await extract(bytes);
+    const { text, links, title } = result;
     checkMotion(text);
     expect(title).toContain(intersection);
     expect(links).toEqual(expect.arrayContaining(councilSources));
+    if (selector === '#btnExportWord') {
+      // External map services are intentionally unavailable in this CI case.
+      expect(text).toContain('kein amtliches Luftbild verfügbar');
+      expect(text).toContain('17 Unfälle an 12 veröffentlichten Unfallorten');
+      const sheets = result.drawings.filter(image => /^Veröffentlichte Unfallorte auf K\d+$/.test(image.title));
+      expect(sheets.map(sheet => sheet.title)).toEqual(['Veröffentlichte Unfallorte auf K1', 'Veröffentlichte Unfallorte auf K2']);
+      expect(sheets[0].description.match(/A\d{3}/g)).toHaveLength(17);
+      expect(sheets[1].description.match(/A\d{3}/g)).toHaveLength(31);
+      const allIds = sheets.flatMap(image => image.description.match(/A\d{3}/g));
+      expect(allIds).toHaveLength(48);
+      expect(new Set(allIds).size).toBe(48);
+      expect(text).toContain('Gleiche Koordinaten');
+    }
   }
 });
