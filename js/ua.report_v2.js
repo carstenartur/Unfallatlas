@@ -2538,7 +2538,7 @@
 
       // Year table
       if (sd.yearTable && sd.yearTable.length > 0) {
-        children.push(new Paragraph({ text: "Unfälle pro Jahr im Ausschnitt:", spacing: { after: 100 } }));
+        children.push(new Paragraph({ text: "Unfälle pro Jahr im Ausschnitt:", keepNext: true, spacing: { after: 100 } }));
         const yrRows = sd.yearTable.map(row => {
           // Phase 1.2: DOCX bevorzugt das deterministische Bracket-Label
           // (`textClasses`), damit auch ohne Emoji-fähigen Body-Font in Word
@@ -2561,7 +2561,7 @@
 
       // Cross-table: Beteiligungskombination × Schweregrad
       if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
-        children.push(new Paragraph({ text: "Beteiligungskombination × Schweregrad:", spacing: { after: 100 } }));
+        children.push(new Paragraph({ text: "Beteiligungskombination × Schweregrad:", keepNext: true, spacing: { after: 100 } }));
         // PR-QA Task 1: deterministische Text-Labels in der DOCX-Tabelle.
         const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
         const ctRows = sd.crossTable.rows.map(r => [
@@ -3561,7 +3561,7 @@
       const s = oc.summary;
       children.push(new Paragraph({
         text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
-        heading: HeadingLevel.HEADING_2,
+        heading: HeadingLevel.HEADING_2, keepNext: true,
         spacing: { before: 400, after: 200 }
       }));
       const ocRows = [];
@@ -3597,7 +3597,7 @@
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       children.push(new Paragraph({
         text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
-        heading: HeadingLevel.HEADING_2,
+        heading: HeadingLevel.HEADING_2, keepNext: true,
         spacing: { before: 400, after: 200 }
       }));
       for (const line of sd.osmContext.matchedRoads?.lines || ["OSM-Kontextdaten konnten beim Export nicht geladen werden."]) {
@@ -3769,9 +3769,9 @@
         description: docTitle,
         styles: { default: {
           document: { run: { size: 22, language: { value: "de-DE" } } },
-          heading1: { run: { bold: true, color: "182632", size: 32 } },
-          heading2: { run: { bold: true, color: "182632", size: 28 } },
-          heading3: { run: { bold: true, color: "182632", size: 24 } },
+          heading1: { run: { bold: true, color: "182632", size: 32 }, paragraph: { keepNext: true } },
+          heading2: { run: { bold: true, color: "182632", size: 28 }, paragraph: { keepNext: true } },
+          heading3: { run: { bold: true, color: "182632", size: 24 }, paragraph: { keepNext: true } },
         } }
       } : {}),
       ...(motion.requests.length ? {
