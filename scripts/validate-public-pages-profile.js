@@ -201,6 +201,16 @@ function validatePublicPagesProfile(options = {}) {
     assert(sha256File(absolute) === license.sha256,
       `supplemental license hash drift ${license.path}`);
   }
+  const svgLicense = supplementalComponents.get('svg-to-pdfkit');
+  const pdfBundle = sbom.components.find(component => component['bom-ref'] === 'urn:unfallatlas:vendor-asset:vendor/export/pdfmake.js');
+  const svgSource = pdfBundle?.components?.find(component => component.name === 'src/3rd-party/svg-to-pdfkit/source.js');
+  assert(svgLicense?.asset === 'vendor/export/pdfmake.js' && svgLicense.spdx === 'MIT' &&
+    svgSource?.type === 'file' && svgSource.name === svgLicense.sourcePath &&
+    svgSource.licenses?.some(entry => entry.expression === 'MIT') &&
+    svgSource.properties?.some(entry => entry.name === 'unfallatlas:license-path' && entry.value === svgLicense.path) &&
+    svgSource.hashes?.some(entry => entry.alg === 'SHA-256' && entry.content === svgLicense.sourceSha256),
+    'missing or inconsistent embedded SVG-to-PDFKit license and source');
+  assertHash(svgLicense.sourceSha256, 'embedded SVG-to-PDFKit source');
   const componentByNameVersion = new Map((notice.components || []).map(component => [
     `${component.name}\0${component.version}`,
     component,
@@ -244,7 +254,16 @@ function validatePublicPagesProfile(options = {}) {
 
   assert(Array.isArray(notice.fontEvidence) && notice.fontEvidence.length === 4,
     'expected four embedded Roboto font records');
+  const fontRelease = readJson(path.join(repoRoot, 'vendor/pdfmake-build/roboto-release.json'), 'Roboto release lock');
+  exactSorted(notice.fontEvidence.map(font => font.name), Object.keys(fontRelease.files), 'Roboto release fonts');
   for (const font of notice.fontEvidence) {
+    const expected = fontRelease.files[font.name];
+    const source = font.upstreamRelease;
+    assert(source?.version === fontRelease.release && source?.archiveUrl === fontRelease.archiveUrl &&
+      source?.archiveSha256 === fontRelease.archiveSha256 && source?.path === expected.path &&
+      font.sourceSha256 === expected.sha256 && font.decodedSha256 === expected.sha256 &&
+      font.nameTable?.postscriptName === expected.postscriptName && font.nameTable?.version === expected.version,
+    `original Roboto release evidence drift for ${font.name}`);
     assert(font.licenseExpression === 'OFL-1.1', `font license drift for ${font.name}`);
     assert(Array.isArray(font.licenseTexts) && font.licenseTexts.length > 0,
       `font lacks bundled OFL text: ${font.name}`);

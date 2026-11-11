@@ -1,0 +1,27 @@
+{
+  "node_modules/core-js": {
+    "source": "LICENSE",
+    "file": "core-js-3.51.0.txt",
+    "sha256": "b87653fff2d44426ab5cd4723cee3b1364dc8d35a0acdf098c54689543123bf8"
+  },
+  "node_modules/@swc/helpers": {
+    "source": "LICENSE",
+    "file": "swc-helpers-0.5.24.txt",
+    "sha256": "d96eba1f1881334d50ffc144276dfa98e147a415e7c591ecdfcb81680361dc91"
+  },
+  "node_modules/base64-js": {
+    "source": "LICENSE",
+    "file": "base64-js-1.5.1.txt",
+    "sha256": "5b37224c080cdcc97c871ada971c224e9926370fe74f11b539aa1cf9f3b1aca1"
+  },
+  "node_modules/expose-loader": {
+    "source": "LICENSE",
+    "file": "expose-loader-5.0.1.txt",
+    "sha256": "9068a8782d2fb4c6e432cfa25334efa56f722822180570802bf86e71b6003b1e"
+  },
+  "node_modules/sax": {
+    "source": "LICENSE.md",
+    "file": "sax-1.6.1.txt",
+    "sha256": "8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004"
+  }
+}

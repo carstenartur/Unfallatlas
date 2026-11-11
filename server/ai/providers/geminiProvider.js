@@ -5,7 +5,7 @@
  *
  * Liest Konfiguration aus Umgebungsvariablen:
  *   GEMINI_API_KEY          – Pflicht; fehlt → Fehler
- *   AI_ASSESSMENT_MODEL     – optional; Standard: gemini-2.0-flash
+ *   AI_ASSESSMENT_MODEL     – optional; Standard: gemini-3.6-flash
  *   AI_ASSESSMENT_TIMEOUT_MS – optional; Standard: 30000
  *
  * Gibt strukturiertes JSON zurück, das vom aiAssessmentService gegen
@@ -16,7 +16,7 @@
 
 const https = require('https');
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const { apiBase, configuredModel, answerText } = require('./geminiApi');
 
 /**
  * Sendet System- und Nutzerprompt an die Gemini-API und gibt den
@@ -32,10 +32,10 @@ async function callGemini(systemPrompt, userPrompt) {
     throw new Error('GEMINI_API_KEY ist nicht konfiguriert.');
   }
 
-  const model   = process.env.AI_ASSESSMENT_MODEL     || 'gemini-2.0-flash';
+  const model   = configuredModel();
   const timeout = Number(process.env.AI_ASSESSMENT_TIMEOUT_MS) || 30_000;
 
-  const url = `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
+  const url = `${apiBase}/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
   const body = JSON.stringify({
     system_instruction: {
@@ -56,9 +56,8 @@ async function callGemini(systemPrompt, userPrompt) {
   const rawText = await httpPost(url, body, timeout);
   const parsed  = JSON.parse(rawText);
 
-  // Gemini response structure: candidates[0].content.parts[0].text
   const candidate = parsed?.candidates?.[0];
-  const text = candidate?.content?.parts?.[0]?.text;
+  const text = answerText(candidate);
   if (typeof text !== 'string' || !text.trim()) {
     const reason = candidate?.finishReason || 'unknown';
     throw new Error(`Gemini lieferte keine verwertbare Antwort (finishReason: ${reason}).`);

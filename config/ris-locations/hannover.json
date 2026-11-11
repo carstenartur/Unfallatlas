@@ -119,6 +119,14 @@
         "street": "Karl-Wiechert-Allee",
         "houseNumber": "60 A",
         "sourceUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Sicherheit-Ordnung/Feuerwehr-Hannover/Standorte/Feuer-und-Rettungswachen-der-Berufsfeuerwehr/Feuer-und-Rettungswache-5-Roderbruch"
+      },
+      {
+        "name": "Lister Bad",
+        "street": "Am Lister Bad",
+        "houseNumber": "1",
+        "namedSubject": true,
+        "attribution": "Landeshauptstadt Hannover, Sport und Bäder",
+        "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Region-Hannover/Baden/Lister-Bad"
       }
     ]
   }

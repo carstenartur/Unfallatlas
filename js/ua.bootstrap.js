@@ -10,7 +10,7 @@ window.UA = { BUILD: '2026-07-19 00:00 UTC' };
 // exports reuse verified visible tiles instead of silently accepting holes.
 if (typeof document !== 'undefined') {
   const sources = [
-    'ua.evidence_safe_semantics.js?v=2026-11-10-site-evidence',
+    'ua.evidence_safe_semantics.js?v=2026-11-11-antragsgrammatik',
     'ua.evidence_safe_semantics_hardening.js?v=2026-08-22',
     'ua.evidence_safe_semantics_bridge.js?v=2026-08-22',
     'ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps',

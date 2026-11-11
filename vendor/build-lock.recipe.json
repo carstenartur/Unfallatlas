@@ -21,7 +21,9 @@
       "outputPath": "vendor/export/pdfmake.js",
       "method": "byte-for-byte-copy",
       "auxiliaryInputs": [
-        "build/pdfmake.min.js.map"
+        "build/pdfmake.min.js.map",
+        "src/3rd-party/svg-to-pdfkit/source.js",
+        "src/3rd-party/svg-to-pdfkit/LICENSE"
       ]
     },
     {
