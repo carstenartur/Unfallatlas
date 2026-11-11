@@ -1597,10 +1597,10 @@
     const decisions = priorWork.filter(record => record.kind === "council-decision");
     const lastStatus = priorWork.filter(record => record.kind === "implementation-status").at(-1);
     const recordText = record => `${councilRecordDate(record)} – ${record.label.replace(/[.\s]+$/, "")}.`;
-    const statusText = lastStatus ? `Zuletzt dokumentierter Stand: ${recordText(lastStatus)}` : "";
+    const statusText = lastStatus ? `Stand: ${recordText(lastStatus)}` : "";
     const followUp = decisions.length ? [
       ...decisions.map(recordText), statusText,
-      "Den aktuellen Planungs- und Umsetzungsstand zum Beschluss belegen. Für umgesetzte Schritte den Zeitpunkt und die Wirkung prüfen. Für ausstehende Schritte Zuständigkeit, Hindernisse und nächsten Termin benennen.",
+      "Den aktuellen Planungs- und Umsetzungsstand belegen: für umgesetzte Schritte Zeitpunkt und Wirkung, für ausstehende Schritte Zuständigkeit, Hindernisse und nächsten Termin.",
     ].filter(Boolean).join(" ") : null;
     return { priorWork, followUp, statusText };
   }
@@ -1634,21 +1634,30 @@
     const years = Object.entries(byYear).map(([year, n]) => `${year} (${n})`).join(", ");
     const countLabel = count === 1 ? "1 Fall" : `${count} Fälle`;
     const scope = siteNetwork ? "am Netzobjekt räumlich zugeordnet" : "im markierten Bereich ausgewählt";
-    const finding = `Für das Muster „${focus.label}“ ${count === 1 ? "ist" : "sind"} ${countLabel} ${scope}. Fallzahlen je Jahr: ${years}.`;
+    const sourceRecord = priorWork.find(record => {
+      const entry = record.conflictHypothesis;
+      return record.number && entry?.patternKey === focus.key &&
+        [entry.evidence, entry.mechanism, entry.check, entry.options].every(text => typeof text === "string" && text.trim());
+    });
+    const hypothesis = sourceRecord?.conflictHypothesis;
+    const finding = hypothesis ? `${countLabel} am Netzobjekt, nach Jahr: ${years}.` : `Für das Muster „${focus.label}“ ${count === 1 ? "ist" : "sind"} ${countLabel} ${scope}. Fallzahlen je Jahr: ${years}.`;
     const findings = Object.entries(severity).map(([key, n]) => `${n} mit ${{ 1: "Getöteten", 2: "Schwerverletzten", 3: "Leichtverletzten" }[key]}`);
     const historical = priorWork.filter(record => record.kind === "police-analysis" || record.kind === "administrative-commitment");
-    const rationale = [finding, findings.length ? `Unfälle nach schwerster Folge: ${findings.join(", ")}.` : "",
+    const citation = hypothesis ? [sourceRecord.number, hypothesis.locator].filter(Boolean).join(", ") : "";
+    const rationale = [hypothesis ? `${hypothesis.evidence} (${citation}).` : "",
+      hypothesis?.scopeNote, hypothesis ? `Als Arbeitshypothese prüfen wir: ${hypothesis.mechanism}` : "", finding, findings.length ? `Unfälle nach schwerster Folge: ${findings.join(", ")}.` : "",
       ...historical.map(record => record.label),
       historical.some(record => record.kind === "police-analysis") ? "Die Polizeiauswertung und die spätere Musterauswahl haben unterschiedliche Zeiträume und Auswahlkriterien." : "",
-      rail?.rationale || "Welche Fahrwege und Konflikte den Einzelfällen zugrunde lagen, ist anhand der Unfallunterlagen und der damaligen örtlichen Situation zu prüfen."].filter(Boolean).join(" ");
+      hypothesis ? "" : rail?.rationale || "Welche Fahrwege und Konflikte den Einzelfällen zugrunde lagen, ist anhand der Unfallunterlagen und der damaligen örtlichen Situation zu prüfen."].filter(Boolean).join(" ");
     return {
-      intro: `Die Verwaltung wird gebeten, für den Bereich „${place}“ das Unfallmuster „${focus.label}“ gemeinsam mit der Unfallkommission zu prüfen.`,
+      intro: hypothesis ? `Die Verwaltung wird gebeten, mit der Unfallkommission das Muster „${focus.label}“ an der Stelle ${place} zu prüfen.` : `Die Verwaltung wird gebeten, für den Bereich „${place}“ das Unfallmuster „${focus.label}“ gemeinsam mit der Unfallkommission zu prüfen.`,
       requests: [
         ...(followUp ? [followUp] : []),
-        rail ? rail.requests[0] : plan.check,
-        (followUp ? "Bei weiterem Handlungsbedarf ergänzende Varianten prüfen. " : "") + plan.options,
-        (followUp ? "" : [statusText, "Vorbefassung und Planungen anhand der Originalunterlagen prüfen."].filter(Boolean).join(" ") + " ") +
+        hypothesis?.check || (rail ? rail.requests[0] : plan.check),
+        hypothesis?.options || (followUp ? "Bei weiterem Handlungsbedarf ergänzende Varianten prüfen. " : "") + plan.options,
+        hypothesis ? "Mit Straßenverkehrsbehörde und Baulastträger Zuständigkeit, Kosten, Zielkonflikte und Zeitplan klären." : (followUp ? "" : [statusText, "Vorbefassung und Planungen anhand der Originalunterlagen prüfen."].filter(Boolean).join(" ") + " ") +
           "Mit Straßenverkehrsbehörde und Straßenbaulastträger für jede Variante Zuständigkeit, Kosten, Zielkonflikte und Zeitplan klären.",
+        hypothesis ? `Binnen drei Monaten ${gremium ? "dem Gremium „" + gremium + "“" : "dem zuständigen Gremium"} berichten. Zur Wirkungskontrolle Musterfälle, Schwere und Konflikte vor und nach der Maßnahme räumlich und zeitlich gleich abgrenzen und Verkehrsmengen berücksichtigen.` :
         `Innerhalb von drei Monaten ${gremium ? "an das Gremium „" + gremium + "“" : "an das zuständige Gremium"} berichten. Für die Wirkungskontrolle einen Vorher-Nachher-Vergleich mit gleicher Abgrenzung und gleichen Erhebungszeiten festlegen. Fälle des Musters, Verletzungsschwere und beobachtete Konflikte getrennt erfassen und Änderungen der Verkehrsmengen berücksichtigen.`,
       ],
       rationale,

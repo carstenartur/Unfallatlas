@@ -60,7 +60,7 @@
     "changes": [
       {
         "kind": "police-analysis",
-        "label": "15-0778/2021 F1 · Laut Anlage 1, Abschnitt 9, erfasste die Polizei 2017 bis 2020 an dieser Einmündung 15 Unfälle zwischen Kfz und Radfahrenden. Davon waren 11 Unfälle des Typs Einbiegen/Kreuzen und 4 Abbiegeunfälle.",
+        "label": "15-0778/2021 F1 nennt 2017 bis 2020 an dieser Einmündung 15 Unfälle zwischen Kfz und Radfahrenden (11 Unfälle des Typs Einbiegen/Kreuzen, 4 Abbiegeunfälle), jeweils mit Kfz-Fahrenden als Hauptverursacher.",
         "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0778-2021F1",
         "date": "2021-05-10",
         "precision": "documented-by",
@@ -72,7 +72,7 @@
       },
       {
         "kind": "council-decision",
-        "label": "15-1243/2021 · Der Stadtbezirksrat Mitte beschloss die Aufpflasterung der Fuß- und Radquerung. Die Schließung der Wendeschleife lehnte er ab.",
+        "label": "15-1243/2021 · Aufpflasterung der Fuß- und Radquerung beschlossen, Schließung der Wendeschleife abgelehnt.",
         "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1243-2021",
         "date": "2021-06-07",
         "precision": "documented-by",
@@ -96,11 +96,24 @@
       },
       {
         "kind": "implementation-status",
-        "label": "15-2377/2023 F1 · Wegen Personalengpässen ruhte die weitere Bearbeitung. Die Verwaltung konnte zu diesem Zeitpunkt keinen Umsetzungstermin nennen.",
+        "label": "15-2377/2023 F1 · Die Planung ruhte wegen Personalengpässen, ein Umsetzungstermin war offen.",
         "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2377-2023F1",
         "date": "2023-12-04",
         "precision": "documented-by",
-        "number": "15-2377/2023 F1"
+        "number": "15-2377/2023 F1",
+        "attachment": {
+          "label": "Polizeiliche Einzelfälle und Unfalltypen (S. 2)",
+          "url": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/4EC37A348F912CE5C1258A8C001CC6BE/$FILE/Druckversion.pdf#page=2"
+        },
+        "conflictHypothesis": {
+          "patternKey": "turning:5",
+          "evidence": "Der Antrag 15-1243/2021 beschreibt einen Zweirichtungsradweg. 2022/23 erfasste die Polizei zwei Einbiegeunfälle mit Radverkehr von rechts (Typ 342) und einen Rechtsabbiegeunfall mit entgegenkommendem Radverkehr (Typ 244)",
+          "mechanism": "Auf der Suche nach einer Lücke im Verkehr auf der Brühlstraße könnten aus der Escherstraße einfahrende Kfz-Fahrende Radfahrende von rechts zu spät wahrnehmen.",
+          "check": "Unfallskizzen nach Fahrweg und Kollisionspunkt ordnen: Wie viele Kfz fuhren aus der Escherstraße ein, wie viele bogen von der Brühlstraße ab? Andere Fahrwege getrennt erfassen. Sicht, Blickverhalten und Tempo an der Warteposition beobachten.",
+          "options": "Prüfen, ob die beschlossene Aufpflasterung die Querung erkennbarer macht und langsames Einfahren begünstigt. Bei verdeckter Sicht das Sichtfeld freihalten.",
+          "locator": "S. 2",
+          "scopeNote": "Bei zeitlicher Überschneidung können diese Polizeifälle bereits in der Auswahl enthalten sein."
+        }
       }
     ]
   }

@@ -239,3 +239,48 @@ test('an unavailable selected site cannot substitute one bicycle crash from the 
   expect(report.structured.motion?.requests.join(' ') || '').not.toMatch(/Gleisquerung/);
   expect(report.structured.siteNetwork.status).toBe('unavailable');
 });
+
+test('the documented junction hypothesis follows the selected pattern, its source and its testable alternative', async () => {
+  require('../../js/ua.site_discovery.js');
+  require('../../js/ua.review_network.js');
+  require('../../js/ua.report_v2.js');
+  const index = require('../../data/mobility/review-network/hannover/index.json');
+  const site = { id: 'j:60655478', revision: index.revision };
+  const history = index.caseHistory.find(record => record.id === site.id);
+  const sources = history.changes;
+  const published = sources.find(record => record.number === '15-2377/2023 F1');
+  const atSite = [point('bike and car', 2024, { istrad: '1', istpkw: '1' }),
+    point('other pattern', 2024, { istrad: '1', istpkw: '1', utyp1: '6' })];
+  const compute = async (key, changes) => {
+    const result = { network: { city: 'hannover', revision: site.revision,
+      counts: { junction: 1 }, sites: new Map([[site.id, {
+        id: site.id, kind: 'junction', label: 'Brühlstraße / Escherstraße', bounds: selected, changes
+      }]]) }, bySite: new Map([[site.id, atSite]]) };
+    return window.UA.computeExportReport(context({ allPts: atSite,
+      discoveryFocus: { query: {}, key, bounds: selected, site },
+      reviewNetworkResult: result, exportOptions: { includeCosts: false } }));
+  };
+  const report = await compute('turning:5', sources);
+  const { motion } = report.structured;
+  const preview = document.createElement('div');
+  preview.innerHTML = report.html;
+  for (const output of [motion.rationale, report.text, preview.textContent]) {
+    expect(output).toMatch(/Arbeitshypothese/);
+    expect(output).toMatch(/Lücke.*Brühlstraße/);
+    expect(output).toMatch(/von rechts/);
+    expect(output).toMatch(/342/);
+    expect(output).toMatch(/244/);
+    expect(output).toContain('diese Polizeifälle bereits in der Auswahl');
+  }
+  expect(motion.discoveryEvidence.count).toBe(1);
+  expect(motion.requests.join(' ')).toMatch(/Unfallskizzen.*Kollisionspunkt/);
+  expect(motion.requests.join(' ')).toMatch(/Escherstraße.*Brühlstraße/);
+  expect(motion.requests.join(' ')).toMatch(/Warteposition/);
+  expect(motion.requests.join(' ')).not.toMatch(/17 Fälle/);
+  expect(preview.querySelector('a[href="' + published.attachment.url + '"]')).not.toBeNull();
+  for (const [key, changes] of [['6:5', sources], ['turning:5', sources.filter(r => r !== published)]]) {
+    const other = await compute(key, changes);
+    expect(other.structured.motion.rationale).not.toContain('Arbeitshypothese');
+    expect(other.structured.motion.requests.join(' ')).not.toContain('Warteposition');
+  }
+});
