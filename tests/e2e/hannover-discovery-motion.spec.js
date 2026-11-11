@@ -135,6 +135,9 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
   await expect(page.locator('#exportProgress')).toHaveText('Fertig.', { timeout: 30000 });
   const preview = await page.locator('#exportBoxTa').inputValue();
   checkMotion(preview);
+  const followUp = page.locator('#exportHtml ol li').filter({ hasText: 'aktuellen Planungs- und Umsetzungsstand' });
+  await expect(followUp.getByRole('link', { name: '15-1243/2021', exact: true })).toHaveAttribute('href', councilSources[0]);
+  await expect(followUp.getByRole('link', { name: '15-2377/2023 F1', exact: true })).toHaveAttribute('href', councilSources[2]);
   const summary = preview.split('KURZBEWERTUNG:')[1]?.trim().split(/\r?\n/);
   expect(summary?.[0]).toContain(intersection);
   expect(summary[0]).toContain('Rad + Pkw');
@@ -156,7 +159,15 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     expect(text).toContain('Datenstand ' + roadSourceDate);
     expect(text).not.toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
     expect(title).toContain(intersection);
-    expect(links).toEqual(expect.arrayContaining(councilSources));
+    expect(links).toEqual(expect.arrayContaining([
+      ...councilSources,
+      'https://www.statistikportal.de/de/karten/unfallatlas',
+      'https://pubmed.ncbi.nlm.nih.gov/22105099/',
+    ]));
+    expect(text).toMatch(/der Polizei unbekannt blieben/);
+    const normalized = text.replace(/\s+/g, ' ');
+    expect(normalized).toMatch(/nach schwerster Folge \(n = 48\)\. Das ausgewählte Muster umfasst davon 17 Fälle/);
+    expect(normalized).toMatch(/mit Getöteten mit Schwerverletzten mit Leichtverletzten Unfälle gesamt/);
     if (selector === '#btnExportWord') {
       expect(text).toContain('Häufung von Unfällen mit Rad- und Pkw-Beteiligung');
       // External map services are intentionally unavailable in this CI case.

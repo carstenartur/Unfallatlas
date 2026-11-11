@@ -573,7 +573,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
 
     // Resolve the currently connected semantic section on every poll. The
     // report may be atomically replaced while late evidence is adopted.
-    await scrollCurrentExportSectionIntoView(page, 'Verletzungsschwere im Ausschnitt');
+    await scrollCurrentExportSectionIntoView(page, `Unfälle im ausgewerteten Ausschnitt nach schwerster Folge (n = ${localAccidents.toLocaleString('de-DE')})`);
     await captureDataScreenshot(page, {
       path: 'docs/screenshots/16-antrag-inhalt.png',
       fullPage: false,

@@ -202,22 +202,30 @@ test.each([
   }
 });
 
-test('Word links cited council numbers in the motion and the selected RIS document at its title', async () => {
+test('PDF and Word link cited council numbers directly in the motion and rationale', async () => {
   const window = loadReport();
   const data = reportData();
   const decision = 'https://example.test/ris/2021-decision';
   const reply = 'https://example.test/ris/2023-reply';
   const selected = { title: 'Planung des Radwegs', number: '25-111/2025', url: 'https://example.test/ris/selected' };
-  data.structured.politicalReferences = [selected];
+  const ambiguous = { number: '5/2024', url: 'https://example.test/ris/other' };
+  data.structured.politicalReferences = [selected, ambiguous];
   data.structured.motion = {
     intro: 'Die Verwaltung wird gebeten zu berichten.',
     requests: ['Zum Beschluss 15-1243/2021 und zur Antwort 15-2377/2023 F1 berichten.'],
-    rationale: 'Siehe DS 25-111/2025. Für 15-1243/2021 S1 ist hier kein Direktlink belegt.',
+    rationale: 'Siehe DS 25-111/2025. Für 15-1243/2021 S1 und die mehrdeutige 5/2024 ist hier kein Direktlink belegt.',
     priorWork: [
       { number: '15-1243/2021', date: '2021-06-07', url: decision },
       { number: '15-2377/2023 F1', date: '2023-12-04', url: reply },
+      { number: '5/2024', date: '2024-01-01', url: 'https://example.test/ris/another' },
     ],
   };
+  const pdf = await exportPdf(window, data);
+  const request = pdf.content.find(node => node.ol)?.ol.find(node => visibleText(node).includes('Zum Beschluss'));
+  const rationale = pdf.content.find(node => visibleText(node).includes('Siehe '));
+  const links = node => (Array.isArray(node?.text) ? node.text : []).filter(run => run.link).map(run => [run.text, run.link]);
+  expect(links(request)).toEqual([['15-1243/2021', decision], ['15-2377/2023 F1', reply]]);
+  expect(links(rationale)).toEqual([['DS 25-111/2025', selected.url]]);
   await window.UA.exportToWord({ CITY_RAW: 'Hannover' }, data, { includeReferences: true });
   const zip = await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
   const xml = await zip.file('word/document.xml').async('string');

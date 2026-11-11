@@ -109,24 +109,20 @@
 
   // --------------------
   // Dunkelziffer / Erfassungsgrenzen (#C3)
-  // Pflicht-Hinweisblock in allen Antrags-Ausgaben (Text/HTML/DOCX/PDF), damit
-  // Adressaten verstehen, dass die offiziellen Zahlen nur einen Ausschnitt der
-  // tatsächlichen Verkehrssicherheitsbelastung abbilden. Quelle/Faktor sind in
-  // docs/DOKUMENTATION.md hinterlegt.
-  // --------------------
+  // Gemeinsamer Hinweis für Vorschau, Text, Word und PDF.
   const DARK_FIGURE_NOTE = Object.freeze({
-    title: "Datenerfassung – Dunkelziffer und Erfassungsgrenzen",
-    body: "Erfasst sind ausschließlich polizeilich aufgenommene Verkehrsunfälle mit Personenschaden. Reine Sachschäden, Beinaheunfälle und nicht gemeldete Unfälle (Dunkelziffer) sind nicht enthalten. Studien schätzen, dass insbesondere bei Radunfällen ohne Fremdverschulden sowie bei leichten Verletzungen ein erheblicher Anteil der Vorfälle nicht in der amtlichen Statistik landet — die tatsächliche Belastung kann je nach Verkehrsart um den Faktor 2–10 höher liegen.",
-    sourceLabel: "Quelle: BASt – Bundesanstalt für Straßenwesen; Unfallforschung der Versicherer (UDV).",
-    sourceUrl: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
+    title: "Welche Unfälle sind erfasst?",
+    body: "Der Unfallatlas zählt polizeilich erfasste Unfälle, bei denen mindestens ein Mensch verletzt oder getötet wurde. Unfälle mit reinem Sachschaden und Beinaheunfälle fehlen. Wie viele Unfälle mit Personenschaden am untersuchten Ort der Polizei unbekannt blieben (Dunkelziffer), lässt sich aus diesen Zahlen nicht berechnen.",
+    sourceLabel: "Datengrundlage und Untersuchung zur Dunkelziffer im Radverkehr",
+    sourceUrl: "https://www.statistikportal.de/de/karten/unfallatlas",
     sources: Object.freeze([
       Object.freeze({
-        label: "BASt – Volkswirtschaftliche Kosten von Straßenverkehrsunfällen",
-        url: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
+        label: "Statistische Ämter des Bundes und der Länder – Was der Unfallatlas erfasst",
+        url: "https://www.statistikportal.de/de/karten/unfallatlas"
       }),
       Object.freeze({
-        label: "UDV – Unfallforschung der Versicherer",
-        url: "https://www.udv.de/"
+        label: "Juhra u. a. (2012) – Vergleich von Polizei- und Klinikdaten zu Radunfällen in Münster, 2009 bis 2010",
+        url: "https://pubmed.ncbi.nlm.nih.gov/22105099/"
       })
     ])
   });
@@ -2295,7 +2291,7 @@
     // Mehrjahres-Trend (#C2): kompakte Tabelle + Klassifikation.
     if (yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) {
       lines.push("Mehrjahres-Trend (Gesamtzahl pro Jahr):");
-      const header = "  Jahr | Getötete | Schwerverletzte | Leichtverletzte | Summe";
+      const header = "  Jahr | mit Getöteten | mit Schwerverletzten | mit Leichtverletzten | Unfälle gesamt";
       lines.push(header);
       for (let i = 0; i < yearlyTrend.years.length; i++) {
         lines.push(`  ${yearlyTrend.years[i]} | ${yearlyTrend.counts.fatal[i]} | ${yearlyTrend.counts.severe[i]} | ${yearlyTrend.counts.light[i]} | ${yearlyTrend.counts.total[i]}`);
@@ -2569,7 +2565,7 @@
     // Add cross-table (Beteiligungskombination × Schweregrad)
     if (crossTable.rows.length > 0) {
       lines.push("Beteiligungskombination × Schweregrad:");
-      lines.push("  Kombination | Getötete | Schwerverletzt | Leichtverletzt | Summe");
+      lines.push("  Kombination | mit Getöteten | mit Schwerverletzten | mit Leichtverletzten | Unfälle gesamt");
       for (const r of crossTable.rows) {
         lines.push(`  ${r.label} | ${r.sev1} | ${r.sev2} | ${r.sev3} | ${r.total}`);
       }
@@ -2996,6 +2992,12 @@
       return `<div style="margin-top:6px;"><strong>OSM-Schlussfolgerungen:</strong><ul style="margin:4px 0 0 18px;">${ins.map(s => `<li>${UA.escHtml(s)}</li>`).join("")}</ul></div>`;
     })();
 
+    const formatMotionText = motion && UA.createMotionLinkFormatter?.(motion.priorWork, politicalReferences);
+    const motionHtml = text => {
+      const parts = formatMotionText ? formatMotionText(text) : text;
+      return Array.isArray(parts) ? parts.map(part => part.link
+        ? sourceLink({ label: part.text, url: part.link }) : UA.escHtml(part.text)).join("") : UA.escHtml(parts);
+    };
     const htmlOut = `
       <div style="font:14px/1.35 system-ui;">
         <div style="font-weight:950; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
@@ -3012,7 +3014,7 @@
           
         </div>
 
-        ${motion ? `<h3>Beschlussvorschlag</h3><p>${UA.escHtml(motion.intro)}</p><ol>${motion.requests.map(request => `<li>${UA.escHtml(request)}</li>`).join("")}</ol><p>${UA.escHtml(motion.rationale)}</p>${motion.source ? `<p>${sourceLink(motion.source)}</p>` : ""}
+        ${motion ? `<h3>Beschlussvorschlag</h3><p>${motionHtml(motion.intro)}</p><ol>${motion.requests.map(request => `<li>${motionHtml(request)}</li>`).join("")}</ol><p>${motionHtml(motion.rationale)}</p>${motion.source ? `<p>${sourceLink(motion.source)}</p>` : ""}
           ${motion.priorWork?.length ? `<p><strong>Amtliche Vorbefassung am Netzobjekt</strong></p><ul>${motion.priorWork.map(record =>
             `<li>${sourceLink({ ...record, date: councilRecordDate(record) })}</li>`).join("")}</ul>` : ""}` : ""}
 
@@ -3055,15 +3057,15 @@
           </tbody>
         </table>
 
-        <div style="margin-top:12px; font-weight:900;">Verletzungsschwere im Ausschnitt</div>
+        <div style="margin-top:12px; font-weight:900;">Unfälle im ausgewerteten Ausschnitt nach schwerster Folge (n = ${sev.total.toLocaleString("de-DE")})</div>
         <table class="report" style="margin-top:6px;">
           <thead>
             <tr><th>Kategorie</th><th style="text-align:right;">Anzahl</th><th style="text-align:right;">Anteil</th></tr>
           </thead>
           <tbody>
-            <tr><td>1 – Getötete</td><td style="text-align:right;">${sev.bySev["1"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["1"] || 0) / sev.total) : "0,0 %"}</td></tr>
-            <tr><td>2 – Schwerverletzte</td><td style="text-align:right;">${sev.bySev["2"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["2"] || 0) / sev.total) : "0,0 %"}</td></tr>
-            <tr><td>3 – Leichtverletzte</td><td style="text-align:right;">${sev.bySev["3"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["3"] || 0) / sev.total) : "0,0 %"}</td></tr>
+            <tr><td>Unfälle mit Getöteten</td><td style="text-align:right;">${sev.bySev["1"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["1"] || 0) / sev.total) : "0,0 %"}</td></tr>
+            <tr><td>Unfälle mit Schwerverletzten</td><td style="text-align:right;">${sev.bySev["2"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["2"] || 0) / sev.total) : "0,0 %"}</td></tr>
+            <tr><td>Unfälle mit Leichtverletzten</td><td style="text-align:right;">${sev.bySev["3"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["3"] || 0) / sev.total) : "0,0 %"}</td></tr>
           </tbody>
         </table>
 
@@ -3071,7 +3073,7 @@
         <div style="margin-top:12px; font-weight:900;">Beteiligungskombination × Schweregrad</div>
         <table class="report" style="margin-top:6px;">
           <thead>
-            <tr><th>Kombination</th><th style="text-align:right;">Getötete</th><th style="text-align:right;">Schwerverletzt</th><th style="text-align:right;">Leichtverletzt</th><th style="text-align:right;">Summe</th></tr>
+            <tr><th>Kombination</th><th style="text-align:right;">mit Getöteten</th><th style="text-align:right;">mit Schwerverletzten</th><th style="text-align:right;">mit Leichtverletzten</th><th style="text-align:right;">Unfälle gesamt</th></tr>
           </thead>
           <tbody>
             ${crossTable.rows.map(r => `<tr${isActiveFilterRow(r.mask) ? ' style="background-color:#FFFFCC; font-weight:600;"' : ''}><td>${UA.escHtml(r.label)}</td><td style="text-align:right;">${r.sev1}</td><td style="text-align:right;">${r.sev2}</td><td style="text-align:right;">${r.sev3}</td><td style="text-align:right; font-weight:700;">${r.total}</td></tr>`).join("")}
@@ -3158,7 +3160,7 @@
         <div style="margin-top:12px; font-weight:900;">Mehrjahres-Trend</div>
         <div style="margin:6px 0;">${(UA.trend && UA.trend.renderTrendSVG) ? UA.trend.renderTrendSVG(yearlyTrend) : ""}</div>
         <table class="report" style="font-size:12px;">
-          <thead><tr><th>Jahr</th><th style="text-align:right;">Getötete</th><th style="text-align:right;">Schwerverletzte</th><th style="text-align:right;">Leichtverletzte</th><th style="text-align:right;">Summe</th></tr></thead>
+          <thead><tr><th>Jahr</th><th style="text-align:right;">mit Getöteten</th><th style="text-align:right;">mit Schwerverletzten</th><th style="text-align:right;">mit Leichtverletzten</th><th style="text-align:right;">Unfälle gesamt</th></tr></thead>
           <tbody>
             ${yearlyTrend.years.map((y, i) => `<tr><td>${y}</td><td style="text-align:right;">${yearlyTrend.counts.fatal[i]}</td><td style="text-align:right;">${yearlyTrend.counts.severe[i]}</td><td style="text-align:right;">${yearlyTrend.counts.light[i]}</td><td style="text-align:right;">${yearlyTrend.counts.total[i]}</td></tr>`).join("")}
           </tbody>

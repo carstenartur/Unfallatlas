@@ -62,22 +62,21 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/ua.context_layers.js?v=2026-11-11-osm-road-context"');
   });
 
-  test('loads German number formatting for exported applications', () => {
-    expect(html).toContain('js/ua.export_v2.js?v=2026-11-11-de-counts"');
+  test('loads the linked and source-checked application renderers', () => {
+    expect(html).toContain('js/ua.export_v2.js?v=2026-11-11-antragsbelege"');
+    expect(html).toContain('js/ua.report_v2.js?v=2026-11-11-antragsbelege"');
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
-    for (const asset of ['ua.report_v2', 'ua.data_paths']) {
-      expect(html).toContain(`js/${asset}.js?v=2026-11-11-pdf-download"`);
-    }
+    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-pdf-download"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-pdf-download');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
   });
 
-  test('loads inflected evidence labels in reports', () => {
-    expect(html).toContain('js/ua.bootstrap.js?v=2026-11-11-antragsgrammatik"');
-    expect(bootstrap).toContain('ua.evidence_safe_semantics.js?v=2026-11-11-antragsgrammatik');
+  test('loads the semantic rules for source-checked report text', () => {
+    expect(html).toContain('js/ua.bootstrap.js?v=2026-11-11-antragsbelege"');
+    expect(bootstrap).toContain('ua.evidence_safe_semantics.js?v=2026-11-11-antragsbelege');
   });
 
   test('loads optional review-network support before site selection and document export', () => {

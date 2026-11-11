@@ -105,6 +105,7 @@
     "Hinweis (intern)",
     "Datenquelle",
     "Datenerfassung",
+    "Welche Unfälle sind erfasst?",
     "Kontextdaten"
   ];
 
@@ -188,6 +189,33 @@
     return { pattern, urls };
   }
 
+  // The HTML preview, Word and native PDF cite the same verified originals at
+  // the point of use. Preserve literal URL links and unresolved document numbers.
+  UA.createMotionLinkFormatter = function (priorWork, selectedRecords) {
+    const citations = councilCitationMatcher([...(priorWork || []), ...(selectedRecords || [])]);
+    return text => {
+      const content = textWithLinks(text);
+      if (!citations) return content;
+      const parts = Array.isArray(content) ? content : [{ text: content }];
+      const runs = parts.flatMap(part => {
+        if (part.link) return [part];
+        const matches = [];
+        let offset = 0;
+        for (const match of part.text.matchAll(citations.pattern)) {
+          const link = citations.urls.get(match[1].replace(/\s+/g, " "));
+          if (!link) continue;
+          if (match.index > offset) matches.push({ text: part.text.slice(offset, match.index) });
+          matches.push({ text: match[0], link, color: "#174F71", decoration: "underline" });
+          offset = match.index + match[0].length;
+        }
+        if (!matches.length) return [part];
+        if (offset < part.text.length) matches.push({ text: part.text.slice(offset) });
+        return matches;
+      });
+      return runs.length === 1 && !runs[0].link ? runs[0].text : runs;
+    };
+  };
+
   function reportLink(href) {
     if (typeof href !== "string" || !href.trim()) return null;
     try {
@@ -219,6 +247,18 @@
       sourceNote: appendix?.sourceNote,
       limitations: Array.isArray(appendix?.limitations) ? appendix.limitations : []
     };
+  }
+
+  function severityPopulationText(sd) {
+    const title = "Unfälle im ausgewerteten Ausschnitt nach schwerster Folge";
+    const total = sd?.severity?.total;
+    if (!Number.isSafeInteger(total) || total < 0) return title;
+    const count = sd.motion?.discoveryEvidence?.count;
+    const focus = sd.discoveryFocus;
+    const heading = `${title} (n = ${total.toLocaleString("de-DE")})`;
+    if (!focus?.key || focus.key !== sd.motion?.discoveryEvidence?.key || count !== focus.points?.length ||
+        !Number.isSafeInteger(count) || count < 1 || count > total) return heading;
+    return `${heading}. Das ausgewählte Muster umfasst davon ${count.toLocaleString("de-DE")} ${count === 1 ? "Fall" : "Fälle"}.`;
   }
 
   function evidenceCountText(evidence) {
@@ -1820,22 +1860,9 @@
     }
 
     function motionParagraph(text, options = {}) {
-      const content = textWithLinks(String(text));
+      const content = formatMotionText(String(text));
       const parts = Array.isArray(content) ? content : [{ text: content }];
-      const runs = parts.flatMap(part => {
-        if (part.link || !councilCitations) return [linkedWordRun({ text: part.text, href: part.link })];
-        const children = [];
-        let offset = 0;
-        for (const match of part.text.matchAll(councilCitations.pattern)) {
-          const href = councilCitations.urls.get(match[1].replace(/\s+/g, " "));
-          if (!href) continue;
-          if (match.index > offset) children.push(linkedWordRun({ text: part.text.slice(offset, match.index) }));
-          children.push(linkedWordRun({ text: match[0], href }));
-          offset = match.index + match[0].length;
-        }
-        if (offset < part.text.length || !children.length) children.push(linkedWordRun({ text: part.text.slice(offset) }));
-        return children;
-      });
+      const runs = parts.map(part => linkedWordRun({ text: part.text, href: part.link }));
       return new Paragraph({ children: runs, spacing: { after: 100 }, keepLines: true, ...options });
     }
 
@@ -2038,7 +2065,7 @@
     const sd = reportData.structured || null;
     const includeReferences = options.includeReferences !== false;
     const selectedCouncilRecords = includeReferences && Array.isArray(sd?.politicalReferences) ? sd.politicalReferences : [];
-    const councilCitations = councilCitationMatcher([...(sd?.motion?.priorWork || []), ...selectedCouncilRecords]);
+    const formatMotionText = UA.createMotionLinkFormatter(sd?.motion?.priorWork, selectedCouncilRecords);
     let evidence = numberedEvidence(sd);
     const formalMotion = Boolean(evidence || sd?.motion);
     const hasMap = Boolean(options.includeMap && ctx.map);
@@ -2383,7 +2410,7 @@
 
       // Severity table
       children.push(new Paragraph({
-        text: evidence ? "Unfälle nach schwerster Folge unter den Suchfiltern" : "Verletzungsschwere im Ausschnitt:",
+        text: severityPopulationText(sd),
         keepNext: true, spacing: { after: 100 }
       }));
       const sev = sd.severity;
@@ -2392,9 +2419,9 @@
       children.push(makeDocxTable(
         ["Kategorie", "Anzahl", "Anteil"],
         [
-          [evidence ? "Unfälle mit Getöteten" : "1 – Getötete", String((sev && sev.bySev["1"]) || 0), fmtPct((sev && sev.bySev["1"]) || 0, sevTotal)],
-          [evidence ? "Unfälle mit Schwerverletzten" : "2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPct((sev && sev.bySev["2"]) || 0, sevTotal)],
-          [evidence ? "Unfälle mit Leichtverletzten" : "3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPct((sev && sev.bySev["3"]) || 0, sevTotal)]
+          ["Unfälle mit Getöteten", String((sev && sev.bySev["1"]) || 0), fmtPct((sev && sev.bySev["1"]) || 0, sevTotal)],
+          ["Unfälle mit Schwerverletzten", String((sev && sev.bySev["2"]) || 0), fmtPct((sev && sev.bySev["2"]) || 0, sevTotal)],
+          ["Unfälle mit Leichtverletzten", String((sev && sev.bySev["3"]) || 0), fmtPct((sev && sev.bySev["3"]) || 0, sevTotal)]
         ]
       ));
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
@@ -2519,7 +2546,7 @@
         ]);
         ctHighlights.push(false); // Gesamt row is not highlighted
         children.push(makeDocxTable(
-          ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
+          ["Kombination", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
           ctRows,
           ctHighlights,
           { colWeights: [45, 12, 17, 16, 10] }
@@ -3101,7 +3128,7 @@
         const legendText =
           ctx && typeof ctx.t === "function"
             ? ctx.t("report.map.legend")
-            : "Legende: Darstellung entsprechend der aktuellen Kartendarstellung. Punkte: rot = Getötete, orange = Schwerverletzte, gelb = Leichtverletzte.";
+            : "Legende: Darstellung entsprechend der aktuellen Kartendarstellung. Die Punktfarbe zeigt die schwerste Unfallfolge: rot bei Unfällen mit Getöteten, orange bei Schwerverletzten und gelb bei Leichtverletzten.";
 
         children.push(
           new Paragraph({
@@ -3440,7 +3467,7 @@
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 400, after: 200 }
       }));
-      const trendHeader = ["Jahr", "Getötete", "Schwerverletzte", "Leichtverletzte", "Summe"];
+      const trendHeader = ["Jahr", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"];
       const trendRows = t.years.map((y, i) => [
         String(y),
         String(t.counts.fatal[i]),
@@ -4546,7 +4573,9 @@
     const pdfFigCounter = makeFigureCounter();
 
     const motion = motionSections(sd, textLines, hasMap);
-    const motionParagraph = text => ({ text: textWithLinks(replaceEmojisForPDF(text)), style: formalMotion ? "motionBody" : "normal" });
+    const selectedCouncilRecords = options.includeReferences !== false && Array.isArray(sd?.politicalReferences) ? sd.politicalReferences : [];
+    const formatMotionText = UA.createMotionLinkFormatter(sd?.motion?.priorWork, selectedCouncilRecords);
+    const motionParagraph = text => ({ text: formatMotionText(replaceEmojisForPDF(text)), style: formalMotion ? "motionBody" : "normal" });
     docDefinition.content.push({
       text: formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG",
       style: formalMotion ? "sectionHeader" : "subheader",
@@ -4655,15 +4684,15 @@
       const sev = sd.severity;
       const sevTotal = sev ? sev.total : 0;
       const severityRows = [
-        [evidence ? "Unfälle mit Getöteten" : "1 – Getötete", String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
-        [evidence ? "Unfälle mit Schwerverletzten" : "2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
-        [evidence ? "Unfälle mit Leichtverletzten" : "3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
+        ["Unfälle mit Getöteten", String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
+        ["Unfälle mit Schwerverletzten", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
+        ["Unfälle mit Leichtverletzten", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
       ];
       docDefinition.content.push({
         unbreakable: true,
         stack: [
           { text: "STATISTIK", style: "subheader" },
-          { text: evidence ? "Unfälle nach schwerster Folge unter den Suchfiltern" : "Verletzungsschwere im Ausschnitt:", style: "normal" },
+          { text: severityPopulationText(sd), style: "normal" },
           makePdfTable(["Kategorie", "Anzahl", "Anteil"], severityRows, undefined, evidence ? { widths: ["*", 78, 78] } : undefined)
         ]
       });
@@ -4793,7 +4822,7 @@
         ]);
         ctHighlights.push(false); // Gesamt row is not highlighted
         docDefinition.content.push(makePdfTable(
-          ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
+          ["Kombination", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
           ctRows,
           ctHighlights,
           { widths: ["*", "auto", "auto", "auto", "auto"] }
@@ -5505,7 +5534,7 @@
         String(t.counts.total[i])
       ]);
       docDefinition.content.push(makePdfTable(
-        ["Jahr", "Getötete", "Schwerverletzte", "Leichtverletzte", "Summe"],
+        ["Jahr", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
         trendRows,
         undefined,
         { widths: ["auto", "auto", "auto", "auto", "*"] }

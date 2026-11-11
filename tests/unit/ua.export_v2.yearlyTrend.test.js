@@ -93,6 +93,18 @@ describe('UA.computeExportReport – structured.yearlyTrend (#C2)', () => {
     expect(t.nYears).toBe(4);
   });
 
+  test('year and involvement tables count crashes by their most severe outcome', async () => {
+    const report = await UA.computeExportReport(makeBoundsCtx([pt(2021, 2), pt(2022, 3)]));
+    const columns = ['mit Getöteten', 'mit Schwerverletzten', 'mit Leichtverletzten', 'Unfälle gesamt'];
+    const html = new DOMParser().parseFromString(report.html, 'text/html');
+    const rows = [...html.querySelectorAll('tr')].map(row => [...row.querySelectorAll('th')].map(cell => cell.textContent));
+    for (const field of ['Jahr', 'Kombination']) {
+      const expected = [field, ...columns];
+      expect(rows).toContainEqual(expected);
+      expect(report.text).toContain(expected.join(' | '));
+    }
+  });
+
   test('text output includes the "Mehrjahres-Trend" section and the classification', async () => {
     const points = [];
     for (const y of [2020, 2021, 2022, 2023]) for (let i = 0; i < 5; i++) points.push(pt(y, 3));

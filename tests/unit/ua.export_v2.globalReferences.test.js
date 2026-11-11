@@ -5,7 +5,7 @@
  * - references_global.json exists and has the required structure.
  * - loadReferenceDocuments merges global + city docs (tested via global.fetch mock).
  * - City entry wins on title+author collision.
- * - DARK_FIGURE_NOTE exposes `sources` array with BASt and UDV entries.
+ * - DARK_FIGURE_NOTE exposes `sources` array with the statistical definition and the primary underreporting study.
  * - Both source links appear in text and html output.
  */
 
@@ -249,37 +249,25 @@ describe('UA.DARK_FIGURE_NOTE – sources array', () => {
     };
   }
 
-  test('DARK_FIGURE_NOTE has sources array with BASt and UDV entries', () => {
-    expect(Array.isArray(UA.DARK_FIGURE_NOTE.sources)).toBe(true);
-    expect(UA.DARK_FIGURE_NOTE.sources.length).toBeGreaterThanOrEqual(2);
-    const labels = UA.DARK_FIGURE_NOTE.sources.map(s => s.label);
-    const urls   = UA.DARK_FIGURE_NOTE.sources.map(s => s.url);
-    expect(labels.some(l => /BASt/i.test(l))).toBe(true);
-    expect(labels.some(l => /UDV/i.test(l))).toBe(true);
-    expect(urls.some(u => /bast\.de/.test(u))).toBe(true);
-    expect(urls.some(u => /udv\.de/.test(u))).toBe(true);
+  const atlas = 'https://www.statistikportal.de/de/karten/unfallatlas';
+  const study = 'https://pubmed.ncbi.nlm.nih.gov/22105099/';
+
+  test('the primary source describes the counted population and the study names its city and period', () => {
+    const note = UA.DARK_FIGURE_NOTE;
+    expect(note.sourceUrl).toBe(atlas);
+    expect(note.sources).toEqual(expect.arrayContaining([
+      { label: expect.stringMatching(/Unfallatlas/), url: atlas },
+      { label: expect.stringMatching(/Münster.*2009.*2010/), url: study }
+    ]));
   });
 
-  test('sourceUrl points to specific BASt page, not just domain root', () => {
-    expect(UA.DARK_FIGURE_NOTE.sourceUrl).toMatch(/bast\.de/);
-    expect(UA.DARK_FIGURE_NOTE.sourceUrl.length).toBeGreaterThan('https://www.bast.de/'.length);
-  });
-
-  test('backward-compatible sourceLabel still contains BASt and UDV', () => {
-    expect(UA.DARK_FIGURE_NOTE.sourceLabel).toMatch(/BASt/);
-    expect(UA.DARK_FIGURE_NOTE.sourceLabel).toMatch(/UDV/);
-  });
-
-  test('text output lists both BASt and UDV source links', async () => {
-    const r = await UA.computeExportReport(makeCtx());
-    expect(r.text).toMatch(/bast\.de/);
-    expect(r.text).toMatch(/udv\.de/);
-  });
-
-  test('html output contains both source links', async () => {
-    const r = await UA.computeExportReport(makeCtx());
-    expect(r.html).toMatch(/bast\.de/);
-    expect(r.html).toMatch(/udv\.de/);
+  test('readers can open both original sources from the preview or copy them from the text', async () => {
+    const report = await UA.computeExportReport(makeCtx());
+    const html = new DOMParser().parseFromString(report.html, 'text/html');
+    for (const url of [atlas, study]) {
+      expect(report.text).toContain(url);
+      expect([...html.querySelectorAll('a[href]')].map(a => a.href)).toContain(url);
+    }
   });
 
   test('structured darkFigureNote includes sources array passthrough', async () => {
