@@ -50,7 +50,8 @@ describe('Werkbank deployment asset versions', () => {
 
   test.each(['ua.site_discovery', 'ua.hannover_layers'])
   ('%s loads the local evidence and motion update', asset => {
-    expect(html).toContain('js/' + asset + '.js?v=2026-11-10-site-evidence"');
+    const version = asset === 'ua.hannover_layers' ? '2026-11-11-terrain-references' : '2026-11-10-site-evidence';
+    expect(html).toContain('js/' + asset + '.js?v=' + version + '"');
   });
 
   test.each(['ua.review_network', 'ua.site_discovery_ui'])

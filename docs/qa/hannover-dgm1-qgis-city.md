@@ -1,5 +1,7 @@
 # Hannover – DGM1-Profile und Brückenübergänge am 11. November 2026
 
+[Öffentliche Vergleichstabelle mit allen 292 interpolierten Geländehöhen](hannover-dgm1-profile.html)
+
 ## Unabhängige Berechnung mit QGIS
 
 PyQGIS 3.40.6 hat die OSM-Linien aus EPSG:4326 mittels PROJ nach EPSG:25832 transformiert und die Stationierungen entlang der projizierten Linie in Metern berechnet. Vier Originalkacheln aus den fünf SHA-256-geprüften kommunalen Vollarchiven wurden direkt anhand ihrer XYZ-Koordinaten als Float64-GeoTIFF angeordnet. QGIS las die vier nächstgelegenen Rasterzellmittelpunkte für jeden Stationspunkt. Bilineare Interpolation und SciPy-Theil-Sen lieferten die folgenden **Geländeprofile**. Jeder Prüfweg wurde auch im ±20-m-Fenster ausgewertet. Das Skript nutzt eigenständige Koordinaten, Stationierungen, Rasterleser und Regressionsberechnungen. Der Vergleich überprüft die Geländerechnung. Die tatsächliche Fahrbahnoberfläche wurde vor Ort bisher nicht vermessen.
@@ -18,7 +20,7 @@ Das unabhängige Verfahren bestätigt die starke Unregelmäßigkeit bei Way 2485
 Zur Wiederholung werden das System-Python für QGIS, die GDAL-Bindings, NumPy und SciPy sowie die fünf Originalarchive aus `config/hannover-dgm1-city-archives.json` benötigt.
 
 ```sh
-/usr/bin/python3 scripts/qa-hannover-dgm1-qgis.py --archives /pfad/zu/originalarchiven
+/usr/bin/python3 scripts/qa-hannover-dgm1-qgis.py --archives /pfad/zu/originalarchiven --samples docs/qa/hannover-dgm1-samples.json
 ```
 
 ## Westschnellweg an der Schwanenburgbrücke

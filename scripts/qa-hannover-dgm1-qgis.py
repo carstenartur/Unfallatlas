@@ -86,7 +86,7 @@ def plans(cases):
             yield case, window, distances, [line.interpolate(float(d)).asPoint() for d in distances]
 
 
-def run(archives, root):
+def run(archives, root, samples_file=None):
     references = json.loads((root / 'tests/fixtures/hannover-dgm1-real/reference-cases.json').read_text())
     catalog = json.loads((root / 'config/hannover-dgm1-city-archives.json').read_text())
     bridge_file = root / 'tests/fixtures/hannover-dgm1-real/westschnellweg-transition.json'
@@ -98,6 +98,7 @@ def run(archives, root):
     with tempfile.TemporaryDirectory() as temporary:
         layers = original_layers(archives, catalog, cells, temporary)
         result = []
+        sampled = []
         for case, window, distances, points in sample_plans:
             heights = []
             for point in points:
@@ -108,6 +109,9 @@ def run(archives, root):
                         raise ValueError('QGIS could not sample the original DGM1 cell')
                     height += weight * z
                 heights.append(height)
+            if samples_file and window == 50:
+                sampled.append({'wayId': case['wayId'], 'profile': [
+                    [round(float(d), 3), round(h, 4)] for d, h in zip(distances, heights)]})
             fit = theilslopes(heights, distances, method='joint')
             residual = np.median(np.abs(heights - (fit.slope*np.array(distances) + fit.intercept)))
             result.append({'wayId': case['wayId'], 'windowM': window, 'samples': len(heights),
@@ -116,12 +120,20 @@ def run(archives, root):
                            'bridge': case['originalTags'].get('bridge') == 'yes',
                            'bridgeTransition': case.get('transition', False)})
         layers.clear()
+        if samples_file:
+            samples_file.write_text(json.dumps({
+                'surveyYear': catalog['surveyYear'], 'verticalDatum': catalog['verticalDatum'],
+                'generator': f'PyQGIS {Qgis.QGIS_VERSION}', 'windowM': 50,
+                'columns': ['distanceAlongOsmWayM', 'interpolatedDgm1TerrainHeightM'],
+                'attribution': catalog['attribution'], 'geometryAttribution': '© OpenStreetMap contributors, ODbL 1.0',
+                'profiles': sampled}, ensure_ascii=False, separators=(',', ':')) + '\n')
         print(json.dumps({'qgis': Qgis.QGIS_VERSION, 'originalTiles': len(cells), 'profiles': result}, indent=2))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--archives', type=Path, required=True)
+    parser.add_argument('--samples', type=Path, help='Write the checked ±50 m terrain profiles as JSON')
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args()
     os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -130,6 +142,6 @@ if __name__ == '__main__':
     app = QgsApplication([], False)
     app.initQgis()
     try:
-        run(args.archives, args.root)
+        run(args.archives, args.root, args.samples)
     finally:
         app.exitQgis()
