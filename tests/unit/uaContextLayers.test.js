@@ -70,6 +70,31 @@ describe('UA.contextLayers public contract', () => {
     }));
   });
 
+  test('reads the published Hannover road evidence for exactly the matched ways, including a cold tile', async () => {
+    const UA = loadModule();
+    const zlib = require('node:zlib');
+    UA.fetchJsonCompressed = jest.fn(async url => JSON.parse(zlib.gunzipSync(
+      fs.readFileSync(path.resolve(__dirname, '../..', url.replace(/^\.\//, '') + '.gz')))));
+    UA.fetchJsonGz = jest.fn(async url => JSON.parse(zlib.gunzipSync(fs.readFileSync(path.resolve(__dirname, '../..', url)))));
+    const points = ['315228065', '7989370', '24565115', '7989370', '999999999999']
+      .map(id => ({ props: { matched_way_id: id, road_context_source: 'osm' } }));
+    const result = await UA.contextLayers.matchedRoadEvidence({ CITY_RAW: 'Hannover' }, points);
+    expect(result.ways.map(way => [way.id, way.maxspeed, way.lanes])).toEqual([
+      ['7989370', 30, null], ['24565115', 50, 3], ['315228065', 50, 3],
+    ]);
+    expect(result.requestedCount).toBe(4);
+    const manifest = JSON.parse(zlib.gunzipSync(fs.readFileSync(
+      path.resolve(__dirname, '../../out/ctxtiles/hannover/index.json.gz'))));
+    expect(result.sourceDate).toBe(manifest.extractDate);
+    expect(result.lines.join(' ')).toContain('3 von 4');
+    expect(result.lines.join(' ')).toContain('30 km/h');
+    expect(result.lines.join(' ')).toContain('50 km/h');
+    expect(result.lines.join(' ')).not.toMatch(/0 (Querungen|Ampeln)/);
+    expect(UA.fetchJsonGz.mock.calls.filter(([url]) => /\/4317\/2691\.json\.gz$/.test(url))).toHaveLength(1);
+    await expect(UA.contextLayers.matchedRoadEvidence({ CITY_RAW: 'Hannover' },
+      [{ props: { matched_way_id: '7989370', road_context_source: 'model' } }])).resolves.toBeNull();
+  });
+
   test('resolves integer-coded way attributes without mutating state', () => {
     const UA = loadModule();
     const state = {

@@ -121,6 +121,12 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     matchingCases: 17, samePatternInRectangle: 20, rectangleInPeriod: 28, completeCases: 48,
   });
 
+  const roadSourceDate = await page.evaluate(async () => {
+    const index = await window.UA.DataResources.fetchJson('contextTileIndex', { city: 'hannover' });
+    return index.extractDate;
+  });
+  expect(roadSourceDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
   // Exercise the PDF text separately and inspect the Word download with its map appendix enabled.
   await detail.getByRole('button', { name: 'Antragsentwurf für diese Stelle öffnen' }).click();
   await page.locator('#cbIncludeMap').uncheck();
@@ -143,6 +149,10 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     const result = await extract(bytes);
     const { text, links, title } = result;
     checkMotion(text, selector === '#btnExportWord');
+    expect(text).toContain('3 von 3 zugeordneten OSM-Wegen');
+    expect(text).toMatch(/30 km\/h.+50 km\/h/);
+    expect(text).toContain('Datenstand ' + roadSourceDate);
+    expect(text).not.toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
     expect(title).toContain(intersection);
     expect(links).toEqual(expect.arrayContaining(councilSources));
     if (selector === '#btnExportWord') {
