@@ -42,18 +42,27 @@ describe('map layer registry and map modes', () => {
     expect(UA.resolveMapMode('unknown-mode')).toBe('standard');
   });
 
-  test('returns Bonn-specific orthophoto fallback chain', () => {
+  test('starts Bonn with the official NRW aerial imagery and keeps historical city-source metadata readable', () => {
     const ids = UA.resolveRegionalOrthophotoCandidates({ city: 'Bonn' }).map(def => def.id);
+    const oldSource = UA.getMapLayerDefinition('bonn-orthophoto');
+    expect(oldSource.provider).toBe('Bundesstadt Bonn');
+    expect(UA.createMapLayer(oldSource)).toBeNull();
     expect(ids).toEqual([
-      'bonn-orthophoto',
       'nrw-orthophoto',
       'bkg-orthophoto',
       'esri-world-imagery'
     ]);
   });
 
-  test('requests the LGLN imagery layer advertised by the WMS and credits the year of access', () => {
-    const [source] = UA.resolveRegionalOrthophotoCandidates('Hannover');
+  test.each(['Bonn', 'Koeln', 'Köln', 'Duesseldorf', 'Düsseldorf', 'Muenster', 'Münster', 'Bielefeld',
+    'Dortmund', 'Essen', 'Duisburg', 'Bochum', 'Wuppertal'])('requests the NRW colour imagery for %s', city => {
+    const [source] = UA.resolveRegionalOrthophotoCandidates(city);
+    expect(source.id).toBe('nrw-orthophoto');
+    expect(UA.createMapLayer(source).opts.layers).toBe('nw_dop_rgb');
+  });
+
+  test.each(['Hannover', 'Braunschweig', 'Wolfsburg'])('requests the LGLN imagery layer and credits the year of access in %s', city => {
+    const [source] = UA.resolveRegionalOrthophotoCandidates(city);
     expect(source.id).toBe('niedersachsen-orthophoto');
     const layer = UA.createMapLayer(source);
     expect(layer.opts.layers).toBe('ni_dop20');
@@ -76,9 +85,9 @@ describe('map layer registry and map modes', () => {
 
     UA.applyMapMode(ctx);
 
-    expect(ctx.baseMapState.activeOrthophotoDef.id).toBe('bonn-orthophoto');
+    expect(ctx.baseMapState.activeOrthophotoDef.id).toBe('nrw-orthophoto');
     expect(map.layers.map(layer => layer.url)).toEqual(expect.arrayContaining([
-      'https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer',
+      'https://www.wms.nrw.de/geobasis/wms_nw_dop',
       'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png?key=test%2Bkey%26value'
     ]));
     expect(map.layers.map(layer => layer.url)).not.toContain('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
@@ -266,8 +275,8 @@ describe('map layer registry and map modes', () => {
       }
     });
 
-    test('official providers (Bonn, NRW, Niedersachsen, BKG) have officialForExport=true', () => {
-      const officialIds = ['bonn-orthophoto', 'nrw-orthophoto', 'niedersachsen-orthophoto', 'bkg-orthophoto'];
+    test('active official providers have officialForExport=true', () => {
+      const officialIds = ['nrw-orthophoto', 'niedersachsen-orthophoto', 'bkg-orthophoto'];
       for (const id of officialIds) {
         const def = UA.getMapLayerDefinition(id);
         expect(def).not.toBeNull();
@@ -289,7 +298,7 @@ describe('map layer registry and map modes', () => {
         expect(def.layerType).toBe('orthophoto');
       }
       const suitableIds = suitable.map(def => def.id);
-      expect(suitableIds).toContain('bonn-orthophoto');
+      expect(suitableIds).not.toContain('bonn-orthophoto');
       expect(suitableIds).toContain('nrw-orthophoto');
       expect(suitableIds).toContain('niedersachsen-orthophoto');
       expect(suitableIds).toContain('bkg-orthophoto');

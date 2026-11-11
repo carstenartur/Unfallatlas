@@ -260,7 +260,7 @@ describe('UA.LeafletRenderer', () => {
         geometry: {
           url: 'https://www.wms.nrw.de/geobasis/wms_nw_dop',
           technicalType: 'WMS',
-          layers: 'nw_dop',
+          layers: 'nw_dop_rgb',
           format: 'image/png',
           transparent: false
         },
