@@ -222,25 +222,23 @@ describe('atomic OSM elevation context producer chain', () => {
     expect(transientFiles(root)).toEqual([]);
   });
 
-  test('leaves the original byte-identical when risk derivation rejects an invalid layer', async () => {
+  test('retains the original invalid layer and excludes only the affected way', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-osm-elevation-layer-'));
     roots.push(root);
     const file = writeDataset(root);
-    const before = fs.readFileSync(file);
-
-    await expect(producer.prepareOsmElevationContext({
+    await producer.prepareOsmElevationContext({
       inputFile: file,
       interBatchDelayMs: 0,
       fetchOverpass: async (query) => ({
         elements: idsFromQuery(query).map((id) => ({
-          type: 'way',
-          id: Number(id),
-          tags: id === '3' ? { layer: 'ground' } : {},
+          type: 'way', id: Number(id), tags: id === '3' ? { layer: '-0,7' } : {},
         })),
       }),
-    })).rejects.toThrow(/invalid_layer/);
-
-    expect(fs.readFileSync(file)).toEqual(before);
+    });
+    const input = JSON.parse(fs.readFileSync(file));
+    expect(input.ways['3'].layer).toBe('-0,7');
+    expect(input.ways['3'].elevationRiskTags).toEqual({ unavailableReason: 'invalid_osm_layer' });
+    expect(input.ways['11'].elevationRiskTags.layer).toBe('0');
     expect(transientFiles(root)).toEqual([]);
   });
 

@@ -15,6 +15,7 @@
   const MODULE_VERSION = '1.0.0';
   const HOOK_MARK = '_uaEvidenceCohortWrapped';
   const AI_GATE_MARK = '_uaEvidenceGateBound';
+  const liveLabelRequests = new WeakMap();
   const INVOLVEMENT_BITS = Object.freeze([
     [1, 'Rad'], [2, 'Fuß'], [4, 'Pkw'], [8, 'Kraftrad'], [16, 'Güterkraftfahrzeug'], [32, 'Sonstige'],
   ]);
@@ -195,6 +196,8 @@
     if (!baseUrl) return '';
     try {
       const url = new URL(baseUrl, 'https://example.invalid/');
+      url.searchParams.delete('export');
+      url.searchParams.delete('evidenceAccident');
       url.searchParams.set('evidenceLabels', '1');
       url.searchParams.set('evidenceScope', 'complete');
       if (row?.displayId) url.searchParams.set('evidenceAccident', row.displayId);
@@ -1116,7 +1119,7 @@
         subject: `${completeCount} veröffentlichte Unfälle mit Personenschaden im Untersuchungsgebiet`,
       },
     };
-    rootValue.pdfMake.createPdf(definition).download('unfallwerkbank_unfallbeweisanlage.pdf');
+    await rootValue.pdfMake.createPdf(definition).download('unfallwerkbank_unfallbeweisanlage.pdf');
     return { definition, maps };
   }
 
@@ -1547,26 +1550,51 @@
     });
   }
 
+  function removeLiveLabelLayer(request) {
+    if (!request?.layer) return;
+    request.layer.remove();
+    if (request.ctx.__uaEvidenceLabelLayer === request.layer) delete request.ctx.__uaEvidenceLabelLayer;
+  }
+
   function installLiveLabels(UA, rootValue) {
     if (!rootValue?.document || !rootValue?.location || !rootValue?.L) return false;
     const params = new URLSearchParams(rootValue.location.search || '');
-    if (params.get('evidenceLabels') !== '1') return false;
-    const ctx = rootContext(UA?.getRuntimeContext?.() || {});
-    if (!ctx?.map || !ctx?.allPts?.length) return false;
-    const reportPromise = Promise.resolve(UA.computeExportReport(ctx));
-    reportPromise.then(report => {
-      const cohorts = report?.structured?.evidenceCohorts;
-      const rows = list(cohorts?.completeEvidenceCohort?.rows);
+    const previous = liveLabelRequests.get(UA);
+    if (params.get('evidenceLabels') !== '1') {
+      if (previous) {
+        liveLabelRequests.delete(UA);
+        removeLiveLabelLayer(previous);
+      }
+      return false;
+    }
+    const ctx = rootContext(UA.getRuntimeContext?.());
+    if (!ctx?.map || !ctx.allPts?.length || typeof UA.computeExportReport !== 'function'
+        || UA.isHydrating?.() || ctx.accidentDataCoverage?.complete === false) return false;
+    const bounds = exportBounds(ctx);
+    if (!bounds || (params.has('selSouth') && !ctx.selectionBounds)) return false;
+    const key = JSON.stringify([params.toString(), bounds, ctx.allPts.length]);
+    const network = ctx.reviewNetworkResult || ctx.reviewNetworkPromise;
+    // The DOM observer also sees Leaflet adding its own markers. Reuse an in-flight
+    // or displayed set for the same data, selection and document link.
+    if (previous?.ctx === ctx && previous.map === ctx.map && previous.points === ctx.allPts
+        && previous.network === network && previous.key === key) return true;
+    const request = { ctx, map: ctx.map, points: ctx.allPts, network, key, layer: null };
+    liveLabelRequests.set(UA, request);
+    removeLiveLabelLayer(previous);
+    Promise.resolve().then(() => UA.computeExportReport(ctx)).then(report => {
+      if (liveLabelRequests.get(UA) !== request) return;
+      const rows = list(report?.structured?.evidenceCohorts?.completeEvidenceCohort?.rows);
       if (!rows.length) return;
-      try { ctx.__uaEvidenceLabelLayer?.remove?.(); } catch (_) { /* noop */ }
       const layer = rootValue.L.layerGroup();
       const selected = params.get('evidenceAccident');
       for (const row of rows) {
         const isSelected = row.displayId === selected;
         const marker = rootValue.L.marker([row.lat, row.lon], {
           interactive: true,
+          title: row.displayId,
+          zIndexOffset: isSelected ? 1000 : 0,
           icon: rootValue.L.divIcon({
-            className: 'ua-evidence-id-marker',
+            className: isSelected ? 'ua-evidence-id-marker ua-evidence-id-selected' : 'ua-evidence-id-marker',
             html: `<span style="display:inline-block;padding:${isSelected ? '3px 6px' : '2px 4px'};border:2px solid #111;background:${row.discoveryMatch ? '#fff2a8' : '#fff'};border-radius:4px;font:bold ${isSelected ? '14px' : '11px'} sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.45);">${escHtml(row.displayId)}</span>`,
             iconSize: null,
             iconAnchor: [14, 22],
@@ -1576,8 +1604,11 @@
         marker.addTo(layer);
       }
       layer.addTo(ctx.map);
+      request.layer = layer;
       ctx.__uaEvidenceLabelLayer = layer;
-    }).catch(() => {});
+    }).catch(() => {
+      if (liveLabelRequests.get(UA) === request) liveLabelRequests.delete(UA);
+    });
     return true;
   }
 

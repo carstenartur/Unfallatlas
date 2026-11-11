@@ -20,3 +20,15 @@ test('both exporters use the generated canonical text templates instead of indep
   expect(window.UA.exportTemplateDefaults.base_resolution).toContain('{{GREMIUM_QUALIFIER}}');
   expect(window.UA.exportTemplateDefaults.base_method).toMatch(/explorativ/);
 });
+
+test.each(['rad_pkw', 'rad_fuss', 'pkw_fuss', 'rad_gkfz', 'pkw_gkfz', 'fuss_gkfz', 'rad_solo'])(
+  '%s explains the population and asks for local evidence before recommending a change',
+  key => {
+    const content = fs.readFileSync(path.join(root, 'templates', 'pattern_' + key + '.txt'), 'utf8');
+    expect(content).toContain('alle Unfalltypen');
+    expect(content).toContain('Anteil');
+    expect(content).toContain('Unfallskizzen');
+    expect(content).toMatch(/vor Ort/i);
+    expect(content).not.toMatch(/Auffällige Häufung|führ[te]+ überproportional|Erwarteter Effekt|Signifikante Reduktion|deutet regelmäßig auf Defizite/);
+  }
+);

@@ -328,7 +328,7 @@ Die Werkbank verwendet veröffentlichte Unfallatlas-Daten. Sie zeigt Unfallorte 
 
 ### Polizeilich erfasste Unfälle und Dunkelziffer
 
-Nicht gemeldete Unfälle, Beinaheunfälle und Ereignisse außerhalb der veröffentlichten Auswahl fehlen. Besonders bei Alleinunfällen und leichteren Ereignissen kann die Dunkelziffer relevant sein. Die Werkbank darf daher nicht als vollständiges Bild aller Gefährdungen verstanden werden.
+Die [Statistischen Ämter des Bundes und der Länder](https://www.statistikportal.de/de/karten/unfallatlas) veröffentlichen im Unfallatlas polizeilich erfasste Unfälle mit Personenschaden. [Juhra u. a. (2012)](https://pubmed.ncbi.nlm.nih.gov/22105099/) fanden beim Abgleich der Polizei- und Klinikdaten in Münster 2009/2010 weitere verletzte Radfahrende. Aus dieser Untersuchung lässt sich die Zahl der fehlenden Fälle an einem ausgewählten Unfallort nicht berechnen.
 
 ### Räumliche Genauigkeit
 

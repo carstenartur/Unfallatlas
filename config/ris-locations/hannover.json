@@ -82,6 +82,158 @@
   "publicFacilities": {
     "source": "hannover-sim",
     "attribution": "Landeshauptstadt Hannover, Feuerwehr",
+    "daycareProjects": [
+      {
+        "recordId": "hannover-sim:15-0422-2010",
+        "title": "Bauprogramm 2010 – 2012, Sanierung der Kindertagesstätte Waldstraße 11",
+        "street": "Waldstraße",
+        "houseNumber": "11",
+        "streetKey": "0324100102929",
+        "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0422-2010",
+        "district": "Misburg-Anderten",
+        "addressCheckUrl": "https://www.openstreetmap.org/relation/14287012"
+      },
+      {
+        "recordId": "hannover-sim:15-0761-2012",
+        "title": "Kita Voltmerstraße 60, Sanierung der Außenanlagen",
+        "street": "Voltmerstraße",
+        "houseNumber": "60",
+        "streetKey": "0324100102897",
+        "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0761-2012"
+      },
+      {
+        "recordId": "hannover-sim:15-0987-2008",
+        "title": "Sanierungsprogramm 2008-2011 Sanierung der Kindertagesstätte Tegelweg 2",
+        "street": "Tegelweg",
+        "houseNumber": "2",
+        "streetKey": "0324100102770",
+        "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0987-2008"
+      },
+      {
+        "recordId": "hannover-sim:15-2077-2008",
+        "title": "Sanierungsprogramm 2008, hier: Sanierung der Kindertagesstätte Bonhoefferstraße 2",
+        "street": "Bonhoefferstraße",
+        "houseNumber": "2",
+        "streetKey": "0324100100494",
+        "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2077-2008"
+      },
+      {
+        "recordId": "hannover-sim:15-2351-2010",
+        "title": "Kita Nieschlagstraße 19 – Sanierung Außengelände",
+        "street": "Nieschlagstraße",
+        "houseNumber": "19",
+        "streetKey": "0324100102064",
+        "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2351-2010"
+      },
+      {
+        "recordId": "hannover-sim:15-2643-2007",
+        "title": "Kindertagesstätte Canarisweg 2 / Sanierung 2007",
+        "street": "Canarisweg",
+        "houseNumber": "2",
+        "streetKey": "0324100100615",
+        "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2643-2007"
+      }
+    ],
+    "schoolBuildings": {
+      "from": "2016-01-01",
+      "attribution": "Landeshauptstadt Hannover, Schulbezirke und Schulentwicklungsplan",
+      "historicalRegisterUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/2A4004DA5D6B5BC8C1257E000026F9A0/%24FILE/0594-2015_Anlage1.pdf",
+      "planningRegisterUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/D05888E9E1D719B7C1258CAD001B4714/%24FILE/1078-2025-N1_Anlage1.pdf",
+      "entries": [
+        {
+          "name": "Grundschule Ahlem",
+          "street": "Richard-Lattorf-Straße",
+          "houseNumber": "4",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Ahlem"
+        },
+        {
+          "name": "Grundschule Auf dem Loh",
+          "street": "Auf dem Loh",
+          "houseNumber": "33",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Auf-dem-Loh"
+        },
+        {
+          "name": "Grundschule Comeniusschule",
+          "street": "Kollenrodtstraße",
+          "houseNumber": "3",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Comeniusschule"
+        },
+        {
+          "name": "Grundschule Fridtjof-Nansen-Schule",
+          "street": "Leipziger Straße",
+          "houseNumber": "38",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Fridtjof-Nansen-Schule"
+        },
+        {
+          "name": "Grundschule Friedrich-Ebert-Schule",
+          "street": "Salzweg",
+          "houseNumber": "33",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Friedrich-Ebert-Schule"
+        },
+        {
+          "name": "Grundschule Gebrüder-Körting-Schule",
+          "street": "Petermannstraße",
+          "houseNumber": "49",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Gebr%C3%BCder-K%C3%B6rting-Schule"
+        },
+        {
+          "name": "Grundschule Goetheplatz",
+          "street": "Goetheplatz",
+          "houseNumber": "2A",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Goetheplatz"
+        },
+        {
+          "name": "Grundschule Lüneburger Damm",
+          "street": "Bevenser Weg",
+          "houseNumber": "2",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-L%C3%BCneburger-Damm"
+        },
+        {
+          "name": "Grundschule Salzmannstraße",
+          "street": "Salzmannstraße",
+          "houseNumber": "3",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Salzmannstra%C3%9Fe"
+        },
+        {
+          "name": "Grundschule Suthwiesenstraße",
+          "street": "Suthwiesenstraße",
+          "houseNumber": "36",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Suthwiesenstra%C3%9Fe"
+        },
+        {
+          "name": "Grundschule Tegelweg",
+          "street": "Tegelweg",
+          "houseNumber": "2",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Tegelweg"
+        },
+        {
+          "name": "Grundschule Vinnhorst",
+          "street": "Vinnhorster Rathausplatz",
+          "houseNumber": "2",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Vinnhorst"
+        },
+        {
+          "name": "Grundschule Wasserkampstraße",
+          "street": "Wasserkampstraße",
+          "houseNumber": "1",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Wasserkampstra%C3%9Fe"
+        },
+        {
+          "name": "Grundschule Wettbergen",
+          "street": "In der Rehre",
+          "houseNumber": "43",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Wettbergen",
+          "from": "2010-03-04",
+          "historicalSourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0721-2010"
+        },
+        {
+          "name": "Grundschule Wilhelm-Busch-Schule",
+          "street": "Munzeler Straße",
+          "houseNumber": "23",
+          "sourceUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Wilhelm-Busch-Schule"
+        }
+      ]
+    },
     "entries": [
       {
         "name": "Feuer- und Rettungswache 1",

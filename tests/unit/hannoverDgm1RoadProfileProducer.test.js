@@ -145,6 +145,56 @@ describe('Hannover DGM1 road-profile producer', () => {
     expect(result.outputSha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  test('suppresses both invalid-layer windows and still computes other roads', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hannover-invalid-layer-'));
+    roots.push(root);
+    const raw = rawOsm();
+    raw.ways['2'].layer = '-0,7';
+    const osmFile = path.join(root, 'osm.json');
+    fs.writeFileSync(osmFile, JSON.stringify(riskProducer.applyElevationRiskTags(raw)));
+    const outputFile = path.join(root, 'profiles.json');
+    await producer.prepareHannoverDgm1RoadProfiles({ osmFile, outputFile }, {
+      createHannoverDgm1XyzProvider: () => testProvider([]),
+    });
+    const { profiles } = JSON.parse(fs.readFileSync(outputFile));
+    for (const window of ['20', '50']) {
+      expect(profiles['1'].windows[window].result.usable).toBe(true);
+      expect(profiles['2'].windows[window]).toMatchObject({ status: 'unavailable', reasonCode: 'invalid_osm_layer' });
+      expect(profiles['2'].windows[window].result).toBeUndefined();
+    }
+  });
+
+  test('excludes only windows reaching the documented B6 bridge boundary', async () => {
+    const evidence = require('../fixtures/hannover-dgm1-real/westschnellweg-transition.json');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hannover-bridge-transition-'));
+    roots.push(root);
+    const raw = rawOsm();
+    const { approach, bridge } = evidence;
+    raw.ways['1'] = approach.tags;
+    raw.wayGeometries['1'] = approach.geometry;
+    raw.ways['2'] = bridge.tags;
+    raw.wayGeometries['2'] = bridge.geometry;
+    // A separate synthetic 66 m road shares that endpoint in reverse order.
+    // Its 20 m window stops before the boundary and its 50 m window reaches it.
+    const edge = approach.geometry[0];
+    raw.wayGeometries['3'] = [{ lat: edge.lat, lon: edge.lon + 0.001 }, edge];
+    const osmFile = path.join(root, 'osm.json');
+    fs.writeFileSync(osmFile, JSON.stringify(riskProducer.applyElevationRiskTags(raw)));
+    const outputFile = path.join(root, 'profiles.json');
+    await producer.prepareHannoverDgm1RoadProfiles({ osmFile, outputFile }, {
+      createHannoverDgm1XyzProvider: () => testProvider([]),
+    });
+    const { profiles } = JSON.parse(fs.readFileSync(outputFile));
+    for (const window of ['20', '50']) {
+      expect(profiles['1'].windows[window].result).toMatchObject({ usable: false, gradientPercent: null });
+      expect(profiles['1'].windows[window].result.uncertaintyReasons).toContain('bridge_transition_surface_not_represented_by_dtm');
+      expect(profiles['2'].windows[window].result.uncertaintyReasons).toContain('bridge_surface_not_represented_by_dtm');
+    }
+    expect(profiles['1'].bridgeEndpoints).toEqual({ start: ['2'], end: [] });
+    expect(profiles['3'].windows['20'].result.usable).toBe(true);
+    expect(profiles['3'].windows['50'].result.gradientPercent).toBeNull();
+  });
+
   test('rejects incomplete way-geometry coverage before constructing the DGM provider', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hannover-dgm1-coverage-'));
     roots.push(root);

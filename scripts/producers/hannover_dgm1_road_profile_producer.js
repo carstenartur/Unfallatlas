@@ -12,7 +12,7 @@ const riskProducer = require('./osm_elevation_risk_producer');
 
 const SCHEMA_VERSION = 1;
 const ARTIFACT_TYPE = 'hannover-dgm1-road-profiles';
-const PRODUCER_VERSION = '1.0.0';
+const PRODUCER_VERSION = '1.1.0';
 const WINDOWS_METERS = Object.freeze([20, 50]);
 const UNAVAILABLE_CODES = Object.freeze(new Set([
   'insufficient_geometry',
@@ -172,7 +172,34 @@ function unavailableWindow(windowMeters, error) {
   });
 }
 
-async function computeWindow(compute, provider, geometry, anchor, riskTags, windowMeters) {
+function bridgeEndpointIndex(ways, geometries) {
+  const endpoints = new Map();
+  for (const [id, way] of Object.entries(ways)) {
+    if (riskProducer.normalizePresence(way.bridge) !== 'yes') continue;
+    const line = geometries[id];
+    for (const point of [line[0], line.at(-1)]) {
+      const key = `${point.lat},${point.lon}`;
+      if (!endpoints.has(key)) endpoints.set(key, new Set());
+      endpoints.get(key).add(id);
+    }
+  }
+  return endpoints;
+}
+
+function bridgeEndpointsForWay(index, geometry, tags) {
+  if (tags.bridge === 'yes') return null;
+  const at = point => [...(index.get(`${point.lat},${point.lon}`) || [])];
+  const start = at(geometry[0]);
+  const end = at(geometry.at(-1));
+  return start.length || end.length ? { start, end } : null;
+}
+
+async function computeWindow(compute, provider, geometry, anchor, riskTags, windowMeters, bridgeEndpoints) {
+  if (riskTags.unavailableReason === 'invalid_osm_layer') {
+    return unavailableWindow(windowMeters, {
+      code: 'invalid_osm_layer', message: 'The original OSM layer cannot be validated as a ground level',
+    });
+  }
   // Real OSM extracts contain sub-2 m connectors. The estimator rejects those
   // before sampling; classify their windows without aborting unrelated ways.
   const length = geometry.slice(1).reduce((sum, point, index) => sum + segmentLengthMeters(geometry[index], point), 0);
@@ -185,6 +212,7 @@ async function computeWindow(compute, provider, geometry, anchor, riskTags, wind
       spacingMeters: provider.descriptor.resolutionMeters,
       matchQuality: 'high',
       osmTags: riskTags,
+      bridgeEndpoints,
       context: { city: 'Hannover', purpose: 'road-profile-production' },
     });
     if (!result || result.source.id !== dgm1.SOURCE_ID || result.windowMeters !== windowMeters) {
@@ -260,6 +288,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
   const validated = riskProducer.validateElevationRiskContract(osm);
   const geometries = validateWayGeometries(validated.osm, validated.wayIds);
 
+  const bridgeIndex = bridgeEndpointIndex(validated.osm.ways, geometries);
   const provider = createProvider({
     allowedRoot: options.dgmRoot,
     manifestPath: options.dgmManifest,
@@ -288,6 +317,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
       const geometry = geometries[id];
       const anchor = profileAnchor(geometry);
       const riskTags = Object.freeze({ ...validated.osm.ways[id].elevationRiskTags });
+      const bridgeEndpoints = bridgeEndpointsForWay(bridgeIndex, geometry, riskTags);
       const windows = {};
       for (const windowMeters of WINDOWS_METERS) {
         const record = await computeWindow(
@@ -297,6 +327,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
           anchor,
           riskTags,
           windowMeters,
+          bridgeEndpoints,
         );
         windows[String(windowMeters)] = record;
         const suffix = windowMeters === 20 ? '20m' : '50m';
@@ -313,6 +344,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
         geometryPointCount: geometry.length,
         anchor,
         elevationRiskTags: riskTags,
+        ...(bridgeEndpoints ? { bridgeEndpoints } : {}),
         windows: Object.freeze(windows),
       });
     }
@@ -466,6 +498,8 @@ module.exports = Object.freeze({
   profileAnchor,
   unavailableWindow,
   computeWindow,
+  bridgeEndpointIndex,
+  bridgeEndpointsForWay,
   validateArtifact,
   prepareHannoverDgm1RoadProfiles,
   parseArgs,

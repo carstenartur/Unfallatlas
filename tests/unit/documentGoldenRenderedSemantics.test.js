@@ -73,6 +73,8 @@ describe('document Golden rendered semantics', () => {
       'severity table heading',
       'fixture',
     ).text).toBe('Verletzungsschwere im Ausschnitt:');
+    expect('Unfälle im ausgewerteten Ausschnitt nach schwerster Folge (n = 48)').toMatch(semantics.TABLE_ROLE_PATTERNS.severity);
+
     expect(semantics.findUniqueLine(
       lines,
       semantics.TABLE_ROLE_PATTERNS['year-trend'],

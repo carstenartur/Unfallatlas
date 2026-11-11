@@ -1,18 +1,5 @@
-Bewertung – Auffällige Häufung von PKW+Fußgänger-Unfällen
+Vergleich der Beteiligung – Pkw- und Fußverkehr
 
-Im untersuchten Bereich ist der Anteil von Unfällen mit Fußgängerbeteiligung und PKW erhöht (Faktor {{PKW_FUSS_FACTOR}}; lokal {{PKW_FUSS_LOCAL}} Fälle).
+Im ausgewerteten Ausschnitt sind {{PKW_FUSS_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{PKW_FUSS_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
-Dies deutet regelmäßig auf Defizite bei Querungsmöglichkeiten, Sichtbeziehungen und Geschwindigkeiten hin – insbesondere in Bereichen mit:
-- unzureichenden oder zu langen Querungswegen,
-- fehlenden Mittelinseln/Querungshilfen,
-- unklaren Vorfahrtsituationen oder hohem Kfz-Durchfluss,
-- Schul-/Kita- oder ÖPNV-Nähe mit erhöhtem Querungsbedarf.
-
-Handlungsvorschläge (prüffähig):
-1) Querungsanalyse: Lage, Sicht, Warteflächen, Abstände zur nächsten sicheren Querung.
-2) Maßnahmen zur Geschwindigkeitsdämpfung: bauliche/markierte Elemente, ggf. Tempoanpassung.
-3) Verbesserungen der Beleuchtung und Sichtbarkeit (Markierung, Beleuchtung, Rückschnitt).
-4) Prüfung zusätzlicher Querungshilfen (Mittelinsel, Zebrastreifen, LSA-Anpassung) an den relevanten Punkten.
-
-Ziel:
-Erhöhte Sicherheit und kürzere, nachvollziehbare Querungswege – insbesondere für Kinder, ältere Menschen und mobilitätseingeschränkte Personen.
+Aus den Unfallskizzen ermitteln, wo Menschen zu Fuß gingen und aus welcher Richtung die Pkw kamen. Sicht, Querungswege und die tatsächlich gefahrenen Geschwindigkeiten vor Ort prüfen.

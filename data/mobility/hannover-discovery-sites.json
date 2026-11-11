@@ -59,12 +59,32 @@
     },
     "changes": [
       {
+        "kind": "police-analysis",
+        "label": "15-0778/2021 F1 · Laut Anlage 1, Abschnitt 9, erfasste die Polizei 2017 bis 2020 an dieser Einmündung 15 Unfälle zwischen Kfz und Radfahrenden. Davon waren 11 Unfälle des Typs Einbiegen/Kreuzen und 4 Abbiegeunfälle.",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0778-2021F1",
+        "date": "2021-05-10",
+        "precision": "documented-by",
+        "number": "15-0778/2021 F1",
+        "attachment": {
+          "label": "Polizeiauswertung, Anlage 1, Abschnitt 9 (S. 2–3)",
+          "url": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/7DC42EC5AB809545C12586D30015F455/$FILE/15-0778-2021-F1_Anlage1.pdf#page=3"
+        }
+      },
+      {
         "kind": "council-decision",
         "label": "15-1243/2021 · Der Stadtbezirksrat Mitte beschloss die Aufpflasterung der Fuß- und Radquerung. Die Schließung der Wendeschleife lehnte er ab.",
         "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1243-2021",
         "date": "2021-06-07",
         "precision": "documented-by",
         "number": "15-1243/2021"
+      },
+      {
+        "kind": "administrative-commitment",
+        "label": "15-1243/2021 S1 · Die Verwaltung sagte die Aufpflasterung der Einmündung Brühlstraße / Escherstraße zu.",
+        "url": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1243-2021S1",
+        "date": "2021-10-07",
+        "precision": "documented-by",
+        "number": "15-1243/2021 S1"
       },
       {
         "kind": "implementation-status",

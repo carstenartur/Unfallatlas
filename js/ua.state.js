@@ -66,6 +66,9 @@
     siteMapFilters: "siteMapFilters",
     siteNetworkId: "siteNetworkId",
     siteNetworkRev: "siteNetworkRev",
+    evidenceLabels: "evidenceLabels",
+    evidenceScope: "evidenceScope",
+    evidenceAccident: "evidenceAccident",
     accidentView: "accidentView",
     export: "export",
     tour: "tour"
@@ -199,7 +202,10 @@
 
   UA.cleanUrlIfNeeded = function cleanUrlIfNeeded() {
     const parsed = parseSearchKeepLast(window.location.search);
-    if (parsed.hadDup || parsed.hadLegacy || parsed.hadUnknown) {
+    // Older document links inherited the export dialog from the report that generated them.
+    const evidenceMap = parsed.map.get("evidenceLabels") === "1" && parsed.map.get("export") === "1";
+    if (evidenceMap) parsed.map.delete("export");
+    if (parsed.hadDup || parsed.hadLegacy || parsed.hadUnknown || evidenceMap) {
       const cleanedSearch = buildSearch(parsed.map);
       const u = new URL(window.location.href);
       u.search = cleanedSearch ? ("?" + cleanedSearch) : "";

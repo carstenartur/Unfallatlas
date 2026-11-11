@@ -1,20 +1,7 @@
-Bewertung – Auffällige Häufung von Rad-Alleinunfällen
+Vergleich der Beteiligung – Nur Radverkehr als Beteiligung erfasst
 
-Im untersuchten Bereich ist der Anteil von Rad-Alleinunfällen im Vergleich zum Stadtgebiet deutlich erhöht (Faktor {{RAD_SOLO_FACTOR}}; lokal {{RAD_SOLO_LOCAL}} Fälle gegenüber stadtweit {{RAD_SOLO_CITY}} Fällen unter vergleichbarer Grundgesamtheit).
+Der Vergleich umfasst lokal {{RAD_SOLO_LOCAL}} Fälle gegenüber stadtweit {{RAD_SOLO_CITY}} Fällen. Der Anteil dieser Fälle am Unfallbestand im Ausschnitt beträgt das {{RAD_SOLO_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen. Ob tatsächlich ein Alleinunfall vorlag, geht aus dem Merkmal allein nicht hervor.
 
-Ein erhöhtes Vorkommen von Rad-Alleinunfällen deutet häufig auf infrastrukturelle Risiken hin, bei denen Radfahrende ohne direkte Fremdbeteiligung stürzen. Typische Ursachen sind unter anderem:
-- Schienenquerungen im Fahrbahnbereich bzw. in Radverkehrsführungen (Rillen-/Spurrinnenproblematik, ungünstige Querungswinkel),
-- Kanten, Schadstellen, Belagswechsel, abgesenkte oder hochstehende Schachtabdeckungen,
-- Engstellen oder unklare Führung (Ausweichmanöver), insbesondere bei Mischnutzung.
+Die Unfallskizzen daraufhin prüfen, ob ein Sturz, ein Ausweichmanöver oder eine andere Situation dokumentiert ist. An den betreffenden Stellen vor Ort Fahrbahnoberfläche, Kanten und gegebenenfalls Schienenquerungen untersuchen.
 
-Handlungsvorschläge (prüffähig):
-1) Örtliche Begehung mit Fokus auf Querungsstellen, Belagszustand, Kanten und Fugen.
-2) Prüfung der Radverkehrsführung im Bereich: möglichst rechtwinklige Querung potenzieller Rillen/Schienen, Reduktion kritischer Kanten, Oberflächenangleichungen.
-3) Kurzfristige Maßnahmen: Warnmarkierung, Piktogramme, Hinweisbeschilderung (z. B. „Schienen“, „Rutschgefahr“), punktuelle Instandsetzung.
-4) Mittelfristig: Umbau-/Führungsvarianten zur sicheren Radführung (Führung abseits kritischer Querungen, bauliche Anpassungen).
-
-Hinweis zur Interpretation:
-Allein aus der Unfallart lässt sich die Ursache (z. B. Schienen) nicht beweisen; die Häufung ist ein starker Hinweis auf prüfbedürftige Örtlichkeit.
-
-Forschungsbezug:
-Die Unfallforschung der Versicherer (UDV) hat in der Studie „Alleinunfälle von Radfahrenden in Deutschland, Österreich und der Schweiz“ gezeigt, dass Infrastrukturmängel (Belag, Kanten, Schienenquerungen, ungünstige Führung) eine zentrale Rolle bei Rad-Alleinunfällen spielen. Quelle: https://www.udv.de/udv/themen/alleinunfaelle-von-radfahrenden-in-deutschland-oesterreich-und-der-schweiz-197328
+Forschung zu bestätigten Alleinunfällen: Unfallforschung der Versicherer, „Alleinunfälle von Radfahrenden in Deutschland, Österreich und der Schweiz“. https://www.udv.de/udv/themen/alleinunfaelle-von-radfahrenden-in-deutschland-oesterreich-und-der-schweiz-197328

@@ -1,0 +1,76 @@
+{
+  "source": "https://api.openstreetmap.org/api/0.6/map?bbox=9.6966334,52.3771584,9.6979617,52.3781234",
+  "retrievedAt": "2026-11-11",
+  "sha256": "26c7f951a194d987ab08fcee3a2106c33b7d6ef9b5fdca68ae68dc0789c0f96a",
+  "attribution": "© OpenStreetMap contributors, ODbL 1.0",
+  "bridgeOutlineWayId": "702877983",
+  "sharedNodeId": "258316371",
+  "approach": {
+    "id": "23838108",
+    "version": 19,
+    "nodeIds": [
+      "258316371",
+      "250662918"
+    ],
+    "geometry": [
+      {
+        "lat": 52.3776734,
+        "lon": 9.6972834
+      },
+      {
+        "lat": 52.3776084,
+        "lon": 9.6973117
+      }
+    ],
+    "tags": {
+      "highway": "trunk",
+      "name": "Westschnellweg",
+      "ref": "B 6"
+    }
+  },
+  "bridge": {
+    "id": "23838107",
+    "version": 25,
+    "nodeIds": [
+      "258316370",
+      "258316371"
+    ],
+    "geometry": [
+      {
+        "lat": 52.3787208,
+        "lon": 9.6968619
+      },
+      {
+        "lat": 52.3776734,
+        "lon": 9.6972834
+      }
+    ],
+    "tags": {
+      "bridge": "yes",
+      "highway": "trunk",
+      "layer": "1",
+      "name": "Westschnellweg",
+      "ref": "B 6"
+    }
+  },
+  "terrain": {
+    "file": "westschnellweg-23838108.xyz",
+    "bytes": 2442,
+    "sha256": "4142da7fc2cbb09026af3eb2bbdc1b29d36a65fd879ddf3edbedc637fe20fa48",
+    "pointCount": 66,
+    "grid": {
+      "crs": "EPSG:25832",
+      "resolutionMeters": 1,
+      "minEasting": 547463.5,
+      "maxEasting": 547468.5,
+      "minNorthing": 5803265.5,
+      "maxNorthing": 5803275.5
+    },
+    "sourceUrl": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_Mitte.zip",
+    "archiveSha256": "3c29f3ca59031fd8951612aa5349952fa0053b03c74c4633feb7fdbf08a83e47",
+    "retrievedAt": "2026-11-11T09:31:38Z",
+    "originalMember": "4703C.xyz",
+    "originalMemberSha256": "ed1ea2eb22fe142bbe8be3024273c79c195ad34dadc2c1368d85eabbd0eb3b08",
+    "attribution": "Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026)"
+  }
+}

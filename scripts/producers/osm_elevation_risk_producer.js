@@ -14,7 +14,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const PRODUCER_VERSION = '1.0.0';
+const PRODUCER_VERSION = '1.1.0';
+const LEGACY_VERSION = '1.0.0';
 const RISK_SCHEMA_VERSION = 1;
 const REQUIRED_STRUCTURE_FIELDS = Object.freeze([
   'bridge',
@@ -27,7 +28,7 @@ const REQUIRED_RISK_FIELDS = REQUIRED_STRUCTURE_FIELDS;
 const NEGATIVE_VALUES = Object.freeze(new Set(['no', 'false', '0', 'none']));
 const RISK_CONTRACT = Object.freeze({
   presenceValues: Object.freeze(['yes', 'no']),
-  layer: 'canonical-integer-string',
+  layer: 'canonical-integer-string-or-profile-unavailable',
   consumer: 'js/ua.elevation_provider.js#computeRoadGradient.osmTags',
 });
 
@@ -100,6 +101,17 @@ function riskTagsForWay(wayValue, label = 'way') {
   });
 }
 
+// An unresolved raw layer cannot be treated as ground level. Preserve the raw
+// value and emit a typed exclusion instead of a set of usable consumer tags.
+function riskRecordForWay(way, label) {
+  try {
+    return riskTagsForWay(way, label);
+  } catch (error) {
+    if (!(error instanceof OsmElevationRiskError) || error.code !== 'invalid_layer') throw error;
+    return Object.freeze({ unavailableReason: 'invalid_osm_layer' });
+  }
+}
+
 function sortedWayIds(waysValue) {
   const ways = plainObject(waysValue, 'OSM dataset.ways');
   const ids = Object.keys(ways);
@@ -161,7 +173,8 @@ function validateElevationRiskContract(osmValue) {
   if (Number(metadata.schemaVersion) !== RISK_SCHEMA_VERSION) {
     fail('invalid_risk_contract', `elevationRiskTags.schemaVersion must be ${RISK_SCHEMA_VERSION}`);
   }
-  if (metadata.producerVersion !== PRODUCER_VERSION) {
+  const legacy = metadata.producerVersion === LEGACY_VERSION;
+  if (!legacy && metadata.producerVersion !== PRODUCER_VERSION) {
     fail('invalid_risk_contract', 'elevationRiskTags.producerVersion is stale', {
       expected: PRODUCER_VERSION,
       actual: metadata.producerVersion,
@@ -204,20 +217,18 @@ function validateElevationRiskContract(osmValue) {
   );
   if (!Array.isArray(contract.presenceValues) ||
       JSON.stringify(contract.presenceValues) !== JSON.stringify(RISK_CONTRACT.presenceValues) ||
-      contract.layer !== RISK_CONTRACT.layer ||
+      contract.layer !== (legacy ? 'canonical-integer-string' : RISK_CONTRACT.layer) ||
       contract.consumer !== RISK_CONTRACT.consumer) {
     fail('invalid_risk_contract', 'elevationRiskTags.contract differs from the supported consumer contract');
   }
 
   for (const id of validated.wayIds) {
     const way = plainObject(validated.osm.ways[id], `OSM dataset.ways.${id}`);
-    const actual = assertExactKeys(
-      way.elevationRiskTags,
-      REQUIRED_RISK_FIELDS,
-      `OSM dataset.ways.${id}.elevationRiskTags`,
-    );
-    const expected = riskTagsForWay(way, `OSM dataset.ways.${id}`);
-    for (const field of REQUIRED_RISK_FIELDS) {
+    const label = `OSM dataset.ways.${id}`;
+    const expected = legacy ? riskTagsForWay(way, label) : riskRecordForWay(way, label);
+    const fields = Object.keys(expected);
+    const actual = assertExactKeys(way.elevationRiskTags, fields, `${label}.elevationRiskTags`);
+    for (const field of fields) {
       if (actual[field] !== expected[field]) {
         fail('invalid_risk_contract', `way ${id} has stale or tampered ${field} risk`, {
           expected: expected[field],
@@ -242,7 +253,7 @@ function applyElevationRiskTags(osmValue, options = {}) {
   );
   const cloned = JSON.parse(JSON.stringify(validated.osm));
   for (const id of validated.wayIds) {
-    cloned.ways[id].elevationRiskTags = riskTagsForWay(
+    cloned.ways[id].elevationRiskTags = riskRecordForWay(
       cloned.ways[id],
       `OSM dataset.ways.${id}`,
     );

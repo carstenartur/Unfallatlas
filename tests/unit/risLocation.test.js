@@ -24,6 +24,7 @@ function hannoverFacilityGazetteer() {
     ...JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz')))),
     publicFacilities, streetAliases, regionalProjectAddresses,
     regionalTramStops: require('../../config/ris-locations/hannover-stadtbahn.json'),
+    trafficControlProjects: require('../../config/ris-locations/hannover-verkehrsknoten.json'),
   };
 }
 
@@ -1834,4 +1835,127 @@ test('uses the explicitly named street of the SIM parking proposal and decision 
   const controls = ['Husarenstraße 6', 'Husarenstraße zwischen zwei Einmündungen', 'Husarenstraße und Bonifatiusplatz'];
   const results = enrichRisLocations(controls.map(tail => ({ source: 'hannover-sim', title: topic + tail })), { city: 'hannover', gazetteer });
   expect(results.flatMap(record => record.locations).some(site => site.kind === 'street' && site.geometry)).toBe(false);
+});
+
+describe('named traffic-control junctions in Hannover SIM titles', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  test.each([
+    ['15-0054-2007', 'Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee', 'Davenstedter Markt / Carlo-Schmid-Allee', [9.678262, 52.36303]],
+    ['15-0265-2012', 'Fußgängerüberweg Abelmannstraße / Landwehrstraße', 'Abelmannstraße / Landwehrstraße', [9.762258, 52.336221]],
+    ['15-0191-2018', 'Bedarfsampel Osterfelddamm/Neue-Land-Straße', 'Osterfelddamm / Neue-Land-Straße', [9.815811, 52.395909]],
+  ])('locates %s from the original document, preserving its cited passage', (id, title, label, coordinates) => {
+    const recordId = 'hannover-sim:' + id;
+    for (const text of [title, title + ' Sitzung des Stadtbezirksrates Buchholz-Kleefeld am 15.02.2018 TOP 8.2.1.']) {
+      const [record] = enrichRisLocations([{ id: recordId, source: 'hannover-sim', title: text }], { city: 'hannover', gazetteer });
+      expect(record.locations).toEqual([expect.objectContaining({ kind: 'junction', label,
+        geometry: { type: 'Point', coordinates },
+        evidence: { source: 'document', text: gazetteer.trafficControlProjects.records[recordId].sites[0].text } })]);
+      expect(record.locationAssessment.sources).toContain('document');
+    }
+  });
+  test('every reviewed passage resolves all of its road arms through the official gazetteer', () => {
+    const cases = Object.entries(gazetteer.trafficControlProjects.records);
+    const records = cases.map(([id, project]) => ({ id, title: project.title, source: 'hannover-sim' }));
+    const results = enrichRisLocations(records, { city: 'hannover', gazetteer });
+    for (const record of results) {
+      const project = gazetteer.trafficControlProjects.records[record.id];
+      for (const site of project.sites) {
+        expect(record.locations).toContainEqual(expect.objectContaining({ label: site.streets.join(' / '),
+          geometry: { type: 'Point', coordinates: [expect.any(Number), expect.any(Number)] },
+          evidence: { source: 'document', text: site.text } }));
+      }
+    }
+  });
+
+  test('uses both documented crossings in 15-0147/2006 and rejects the apparent title crossing', () => {
+    const [record] = enrichRisLocations([{ id: 'hannover-sim:15-0147-2006', source: 'hannover-sim',
+      title: 'Ampelanlage Emslandstraße / Bemeroder Straße' }], { city: 'hannover', gazetteer });
+    expect(record.locations.map(site => [site.label, site.geometry.coordinates])).toEqual([
+      ['Lange-Hop-Straße / Bemeroder Straße', [9.821157, 52.346094]], ['Alte Bemeroder Straße / Emslandstraße', [9.821194, 52.345165]],
+    ]);
+  });
+  test('a station access title cannot establish a road junction at the named street', () => {
+    const [record] = enrichRisLocations([{ id: 'hannover-sim:15-0372-2025', source: 'hannover-sim',
+      title: 'Ampelanlage Empelder Straße / Riechersstraße als Bedarfsampel' }], { city: 'hannover', gazetteer });
+    expect(record.locations.some(site => site.kind === 'junction' && site.geometry)).toBe(false);
+  });
+
+  test.each([
+    'Baustellenzufahrt nahe der Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee',
+    'Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee / Unbekanntweg',
+    'Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee vor dem Schulgebäude',
+    'Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee in Garbsen',
+    'Randbereiche zwischen Davenstedter Markt / Carlo-Schmid-Allee',
+    'Niederschrift zum Ortstermin Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee',
+    'Ampelschaltung Hamburger Allee / Lister Meile',
+  ])('keeps incomplete, adjacent or geometrically ambiguous sites off the map: %s', title => {
+    const [record] = enrichRisLocations([{ source: 'hannover-sim', title }], { city: 'hannover', gazetteer });
+    expect(record.locations.some(site => site.geometry)).toBe(false);
+  });
+
+  test('a prior matching title does not attach the earlier project to a changed current subject', () => {
+    const title = 'Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee';
+    const [record] = enrichRisLocations([{ id: 'hannover-sim:15-0054-2007', source: 'hannover-sim',
+      title: 'Zurückgezogene Planung, neuer Standort noch offen', locationTitleEvidence: [title] }], { city: 'hannover', gazetteer });
+    expect(record.locations.some(site => site.kind === 'junction' && site.geometry)).toBe(false);
+  });
+
+  test('keeps the named junction rule scoped to city-source titles', () => {
+    const title = 'Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee';
+    const results = enrichRisLocations([{ source: 'region-hannover-ris', title },
+      { source: 'hannover-sim', title: 'Berücksichtigte Beispiele', locationEvidence: [title] }], { city: 'hannover', gazetteer });
+    expect(results.flatMap(record => record.locations).some(site => site.geometry)).toBe(false);
+  });
+});
+
+describe('physical works on historically verified Hannover primary-school sites', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  test.each([
+    ['Grundschule Wettbergen, Brandschutzmaßnahmen', '2025-06-06', 'Grundschule Wettbergen (In der Rehre 43)', [9.699573, 52.329004]],
+    ['Zweite Anfrage zur Sanierung und Erweiterung der Grundschule Wettbergen', '2025-05-01', 'Grundschule Wettbergen (In der Rehre 43)', [9.699573, 52.329004]],
+    ['Grundschule Ahlem, Unterdeckenaustausch im Treppenhaus und Flur', '2026-01-30', 'Grundschule Ahlem (Richard-Lattorf-Straße 4)', [9.663162, 52.383806]],
+    ['Grundschule Goetheplatz, Sicherheitsbeleuchtung', '2026-10-30', 'Grundschule Goetheplatz (Goetheplatz 2A)', [9.723595, 52.373436]],
+  ])('maps %s to its verified school building site', (title, date, label, coordinates) => {
+    const [record] = enrichRisLocations([{ source: 'hannover-sim', title, date }], { city: 'hannover', gazetteer });
+    expect(record.locations).toContainEqual(expect.objectContaining({ kind: 'place', label, geometry: { type: 'Point', coordinates },
+      attribution: expect.stringMatching(/Schul.*LGLN/u), evidence: { source: 'title', text: title } }));
+  });
+  test.each([
+    ['Grundschule Wettbergen, Brandschutzmaßnahmen', '2010-01-01'],
+    ['Grundschule Wettbergen, Brandschutzmaßnahmen', null],
+    ['Grundschule Wettbergen, Interimsstandort Erythropelstraße', '2026-01-21'],
+    ['Grundschule Wettbergen, Erneuerung der Sicherheitsbeleuchtung im Ausweichquartier', '2026-01-21'],
+    ['Grundschule Wettbergen, Erweiterung um zwei Schulzüge', '2026-01-21'],
+    ['Schulwegsicherheit vor der Grundschule Wettbergen', '2026-01-21'],
+    ['Grundschule Wettbergen, Sanierung der Sporthalle an der Nebenstelle', '2026-01-21'],
+  ])('requires a verified date and physical work on the named campus: %s', (title, date) => {
+    const [record] = enrichRisLocations([{ source: 'hannover-sim', title, date }], { city: 'hannover', gazetteer });
+    expect(record.locations.some(site => site.kind === 'place' && site.label.startsWith('Grundschule Wettbergen'))).toBe(false);
+  });
+});
+
+test.each([
+  ['15-0422-2010', 'Bauprogramm 2010 – 2012, Sanierung der Kindertagesstätte Waldstraße 11',
+    'Waldstraße 11 (Misburg-Anderten)', [9.853711, 52.392847]],
+  ['15-0761-2012', 'Kita Voltmerstraße 60, Sanierung der Außenanlagen', 'Voltmerstraße 60', [9.71507, 52.40235]],
+  ['15-0987-2008', 'Sanierungsprogramm 2008-2011 Sanierung der Kindertagesstätte Tegelweg 2', 'Tegelweg 2', [9.765916, 52.422757]],
+  ['15-2077-2008', 'Sanierungsprogramm 2008, hier: Sanierung der Kindertagesstätte Bonhoefferstraße 2',
+    'Bonhoefferstraße 2', [9.684944, 52.342951]],
+  ['15-2351-2010', 'Kita Nieschlagstraße 19 – Sanierung Außengelände', 'Nieschlagstraße 19', [9.706509, 52.369468]],
+  ['15-2643-2007', 'Kindertagesstätte Canarisweg 2 / Sanierung 2007', 'Canarisweg 2', [9.69359, 52.344449]],
+])('locates the public childcare project %s at its historically documented full site address', (id, title, address, coordinates) => {
+  const [record] = enrichRisLocations([{ id: 'hannover-sim:' + id, source: 'hannover-sim', title }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toContainEqual(expect.objectContaining({ kind: 'place', label: 'Kindertagesstätte ' + address,
+    geometry: { type: 'Point', coordinates }, evidence: { source: 'title', text: title } }));
+});
+
+test('requires both original project identity and target before resolving the ambiguous Kita on Waldstraße', () => {
+  const original = 'Bauprogramm 2010 – 2012, Sanierung der Kindertagesstätte Waldstraße 11';
+  const records = enrichRisLocations([
+    { id: 'hannover-sim:anderes-projekt', source: 'hannover-sim', title: original },
+    { id: 'hannover-sim:15-0422-2010', source: 'hannover-sim', title: original.replace('Waldstraße 11', 'Waldstraße 19') },
+    { id: 'hannover-sim:15-0422-2010', source: 'hannover-sim', title: 'Ersatzstandort außerhalb der Waldstraße', locationTitleEvidence: [original] },
+  ], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(records.flatMap(record => record.locations).some(site => site.geometry)).toBe(false);
 });

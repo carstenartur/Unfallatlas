@@ -1,18 +1,5 @@
-Bewertung – Auffällige Häufung von Rad+PKW-Unfällen
+Vergleich der Beteiligung – Rad- und Pkw-Verkehr
 
-Im untersuchten Bereich ist der Anteil von Unfällen mit Beteiligung von Radverkehr und PKW gegenüber dem Stadtvergleich erhöht (Faktor {{RAD_PKW_FACTOR}}; lokal {{RAD_PKW_LOCAL}} Fälle).
+Im ausgewerteten Ausschnitt sind {{RAD_PKW_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{RAD_PKW_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
-Solche Muster treten gehäuft an Knotenpunkten und in Bereichen mit konfliktträchtiger Verkehrsführung auf. Häufige Risikotreiber sind:
-- Abbiegekonflikte (rechtsabbiegender Kfz-Verkehr vs. geradeausfahrender Radverkehr),
-- schlechte Sichtbeziehungen (parkende Fahrzeuge, Bebauung, Bepflanzung),
-- unklare oder unterbrochene Radverkehrsführung, Mischverkehr mit hohen Geschwindigkeiten,
-- fehlende oder ungünstige Aufstellflächen/Schutzräume.
-
-Handlungsvorschläge (prüffähig):
-1) Analyse der Abbiegebeziehungen und Sichtdreiecke; Sichtfreimachung (Parkraummanagement, Rückschnitt).
-2) Prüfung der Markierung/Führung: durchgehende Radfurten, klare Trennung, konfliktarme Linienführung.
-3) Signalisierung prüfen: getrennte Freigaben, Vorlauf-/Schutzzeit für Radverkehr, Anpassung der Räumzeiten.
-4) Geschwindigkeitsmanagement und Querungsdesign: ggf. Temporeduktion, bauliche Einengung, Aufpflasterungen im Konfliktbereich.
-
-Erwarteter Effekt:
-Reduktion typischer Abbiege- und Einbiegekonflikte sowie bessere Erwartungskonformität für alle Verkehrsteilnehmenden.
+Für welche Fahrwege zeigen die Unfallskizzen wiederkehrende Konflikte? Die Sicht zwischen Rad- und Pkw-Verkehr vor Ort aus beiden Fahrtrichtungen prüfen. An einer Ampel auch die Freigabezeiten für die betroffenen Fahrwege vergleichen.

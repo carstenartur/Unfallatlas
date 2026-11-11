@@ -31,23 +31,8 @@ FROM eclipse-temurin:27_35-jre
 WORKDIR /app
 COPY --from=build /workspace/app.jar /app/app.jar
 
-# `curl` für den HEALTHCHECK installieren – das Basis-Image bringt weder
-# `curl` noch `wget` mit. Kurzzeitige Paketmirror-Ausfälle werden begrenzt
-# wiederholt; fehlende Mirrors dürfen den Build nicht unbegrenzt blockieren.
-RUN set -eux; \
-    apt-get \
-      -o Acquire::Retries=5 \
-      -o Acquire::http::Timeout=30 \
-      -o Acquire::https::Timeout=30 \
-      update; \
-    DEBIAN_FRONTEND=noninteractive apt-get \
-      -o Acquire::Retries=5 \
-      -o Acquire::http::Timeout=30 \
-      -o Acquire::https::Timeout=30 \
-      install -y --no-install-recommends curl; \
-    test -x /usr/bin/curl; \
-    apt-get clean; \
-    rm -rf /var/lib/apt/lists/*
+# Der Healthcheck läuft als eigenständige Klasse mit derselben JRE wie der Dienst.
+COPY --from=build /workspace/target/classes/de/unfallatlas/analysis/health/ContainerHealthCheck.class /app/healthcheck/de/unfallatlas/analysis/health/ContainerHealthCheck.class
 
 # Standard: Prod-Profil; kann via SPRING_PROFILES_ACTIVE überschrieben werden.
 ENV SPRING_PROFILES_ACTIVE=prod
@@ -55,6 +40,6 @@ EXPOSE 8081
 
 # Spring-Boot-Actuator-Endpunkt für Health-Check.
 HEALTHCHECK --interval=20s --timeout=3s --start-period=30s --retries=5 \
-  CMD curl --fail --silent --show-error http://localhost:8081/actuator/health || exit 1
+  CMD ["java", "-Xmx16m", "-XX:+UseSerialGC", "-cp", "/app/healthcheck", "de.unfallatlas.analysis.health.ContainerHealthCheck"]
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -7,6 +7,7 @@ on:
       - main
       - develop
     paths:
+      - 'scripts/configure-ubuntu-mirrors.sh'
       - 'README.md'
       - 'pom.xml'
       - 'package.json'
@@ -60,6 +61,9 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+
+      - name: Configure Ubuntu release mirrors for browser dependencies
+        run: sudo sh scripts/configure-ubuntu-mirrors.sh
 
       - name: Generate and validate candidate documentation and deep links
         env:

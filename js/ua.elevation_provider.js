@@ -519,6 +519,8 @@
     const REASON_LABELS_DE = Object.freeze({
       bridge_surface_not_represented_by_dtm:
         "Brückenoberfläche ist im Geländemodell nicht abgebildet",
+      bridge_transition_surface_not_represented_by_dtm:
+        "Profil reicht bis zum Übergang an eine kartierte Brücke; das Geländemodell belegt dort keine Fahrbahnhöhe",
       tunnel_surface_not_represented_by_dtm:
         "Tunneloberfläche ist im Geländemodell nicht abgebildet",
       non_ground_osm_layer: "Straßengeometrie liegt nicht auf der Geländeebene",
@@ -628,6 +630,13 @@
       }
       const fit = theilSen(samples);
       const reasons = riskReasons(opts.osmTags);
+      // This compares the requested window to the same along-way distances used
+      // for sampling. A distant bridge endpoint cannot invalidate a short window.
+      const boundary = opts.bridgeEndpoints;
+      if (boundary && ((boundary.start?.length && prepared.nearest.along <= windowMeters) ||
+          (boundary.end?.length && prepared.cumulative.at(-1) - prepared.nearest.along <= windowMeters))) {
+        reasons.push("bridge_transition_surface_not_represented_by_dtm");
+      }
       if (provider.descriptor.modelType !== "DTM")
         reasons.push("source_is_not_pure_dtm");
       if (provider.descriptor.resolutionMeters >= 20)

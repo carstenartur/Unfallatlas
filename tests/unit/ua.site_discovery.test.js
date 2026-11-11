@@ -128,6 +128,12 @@ describe('site discovery', () => {
         id: 'j:60655478', coordinates: [52.3757176, 9.7267899],
       } });
       expect(sites[2].changes.map(change => change.kind)).toContain('council-decision');
+      const history = require('../../data/mobility/review-network/hannover/index.json').caseHistory;
+      expect(history.find(site => site.id === sites[2].networkSite.id).changes).toEqual(sites[2].changes);
+      expect(sites[2].changes).toEqual(expect.arrayContaining([
+        expect.objectContaining({ number: '15-0778/2021 F1', date: '2021-05-10', label: expect.stringContaining('11 Unfälle des Typs Einbiegen/Kreuzen') }),
+        expect.objectContaining({ number: '15-1243/2021 S1', date: '2021-10-07', label: expect.stringContaining('sagte die Aufpflasterung') }),
+      ]));
       expect(sites[0]).toMatchObject({
         label: expect.stringContaining('Osterstraße'),
         bounds: { south: 52.36770600225075, west: 9.739235043525698, north: 52.3688753291183, east: 9.741144776344301 },

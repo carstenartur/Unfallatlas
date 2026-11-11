@@ -161,6 +161,31 @@ describe('document evidence for a conflict pattern', () => {
     );
   });
 
+  test.each([true, false])('the formal network PDF keeps every numbered map when the official aerial is available=%s', async available => {
+    const { ctx, report } = fixture();
+    report.structured.siteNetwork = { status: 'available', label: 'Testknoten' };
+    const provider = { attribution: 'LGLN', license: 'CC BY 4.0', metadataUrl: 'https://example.org/dop',
+      licenseUrl: 'https://creativecommons.org/licenses/by/4.0/' };
+    UA.fetchDocumentOrthophoto = jest.fn().mockResolvedValue(available ? { image: PNG, provider, bounds } : null);
+    await UA.exportToPDF(ctx, report, { includeMap: true });
+    expect(UA.fetchDocumentOrthophoto).toHaveBeenCalledWith(ctx, bounds);
+    const content = nodes(definition.content);
+    expect(content.filter(node => node.image)).toHaveLength(available ? 5 : 4);
+    expect(content.filter(node => node.id?.startsWith('evidence-map-')).map(node => node.id))
+      .toEqual(['evidence-map-E1', 'evidence-map-E2']);
+    const text = content.map(node => node.text).filter(value => typeof value === 'string').join(' ');
+    if (available) {
+      expect(text).toContain('Abbildung 5: Amtliches Luftbild des Untersuchungsbereichs – Testknoten');
+      expect(content).toEqual(expect.arrayContaining([
+        expect.objectContaining({ text: 'LGLN', link: provider.metadataUrl }),
+        expect.objectContaining({ text: 'CC BY 4.0', link: provider.licenseUrl }),
+      ]));
+    } else {
+      expect(text).toContain('Die separate amtliche Luftbildaufnahme für den gesamten Ausschnitt war beim Export nicht verfügbar.');
+      expect(text).not.toContain('Amtliches Luftbild des Untersuchungsbereichs');
+    }
+  });
+
   test('Word prints the official aerial and exact, disjoint point sheets linked to the case list', async () => {
     const { ctx, report } = fixture();
     const sheets = [];

@@ -336,11 +336,34 @@ describe('optional network register', () => {
     expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(4);
   });
 
+  test('offers the area draft for assigned cases from one year and preserves their selection', async () => {
+    const { ctx, bounds } = setup(options => {
+      registerReviewNetwork(options);
+      options.ctx.ui = { btnOpenExport: document.createElement('button') };
+    });
+    const open = jest.spyOn(ctx.ui.btnOpenExport, 'click');
+    document.querySelector('#btnDiscover').click();
+    await ctx.reviewNetworkPromise;
+    const panel = document.querySelector('#siteDiscoveryPanel');
+    changeControl(panel, 'Von Jahr', '2025');
+    clickButton(panel, 'Knoten Friedrichswall');
+    const detail = panel.querySelector('.site-discovery-detail');
+    expect(detail.textContent).toContain('1 zugeordneter Fall');
+    expect(detail.textContent).toContain('kein wiederkehrendes Muster');
+    const draft = clickButton(detail, 'Antragsentwurf für den markierten Bereich öffnen');
+    expect(draft.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(ctx.discoveryFocus).toMatchObject({ bounds, key: null, site: { id: networkId } });
+  });
+
   test.each([
     ['Querung', 'Querung Osterstraße', 'oster-crossing', [[52.37031, 9.73031]]],
     ['Straßenabschnitt', 'Abschnitt Friedrichswall', 'wall-segment', [[52.3701, 9.7301], [52.3703, 9.7303]]],
   ])('highlights an inventoried %s without an assigned case', async (kind, label, id, coordinates) => {
-    const { ctx } = setup(registerReviewNetwork);
+    const { ctx } = setup(options => {
+      registerReviewNetwork(options);
+      options.ctx.ui = { btnOpenExport: document.createElement('button') };
+    });
     document.querySelector('#btnDiscover').click();
     await ctx.reviewNetworkPromise;
     const panel = document.querySelector('#siteDiscoveryPanel');
@@ -351,6 +374,7 @@ describe('optional network register', () => {
     clickButton(panel, label);
     expect(ctx.discoveryFocus.site.id).toBe(id);
     expect(panel.textContent).toContain('0 zugeordnete Fälle nach Suchkriterien');
+    expect(panel.querySelector('.site-discovery-detail').textContent).not.toContain('Antragsentwurf');
     expect(panel.textContent).toContain('4 Fälle insgesamt im Rechteck');
     expect(panel.querySelectorAll('[data-discovery-case]')).toHaveLength(0);
     expect(panel.querySelector('.site-discovery-case-list')).toBeNull();
@@ -424,6 +448,7 @@ describe('optional network register', () => {
   test.each(['revision', 'bounds', 'profile'])('retains the original rectangle when the saved %s is unavailable', async mismatch => {
     const { ctx } = setup(options => {
       registerReviewNetwork(options);
+      options.ctx.ui = { btnOpenExport: document.createElement('button') };
       const bounds = mismatch === 'bounds' ? { ...options.bounds, east: 9.731 } : options.bounds;
       const revision = mismatch === 'revision' ? 'older-snapshot' : networkRevision;
       if (mismatch === 'profile') options.UA.ReviewNetwork.load.mockResolvedValue(null);
@@ -434,6 +459,7 @@ describe('optional network register', () => {
     const panel = document.querySelector('#siteDiscoveryPanel');
     const detail = panel.querySelector('.site-discovery-detail');
     expect(detail.textContent).toMatch(/gespeicherte Netzstand ist nicht verfügbar/i);
+    expect(detail.textContent).not.toContain('Antragsentwurf');
     expect(detail.textContent).toContain('4 Fälle insgesamt im Rechteck');
     expect(detail.querySelectorAll('.site-discovery-focus-case')).toHaveLength(0);
     expect(ctx.discoveryFocus).toEqual(original);

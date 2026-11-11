@@ -1,30 +1,32 @@
 {
   "documents": [
     {
-      "title": "Die Ideale Kreuzung – Leitfaden für sichere Knotenpunkte",
-      "author": "Region Hannover",
-      "date": "2023",
-      "url": "https://www.hannover.de/Leben-in-der-Region-Hannover/Mobilit%C3%A4t/Radfahren-Fu%C3%9Fverkehr/Radverkehr/Die-Ideale-Kreuzung",
-      "description": "Planerischer Leitfaden zur Gestaltung sicherer Kreuzungen mit Fokus auf vulnerable Verkehrsteilnehmer. Beschreibt konkrete Gestaltungskriterien zur Vermeidung typischer Unfallmuster."
+      "title": "Die Ideale Kreuzung – Ein Leitfaden für Planerinnen und Planer",
+      "author": "Region Hannover, Fachbereich Verkehr (Hrsg.)",
+      "date": "2021",
+      "url": "https://www.hannover.de/content/download/875371/file/Ideale-Kreuzung_Leitfaden_Einzelseiten_reduziert_Endfassung_2021-09-08.pdf",
+      "description": "Der Leitfaden wertet Unfälle an Kreuzungen in der Region Hannover aus und beschreibt Grundprinzipien für die Gestaltung sicherer Knotenpunkte."
     },
     {
-      "title": "InnoRAD Kreuzungen – Sichere Knotenpunktgestaltung",
-      "author": "ADFC",
-      "url": "https://www.adfc.de/artikel/innovationen-fuer-den-radverkehr-kreuzungen",
-      "description": "Forschungsprojekt zu innovativen Kreuzungsformen. Dokumentiert best practices und Sicherheitsaspekte bei Knotenpunkten mit Radverkehr."
+      "title": "Kreuzungen für alle von 8 bis 80 – Gestaltungsvarianten aus den Niederlanden",
+      "author": "Allgemeiner Deutscher Fahrrad-Club e. V. (ADFC)",
+      "date": "2020",
+      "url": "https://www.adfc.de/fileadmin/user_upload/Expertenbereich/Politik_und_Verwaltung/Download/adfc_innorad_kreuzungen_web.pdf",
+      "description": "Das InnoRAD-Factsheet 1/6 stellt das niederländische Kreuzungsdesign vor und erläutert die Führung des Radverkehrs an geschützten Kreuzungen."
     },
     {
       "title": "Empfehlungen für Radverkehrsanlagen (ERA)",
+      "isbn": "978-3-941790-63-6",
       "author": "FGSV - Forschungsgesellschaft für Straßen- und Verkehrswesen",
       "date": "2010",
-      "url": "https://www.fgsv-verlag.de/pub/media/pdf/284.i.pdf",
+      "url": "https://www.fgsv-verlag.de/era",
       "description": "Regelwerk zur Planung, Entwurf und Betrieb von Radverkehrsanlagen. Definiert Standards für sichere Radverkehrsführung insbesondere an Knotenpunkten."
     },
     {
-      "title": "Schulwegsicherung – Systematische Analyse und Maßnahmen",
-      "author": "Deutsche Verkehrswacht",
-      "url": "https://www.verkehrswacht-medien-service.de/schulweg/",
-      "description": "Leitfaden zur Identifikation und Entschärfung von Gefahrenstellen auf Schulwegen. Relevanz bei Häufungen im Umfeld von Bildungseinrichtungen."
+      "title": "Schulwegpläne für die Grundschule",
+      "author": "Verkehrswacht Medien & Service GmbH",
+      "url": "https://www.verkehrswacht-medien-service.de/wp-content/uploads/105-Infoblatt-Schulwegplaene-fuer-die-Grundschule.pdf",
+      "description": "Das Infoblatt nennt geeignete Querungsstellen, Sichtbehinderungen und weitere Gefahrenpunkte, die in einem Schulwegplan erfasst werden können."
     }
   ],
   "localPoliticalCases": [

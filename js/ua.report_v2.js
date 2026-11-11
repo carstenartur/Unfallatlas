@@ -92,6 +92,7 @@
     "Stunden-Heatmap",
     "Verkehrsräumlicher Kontext",
     "Volkswirtschaftliche Bedeutung",
+    "Modellrechnung für Personenschäden",
     "Empfohlene Maßnahmen",
     "POI-Analyse",
     "Bezugsdokumente:",
@@ -105,6 +106,7 @@
     "Hinweis (intern)",
     "Datenquelle",
     "Datenerfassung",
+    "Welche Unfälle sind erfasst?",
     "Kontextdaten"
   ];
 
@@ -165,10 +167,10 @@
   }
 
   function councilSourceRuns(sd) {
-    return (sd?.motion?.priorWork || []).map(record => ({
-      text: record.number ? `DS ${record.number} (${sourceDate(record.date)})` : `Amtlicher Beleg vom ${sourceDate(record.date)}`,
-      href: reportLink(record.url),
-    })).filter(source => source.href);
+    return (sd?.motion?.priorWork || []).flatMap(record => [
+      { text: record.number ? `DS ${record.number} (${sourceDate(record.date)})` : `Amtlicher Beleg vom ${sourceDate(record.date)}`, href: reportLink(record.url) },
+      ...(record.attachment ? [{ text: record.attachment.label, href: reportLink(record.attachment.url) }] : []),
+    ]).filter(source => source.href);
   }
 
   // Match only complete document numbers with an unambiguous, supplied original URL.
@@ -187,6 +189,33 @@
     const pattern = new RegExp(`(?<![\\p{L}\\p{N}/-])(?:DS\\s+)?(${alternatives.join("|")})(?![\\p{L}\\p{N}/-]|\\s+[A-Z]+\\d+\\b)`, "gu");
     return { pattern, urls };
   }
+
+  // The HTML preview, Word and native PDF cite the same verified originals at
+  // the point of use. Preserve literal URL links and unresolved document numbers.
+  UA.createMotionLinkFormatter = function (priorWork, selectedRecords) {
+    const citations = councilCitationMatcher([...(priorWork || []), ...(selectedRecords || [])]);
+    return text => {
+      const content = textWithLinks(text);
+      if (!citations) return content;
+      const parts = Array.isArray(content) ? content : [{ text: content }];
+      const runs = parts.flatMap(part => {
+        if (part.link) return [part];
+        const matches = [];
+        let offset = 0;
+        for (const match of part.text.matchAll(citations.pattern)) {
+          const link = citations.urls.get(match[1].replace(/\s+/g, " "));
+          if (!link) continue;
+          if (match.index > offset) matches.push({ text: part.text.slice(offset, match.index) });
+          matches.push({ text: match[0], link, color: "#174F71", decoration: "underline" });
+          offset = match.index + match[0].length;
+        }
+        if (!matches.length) return [part];
+        if (offset < part.text.length) matches.push({ text: part.text.slice(offset) });
+        return matches;
+      });
+      return runs.length === 1 && !runs[0].link ? runs[0].text : runs;
+    };
+  };
 
   function reportLink(href) {
     if (typeof href !== "string" || !href.trim()) return null;
@@ -219,6 +248,45 @@
       sourceNote: appendix?.sourceNote,
       limitations: Array.isArray(appendix?.limitations) ? appendix.limitations : []
     };
+  }
+
+  function verifiedDiscoveryCount(sd) {
+    const evidence = sd?.motion?.discoveryEvidence;
+    const focus = sd?.discoveryFocus;
+    if (!focus?.key || focus.key !== evidence?.key || evidence.count !== focus.points?.length ||
+        !Number.isSafeInteger(evidence.count) || evidence.count < 1) return null;
+    return evidence.count;
+  }
+
+  const aerialOrientation = 'Nord ist oben. Das Aufnahmedatum ist im Kartenbild nicht ausgewiesen.';
+  const aerialUnavailable = 'Für diesen Ausschnitt war beim Export kein amtliches Luftbild verfügbar.';
+
+  function aerialCaption(place) {
+    const label = 'Amtliches Luftbild des Untersuchungsbereichs';
+    return place ? label + ' – ' + place : label;
+  }
+
+  function severityPopulationText(sd) {
+    const title = "Unfälle im ausgewerteten Ausschnitt nach schwerster Folge";
+    const total = sd?.severity?.total;
+    if (!Number.isSafeInteger(total) || total < 0) return title;
+    const heading = `${title} (n = ${total.toLocaleString("de-DE")})`;
+    const count = verifiedDiscoveryCount(sd);
+    if (count === null || count > total) return heading;
+    return `${heading}. Das ausgewählte Muster umfasst davon ${count.toLocaleString("de-DE")} ${count === 1 ? "Fall" : "Fälle"}.`;
+  }
+
+  function involvementComparisonReading(sd, isPolitical) {
+    const total = sd.deviations.local?.total;
+    const population = Number.isSafeInteger(total) && total >= 0
+      ? ` unter ${total.toLocaleString("de-DE")} ${total === 1 ? "Unfall" : "Unfällen"}` : "";
+    const sentences = [`Die Spalte „Lokal“ zählt die Fälle je Beteiligungsgruppe${population} im ausgewerteten Ausschnitt.`];
+    const count = verifiedDiscoveryCount(sd);
+    if (count !== null && sd.discoveryFocus.label) {
+      sentences.push(`Für das ausgewählte Muster „${sd.discoveryFocus.label}“ weist die Stellensuche ${count.toLocaleString("de-DE")} ${count === 1 ? "Fall" : "Fälle"} aus.`);
+    }
+    if (!isPolitical) sentences.push(FACTOR_READING);
+    return sentences.join(" ");
   }
 
   function evidenceCountText(evidence) {
@@ -1820,22 +1888,9 @@
     }
 
     function motionParagraph(text, options = {}) {
-      const content = textWithLinks(String(text));
+      const content = formatMotionText(String(text));
       const parts = Array.isArray(content) ? content : [{ text: content }];
-      const runs = parts.flatMap(part => {
-        if (part.link || !councilCitations) return [linkedWordRun({ text: part.text, href: part.link })];
-        const children = [];
-        let offset = 0;
-        for (const match of part.text.matchAll(councilCitations.pattern)) {
-          const href = councilCitations.urls.get(match[1].replace(/\s+/g, " "));
-          if (!href) continue;
-          if (match.index > offset) children.push(linkedWordRun({ text: part.text.slice(offset, match.index) }));
-          children.push(linkedWordRun({ text: match[0], href }));
-          offset = match.index + match[0].length;
-        }
-        if (offset < part.text.length || !children.length) children.push(linkedWordRun({ text: part.text.slice(offset) }));
-        return children;
-      });
+      const runs = parts.map(part => linkedWordRun({ text: part.text, href: part.link }));
       return new Paragraph({ children: runs, spacing: { after: 100 }, keepLines: true, ...options });
     }
 
@@ -2038,7 +2093,7 @@
     const sd = reportData.structured || null;
     const includeReferences = options.includeReferences !== false;
     const selectedCouncilRecords = includeReferences && Array.isArray(sd?.politicalReferences) ? sd.politicalReferences : [];
-    const councilCitations = councilCitationMatcher([...(sd?.motion?.priorWork || []), ...selectedCouncilRecords]);
+    const formatMotionText = UA.createMotionLinkFormatter(sd?.motion?.priorWork, selectedCouncilRecords);
     let evidence = numberedEvidence(sd);
     const formalMotion = Boolean(evidence || sd?.motion);
     const hasMap = Boolean(options.includeMap && ctx.map);
@@ -2383,7 +2438,7 @@
 
       // Severity table
       children.push(new Paragraph({
-        text: evidence ? "Unfälle nach schwerster Folge unter den Suchfiltern" : "Verletzungsschwere im Ausschnitt:",
+        text: severityPopulationText(sd),
         keepNext: true, spacing: { after: 100 }
       }));
       const sev = sd.severity;
@@ -2392,9 +2447,9 @@
       children.push(makeDocxTable(
         ["Kategorie", "Anzahl", "Anteil"],
         [
-          [evidence ? "Unfälle mit Getöteten" : "1 – Getötete", String((sev && sev.bySev["1"]) || 0), fmtPct((sev && sev.bySev["1"]) || 0, sevTotal)],
-          [evidence ? "Unfälle mit Schwerverletzten" : "2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPct((sev && sev.bySev["2"]) || 0, sevTotal)],
-          [evidence ? "Unfälle mit Leichtverletzten" : "3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPct((sev && sev.bySev["3"]) || 0, sevTotal)]
+          ["Unfälle mit Getöteten", String((sev && sev.bySev["1"]) || 0), fmtPct((sev && sev.bySev["1"]) || 0, sevTotal)],
+          ["Unfälle mit Schwerverletzten", String((sev && sev.bySev["2"]) || 0), fmtPct((sev && sev.bySev["2"]) || 0, sevTotal)],
+          ["Unfälle mit Leichtverletzten", String((sev && sev.bySev["3"]) || 0), fmtPct((sev && sev.bySev["3"]) || 0, sevTotal)]
         ]
       ));
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
@@ -2433,15 +2488,13 @@
             ? [2.0, 0.8, 1.0, 1.0, 1.6]
             : [1.8, 0.7, 0.9, 0.9, 0.9, 1.6]
         }));
-        if (!isPolitical) {
-          children.push(new Paragraph({
-            children: [
-              new TextRun({ text: "Lesart: ", bold: true }),
-              new TextRun({ text: FACTOR_READING })
-            ],
-            spacing: { after: 100 }
-          }));
-        }
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: "Lesart: ", bold: true }),
+            new TextRun({ text: involvementComparisonReading(sd, isPolitical) })
+          ],
+          spacing: { after: 100 }
+        }));
         if (!isPolitical) {
           const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
           if (allNonSig) {
@@ -2519,7 +2572,7 @@
         ]);
         ctHighlights.push(false); // Gesamt row is not highlighted
         children.push(makeDocxTable(
-          ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
+          ["Kombination", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
           ctRows,
           ctHighlights,
           { colWeights: [45, 12, 17, 16, 10] }
@@ -2549,42 +2602,15 @@
       }
 
       // Economic impact (PR-C / B2): Volkswirtschaftliche Bedeutung
-      if (options.includeCosts !== false && sd.economicImpact && sd.economicImpact.total > 0) {
-        const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-        const ei = sd.economicImpact;
-        children.push(new Paragraph({
-          text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)",
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 400, after: 200 }
-        }));
-        const eiRows = [
-          ["Getötete", String(ei.counts.fatal), fmt(ei.breakdown.fatal)],
-          ["Schwerverletzte", String(ei.counts.severe), fmt(ei.breakdown.severe)],
-          ["Leichtverletzte", String(ei.counts.light), fmt(ei.breakdown.light)],
-          [`Gesamt im Datenzeitraum (${ei.years} Jahr${ei.years === 1 ? "" : "e"})`,
-            String(ei.counts.fatal + ei.counts.severe + ei.counts.light),
-            fmt(ei.total)],
-          ["Pro Jahr", "", fmt(ei.annual)]
-        ];
-        children.push(makeDocxTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
-        // Trend-Qualifier (PR-β): konsistent mit TEXT/HTML/PDF.
-        const tq = trendQualifierTextDocx(ei.trendQualifier);
-        if (tq) {
-          children.push(new Paragraph({
-            children: [new TextRun({ text: `Mehrjahres-Trend: ${tq}.`, bold: true })],
-            spacing: { before: 80, after: 40 }
-          }));
-        }
-        if (ei.source && (ei.source.publisher || ei.source.year)) {
-          const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
-          children.push(new Paragraph({ text: `Quelle: ${srcParts}`, spacing: { after: 60 } }));
-        }
-        if (ei.disclaimer) {
-          children.push(new Paragraph({
-            children: [new TextRun({ text: ei.disclaimer, italics: true })],
-            spacing: { after: 200 }
-          }));
-        }
+      const costTable = options.includeCosts !== false && UA.costs?.reportTable(sd.economicImpact);
+      if (costTable) {
+        children.push(new Paragraph({ text: costTable.title, heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }));
+        children.push(new Paragraph({ text: costTable.note, spacing: { after: 120 } }));
+        children.push(makeDocxTable(costTable.headers, costTable.rows));
+        const tq = trendQualifierTextDocx(sd.economicImpact.trendQualifier);
+        if (tq) children.push(new Paragraph({ text: `Mehrjahres-Trend der Unfallzahlen: ${tq}.` }));
+        children.push(new Paragraph({ children: [new TextRun("Quelle: "),
+          linkedWordRun({ text: costTable.sourceLabel, href: reportLink(costTable.sourceUrl) })], spacing: { after: 120 } }));
       }
 
       if (options.includeMeasures !== false && sd.measureAssessmentNote) {
@@ -2900,9 +2926,9 @@
       const photo = await UA.fetchDocumentOrthophoto?.(ctx, plan.bounds);
       let aerial = null;
       if (photo) {
-        const label = 'Amtliches Luftbild des Untersuchungsbereichs';
         const place = sd?.siteNetwork?.label || sd?.meta?.areaName;
-        figure(photo.image, place ? label + ' – ' + place : label, place || label);
+        const caption = aerialCaption(place);
+        figure(photo.image, caption, place || caption);
         const credit = photo.provider.attribution;
         const licence = photo.provider.license;
         const sourceUrl = reportLink(photo.provider.metadataUrl);
@@ -2912,7 +2938,7 @@
           : new TextRun({ text: value });
         children.push(new Paragraph({
           children: [new TextRun('Bildquelle: '), linked(credit, sourceUrl), new TextRun(' · '),
-            linked(licence, licenseUrl), new TextRun('. Nord ist oben. Das Aufnahmedatum ist im Kartenbild nicht ausgewiesen.')], spacing: { after: 140 }
+            linked(licence, licenseUrl), new TextRun('. ' + aerialOrientation)], spacing: { after: 140 }
         }));
         // Reuse this exact image for the detail crops, with the same GetMap bounds.
         if (window.Image) {
@@ -2926,7 +2952,7 @@
           }
         }
       } else {
-        children.push(motionParagraph('Für diesen Ausschnitt war beim Export kein amtliches Luftbild verfügbar.'));
+        children.push(motionParagraph(aerialUnavailable));
       }
       children.push(motionParagraph('Die Punkte liegen auf den veröffentlichten Koordinaten. '
           + (evidence ? 'Die Linien verbinden sie mit den Kennungen in der Unfallliste.' : 'Die Linien führen zu den Punktkennungen dieses Kartenausschnitts.')
@@ -3101,7 +3127,7 @@
         const legendText =
           ctx && typeof ctx.t === "function"
             ? ctx.t("report.map.legend")
-            : "Legende: Darstellung entsprechend der aktuellen Kartendarstellung. Punkte: rot = Getötete, orange = Schwerverletzte, gelb = Leichtverletzte.";
+            : "Legende: Darstellung entsprechend der aktuellen Kartendarstellung. Die Punktfarbe zeigt die schwerste Unfallfolge: rot bei Unfällen mit Getöteten, orange bei Schwerverletzten und gelb bei Leichtverletzten.";
 
         children.push(
           new Paragraph({
@@ -3440,7 +3466,7 @@
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 400, after: 200 }
       }));
-      const trendHeader = ["Jahr", "Getötete", "Schwerverletzte", "Leichtverletzte", "Summe"];
+      const trendHeader = ["Jahr", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"];
       const trendRows = t.years.map((y, i) => [
         String(y),
         String(t.counts.fatal[i]),
@@ -4546,7 +4572,9 @@
     const pdfFigCounter = makeFigureCounter();
 
     const motion = motionSections(sd, textLines, hasMap);
-    const motionParagraph = text => ({ text: textWithLinks(replaceEmojisForPDF(text)), style: formalMotion ? "motionBody" : "normal" });
+    const selectedCouncilRecords = options.includeReferences !== false && Array.isArray(sd?.politicalReferences) ? sd.politicalReferences : [];
+    const formatMotionText = UA.createMotionLinkFormatter(sd?.motion?.priorWork, selectedCouncilRecords);
+    const motionParagraph = text => ({ text: formatMotionText(replaceEmojisForPDF(text)), style: formalMotion ? "motionBody" : "normal" });
     docDefinition.content.push({
       text: formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG",
       style: formalMotion ? "sectionHeader" : "subheader",
@@ -4655,15 +4683,15 @@
       const sev = sd.severity;
       const sevTotal = sev ? sev.total : 0;
       const severityRows = [
-        [evidence ? "Unfälle mit Getöteten" : "1 – Getötete", String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
-        [evidence ? "Unfälle mit Schwerverletzten" : "2 – Schwerverletzte", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
-        [evidence ? "Unfälle mit Leichtverletzten" : "3 – Leichtverletzte", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
+        ["Unfälle mit Getöteten", String((sev && sev.bySev["1"]) || 0), fmtPctPdf((sev && sev.bySev["1"]) || 0, sevTotal)],
+        ["Unfälle mit Schwerverletzten", String((sev && sev.bySev["2"]) || 0), fmtPctPdf((sev && sev.bySev["2"]) || 0, sevTotal)],
+        ["Unfälle mit Leichtverletzten", String((sev && sev.bySev["3"]) || 0), fmtPctPdf((sev && sev.bySev["3"]) || 0, sevTotal)]
       ];
       docDefinition.content.push({
         unbreakable: true,
         stack: [
           { text: "STATISTIK", style: "subheader" },
-          { text: evidence ? "Unfälle nach schwerster Folge unter den Suchfiltern" : "Verletzungsschwere im Ausschnitt:", style: "normal" },
+          { text: severityPopulationText(sd), style: "normal" },
           makePdfTable(["Kategorie", "Anzahl", "Anteil"], severityRows, undefined, evidence ? { widths: ["*", 78, 78] } : undefined)
         ]
       });
@@ -4706,15 +4734,15 @@
             undefined,
             { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
           ));
-          docDefinition.content.push({
-            text: [
-              { text: "Lesart: ", bold: true },
-              { text: FACTOR_READING }
-            ],
-            style: "small",
-            margin: [0, 2, 0, 6]
-          });
         }
+        docDefinition.content.push({
+          text: [
+            { text: "Lesart: ", bold: true },
+            { text: involvementComparisonReading(sd, isPolitical) }
+          ],
+          style: "small",
+          margin: [0, 2, 0, 6]
+        });
         // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
         if (!isPolitical) {
           const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
@@ -4793,7 +4821,7 @@
         ]);
         ctHighlights.push(false); // Gesamt row is not highlighted
         docDefinition.content.push(makePdfTable(
-          ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
+          ["Kombination", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
           ctRows,
           ctHighlights,
           { widths: ["*", "auto", "auto", "auto", "auto"] }
@@ -4802,32 +4830,15 @@
 
       // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
       // Economic impact (PR-C / B2): Volkswirtschaftliche Bedeutung
-      if (options.includeCosts !== false && sd.economicImpact && sd.economicImpact.total > 0) {
-        const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-        const ei = sd.economicImpact;
-        docDefinition.content.push({ text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)", style: "subheader", headlineLevel: 2 });
-        const eiRows = [
-          ["Getötete", String(ei.counts.fatal), fmt(ei.breakdown.fatal)],
-          ["Schwerverletzte", String(ei.counts.severe), fmt(ei.breakdown.severe)],
-          ["Leichtverletzte", String(ei.counts.light), fmt(ei.breakdown.light)],
-          [`Gesamt (${ei.years} Jahr${ei.years === 1 ? "" : "e"})`,
-            String(ei.counts.fatal + ei.counts.severe + ei.counts.light),
-            fmt(ei.total)],
-          ["Pro Jahr", "", fmt(ei.annual)]
-        ];
-        docDefinition.content.push(makePdfTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
-        // Trend-Qualifier (PR-β): konsistent mit TEXT/HTML/DOCX.
-        const tq = trendQualifierTextDocx(ei.trendQualifier);
-        if (tq) {
-          docDefinition.content.push({ text: `Mehrjahres-Trend: ${tq}.`, bold: true, margin: [0, 4, 0, 2] });
-        }
-        if (ei.source && (ei.source.publisher || ei.source.year)) {
-          const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
-          docDefinition.content.push({ text: `Quelle: ${srcParts}`, style: "normal", margin: [0, 4, 0, 0] });
-        }
-        if (ei.disclaimer) {
-          docDefinition.content.push({ text: ei.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
-        }
+      const costTable = options.includeCosts !== false && UA.costs?.reportTable(sd.economicImpact);
+      if (costTable) {
+        docDefinition.content.push({ text: costTable.title, style: "subheader", headlineLevel: 2 });
+        docDefinition.content.push({ text: costTable.note, style: "normal" });
+        docDefinition.content.push(makePdfTable(costTable.headers, costTable.rows));
+        const tq = trendQualifierTextDocx(sd.economicImpact.trendQualifier);
+        if (tq) docDefinition.content.push({ text: `Mehrjahres-Trend der Unfallzahlen: ${tq}.`, style: "normal" });
+        docDefinition.content.push({ text: ["Quelle: ", { text: costTable.sourceLabel, link: reportLink(costTable.sourceUrl),
+          color: "#174b79", decoration: "underline" }], style: "normal" });
       }
 
       if (options.includeMeasures !== false && sd.measureAssessmentNote) {
@@ -5378,6 +5389,25 @@
       } finally {
         documentMap.close();
       }
+      if (formalMotion && sd?.siteNetwork?.status === 'available') {
+        const photo = await UA.fetchDocumentOrthophoto?.(ctx, plan.bounds);
+        if (photo) {
+          const fig = pdfFigCounter.next(aerialCaption(sd.siteNetwork.label || sd.meta?.areaName));
+          const provider = photo.provider;
+          docDefinition.content.push({
+            unbreakable: true,
+            stack: [
+              { image: photo.image, fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height], alignment: 'center', margin: [0, 10, 0, 6] },
+              { text: fig.caption, style: 'caption', alignment: 'center' },
+              { text: ['Bildquelle: ', linkedPdfRun({ text: provider.attribution, href: reportLink(provider.metadataUrl) }),
+                ' · ', linkedPdfRun({ text: provider.license, href: reportLink(provider.licenseUrl) }), '. ' + aerialOrientation],
+                style: 'small', margin: [0, 4, 0, 8] }
+            ]
+          });
+        } else {
+          docDefinition.content.push({ text: 'Die separate amtliche Luftbildaufnahme für den gesamten Ausschnitt war beim Export nicht verfügbar.', style: 'small', margin: [0, 4, 0, 8] });
+        }
+      }
     }
     const mapSection = formalMotion ? docDefinition.content.splice(mapsStart) : [];
 
@@ -5505,7 +5535,7 @@
         String(t.counts.total[i])
       ]);
       docDefinition.content.push(makePdfTable(
-        ["Jahr", "Getötete", "Schwerverletzte", "Leichtverletzte", "Summe"],
+        ["Jahr", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
         trendRows,
         undefined,
         { widths: ["auto", "auto", "auto", "auto", "*"] }
@@ -5804,7 +5834,7 @@
       }
     }
 
-    window.pdfMake.createPdf(docDefinition).download(filename);
+    await window.pdfMake.createPdf(docDefinition).download(filename);
   };
 
   // =====================================================================

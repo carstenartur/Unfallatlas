@@ -209,3 +209,35 @@ test('a file above the import limit is rejected before reading it', () => {
     read.mockRestore();
   }
 });
+
+test('Hannover opens six DGM1 terrain reference profiles including both excluded bridge surfaces', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const control = UA.HannoverLayers.controlContent(ctx);
+  const target = [...control.querySelectorAll('a')].find(a => a.textContent.includes('Geländeprofile'));
+  const pagePath = path.resolve(__dirname, '../..', target.getAttribute('href'));
+  const page = new DOMParser().parseFromString(fs.readFileSync(pagePath, 'utf8'), 'text/html');
+  const dataPath = path.join(path.dirname(pagePath), page.querySelector('a[download]').getAttribute('href'));
+  const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+  expect(data.surveyYear).toBe(2010);
+  expect(data.verticalDatum).toBeNull();
+  const rows = [...page.querySelectorAll('tbody tr')];
+  expect(rows).toHaveLength(6);
+  expect(data.profiles.flatMap(entry => entry.profile)).toHaveLength(292);
+  for (const { wayId, profile } of data.profiles) {
+    const row = rows.find(entry => entry.querySelector('a').href.endsWith('/way/' + wayId));
+    const slopes = [];
+    profile.forEach(([distance, height], index) => {
+      for (const [end, elevation] of profile.slice(index + 1)) slopes.push(100 * (elevation - height) / (end - distance));
+    });
+    slopes.sort((a,b) => a - b);
+    const slope = (slopes[Math.floor((slopes.length - 1) / 2)] + slopes[Math.floor(slopes.length / 2)]) / 2;
+    const percentage = row.cells[2].textContent.trim().match(/^(?:≈\s*)?([+−-]?\d+(?:,\d+)?)\s*%$/u);
+    expect(percentage).not.toBeNull();
+    const shown = Number(percentage[1].replaceAll('−', '-').replaceAll(',', '.'));
+    expect(slope).toBeCloseTo(shown, 2);
+    if (['23838108', '24011492'].includes(wayId)) expect(row.textContent).toMatch(/Fahrbahnneigung.*ausgeschlossen/);
+  }
+  ctx.CITY_RAW = 'Bonn';
+  expect(UA.HannoverLayers.controlContent(ctx)).toBeNull();
+});

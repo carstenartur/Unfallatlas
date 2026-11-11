@@ -325,7 +325,9 @@
     const schoolSource = element('a', 'Alle Schulwegpläne bei Hannover.de');
     schoolSource.target = '_blank';
     schoolSource.rel = 'noopener noreferrer';
-    root.append(choices, tools, status, schoolSource);
+    const terrain = element('p');
+    terrain.append(link('Geländeprofile für sechs Hannoveraner Straßenabschnitte', 'docs/qa/hannover-dgm1-profile.html'));
+    root.append(choices, tools, status, schoolSource, terrain);
     return { root, school, bike, tools, schoolStatus, bikeStatus, schoolSource };
   }
 

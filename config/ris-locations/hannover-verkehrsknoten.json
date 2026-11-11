@@ -1,0 +1,1034 @@
+{
+  "source": "hannover-sim",
+  "records": {
+    "hannover-sim:15-0022-2014": {
+      "title": "Sicherer Fußgängerüberweg Falkenstraße/Schwarzer Bär",
+      "sites": [
+        {
+          "streets": [
+            "Falkenstraße",
+            "Schwarzer Bär"
+          ],
+          "text": "geänderte Abwicklung des ampelgesteuerten Fußgängerüberwegs Falkenstraße/Schwarzer Bär hingewiesen werden."
+        }
+      ]
+    },
+    "hannover-sim:15-0022-2014S1": {
+      "title": "Sicherer Fußgängerüberweg Falkenstraße/Schwarzer Bär Sitzung des Stadtbezirksrates Linden-Limmer am 22.01.2014 TOP 4.1.2.",
+      "sites": [
+        {
+          "streets": [
+            "Falkenstraße",
+            "Schwarzer Bär"
+          ],
+          "text": "geänderte Abwicklung des ampelgesteuerten Fußgängerüberwegs Falkenstraße/Schwarzer Bär hingewiesen werden."
+        }
+      ]
+    },
+    "hannover-sim:15-0054-2007": {
+      "title": "Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee",
+      "sites": [
+        {
+          "streets": [
+            "Davenstedter Markt",
+            "Carlo-Schmid-Allee"
+          ],
+          "text": "wird aufgefordert, an der Straßeneinmündung Davenstedter Markt/ Carlo-Schmid-Allee eine Lichtsignalanlage zu installieren."
+        }
+      ]
+    },
+    "hannover-sim:15-0054-2007S1": {
+      "title": "Entscheidung: Ampelanlage Davenstedter Markt / Carlo-Schmid-Allee",
+      "sites": [
+        {
+          "streets": [
+            "Davenstedter Markt",
+            "Carlo-Schmid-Allee"
+          ],
+          "text": "wird aufgefordert, an der Straßeneinmündung Davenstedter Markt/ Carlo-Schmid-Allee einen Lichtsignalanlage Fußgängerüberweg zu installieren."
+        }
+      ]
+    },
+    "hannover-sim:15-0147-2006": {
+      "title": "Ampelanlage Emslandstraße / Bemeroder Straße",
+      "sites": [
+        {
+          "streets": [
+            "Lange-Hop-Straße",
+            "Bemeroder Straße"
+          ],
+          "text": "Kreuzungsbereich der Lange-Hop-Straße / Bemeroder Straße"
+        },
+        {
+          "streets": [
+            "Alte Bemeroder Straße",
+            "Emslandstraße"
+          ],
+          "text": "Alten Bemeroder Straße / Emslandstraße häufig defekt sind"
+        }
+      ]
+    },
+    "hannover-sim:15-0180-2015N1S1": {
+      "title": "ENTSCHEIDUNG: Ampelanlage an der Ecke Podbielskistr. / Günther-Wagner-Allee Sitzung des Stadtbezirksrates Vahrenwald-List am 09.02.2015 TOP 9.2.2.1.",
+      "sites": [
+        {
+          "streets": [
+            "Podbielskistraße",
+            "Günther-Wagner-Allee"
+          ],
+          "text": "wird die Radaufstellfläche am Knotenpunkt Podbielskistraße/ Günther-Wagner-Allee ebenfalls in „Rot“ markiert werden."
+        }
+      ]
+    },
+    "hannover-sim:15-0191-2018": {
+      "title": "Bedarfsampel Osterfelddamm/Neue-Land-Straße",
+      "sites": [
+        {
+          "streets": [
+            "Osterfelddamm",
+            "Neue-Land-Straße"
+          ],
+          "text": "wird aufgefordert anstelle der Querungshilfe Osterfelddamm/Neue-Land-Straße im Rahmen der RiLSA 2010"
+        }
+      ]
+    },
+    "hannover-sim:15-0191-2018S1": {
+      "title": "ENTSCHEIDUNG: Bedarfsampel Osterfelddamm/Neue-Land-Straße Sitzung des Stadtbezirksrates Buchholz-Kleefeld am 08.02.2018 TOP 10.2.3.",
+      "sites": [
+        {
+          "streets": [
+            "Osterfelddamm",
+            "Neue-Land-Straße"
+          ],
+          "text": "wird aufgefordert anstelle der Querungshilfe Osterfelddamm/Neue-Land-Straße im Rahmen der RiLSA 2010"
+        }
+      ]
+    },
+    "hannover-sim:15-0191-2018S2": {
+      "title": "ENTSCHEIDUNG NEU: Bedarfsampel Osterfelddamm/Neue-Land-Straße Sitzung des Stadtbezirksrates Buchholz-Kleefeld am 08.02.2018 TOP 10.2.3.",
+      "sites": [
+        {
+          "streets": [
+            "Osterfelddamm",
+            "Neue-Land-Straße"
+          ],
+          "text": "wird aufgefordert anstelle der Querungshilfe Osterfelddamm/Neue-Land-Straße im Rahmen der RiLSA 2010"
+        }
+      ]
+    },
+    "hannover-sim:15-0259-2008": {
+      "title": "Ampelschaltung an der Wülfeler Straße / Hinter dem Dorfe",
+      "sites": [
+        {
+          "streets": [
+            "Wülfeler Straße",
+            "Hinter dem Dorfe"
+          ],
+          "text": "Die Ampel an der Wülfeler Straße /Hinter dem Dorfe ist so geschaltet, dass entweder"
+        }
+      ]
+    },
+    "hannover-sim:15-0259-2008S1": {
+      "title": "Ampelschaltung an der Wülfeler Straße / Hinter dem Dorfe",
+      "sites": [
+        {
+          "streets": [
+            "Wülfeler Straße",
+            "Hinter dem Dorfe"
+          ],
+          "text": "die Räumzeiten an der Lichtsignalanlage Wülfeler Straße/ Hinter dem Dorfe überprüft. Die Lichtsignalanlage wird voll"
+        }
+      ]
+    },
+    "hannover-sim:15-0265-2012": {
+      "title": "Fußgängerüberweg Abelmannstraße / Landwehrstraße",
+      "sites": [
+        {
+          "streets": [
+            "Abelmannstraße",
+            "Landwehrstraße"
+          ],
+          "text": "wird aufgefordert, an der Kreuzung Abelmann-/Landwehrstraße einen Zebrastreifen anzulegen oder andere"
+        }
+      ]
+    },
+    "hannover-sim:15-0265-2012N1": {
+      "title": "Fußgängerüberweg Abelmannstraße / Landwehrstraße",
+      "sites": [
+        {
+          "streets": [
+            "Abelmannstraße",
+            "Landwehrstraße"
+          ],
+          "text": "zu prüfen, an der Kreuzung Abelmann-/Landwehrstraße durch eine Aufpflasterung oder einen"
+        }
+      ]
+    },
+    "hannover-sim:15-0265-2012N1S1": {
+      "title": "Fußgängerüberweg Abelmannstraße / Landwehrstraße Sitzung des Stadtbezirksrates Döhren-Wülfel am 09.02.2012 TOP 6.2.2.1",
+      "sites": [
+        {
+          "streets": [
+            "Abelmannstraße",
+            "Landwehrstraße"
+          ],
+          "text": "zu prüfen, an der Kreuzung Abelmann-/Landwehrstraße durch eine Aufpflasterung oder einen"
+        }
+      ]
+    },
+    "hannover-sim:15-0328-2008": {
+      "title": "Ampelschaltung Lister Platz/ Lister Straße",
+      "sites": [
+        {
+          "streets": [
+            "Lister Platz",
+            "Lister Straße"
+          ],
+          "text": "Verwaltung wird aufgefordert die Ampelschaltung Lister Platz/ Lister Str. so zu verändern, dass es"
+        }
+      ]
+    },
+    "hannover-sim:15-0328-2008S1": {
+      "title": "Ampelschaltung Lister Platz/ Lister Straße",
+      "sites": [
+        {
+          "streets": [
+            "Lister Platz",
+            "Lister Straße"
+          ],
+          "text": "Verwaltung wird aufgefordert die Ampelschaltung Lister Platz/ Lister Str. so zu verändern, dass es"
+        }
+      ]
+    },
+    "hannover-sim:15-0363-2004": {
+      "title": "Ampelschaltung an der Badenstedter Straße / Egestorffstraße",
+      "sites": [
+        {
+          "streets": [
+            "Badenstedter Straße",
+            "Egestorffstraße"
+          ],
+          "text": "An der Ecke Badenstedter Straße/Ecke Egestorfstraße"
+        }
+      ]
+    },
+    "hannover-sim:15-0363-2012": {
+      "title": "Sicherung des Fußgängerüberweges Stresemannallee/Heinrich-Heine-Str.",
+      "sites": [
+        {
+          "streets": [
+            "Stresemannallee",
+            "Heinrich-Heine-Straße"
+          ],
+          "text": "Fußgängerüberweg mit Zebrastreifen auf der Stresemannallee an der Ecke Heinrich-Heine-Straße"
+        }
+      ]
+    },
+    "hannover-sim:15-0363-2012S1": {
+      "title": "Sicherung des Fußgängerüberweges Stresemannallee/Heinrich-Heine-Str. Sitzung des Stadtbezirksrates Südstadt-Bult am 22.02.2012 TOP 6.2.2.",
+      "sites": [
+        {
+          "streets": [
+            "Stresemannallee",
+            "Heinrich-Heine-Straße"
+          ],
+          "text": "Fußgängerüberweg mit Zebrastreifen auf der Stresemannallee an der Ecke Heinrich-Heine-Straße"
+        }
+      ]
+    },
+    "hannover-sim:15-0373-2002": {
+      "title": "Ampelschaltung Stöckener Str./Bremer Str.",
+      "sites": [
+        {
+          "streets": [
+            "Stöckener Straße",
+            "Bremer Straße"
+          ],
+          "text": "Überquerung der Stöckener Str. an der Ampel Bremer Str."
+        }
+      ]
+    },
+    "hannover-sim:15-0390-2017": {
+      "title": "Ampelschaltung Hamburger Allee/Celler Straße",
+      "sites": [
+        {
+          "streets": [
+            "Hamburger Allee",
+            "Celler Straße"
+          ],
+          "text": "von der Hamburger Allee in Richtung Norden fahrend, zum Abbiegen in die Celler Straße"
+        }
+      ]
+    },
+    "hannover-sim:15-0390-2017S1": {
+      "title": "Entscheidung Ampelschaltung Hamburger Allee/Celler Straße Sitzung des Stadtbezirksrates Mitte am 27.02.2017 TOP 8.2.3.",
+      "sites": [
+        {
+          "streets": [
+            "Hamburger Allee",
+            "Celler Straße"
+          ],
+          "text": "von der Hamburger Allee in Richtung Norden fahrend, zum Abbiegen in die Celler Straße"
+        }
+      ]
+    },
+    "hannover-sim:15-0426-2026": {
+      "title": "Optimierung der Ampelanlage Richard-Lattorf-Straße/Wunstorfer Landstraße",
+      "sites": [
+        {
+          "streets": [
+            "Richard-Lattorf-Straße",
+            "Wunstorfer Landstraße"
+          ],
+          "text": "Schaltung der Lichtzeichenanlage an der Kreuzung der Wunstorfer Landstraße mit der Richard-Lattorfstraße"
+        }
+      ]
+    },
+    "hannover-sim:15-0426-2026S1": {
+      "title": "ENTSCHEIDUNG zum Antrag: Optimierung der Ampelanlage Richard-Lattorf-Straße/Wunstorfer Landstraße Sitzung des Stadtbezirksrates Ahlem-Badenstedt-Davenstedt am 12.03.2026 TOP 8.7.1.",
+      "sites": [
+        {
+          "streets": [
+            "Richard-Lattorf-Straße",
+            "Wunstorfer Landstraße"
+          ],
+          "text": "Schaltung der Lichtzeichenanlage an der Kreuzung der Wunstorfer Landstraße mit der Richard-Lattorfstraße"
+        }
+      ]
+    },
+    "hannover-sim:15-0449-2009F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Fußgängerüberweg Hildesheimer Straße / Wilkenburger Straße Sitzung des Stadtbezirksrates Döhren-Wülfel am 12.03.2009 TOP 10.2.1.",
+      "sites": [
+        {
+          "streets": [
+            "Hildesheimer Straße",
+            "Wilkenburger Straße",
+            "Behnstraße"
+          ],
+          "text": "Kreuzung Hildesheimer Str./Wilkenburger Str./Behnstr. in Wülfel"
+        }
+      ]
+    },
+    "hannover-sim:15-0473-2023": {
+      "title": "Ampelanlage Karl-Thürmer-Weg / Hermann-Ehlers-Allee als Bedarfsampel",
+      "sites": [
+        {
+          "streets": [
+            "Karl-Thürmer-Weg",
+            "Hermann-Ehlers-Allee"
+          ],
+          "text": "Ampel am Karl-Thürmer-Weg über die Hermann-Ehlers-Allee"
+        }
+      ]
+    },
+    "hannover-sim:15-0473-2023N1": {
+      "title": "Ampelanlage Karl-Thürmer-Weg / Hermann-Ehlers-Allee als Bedarfsampel",
+      "sites": [
+        {
+          "streets": [
+            "Karl-Thürmer-Weg",
+            "Hermann-Ehlers-Allee"
+          ],
+          "text": "Ampel am Karl-Thürmer-Weg über die Hermann-Ehlers-Allee"
+        }
+      ]
+    },
+    "hannover-sim:15-0473-2023N1S1": {
+      "title": "Ampelanlage Karl-Thürmer-Weg / Hermann-Ehlers-Allee als Bedarfsampel Sitzung des Stadtbezirksrates Ahlem-Badenstedt-Davenstedt am 16.03.2023 TOP 8.6.1.1.",
+      "sites": [
+        {
+          "streets": [
+            "Karl-Thürmer-Weg",
+            "Hermann-Ehlers-Allee"
+          ],
+          "text": "Ampel am Karl-Thürmer-Weg über die Hermann-Ehlers-Allee"
+        }
+      ]
+    },
+    "hannover-sim:15-0473-2023S1": {
+      "title": "Ampelanlage Karl-Thürmer-Weg / Hermann-Ehlers-Allee als Bedarfsampel Sitzung des Stadtbezirksrates Ahlem-Badenstedt-Davenstedt am 16.03.2023 TOP 8.6.1.",
+      "sites": [
+        {
+          "streets": [
+            "Karl-Thürmer-Weg",
+            "Hermann-Ehlers-Allee"
+          ],
+          "text": "Ampel am Karl-Thürmer-Weg über die Hermann-Ehlers-Allee"
+        }
+      ]
+    },
+    "hannover-sim:15-0517-2014F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampel an der Einmündung Jordanstraße/An der Weide Sitzung des Stadtbezirksrates Südstadt-Bult am 19.03.2014 TOP 6.1.1.",
+      "sites": [
+        {
+          "streets": [
+            "Jordanstraße",
+            "An der Weide"
+          ],
+          "text": "An der Einmündung Jordanstraße/ An der Weide ist die Errichtung einer stationären"
+        }
+      ]
+    },
+    "hannover-sim:15-0522-2007": {
+      "title": "Fußgängerampel Prüßentrift / Im Kamp",
+      "sites": [
+        {
+          "streets": [
+            "Prüßentrift",
+            "Im Kamp"
+          ],
+          "text": "Fußgängerbedarfsampel an der Straße Prüßentrift in Höhe der Einmündung der Straße Im Kamp"
+        }
+      ]
+    },
+    "hannover-sim:15-0522-2014": {
+      "title": "Ampelschaltung Wedekindstraße/Hohenzollernstraße",
+      "sites": [
+        {
+          "streets": [
+            "Wedekindstraße",
+            "Hohenzollernstraße"
+          ],
+          "text": "die Ampelschaltung an der Kreuzung Wedekindstraße/ Hohenzollernstraße besser aufeinander abzustimmen."
+        }
+      ]
+    },
+    "hannover-sim:15-0523-2006": {
+      "title": "Sicherung des Zebrastreifens Stresemannallee/Heinrich-Heine-Str.",
+      "sites": [
+        {
+          "streets": [
+            "Stresemannallee",
+            "Heinrich-Heine-Straße"
+          ],
+          "text": "Zebrastreifen in der Stresemannallee in Höhe der Heinrich-Heine-Str."
+        }
+      ]
+    },
+    "hannover-sim:15-0523-2006S1": {
+      "title": "ENTSCHEIDUNG: Sicherung des Zebrastreifens Stresemannallee/Heinrich-Heine-Str.",
+      "sites": [
+        {
+          "streets": [
+            "Stresemannallee",
+            "Heinrich-Heine-Straße"
+          ],
+          "text": "Zebrastreifen in der Stresemannallee in Höhe der Heinrich-Heine-Str."
+        }
+      ]
+    },
+    "hannover-sim:15-0524-2006": {
+      "title": "Sicherung des Zebrastreifens Stresemannallee/Bertha-von-Suttner-Platz",
+      "sites": [
+        {
+          "streets": [
+            "Stresemannallee",
+            "Bertha-von-Suttner-Platz"
+          ],
+          "text": "Zebrastreifen in der Stresemannallee am Berta von Suttner Platz"
+        }
+      ]
+    },
+    "hannover-sim:15-0524-2006S1": {
+      "title": "ENTSCHEIDUNG: Sicherung des Zebrastreifens Stresemannallee/Bertha-von-Suttner-Platz",
+      "sites": [
+        {
+          "streets": [
+            "Stresemannallee",
+            "Bertha-von-Suttner-Platz"
+          ],
+          "text": "Zebrastreifen in der Stresemannallee am Berta von Suttner Platz"
+        }
+      ]
+    },
+    "hannover-sim:15-0533-2024F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelsteuerung Kreuzung Bünteweg/Bemeroder Straße Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 13.03.2024 TOP 7.4.1.",
+      "sites": [
+        {
+          "streets": [
+            "Bünteweg",
+            "Bemeroder Straße",
+            "Aspelweg"
+          ],
+          "text": "Ampelanlage im Kreuzungsbereich von Bünteweg, Bemeroder Straße und Aspelweg"
+        }
+      ]
+    },
+    "hannover-sim:15-0564-2015": {
+      "title": "Ampelschaltung Kreuzungsbereich Krausenstraße/Sallstraße",
+      "sites": [
+        {
+          "streets": [
+            "Krausenstraße",
+            "Sallstraße"
+          ],
+          "text": "Die Ampel im Kreuzungsbereich Krausenstraße/Sallstraße wird nachts ausgestellt. Es soll"
+        }
+      ]
+    },
+    "hannover-sim:15-0564-2015F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelschaltung Kreuzungsbereich Krausenstraße/Sallstraße Sitzung des Stadtbezirksrates Südstadt-Bult am 18.03.2015 TOP 7.3.3.",
+      "sites": [
+        {
+          "streets": [
+            "Krausenstraße",
+            "Sallstraße"
+          ],
+          "text": "Die Ampel im Kreuzungsbereich Krausenstraße/Sallstraße wird nachts ausgestellt. Es soll"
+        }
+      ]
+    },
+    "hannover-sim:15-0565-2018": {
+      "title": "Ampelkreuzung Tiergartenstraße/Großer Hillen",
+      "sites": [
+        {
+          "streets": [
+            "Tiergartenstraße",
+            "Großer Hillen"
+          ],
+          "text": "Ampelkreuzung Tiergartenstraße/Großer Hillen Seit Inbetriebnahme dieser Kreuzung in"
+        }
+      ]
+    },
+    "hannover-sim:15-0689-2017": {
+      "title": "Anpassung Ampelschaltung Bödekerstr./Friesenstr.",
+      "sites": [
+        {
+          "streets": [
+            "Bödekerstraße",
+            "Friesenstraße"
+          ],
+          "text": "Verwaltung wird beauftragt, die Ampel Friesenstraße/Bödekerstraße unverzüglich dahingehend umzuprogrammieren, dass: 1."
+        }
+      ]
+    },
+    "hannover-sim:15-0872-2007": {
+      "title": "Fußgängerüberweg Davenstedter Markt/Carlo-Schmid-Allee",
+      "sites": [
+        {
+          "streets": [
+            "Davenstedter Markt",
+            "Carlo-Schmid-Allee"
+          ],
+          "text": "der Bezirksrat Ahlem-Badenstedt-Davenstedt einen Fußgängerüberweg Davenstedter Markt/Carlo-Schmid-Allee einzurichten. Ich frage ich die"
+        }
+      ]
+    },
+    "hannover-sim:15-0970-2013": {
+      "title": "Ampelschaltung Wülferoder Straße/Oheriedentrift",
+      "sites": [
+        {
+          "streets": [
+            "Wülferoder Straße",
+            "Oheriedentrift"
+          ],
+          "text": "FußgängerInnen und RadfahrerInnen der Ampelanlage Wülferoder Straße/Oheriedentrift? In welchem Rhythmus erfolgen"
+        }
+      ]
+    },
+    "hannover-sim:15-0970-2013F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelschaltung Wülferoder Straße/Oheriedentrift Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 08.05.2013 TOP 6.4.1.",
+      "sites": [
+        {
+          "streets": [
+            "Wülferoder Straße",
+            "Oheriedentrift"
+          ],
+          "text": "FußgängerInnen und RadfahrerInnen der Ampelanlage Wülferoder Straße/Oheriedentrift? In welchem Rhythmus erfolgen"
+        }
+      ]
+    },
+    "hannover-sim:15-0983-2005": {
+      "title": "Fußgängerampel Prüßentrift / Im Kamp",
+      "sites": [
+        {
+          "streets": [
+            "Prüßentrift",
+            "Im Kamp"
+          ],
+          "text": "an der Straße “Prüßentrift” in Höhe der Straßeneinmündung “Im Kamp” eine Fußgängerbedarfsampel"
+        }
+      ]
+    },
+    "hannover-sim:15-0983-2005S1": {
+      "title": "ENTSCHEIDUNG: Fußgängerampel Prüßentrift / Im Kamp",
+      "sites": [
+        {
+          "streets": [
+            "Prüßentrift",
+            "Im Kamp"
+          ],
+          "text": "an der Straße “Prüßentrift” in Höhe der Straßeneinmündung “Im Kamp” eine Fußgängerbedarfsampel"
+        }
+      ]
+    },
+    "hannover-sim:15-1008-2015": {
+      "title": "Zebrastreifen Mainzer Straße/Gustav-Brandt-Straße",
+      "sites": [
+        {
+          "streets": [
+            "Mainzer Straße",
+            "Gustav-Brandt-Straße"
+          ],
+          "text": "auf der Mainzer Straße in Höhe der Einmündung Gustav-Brandt-Straße einen Zebrastreifen"
+        }
+      ]
+    },
+    "hannover-sim:15-1008-2015S1": {
+      "title": "Zebrastreifen Mainzer Straße/Gustav-Brandt-Straße Sitzung des Stadtbezirksrates Südstadt-Bult am 20.05.2015 TOP 8.2.4.",
+      "sites": [
+        {
+          "streets": [
+            "Mainzer Straße",
+            "Gustav-Brandt-Straße"
+          ],
+          "text": "auf der Mainzer Straße in Höhe der Einmündung Gustav-Brandt-Straße einen Zebrastreifen"
+        }
+      ]
+    },
+    "hannover-sim:15-1078-2018": {
+      "title": "Ampel an der Prinzenstraße/Schiffgraben",
+      "sites": [
+        {
+          "streets": [
+            "Prinzenstraße",
+            "Schiffgraben"
+          ],
+          "text": "an der Ampel Prinzenstraße/Einmündung in den Schiffgraben"
+        }
+      ]
+    },
+    "hannover-sim:15-1078-2018S1": {
+      "title": "Entscheidung Ampel an der Prinzenstraße/Schiffgraben Sitzung des Stadtbezirksrates Mitte am 14.05.2018 TOP 8.2.5.",
+      "sites": [
+        {
+          "streets": [
+            "Prinzenstraße",
+            "Schiffgraben"
+          ],
+          "text": "an der Ampel Prinzenstraße/Einmündung in den Schiffgraben"
+        }
+      ]
+    },
+    "hannover-sim:15-1123-2018": {
+      "title": "Bedarfsampel Berckhusenstraße/ Lathusenstraße",
+      "sites": [
+        {
+          "streets": [
+            "Berckhusenstraße",
+            "Lathusenstraße"
+          ],
+          "text": "wird aufgefordert, den Gefahrenschwerpunkt Zebrastreifen Berckhusenstraße/ Lathusenstraße zu entschärfen, indem dort eine"
+        }
+      ]
+    },
+    "hannover-sim:15-1123-2018S1": {
+      "title": "ENTSCHEIDUNG: Bedarfsampel Berckhusenstraße/ Lathusenstraße Sitzung des Stadtbezirksrates Buchholz-Kleefeld am 17.05.2018 TOP 8.1.1.",
+      "sites": [
+        {
+          "streets": [
+            "Berckhusenstraße",
+            "Lathusenstraße"
+          ],
+          "text": "wird aufgefordert, den Gefahrenschwerpunkt Zebrastreifen Berckhusenstraße/ Lathusenstraße zu entschärfen, indem dort eine"
+        }
+      ]
+    },
+    "hannover-sim:15-1199-2008": {
+      "title": "Ampelabschaltung Altenbekener Damm / Alte Döhrener Straße",
+      "sites": [
+        {
+          "streets": [
+            "Altenbekener Damm",
+            "Alte Döhrener Straße"
+          ],
+          "text": "die Lichtzeichenanlage an der Kreuzung Altenbekener Damm/Alte Döhrener Straße nachts abzuschalten."
+        }
+      ]
+    },
+    "hannover-sim:15-1199-2008S1": {
+      "title": "Ampelabschaltung Altenbekener Damm / Alte Döhrener Straße",
+      "sites": [
+        {
+          "streets": [
+            "Altenbekener Damm",
+            "Alte Döhrener Straße"
+          ],
+          "text": "die Lichtzeichenanlage an der Kreuzung Altenbekener Damm/Alte Döhrener Straße nachts abzuschalten."
+        }
+      ]
+    },
+    "hannover-sim:15-1285-2006": {
+      "title": "Fußgängerampel Prüßentrift / Im Kamp",
+      "sites": [
+        {
+          "streets": [
+            "Prüßentrift",
+            "Im Kamp"
+          ],
+          "text": "Fußgängerampel am Prüßentrift in Höhe der Straße Im Kamp"
+        }
+      ]
+    },
+    "hannover-sim:15-1424-2019F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelsteuerung Kreuzung Hannoversche Straße / Grenzstraße Sitzung des Stadtbezirksrates Misburg-Anderten am 05.06.2019 TOP 6.2.3.",
+      "sites": [
+        {
+          "streets": [
+            "Hannoversche Straße",
+            "Grenzstraße"
+          ],
+          "text": "Verkehrssicherungspflicht im Bereich der Kreuzung Hannoversche Straße / Grenzstraße. Die Verwaltung folgte dem"
+        }
+      ]
+    },
+    "hannover-sim:15-1431-2017": {
+      "title": "Verbesserung der Ampelschaltung Emmy-Noether-Allee / Weltausstellungsallee",
+      "sites": [
+        {
+          "streets": [
+            "Emmy-Noether-Allee",
+            "Weltausstellungsallee"
+          ],
+          "text": "an der Kreuzung der Straßen Emmy-Noether-Allee/ Weltausstellungsallee, die Ampelschaltung so einzustellen,"
+        }
+      ]
+    },
+    "hannover-sim:15-1431-2017S1": {
+      "title": "Verbesserung der Ampelschaltung Emmy-Noether-Allee / Weltausstellungsallee Sitzung des Stadtbezirksrates Döhren-Wülfel am 08.06.2017 TOP 8.5.1.",
+      "sites": [
+        {
+          "streets": [
+            "Emmy-Noether-Allee",
+            "Weltausstellungsallee"
+          ],
+          "text": "an der Kreuzung der Straßen Emmy-Noether-Allee/ Weltausstellungsallee, die Ampelschaltung so einzustellen,"
+        }
+      ]
+    },
+    "hannover-sim:15-1636-2021": {
+      "title": "Ampelschaltung Alte Bemeroder Straße / Emslandstraße",
+      "sites": [
+        {
+          "streets": [
+            "Alte Bemeroder Straße",
+            "Emslandstraße"
+          ],
+          "text": "Boden befindliche Induktionsschleife im Bereich Alte Bemeroder Straße / Emslandstraße zu überprüfen."
+        }
+      ]
+    },
+    "hannover-sim:15-1636-2021S1": {
+      "title": "Ampelschaltung Alte Bemeroder Straße / Emslandstraße Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 14.07.2021 TOP 8.2.1.",
+      "sites": [
+        {
+          "streets": [
+            "Alte Bemeroder Straße",
+            "Emslandstraße"
+          ],
+          "text": "Boden befindliche Induktionsschleife im Bereich Alte Bemeroder Straße / Emslandstraße zu überprüfen."
+        }
+      ]
+    },
+    "hannover-sim:15-1754-2001S1": {
+      "title": "ENTSCHEIDUNG: Fußgängerüberweg Brabeckstraße/Herthastraße",
+      "sites": [
+        {
+          "streets": [
+            "Brabeckstraße",
+            "Herthastraße"
+          ],
+          "text": "im Bereich der Herthastraße an der Brabeckstraße ein neuer Fußgängerüberweg"
+        }
+      ]
+    },
+    "hannover-sim:15-1808-2003": {
+      "title": "Ampelkreuzung Am Listholze / Bothfelder Straße",
+      "sites": [
+        {
+          "streets": [
+            "Am Listholze",
+            "Bothfelder Straße"
+          ],
+          "text": "Kirchweg wurde die Kreuzung “Am Listholze/Bothfelder Straße” mit einer Lichtzeichenanlage ausgestattet."
+        }
+      ]
+    },
+    "hannover-sim:15-1837-2023F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelschaltung Kreuzung Friedrichswall / Hildesheimer Straße Sitzung des Stadtbezirksrates Südstadt-Bult am 20.09.2023 TOP 5.4.1.",
+      "sites": [
+        {
+          "streets": [
+            "Friedrichswall",
+            "Hildesheimer Straße"
+          ],
+          "text": "abbiegenden Kraftfahrzeugverkehrs für die Kreuzung Friedrichswall / Hildesheimer Straße zu prüfen.Die Verwaltung ist dem"
+        }
+      ]
+    },
+    "hannover-sim:15-1849-2003": {
+      "title": "Ampelschaltung Heisterbergallee / Richard-Lattorf-Str.",
+      "sites": [
+        {
+          "streets": [
+            "Heisterbergallee",
+            "Richard-Lattorf-Straße"
+          ],
+          "text": "zu sorgen, dass die Ampelschaltung Heisterbergallee / Richard-Lattorf-Str. für Rechtsabbieger Richtung Wunstorfer Landstr."
+        }
+      ]
+    },
+    "hannover-sim:15-1849-2003S1": {
+      "title": "Entscheidung: Ampelschaltung Heisterbergallee / Richard-Lattorf-Str.",
+      "sites": [
+        {
+          "streets": [
+            "Heisterbergallee",
+            "Richard-Lattorf-Straße"
+          ],
+          "text": "zu sorgen, dass die Ampelschaltung Heisterbergallee / Richard-Lattorf-Str. für Rechtsabbieger Richtung Wunstorfer Landstr."
+        }
+      ]
+    },
+    "hannover-sim:15-1950-2023": {
+      "title": "Ampelanlage Buchholzer Str./ Wilhelm-Tell-Str.",
+      "sites": [
+        {
+          "streets": [
+            "Buchholzer Straße",
+            "Wilhelm-Tell-Straße"
+          ],
+          "text": "für die Ampelanlage an der Buchholzer Str./ Wilhelm-Tell-Straße wurden für Sommer 2023 angekündigt."
+        }
+      ]
+    },
+    "hannover-sim:15-1950-2023F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelanlage Buchholzer Str./ Wilhelm-Tell-Str. Sitzung des Stadtbezirksrates Misburg-Anderten am 04.10.2023 TOP 5.2.2.",
+      "sites": [
+        {
+          "streets": [
+            "Buchholzer Straße",
+            "Wilhelm-Tell-Straße"
+          ],
+          "text": "für die Ampelanlage an der Buchholzer Str./ Wilhelm-Tell-Straße wurden für Sommer 2023 angekündigt."
+        }
+      ]
+    },
+    "hannover-sim:15-1964-2010": {
+      "title": "Ampelschaltung Hildesheimer Straße / Am Mittelfelde",
+      "sites": [
+        {
+          "streets": [
+            "Hildesheimer Straße",
+            "Am Mittelfelde"
+          ],
+          "text": "Einmündungsbereich der Straße „Am Mittelfelde“ in die „Hildesheimer Straße“"
+        }
+      ]
+    },
+    "hannover-sim:15-1964-2010F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelschaltung Hildesheimer Straße / Am Mittelfelde Sitzung des Stadtbezirksrates Döhren-Wülfel am 07.10.2010 TOP 8.2.1.",
+      "sites": [
+        {
+          "streets": [
+            "Hildesheimer Straße",
+            "Am Mittelfelde"
+          ],
+          "text": "Einmündungsbereich der Straße „Am Mittelfelde“ in die „Hildesheimer Straße“"
+        }
+      ]
+    },
+    "hannover-sim:15-2052-2012F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampelanlage Schaumburgstraße / Haltenhoffstraße Sitzung des Stadtbezirksrates Herrenhausen Stöcken am 26.09.2012 TOP 10.3.1.",
+      "sites": [
+        {
+          "streets": [
+            "Schaumburgstraße",
+            "Haltenhoffstraße"
+          ],
+          "text": "Nachtabschaltung vorgesehen werden. Die Lichtsignalanlage Haltenhoffstraße/ Schaumburgstraße wird weiterhin durchlaufend betrieben, weil"
+        }
+      ]
+    },
+    "hannover-sim:15-2235-2005": {
+      "title": "Fußgängerampel Prüßentrift / Im Kamp",
+      "sites": [
+        {
+          "streets": [
+            "Prüßentrift",
+            "Im Kamp"
+          ],
+          "text": "Fußgängerampel am Prüßentrift in Höhe der Straße Im Kamp"
+        }
+      ]
+    },
+    "hannover-sim:15-2243-2017": {
+      "title": "Ampelschaltung Jordanstraße/An der Weide",
+      "sites": [
+        {
+          "streets": [
+            "Jordanstraße",
+            "An der Weide"
+          ],
+          "text": "an der Ampel im Kreuzungsbereich Jordanstraße/An der Weide. Vor diesem Hintergrund fragen"
+        }
+      ]
+    },
+    "hannover-sim:15-2251-2017S1": {
+      "title": "Fahrradampel Schlägerstraße / Hildesheimer Straße Sitzung des Stadtbezirksrates Südstadt-Bult am 20.09.2017 TOP 7.2.1.",
+      "sites": [
+        {
+          "streets": [
+            "Schlägerstraße",
+            "Hildesheimer Straße"
+          ],
+          "text": "nicht gefolgt. An der Lichtsignalanlage Hildesheimer Straße / Schlägerstraße wird der aus der Schlägerstraße"
+        }
+      ]
+    },
+    "hannover-sim:15-2262-2010": {
+      "title": "Fußgängerüberweg Osterstraße/Baringstraße",
+      "sites": [
+        {
+          "streets": [
+            "Osterstraße",
+            "Baringstraße"
+          ],
+          "text": "An der Einmündung der Baringstraße auf die Osterstraße"
+        }
+      ]
+    },
+    "hannover-sim:15-2262-2010S1": {
+      "title": "Fußgängerüberweg Osterstraße/Baringstraße Sitzung des Stadtbezirksrates Mitte am 15.11.2010 TOP 11.4.3.",
+      "sites": [
+        {
+          "streets": [
+            "Osterstraße",
+            "Baringstraße"
+          ],
+          "text": "An der Einmündung der Baringstraße auf die Osterstraße"
+        }
+      ]
+    },
+    "hannover-sim:15-2304-2007": {
+      "title": "Fußgängerüberweg Landwehrstraße / Weststraße",
+      "sites": [
+        {
+          "streets": [
+            "Landwehrstraße",
+            "Weststraße"
+          ],
+          "text": "veranlassen, dass beim Queren der Landwehrstraße in die Weststraße der Fußgängerüberweg gefahrlos von Kindern"
+        }
+      ]
+    },
+    "hannover-sim:15-2304-2007S1": {
+      "title": "ENTSCHEIDUNG: Fußgängerüberweg Landwehrstraße / Weststraße",
+      "sites": [
+        {
+          "streets": [
+            "Landwehrstraße",
+            "Weststraße"
+          ],
+          "text": "veranlassen, dass beim Queren der Landwehrstraße in die Weststraße der Fußgängerüberweg gefahrlos von Kindern"
+        }
+      ]
+    },
+    "hannover-sim:15-2304-2019": {
+      "title": "Bedarfsampel Osterfelddamm/Neue-Land-Straße",
+      "sites": [
+        {
+          "streets": [
+            "Osterfelddamm",
+            "Neue-Land-Straße"
+          ],
+          "text": "worden, eine Ampel auf dem Osterfelddamm/Neue-Land-Str. zu errichten. In der 2."
+        }
+      ]
+    },
+    "hannover-sim:15-2304-2019F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Bedarfsampel Osterfelddamm/Neue-Land-Straße Sitzung des Stadtbezirksrates Buchholz-Kleefeld am 19.09.2019 TOP 8.1.2.",
+      "sites": [
+        {
+          "streets": [
+            "Osterfelddamm",
+            "Neue-Land-Straße"
+          ],
+          "text": "worden, eine Ampel auf dem Osterfelddamm/Neue-Land-Str. zu errichten. In der 2."
+        }
+      ]
+    },
+    "hannover-sim:15-2323-2022": {
+      "title": "Ampel Brabeckstrasse / Hinter dem Dorfe",
+      "sites": [
+        {
+          "streets": [
+            "Brabeckstraße",
+            "Hinter dem Dorfe"
+          ],
+          "text": "Die Ampel Brabeckstrasse / Hinter dem Dorfe ermöglicht Fußgängern und auch Radfahrern"
+        }
+      ]
+    },
+    "hannover-sim:15-2323-2022F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampel Brabeckstrasse / Hinter dem Dorfe Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 14.09.2022 TOP 5.3.1.",
+      "sites": [
+        {
+          "streets": [
+            "Brabeckstraße",
+            "Hinter dem Dorfe"
+          ],
+          "text": "Die Ampel Brabeckstrasse / Hinter dem Dorfe ermöglicht Fußgängern und auch Radfahrern"
+        }
+      ]
+    },
+    "hannover-sim:15-2570-2007": {
+      "title": "Fußgängerampel Prüßentrift / Im Kamp",
+      "sites": [
+        {
+          "streets": [
+            "Prüßentrift",
+            "Im Kamp"
+          ],
+          "text": "Fußgängerampel über den stark befahrenen „Prüßentrift“ in Höhe der Straße „Im Kamp“"
+        }
+      ]
+    },
+    "hannover-sim:15-2820-2012F1": {
+      "title": "Antwort der Verwaltung auf die Anfrage Ampel an der Einmündung Jordanstraße/An der Weide Sitzung des Stadtbezirksrates Südstadt-Bult am 19.12.2012 TOP 6.1.1.",
+      "sites": [
+        {
+          "streets": [
+            "Jordanstraße",
+            "An der Weide"
+          ],
+          "text": "An der Einmündung Jordanstraße /An der Weide ist eine provisorische Ampel mit"
+        }
+      ]
+    },
+    "hannover-sim:15-3114-2022": {
+      "title": "Verbesserung der Ampelschaltung Emmy-Noether-Allee / Weltausstellungsallee",
+      "sites": [
+        {
+          "streets": [
+            "Emmy-Noether-Allee",
+            "Weltausstellungsallee"
+          ],
+          "text": "an der Kreuzung der Straßen Emmy-Noether-Allee und Weltausstellungsallee so einstellen, dass die Ampel"
+        }
+      ]
+    },
+    "hannover-sim:15-3114-2022S1": {
+      "title": "Verbesserung der Ampelschaltung Emmy-Noether-Allee / Weltausstellungsallee Sitzung des Stadtbezirksrates Döhren-Wülfel am 08.12.2022 TOP 8.4.1.",
+      "sites": [
+        {
+          "streets": [
+            "Emmy-Noether-Allee",
+            "Weltausstellungsallee"
+          ],
+          "text": "an der Kreuzung der Straßen Emmy-Noether-Allee und Weltausstellungsallee so einstellen, dass die Ampel"
+        }
+      ]
+    }
+  }
+}
