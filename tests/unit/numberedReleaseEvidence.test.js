@@ -148,6 +148,11 @@ test('production PDF and Word appendix use a concise clickable map label, never 
   const link = definition.content.find(x => x.link === cohorts.numberedMapUrl);
   expect(link.text).toBe('Nummerierte interaktive Karte öffnen');
   expect(definition.content.find(x => x.table).fontSize).toBe(9);
+  const failure = Promise.reject(new Error('Appendix rendering failed'));
+  failure.catch(() => {});
+  root.pdfMake.createPdf = () => ({ download: () => failure });
+  await expect(api._internal.exportEvidencePdf(UA, root, ctx, {}, cohorts))
+    .rejects.toThrow('Appendix rendering failed');
   await api._internal.exportEvidenceWord(UA, root, ctx, {}, cohorts);
   const zip = await JSZip.loadAsync(Buffer.from(await blob.arrayBuffer()));
   const xml = await zip.file('word/document.xml').async('string');

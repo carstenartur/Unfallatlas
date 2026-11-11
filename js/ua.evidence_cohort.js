@@ -1116,7 +1116,7 @@
         subject: `${completeCount} veröffentlichte Unfälle mit Personenschaden im Untersuchungsgebiet`,
       },
     };
-    rootValue.pdfMake.createPdf(definition).download('unfallwerkbank_unfallbeweisanlage.pdf');
+    await rootValue.pdfMake.createPdf(definition).download('unfallwerkbank_unfallbeweisanlage.pdf');
     return { definition, maps };
   }
 

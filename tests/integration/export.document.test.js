@@ -233,6 +233,14 @@ describe('Document Export - Integration Tests', () => {
     expect(text).toContain('BESCHLUSSVORSCHLAG');
   });
 
+  test('forwards asynchronous pdfmake download failures to the export status handler', async () => {
+    const failure = Promise.reject(new Error('PDF rendering failed'));
+    failure.catch(() => {}); // The old implementation lost the rejected promise.
+    window.pdfMake.createPdf.mockReturnValueOnce({ download: () => failure });
+    await expect(UA.exportToPDF(makeCtx(), basicReport(), { includeMap: false }))
+      .rejects.toThrow('PDF rendering failed');
+  });
+
   test('should generate PDF with map image', async () => {
     await UA.exportToPDF(makeCtx(), basicReport(), {
       includeMap: true,

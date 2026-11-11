@@ -5804,7 +5804,7 @@
       }
     }
 
-    window.pdfMake.createPdf(docDefinition).download(filename);
+    await window.pdfMake.createPdf(docDefinition).download(filename);
   };
 
   // =====================================================================

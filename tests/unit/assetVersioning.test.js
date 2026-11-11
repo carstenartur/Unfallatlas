@@ -58,17 +58,18 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-11-network-loading"');
   });
 
-  test.each(['ua.context_layers', 'ua.export_v2', 'ua.report_v2'])
+  test.each(['ua.context_layers', 'ua.export_v2'])
   ('%s loads the published OSM road context for application exports', asset => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-11-osm-road-context"');
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
-    for (const asset of ['ua.bootstrap', 'ua.data_paths']) {
-      expect(html).toContain(`js/${asset}.js?v=2026-11-11-word-maps"`);
+    expect(html).toContain('js/ua.bootstrap.js?v=2026-11-11-word-maps"');
+    for (const asset of ['ua.report_v2', 'ua.data_paths']) {
+      expect(html).toContain(`js/${asset}.js?v=2026-11-11-pdf-download"`);
     }
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
-    expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-word-maps');
+    expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-pdf-download');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
   });
 
