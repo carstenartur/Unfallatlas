@@ -67,10 +67,13 @@ async function readWordDocument(bytes) {
   const archive = await JSZip.loadAsync(bytes);
   const xml = await archive.file('word/document.xml').async('string');
   const rels = await archive.file('word/_rels/document.xml.rels').async('string');
-  const hyperlinks = new Set([...xml.matchAll(/<w:hyperlink\b[^>]*\br:id="([^"]+)"/g)].map(match => match[1]));
-  const links = [...rels.matchAll(/<Relationship\b[^>]+>/g)].map(match => match[0])
-    .filter(element => hyperlinks.has(element.match(/\bId="([^"]+)"/)?.[1]))
-    .map(element => element.match(/\bTarget="([^"]+)"/)?.[1]);
+  const targets = new Map([...rels.matchAll(/<Relationship\b[^>]+>/g)].map(([tag]) =>
+    [tag.match(/\bId="([^"]+)"/)?.[1], tag.match(/\bTarget="([^"]+)"/)?.[1]]));
+  const links = [...xml.matchAll(/<w:hyperlink\b[^>]*>/g)].flatMap(([tag]) => {
+    const target = targets.get(tag.match(/\br:id="([^"]+)"/)?.[1]);
+    const anchor = tag.match(/\bw:anchor="([^"]+)"/)?.[1];
+    return target ? [anchor ? target + '#' + anchor : target] : [];
+  });
   const text = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match => match[1]).join(' ');
   const core = await archive.file('docProps/core.xml').async('string');
   const drawings = [...xml.matchAll(/<wp:docPr\b[^>]*>/g)].map(match => ({
