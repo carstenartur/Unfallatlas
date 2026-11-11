@@ -587,16 +587,25 @@ function evidenceSentences(text) {
 }
 
 // A stop named as the object of a regional construction project can be cited
-// outside the city gazetteer. A current stop, a station entrance and the
-// historical site of a platform project are not interchangeable geometries.
-function regionalPlatformProject(title) {
-  const project = /^Stadtbahnstrecke [A-D]-(?:Nord|Ost|Süd|West):\s*Barrierefreier Ausbau der Haltestelle (.+?)\s+[-–]\s+(.+)$/iu.exec(title);
+// outside the city gazetteer. Only independently reviewed tram areas can
+// locate the named station. They do not delimit works on individual tracks.
+function regionalPlatformProject(title, register, recordId) {
+  const project = /^Stadtbahnstrecke ([A-D]-(?:Nord|Ost|Süd|West)):\s*Barrierefreier Ausbau der Haltestelle (.+?)\s+[-–]\s+(.+)$/iu.exec(title);
   if (!project) return null;
-  const [, name, stage] = project;
+  const [, corridor, name, stage] = project;
   const planningStage = /^(?:Realisierung und Finanzierung|Finanzierung(?: \d{4} [-–] \d{4})?|Einleitung (?:des Planfeststellungsverfahrens|Planfeststellung(?:sverfahren)?)|Antrag auf Planfeststellung)$/iu;
   if (!planningStage.test(stage) || !/^[\p{L}\p{M}][\p{L}\p{M} .()/-]{0,95}$/u.test(name)
       || /\b(?:und|oder|sowie|neben|gegenüber|zwischen|statt|nicht|bis)\b/iu.test(name)) return null;
-  return location('place', `Haltestelle ${name}`, null, []);
+  const label = `Haltestelle ${name}`;
+  const matches = register?.entries?.filter(site => normalize(site.corridor) === normalize(corridor)
+    && ([site.name, ...(site.aliases ?? [])].some(alias => normalize(alias) === normalize(name))
+      || site.historicalProjects?.some(project => project.recordId === recordId && normalize(project.titleName) === normalize(name))));
+  if (matches?.length !== 1 || !register.attribution || !isPosition(matches[0].coordinates)) {
+    return location('place', label, null, []);
+  }
+  const [site] = matches;
+  const attribution = `Stadtbahnbereich ${site.name}, ${site.municipality} · ${register.attribution}`;
+  return location('place', label, { type: 'Point', coordinates: site.coordinates }, [{ attribution }]);
 }
 
 function parkingProposalStreet(title, byFirstWord) {
@@ -654,7 +663,7 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     if (!existing || (!existing.geometry && candidate.geometry)) locations.set(key, candidate);
   };
   for (const title of titles) {
-    const found = requireHannoverScope ? regionalPlatformProject(title)
+    const found = requireHannoverScope ? regionalPlatformProject(title, gazetteer.regionalTramStops, record.id)
       : gazetteer.city === 'hannover' && record.source === 'hannover-sim' && publicFacilityTopic(title, publicFacilities, record.date);
     if (found) keep(found, { source: 'title', text: title });
   }
@@ -712,7 +721,8 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     selected = selected.map(found => found.kind === 'address'
       ? { kind: found.kind, label: found.label, evidence: found.evidence } : found);
   }
-  return { locations: selected, truncated, reasons: [...reasons], gazetteerApplicable: !scoped || evidence.length > 0 };
+  return { locations: selected, truncated, reasons: [...reasons],
+    gazetteerApplicable: !scoped || evidence.length > 0 || selected.some(site => site.geometry) };
 }
 
 /**

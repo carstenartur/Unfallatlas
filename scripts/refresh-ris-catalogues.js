@@ -333,7 +333,8 @@ async function loadGazetteer(city) {
   const additional = (curated?.entries || []).filter(entry => !names.has(key(entry)))
     .map(entry => ({ ...entry, attribution: entry.attribution ?? curated.attribution }));
   return { ...atkis, entries: [...atkis.entries, ...additional], regionalProjectAddresses: curated?.regionalProjectAddresses,
-    streetAliases: curated?.streetAliases, publicFacilities: curated?.publicFacilities };
+    streetAliases: curated?.streetAliases, publicFacilities: curated?.publicFacilities,
+    regionalTramStops: JSON.parse(await fs.readFile(path.join(folder, 'hannover-stadtbahn.json'), 'utf8')) };
 }
 
 function snapshotInputs({ records, features }) {

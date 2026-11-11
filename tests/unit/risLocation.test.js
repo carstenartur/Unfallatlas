@@ -23,6 +23,7 @@ function hannoverFacilityGazetteer() {
   return {
     ...JSON.parse(gunzipSync(readFileSync(path.join(__dirname, '../../config/ris-locations/hannover-atkis.json.gz')))),
     publicFacilities, streetAliases, regionalProjectAddresses,
+    regionalTramStops: require('../../config/ris-locations/hannover-stadtbahn.json'),
   };
 }
 
@@ -1771,13 +1772,46 @@ test.each(['Schwimm-Express zum Lister Bad für Schülerinnen und Schüler', 'An
 });
 
 test.each([
-  ['1004573', 'Stadtbahnstrecke C-Ost: Barrierefreier Ausbau der Haltestelle Hannover Congress Centrum (HCC) - Einleitung des Planfeststellungsverfahrens', 'Hannover Congress Centrum (HCC)'],
-  ['1006580', 'Stadtbahnstrecke C-Ost: Barrierefreier Ausbau der Haltestelle Hannover Congress Centrum - Realisierung und Finanzierung', 'Hannover Congress Centrum'],
-  ['1001738', 'Stadtbahnstrecke B-Süd: Barrierefreier Ausbau der Haltestelle Rethen/Bahnhof - Realisierung und Finanzierung', 'Rethen/Bahnhof'],
-])('keeps the named regional tram construction site in %s without assigning an unrelated street or platform point', (id, title, name) => {
+  ['1004573', 'Stadtbahnstrecke C-Ost: Barrierefreier Ausbau der Haltestelle Hannover Congress Centrum (HCC) - Einleitung des Planfeststellungsverfahrens', 'Hannover Congress Centrum (HCC)', [9.769107, 52.377367]],
+  ['1006580', 'Stadtbahnstrecke C-Ost: Barrierefreier Ausbau der Haltestelle Hannover Congress Centrum - Realisierung und Finanzierung', 'Hannover Congress Centrum', [9.769107, 52.377367]],
+  ['1001738', 'Stadtbahnstrecke B-Süd: Barrierefreier Ausbau der Haltestelle Rethen/Bahnhof - Einleitung Planfeststellung', 'Rethen/Bahnhof', [9.821038, 52.285807]],
+])('locates the named regional project %s at its verified tram area', (id, title, name, coordinates) => {
   const [record] = enrichRisLocations([{ id, source: 'region-hannover-ris', title }],
     { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'place', label: `Haltestelle ${name}`,
+    geometry: { type: 'Point', coordinates }, attribution: expect.stringMatching(/Stadtbahnbereich.*DELFI.*CC BY 4.0/u),
+    evidence: { source: 'title', text: title } })]);
+  expect(record.locationAssessment.status).toBe('mapped');
+});
+
+test.each([
+  ['1006593', 'D-West', 'Ungerstraße', 'Freizeitheim Linden, Hannover', [9.70052, 52.375519]],
+  ['1007343', 'B-Süd', 'Gleidingen/Orpheusweg (Gleidingen Nord)', 'Gleidingen, Laatzen', [9.836436, 52.27758]],
+])('links the historically named project %s to the documented completed station', (id, corridor, name, current, coordinates) => {
+  const title = `Stadtbahnstrecke ${corridor}: Barrierefreier Ausbau der Haltestelle ${name} - Einleitung des Planfeststellungsverfahrens`;
+  const [record] = enrichRisLocations([{ id: `region-hannover-ris:vo:${id}`, source: 'region-hannover-ris', title }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ label: `Haltestelle ${name}`, attribution: expect.stringContaining(current),
+    geometry: { type: 'Point', coordinates }, evidence: { source: 'title', text: title } })]);
+});
+
+test.each([
+  ['B-Süd', 'Gleidingen/Orpheusweg (Gleidingen Nord)'],
+  ['D-West', 'Ungerstraße'], ['C-West', 'Hannover Congress Centrum'], ['B-Süd', 'Rethen/Bahnhof in Celle'],
+])('keeps unsupported names or corridors as text: %s / %s', (corridor, name) => {
+  const title = `Stadtbahnstrecke ${corridor}: Barrierefreier Ausbau der Haltestelle ${name} - Realisierung und Finanzierung`;
+  const [record] = enrichRisLocations([{ id: 'region-hannover-ris:vo:unrelated', source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
   expect(record.locations).toEqual([{ kind: 'place', label: `Haltestelle ${name}`, evidence: { source: 'title', text: title } }]);
+});
+
+test('requires an unambiguous tram area for the corridor, even for a verified station name', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  const site = gazetteer.regionalTramStops.entries.find(entry => entry.name === 'Rethen/Bahnhof');
+  gazetteer.regionalTramStops = { ...gazetteer.regionalTramStops,
+    entries: [site, { ...site, coordinates: [9.819754, 52.286143] }] };
+  const title = 'Stadtbahnstrecke B-Süd: Barrierefreier Ausbau der Haltestelle Rethen/Bahnhof - Realisierung und Finanzierung';
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer });
+  expect(record.locations).toEqual([{ kind: 'place', label: 'Haltestelle Rethen/Bahnhof', evidence: { source: 'title', text: title } }]);
 });
 
 test.each(['Straßenbau neben der Haltestelle', 'Barrierefreier Ausbau neben der Haltestelle', 'Prüfung der Erreichbarkeit der Haltestelle',

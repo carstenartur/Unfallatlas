@@ -1,0 +1,336 @@
+{
+  "attribution": "DELFI e. V., Zentrales Haltestellenverzeichnis (HannIT), 09.11.2026, CC BY 4.0",
+  "sourceUrl": "https://mobi.nrw/zentrales-haltestellenverzeichnis.zip",
+  "metadataUrl": "https://www.mobilitaetsdaten.nrw/api/ckan/de/dataset/deutschlandweite-haltestellendaten",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "sourceSha256": "ffc3fc09adbab63f6827c956e659dbc175a6add10c5d68b7c57ea6da8e4f8487",
+  "sourceMember": "zHV_aktuell_csv.2026-11-09.csv",
+  "platformCheckDate": "2026-11-11",
+  "entries": [
+    {
+      "name": "Hannover Congress Centrum",
+      "corridor": "C-Ost",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:2830",
+      "areaId": "de:03241:2830:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.769107,
+        52.377367
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/hannover-congress-zentrum/",
+      "checkedPlatformWay": 881077055,
+      "checkedPlatformVersion": 7,
+      "distanceMetres": 0,
+      "aliases": [
+        "Hannover Congress Centrum (HCC)",
+        "HCC/Stadthalle"
+      ],
+      "stationName": "Hannover Congress Centrum"
+    },
+    {
+      "name": "Rethen/Bahnhof",
+      "corridor": "B-Süd",
+      "municipality": "Laatzen",
+      "municipalityCode": "03241009",
+      "stationId": "de:03241:1641",
+      "areaId": "de:03241:1641:2",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.821038,
+        52.285807
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/rethen-bahnhof/",
+      "checkedPlatformWay": 383605643,
+      "checkedPlatformVersion": 6,
+      "distanceMetres": 0,
+      "stationName": "Rethen Bahnhof"
+    },
+    {
+      "name": "Rethen/Steinfeld",
+      "corridor": "B-Süd",
+      "municipality": "Laatzen",
+      "municipalityCode": "03241009",
+      "stationId": "de:03241:1541",
+      "areaId": "de:03241:1541:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.813133,
+        52.294681
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/rethen-steinfeld/",
+      "checkedPlatformWay": 1205896568,
+      "checkedPlatformVersion": 7,
+      "distanceMetres": 0,
+      "stationName": "Rethen Steinfeld"
+    },
+    {
+      "name": "Großer Hillen",
+      "corridor": "C-Ost",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:3071",
+      "areaId": "de:03241:3071:5",
+      "areaName": "Stadtbahn-Mittelstg",
+      "coordinates": [
+        9.827273,
+        52.361724
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/grosser-hillen/",
+      "checkedPlatformWay": 425116483,
+      "checkedPlatformVersion": 10,
+      "distanceMetres": 0.1,
+      "stationName": "Hannover Großer Hillen"
+    },
+    {
+      "name": "Schaumburgstraße",
+      "corridor": "C-West",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:4311",
+      "areaId": "de:03241:4311:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.694331,
+        52.39216
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/schaumburgstrasse/",
+      "checkedPlatformWay": 260985266,
+      "checkedPlatformVersion": 11,
+      "distanceMetres": 1.5,
+      "stationName": "Hannover Schaumburgstraße"
+    },
+    {
+      "name": "Am Soltekampe",
+      "corridor": "A-West",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:671",
+      "areaId": "de:03241:671:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.676994,
+        52.35767
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/am-soltekampe/",
+      "checkedPlatformWay": 640526889,
+      "checkedPlatformVersion": 9,
+      "distanceMetres": 0,
+      "stationName": "Hannover Am Soltekampe"
+    },
+    {
+      "name": "Krepenstraße",
+      "corridor": "C-Nord",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:4001",
+      "areaId": "de:03241:4001:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.709755,
+        52.407529
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/krepenstrasse/",
+      "checkedPlatformWay": 286816673,
+      "checkedPlatformVersion": 5,
+      "distanceMetres": 0.8,
+      "stationName": "Hannover Krepenstraße"
+    },
+    {
+      "name": "Alter Flughafen",
+      "corridor": "B-Nord",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:2541",
+      "areaId": "de:03241:2541:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.733722,
+        52.416345
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/alter-flughafen/",
+      "checkedPlatformWay": 219691249,
+      "checkedPlatformVersion": 8,
+      "distanceMetres": 0.5,
+      "stationName": "Hannover Alter Flughafen"
+    },
+    {
+      "name": "Peiner Straße",
+      "corridor": "B-Süd",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:1381",
+      "areaId": "de:03241:1381:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.769035,
+        52.337591
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/peiner-strasse/",
+      "checkedPlatformWay": 245621148,
+      "checkedPlatformVersion": 11,
+      "distanceMetres": 0,
+      "stationName": "Hannover Peiner Straße"
+    },
+    {
+      "name": "Schwarzer Bär",
+      "corridor": "A-West",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:551",
+      "areaId": "de:03241:551:1",
+      "areaName": "SB 3/9/17",
+      "coordinates": [
+        9.720993,
+        52.368115
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/schwarzer-baer/",
+      "checkedPlatformWay": 258905746,
+      "checkedPlatformVersion": 9,
+      "distanceMetres": 0,
+      "stationName": "Hannover Schwarzer Bär"
+    },
+    {
+      "name": "Wunstorfer Straße",
+      "corridor": "D-West",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:485",
+      "areaId": "de:03241:485:5",
+      "areaName": "SB Mittelhochbstg.",
+      "coordinates": [
+        9.695158,
+        52.375217
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/wunstorfer-strasse/",
+      "checkedPlatformWay": 306739534,
+      "checkedPlatformVersion": 6,
+      "distanceMetres": 0,
+      "stationName": "Hannover Wunstorfer Straße"
+    },
+    {
+      "name": "Bothfeld",
+      "corridor": "A-Nord",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:2191",
+      "areaId": "de:03241:2191:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.79558,
+        52.415211
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/bothfeld/",
+      "checkedPlatformWay": 208981697,
+      "checkedPlatformVersion": 15,
+      "distanceMetres": 0,
+      "stationName": "Hannover Bothfeld"
+    },
+    {
+      "name": "Kurze-Kamp-Straße",
+      "corridor": "A-Nord",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:2201",
+      "areaId": "de:03241:2201:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.797539,
+        52.420904
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/kurze-kamp-strasse/",
+      "checkedPlatformWay": 208734686,
+      "checkedPlatformVersion": 18,
+      "distanceMetres": 1.4,
+      "stationName": "Hannover Kurze-Kamp-Straße"
+    },
+    {
+      "name": "Humboldtstraße",
+      "corridor": "D-West",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:431",
+      "areaId": "de:03241:431:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.723257,
+        52.370484
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/humboldtstrasse/",
+      "checkedPlatformWay": 633644699,
+      "checkedPlatformVersion": 10,
+      "distanceMetres": 0,
+      "stationName": "Hannover Humboldtstraße"
+    },
+    {
+      "name": "Rethen/Galgenbergweg",
+      "corridor": "B-Süd",
+      "municipality": "Laatzen",
+      "municipalityCode": "03241009",
+      "stationId": "de:03241:1651",
+      "areaId": "de:03241:1651:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.829051,
+        52.282532
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/rethen-galgenbergweg/",
+      "checkedPlatformWay": 884908510,
+      "checkedPlatformVersion": 5,
+      "distanceMetres": 0,
+      "stationName": "Rethen Galgenbergweg"
+    },
+    {
+      "name": "Freizeitheim Linden",
+      "corridor": "D-West",
+      "municipality": "Hannover",
+      "municipalityCode": "03241001",
+      "stationId": "de:03241:501",
+      "areaId": "de:03241:501:1",
+      "areaName": "Stadtbahn",
+      "coordinates": [
+        9.70052,
+        52.375519
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/freizeitheim-linden/",
+      "checkedPlatformWay": 1453079520,
+      "checkedPlatformVersion": 2,
+      "distanceMetres": 1.0,
+      "stationName": "Hannover Freizeitheim Linden",
+      "historicalProjects": [
+        {
+          "titleName": "Ungerstraße",
+          "recordId": "region-hannover-ris:vo:1006593",
+          "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/TO/20240424_STBR10_P"
+        }
+      ]
+    },
+    {
+      "name": "Gleidingen",
+      "corridor": "B-Süd",
+      "municipality": "Laatzen",
+      "municipalityCode": "03241009",
+      "stationId": "de:03241:1661",
+      "areaId": "de:03241:1661:3",
+      "areaName": "StadtbahnMittelbstg",
+      "coordinates": [
+        9.836436,
+        52.27758
+      ],
+      "operatorUrl": "https://www.infra-hannover.de/haltestelle/gleidingen/",
+      "checkedPlatformWay": 1303533287,
+      "checkedPlatformVersion": 5,
+      "distanceMetres": 0,
+      "stationName": "Gleidingen",
+      "historicalProjects": [
+        {
+          "titleName": "Gleidingen/Orpheusweg (Gleidingen Nord)",
+          "recordId": "region-hannover-ris:vo:1007343",
+          "sourceUrl": "https://www.laatzen.de/de/archiv/feierliche-eroeffnung-linie-2-faehrt-jetzt-bis-gleidingen.html"
+        }
+      ]
+    }
+  ],
+  "verificationAttribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0 (Gegenprüfung der Bahnsteige)"
+}
