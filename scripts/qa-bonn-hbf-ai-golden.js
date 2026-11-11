@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { once } = require('events');
+const { configuredModel } = require('../server/ai/providers/geminiApi');
 const zlib = require('zlib');
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_ORIGIN = 'https://carstenartur.github.io';
@@ -188,7 +189,7 @@ function prepareModelReview(raw,outDir) {
   const prompt = service.buildProviderPrompt(input, 'proposal-brief');
   const binding={inputSha256:hash(json(input)),promptSha256:hash(json(prompt))};
   const schema='server/ai/schema/proposalBrief.v1.schema.json',rubric='server/ai/proposalBriefValueAddCore.js';
-  const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:service.activeProviderName(),requestedModel:process.env.AI_ASSESSMENT_MODEL||'gemini-2.0-flash',actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
+  const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:service.activeProviderName(),requestedModel:configuredModel(),actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
     rubricDimensions:['Methodentreue','Erhalt amtlicher Fakten','Zusätzlicher Erkenntniswert','Politische Anschlussfähigkeit','Maßnahmenqualität','Quellenauflösbarkeit'],
     requiredProviderReceiptFields:['provider','model','modelVersion','executedAt','inputSha256','promptSha256','schemaSha256','rubricSha256','responseSha256'],
     blockingReasons:['No configured provider execution has been performed by this harness.','No real positive political/map evidence exists for this generation.']};

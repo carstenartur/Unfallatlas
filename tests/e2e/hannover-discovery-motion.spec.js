@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
+test.use({ locale: 'en-US' });
+
 const intersection = 'Brühlstraße / Escherstraße';
 const councilSources = ['15-1243-2021', '15-2403-2022F1', '15-2377-2023F1'].map(id =>
   'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/' + id);
@@ -156,8 +158,10 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     expect(title).toContain(intersection);
     expect(links).toEqual(expect.arrayContaining(councilSources));
     if (selector === '#btnExportWord') {
+      expect(text).toContain('Häufung von Unfällen mit Rad- und Pkw-Beteiligung');
       // External map services are intentionally unavailable in this CI case.
       expect(text).toContain('kein amtliches Luftbild verfügbar');
+      expect(text).toMatch(/umfasst\s+20\.379\s+Unfälle/);
       expect(text).toContain('17 Unfälle an 12 veröffentlichten Unfallorten');
       const sheets = result.drawings.filter(image => /^Veröffentlichte Unfallorte auf K\d+$/.test(image.title));
       expect(sheets.map(sheet => sheet.title)).toEqual(['Veröffentlichte Unfallorte auf K1', 'Veröffentlichte Unfallorte auf K2']);

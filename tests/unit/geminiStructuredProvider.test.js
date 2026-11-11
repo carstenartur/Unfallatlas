@@ -430,3 +430,17 @@ test('the evidence call preserves the version returned by Gemini, including a mi
   });
   await expect(callStructuredGeminiWithMetadata({ user: 'facts' })).resolves.toMatchObject({ modelVersion: null });
 });
+
+test('uses the supported Flash model by default and returns only its answer text', async () => {
+  delete process.env.AI_ASSESSMENT_MODEL;
+  const response = {
+    modelVersion: 'served-version',
+    candidates: [{ content: { parts: [
+      { thought: true, text: 'Internal summary' }, { text: '{"fact":' }, { text: '37}' }
+    ] }, finishReason: 'STOP' }]
+  };
+  mockHttpsRequest([{ statusCode: 200, body: JSON.stringify(response) }]);
+  await expect(callStructuredGeminiWithMetadata({ user: 'facts' })).resolves.toMatchObject({
+    model: 'gemini-3.6-flash', modelVersion: 'served-version', text: '{"fact":37}'
+  });
+});

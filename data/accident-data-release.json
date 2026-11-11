@@ -816,10 +816,10 @@
         },
         "geojson": {
           "path": "out/output_all_years_koeln.geojson.gz",
-          "bytes": 1388661,
-          "uncompressedBytes": 25656405,
-          "sha256": "bfe052b8cb386799eb3e8d0d6efd436f969ecea82022c2f68adfd9b1e0dca07b",
-          "contentSha256": "151dfdc0c596e2585a7452bc9a5d3016eba336e256ed7fd2e40bc6fce21d5a21"
+          "bytes": 4843380,
+          "uncompressedBytes": 100602127,
+          "sha256": "2a9836ebdf844a1694d896e7b9c7f97ad7028d4ae35366b39f240c1fae570cd3",
+          "contentSha256": "4ff94a06e05b42adfab6a8a6fed5acc4b5d10e3781706c1d248916e273bdcf72"
         }
       }
     },
@@ -1186,5 +1186,5 @@
       }
     }
   ],
-  "fingerprint": "b83f5cefb4d63b66b47110a8131d1e5291904ada5afd2b3cbdf34ca3b062d444"
+  "fingerprint": "e06e050c229f78c11ddd2cc44c84e010657df6228701601aeb3d1c00b65c650b"
 }

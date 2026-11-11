@@ -157,11 +157,13 @@ Ergebnis zu liefern.
 | Umgebungsvariable             | Standard               | Bedeutung                                  |
 |-------------------------------|------------------------|--------------------------------------------|
 | `GEMINI_API_KEY`              | *(Pflicht für KI)*     | API-Schlüssel                              |
-| `AI_ASSESSMENT_MODEL`         | `gemini-2.0-flash`     | Modellname                                 |
+| `AI_ASSESSMENT_MODEL`         | `gemini-3.6-flash`     | Modellname                                 |
 | `AI_ASSESSMENT_TIMEOUT_MS`    | `30000`                | Timeout pro Anfrage                        |
 | `AI_ASSESSMENT_MAX_RETRIES`   | `2`                    | Wiederholungen bei `5xx`/Timeout           |
 | `AI_ASSESSMENT_RATELIMIT_RETRIES` | `0`              | Wiederholungen bei `429` (Standard: kein Retry) |
 | `AI_ASSESSMENT_RATELIMIT_MIN_DELAY_MS` | `60000`     | Mindestwartezeit (ms) bei `429`-Retry      |
+
+Google hat Gemini 2.0 Flash am 1. Juni 2026 abgeschaltet. Als Standard verwendet die Werkbank den stabilen Nachfolger Gemini 3.6 Flash. Eine explizite Auswahl über `AI_ASSESSMENT_MODEL` bleibt möglich. [Abschalttermine](https://ai.google.dev/gemini-api/docs/deprecations) · [Modell und strukturierte Ausgabe](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash)
 
 ---
 
@@ -253,7 +255,7 @@ Verhalten:
 |--------------------------------|---------------------------------------------------------------|
 | `GEMINI_API_KEY`               | Pflicht für echten Gemini-Aufruf; sonst Fallback              |
 | `AI_PROVIDER`                  | `gemini` (Standard) \| `null`                                 |
-| `AI_ASSESSMENT_MODEL`          | Modellname (Standard `gemini-2.0-flash`)                      |
+| `AI_ASSESSMENT_MODEL`          | Modellname (Standard `gemini-3.6-flash`)                      |
 | `AI_ASSESSMENT_TIMEOUT_MS`     | Pro-Request-Timeout                                           |
 | `AI_ASSESSMENT_MAX_RETRIES`    | Max. Retries bei 5xx/Timeout (Standard 2)                     |
 | `AI_ASSESSMENT_RATELIMIT_RETRIES` | Retries bei 429 (Standard 0 – kein Retry)                 |

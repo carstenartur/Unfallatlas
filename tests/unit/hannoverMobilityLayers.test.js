@@ -232,7 +232,9 @@ test('Hannover opens six DGM1 terrain reference profiles including both excluded
     });
     slopes.sort((a,b) => a - b);
     const slope = (slopes[Math.floor((slopes.length - 1) / 2)] + slopes[Math.floor(slopes.length / 2)]) / 2;
-    const shown = Number(row.cells[2].textContent.replace('−', '-').replace(',', '.').replace('≈', '').replace('%', '').trim());
+    const percentage = row.cells[2].textContent.trim().match(/^(?:≈\s*)?([+−-]?\d+(?:,\d+)?)\s*%$/u);
+    expect(percentage).not.toBeNull();
+    const shown = Number(percentage[1].replaceAll('−', '-').replaceAll(',', '.'));
     expect(slope).toBeCloseTo(shown, 2);
     if (['23838108', '24011492'].includes(wayId)) expect(row.textContent).toMatch(/Fahrbahnneigung.*ausgeschlossen/);
   }
