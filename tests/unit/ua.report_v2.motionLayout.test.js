@@ -133,6 +133,7 @@ test('Antrags-PDF trennt Beschluss, Begründung, alle nummerierten Fälle und Me
 test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennungen als Tabelle', async () => {
   const window = loadReport();
   const data = reportData();
+  data.structured.meta.date = '11.11.2026';
   data.structured.motion = {
     intro: 'Die Verwaltung wird gebeten, innerhalb von drei Monaten zu berichten.',
     requests: ['Schienenquerungen und Sichtbeziehungen örtlich untersuchen.', 'Zeitplan und Wirkungskontrolle vorlegen.'],
@@ -148,7 +149,16 @@ test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennunge
   const firstAnnexIndex = xml.indexOf('Anlage 1 – Vollständige Unfallliste');
   expect(firstAnnexIndex).toBeGreaterThan(0);
   const front = xml.slice(0, firstAnnexIndex);
-  expect(front).toMatch(/Beschlussvorschlag[\s\S]+Schienenquerungen und Sichtbeziehungen örtlich untersuchen\.[\s\S]+Begründung[\s\S]+Die kodierten Unfallarten/);
+  const words = [...front.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match => match[1]).join(' ');
+  expect(words).toContain('Entwurf · Stand 11.11.2026');
+  expect(words).toContain('Antragsteller: [Name des Mitglieds, der Fraktion oder der Gruppe]');
+  expect(words).toContain('An den Stadtbezirksrat Nord');
+  expect(words).toContain('über die Bezirksratsbetreuung der Landeshauptstadt Hannover');
+  expect(words).toContain('Sitzung am [Datum, falls bekannt]');
+  expect(words).toMatch(/Betreff:\s+Verkehrssicherheit im Bereich/);
+  expect(words).toMatch(/Antrag Der Bezirksrat möge beschließen: Die Verwaltung wird gebeten, innerhalb von drei Monaten zu berichten\..+Schienenquerungen und Sichtbeziehungen örtlich untersuchen\..+Begründung.+Die kodierten Unfallarten/);
+  expect(words).not.toContain('Beschlussvorschlag');
+  expect(words).toMatch(/Die kodierten Unfallarten.+\[Name und Funktion der zeichnenden Person\].+Ratsvorgänge im Original/);
   expect(front).toContain('DS 1/2023 (04.12.2023)');
   expect(rels).toContain('Target="https://example.test/ris/123"');
   const pdf = await exportPdf(loadReport(), data);
@@ -167,4 +177,114 @@ test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennunge
   expect(evidenceTable.match(/<w:cantSplit\s*\/>/g)).toHaveLength(54);
   expect([...evidenceTable.matchAll(/>(A\d{3})</g)].map(match => match[1])).toEqual(ids);
   expect(rels).toContain('Target="' + source + '?evidenceAccident=A001"');
+});
+
+test.each([
+  ['Hannover', 'Stadtbezirksrat', 'Stadtbezirksrat Nord', 'Der Stadtbezirksrat Nord möge beschließen:', true],
+  ['Hannover', 'Bezirksrat', null, 'Der Bezirksrat beschließt:', true],
+  ['Braunschweig', 'Stadtbezirksrat', 'Stadtbezirksrat Mitte', 'Die Verwaltung wird gebeten zu berichten.', false],
+  ['Hannover', 'Ausschuss', 'Verkehrsausschuss', 'Die Verwaltung wird gebeten zu berichten.', false],
+])('Word preserves an existing introduction and scopes the draft to %s / %s', async (city, typ, gremium, intro, localDraft) => {
+  const window = loadReport();
+  const data = reportData();
+  Object.assign(data.structured.meta, { city, gremium: { typ, gremium } });
+  data.text = data.text.replace('Der Stadtbezirksrat Nord bittet die Verwaltung um Prüfung.', intro);
+  await window.UA.exportToWord({ CITY_RAW: city }, data);
+  const zip = await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
+  const xml = await zip.file('word/document.xml').async('string');
+  const front = xml.slice(0, xml.indexOf('Anlage 1 – Vollständige Unfallliste'));
+  expect(front).toContain(intro);
+  expect(front.includes('Entwurf · Stand')).toBe(localDraft);
+  expect(front.includes('>Beschlussvorschlag<')).toBe(!localDraft);
+  if (localDraft) {
+    expect(front.toLowerCase().match(/beschließ(?:en|t)/g)).toHaveLength(1);
+    if (!gremium) expect(front).toContain('An den Stadtbezirksrat [Stadtbezirk]');
+  }
+});
+
+test('Word links cited council numbers in the motion and the selected RIS document at its title', async () => {
+  const window = loadReport();
+  const data = reportData();
+  const decision = 'https://example.test/ris/2021-decision';
+  const reply = 'https://example.test/ris/2023-reply';
+  const selected = { title: 'Planung des Radwegs', number: '25-111/2025', url: 'https://example.test/ris/selected' };
+  data.structured.politicalReferences = [selected];
+  data.structured.motion = {
+    intro: 'Die Verwaltung wird gebeten zu berichten.',
+    requests: ['Zum Beschluss 15-1243/2021 und zur Antwort 15-2377/2023 F1 berichten.'],
+    rationale: 'Siehe DS 25-111/2025. Für 15-1243/2021 S1 ist hier kein Direktlink belegt.',
+    priorWork: [
+      { number: '15-1243/2021', date: '2021-06-07', url: decision },
+      { number: '15-2377/2023 F1', date: '2023-12-04', url: reply },
+    ],
+  };
+  await window.UA.exportToWord({ CITY_RAW: 'Hannover' }, data, { includeReferences: true });
+  const zip = await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
+  const xml = await zip.file('word/document.xml').async('string');
+  const rels = await zip.file('word/_rels/document.xml.rels').async('string');
+  const paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+  const linksAt = (phrase) => {
+    const paragraph = paragraphs.find(p => p.includes(phrase));
+    expect(paragraph).toBeDefined();
+    return [...paragraph.matchAll(/<w:hyperlink\b[^>]*r:id="([^"]+)"[^>]*>([\s\S]*?)<\/w:hyperlink>/g)]
+      .map(([, relId, runs]) => {
+        const relationship = (rels.match(/<Relationship\s[^>]*\/>/g) || []).find(r => r.includes('Id="' + relId + '"'));
+        const text = [...runs.matchAll(/<w:t(?:\s[^>]*)?>(.*?)<\/w:t>/g)].map(m => m[1]).join('');
+        expect(relationship).toContain('TargetMode="External"');
+        return [text, relationship.match(/Target="([^"]+)"/)[1]];
+      });
+  };
+  expect(linksAt('Zum Beschluss')).toEqual([['15-1243/2021', decision], ['15-2377/2023 F1', reply]]);
+  expect(linksAt('Siehe ')).toEqual([['DS 25-111/2025', selected.url]]);
+  expect(linksAt(selected.title)).toEqual([[selected.title, selected.url], ['DS 25-111/2025', selected.url]]);
+  const front = xml.slice(0, xml.indexOf('Anlage 1 – Vollständige Unfallliste'));
+  expect(front).toContain('Ratsvorgänge im Original');
+});
+
+describe('Word annex layout', () => {
+  let xml;
+
+  beforeAll(async () => {
+    const window = loadReport();
+    new Function('window', fs.readFileSync(path.resolve(__dirname, '../../js/ua.review_network.js'), 'utf8'))(window);
+    const data = reportData();
+    data.structured.crossTable = {
+      rows: [{ mask: 1, textLabel: 'Unfall mit ausschließlich gesetzter Beteiligungskategorie Pkw', sev1: 0, sev2: 0, sev3: 1, total: 1 }],
+      totals: { sev1: 0, sev2: 0, sev3: 1, total: 1 },
+    };
+    data.structured.siteNetwork = {
+      status: 'available', kind: 'junction', label: area,
+      site: { id: 'j:22', revision: 'testrevision' },
+      bounds: { south: 52.37, west: 9.72, north: 52.38, east: 9.73 },
+      query: {}, assignedCount: 4, queryCount: 3, mapCount: 2,
+    };
+    await window.UA.exportToWord({ CITY_RAW: 'Hannover' }, data);
+    const zip = await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
+    xml = await zip.file('word/document.xml').async('string');
+  });
+
+  test('allocates room for long involvement labels and keeps the count columns compact', () => {
+    const table = [...xml.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)].map(match => match[0])
+      .find(tableXml => tableXml.includes('ausschließlich gesetzter Beteiligungskategorie Pkw'));
+    expect(table).toBeDefined();
+    const widths = [...table.matchAll(/<w:gridCol w:w="(\d+)"\s*\/>/g)].map(match => Number(match[1]));
+    const [label, fatal, serious, slight, total] = widths;
+    expect(widths).toHaveLength(5);
+    const tableWidth = widths.reduce((sum, n) => sum + n, 0);
+    expect(label).toBeGreaterThan(tableWidth * 0.44);
+    expect(fatal).toBeGreaterThanOrEqual(tableWidth * 0.115);
+    expect(total).toBeGreaterThanOrEqual(tableWidth * 0.10);
+    expect(Math.min(serious, slight)).toBeGreaterThan(Math.max(fatal, total));
+  });
+
+  test('keeps the network heading and identifier with the first finding without binding the whole section', () => {
+    const paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+    const index = paragraphs.findIndex(p => p.includes('Befund aus dem Netzregister'));
+    expect(index).toBeGreaterThan(-1);
+    expect(paragraphs[index]).toMatch(/<w:keepNext\s*\/>/);
+    expect(paragraphs[index + 1]).toContain('Kennung j:22');
+    expect(paragraphs[index + 1]).toMatch(/<w:keepNext\s*\/>/);
+    expect(paragraphs[index + 2]).toContain('4 räumlich zugeordnete Fälle');
+    expect(paragraphs[index + 2]).not.toMatch(/<w:keepNext\s*\/>/);
+  });
 });

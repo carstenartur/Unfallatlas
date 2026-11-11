@@ -39,6 +39,7 @@ function fixture() {
     exportSourceManifest: { scenario: { bounds } }
   };
   const rows = points.map((p, i) => ({
+    sourceFingerprint: evidenceCohort.fingerprintForPoint({}, p),
     displayId: `A00${i + 1}`, mapRef: i < 2 ? 'E1' : 'E2',
     lat: p.lat, lon: p.lon, year: p.props.year, severity: 3
   }));
@@ -160,17 +161,45 @@ describe('document evidence for a conflict pattern', () => {
     );
   });
 
-  test('Word provides the same focus and preserves all numbered cases', async () => {
+  test('Word prints the official aerial and exact, disjoint point sheets linked to the case list', async () => {
     const { ctx, report } = fixture();
+    const sheets = [];
+    UA.EvidenceCohort.drawDocumentPointMap = (_w, sheet) => {
+      sheets.push(sheet);
+      return PNG;
+    };
+    UA.fetchDocumentOrthophoto = jest.fn().mockResolvedValue({
+      image: PNG, bounds, provider: { attribution: 'LGLN (2026)', license: 'CC BY 4.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by/4.0/', metadataUrl: 'https://example.org/dop' }
+    });
     await UA.exportToWord(ctx, report, { includeMap: true });
     const [blob] = window.saveAs.mock.calls.at(-1);
     const zip = await JSZip.loadAsync(await blob.arrayBuffer());
     const xml = await zip.file('word/document.xml').async('string');
-
-    expect(captures.map(c => c.exportPoints.length)).toEqual([4, 3, 2, 2]);
+    expect(captures).toHaveLength(0);
+    expect(sheets.map(sheet => sheet.locations.flatMap(p => p.ids))).toEqual([['A001', 'A002', 'A003'], ['A004']]);
+    expect(xml).toContain('Amtliches Luftbild');
+    expect(xml).toContain('LGLN (2026)');
     expect(xml).toContain(patternLabel);
     expect(xml).toMatch(/2025.*1 Unfall/);
+    expect(xml).toContain('w:anchor="evidence_map_K1"');
+    expect(xml).toContain('w:anchor="evidence_map_K2"');
     expect(xml).toMatch(/>A001<.*>A002<.*>A003<.*>A004</);
+  });
+
+  test('a regular area export with no numbered appendix uses the same aerial and usable point sheets', async () => {
+    const { ctx, report } = fixture();
+    delete report.structured.evidenceCohorts;
+    const sheets = [];
+    UA.EvidenceCohort.drawDocumentPointMap = (_w, sheet) => { sheets.push(sheet); return PNG; };
+    UA.fetchDocumentOrthophoto = jest.fn().mockResolvedValue(null);
+    await UA.exportToWord(ctx, report, { includeMap: true });
+    const [blob] = window.saveAs.mock.calls.at(-1);
+    const xml = await (await JSZip.loadAsync(await blob.arrayBuffer())).file('word/document.xml').async('string');
+    expect(UA.fetchDocumentOrthophoto).toHaveBeenCalledWith(ctx, bounds);
+    expect(sheets.flatMap(s => s.locations.flatMap(p => p.ids))).toEqual(['P001', 'P002', 'P003', 'P004']);
+    expect(xml).toContain('kein amtliches Luftbild verfügbar');
+    expect(xml).not.toContain('Kennungen in der Unfallliste');
   });
 
   test('the network finding links the exact version and distinguishes one assigned case from the overview', async () => {

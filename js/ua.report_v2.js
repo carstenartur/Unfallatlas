@@ -171,6 +171,23 @@
     })).filter(source => source.href);
   }
 
+  // Match only complete document numbers with an unambiguous, supplied original URL.
+  // A main motion and its reply (e.g. 15-2377/2023 F1) are separate publications.
+  function councilCitationMatcher(records) {
+    const urls = new Map();
+    for (const record of records) {
+      const number = String(record?.number || "").trim().replace(/\s+/g, " ");
+      const href = reportLink(record?.url);
+      if (!number || !href) continue;
+      urls.set(number, urls.has(number) && urls.get(number) !== href ? null : href);
+    }
+    if (!urls.size) return null;
+    const alternatives = [...urls.keys()].sort((a, b) => b.length - a.length)
+      .map(number => number.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+"));
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}/-])(?:DS\\s+)?(${alternatives.join("|")})(?![\\p{L}\\p{N}/-]|\\s+[A-Z]+\\d+\\b)`, "gu");
+    return { pattern, urls };
+  }
+
   function reportLink(href) {
     if (typeof href !== "string" || !href.trim()) return null;
     try {
@@ -1804,9 +1821,21 @@
 
     function motionParagraph(text, options = {}) {
       const content = textWithLinks(String(text));
-      const runs = Array.isArray(content)
-        ? content.map(part => linkedWordRun({ text: part.text, href: part.link }))
-        : [linkedWordRun({ text: content })];
+      const parts = Array.isArray(content) ? content : [{ text: content }];
+      const runs = parts.flatMap(part => {
+        if (part.link || !councilCitations) return [linkedWordRun({ text: part.text, href: part.link })];
+        const children = [];
+        let offset = 0;
+        for (const match of part.text.matchAll(councilCitations.pattern)) {
+          const href = councilCitations.urls.get(match[1].replace(/\s+/g, " "));
+          if (!href) continue;
+          if (match.index > offset) children.push(linkedWordRun({ text: part.text.slice(offset, match.index) }));
+          children.push(linkedWordRun({ text: match[0], href }));
+          offset = match.index + match[0].length;
+        }
+        if (offset < part.text.length || !children.length) children.push(linkedWordRun({ text: part.text.slice(offset) }));
+        return children;
+      });
       return new Paragraph({ children: runs, spacing: { after: 100 }, keepLines: true, ...options });
     }
 
@@ -2007,7 +2036,10 @@
 
     // Use structured data if available (preferred path), else fall back to text parsing
     const sd = reportData.structured || null;
-    const evidence = numberedEvidence(sd);
+    const includeReferences = options.includeReferences !== false;
+    const selectedCouncilRecords = includeReferences && Array.isArray(sd?.politicalReferences) ? sd.politicalReferences : [];
+    const councilCitations = councilCitationMatcher([...(sd?.motion?.priorWork || []), ...selectedCouncilRecords]);
+    let evidence = numberedEvidence(sd);
     const formalMotion = Boolean(evidence || sd?.motion);
     const hasMap = Boolean(options.includeMap && ctx.map);
     const analysisAnnexNumber = 1 + Number(hasMap) + Number(Boolean(evidence));
@@ -2056,7 +2088,29 @@
     const metaDate    = (sd && sd.meta && sd.meta.date)     || today;
     const metaToWhom  = gremiumMeta.gremium || "Zuständiges Gremium vor Einreichung prüfen";
     const subject = replaceEmojisForDocx(reportSubject(reportData));
-    if (formalMotion) {
+    const hannoverDistrictMotion = formalMotion
+      && /^(?:Landeshauptstadt\s+)?Hannover$/i.test(metaCity.trim())
+      && /^(?:Stadt)?Bezirksrat(?:\s*\([^)]*\))?$/i.test((gremiumMeta.typ || "").trim());
+    if (hannoverDistrictMotion) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `Entwurf · Stand ${metaDate}`, size: 19 })],
+          alignment: AlignmentType.RIGHT, spacing: { after: 140 }
+        }),
+        new Paragraph({ text: "Antragsteller: [Name des Mitglieds, der Fraktion oder der Gruppe]", spacing: { after: 100 } }),
+        new Paragraph({ text: `An den ${gremiumMeta.gremium || "Stadtbezirksrat [Stadtbezirk]"}`, spacing: { after: 40 } }),
+        new Paragraph({ text: "über die Bezirksratsbetreuung der Landeshauptstadt Hannover", spacing: { after: 40 } }),
+        new Paragraph({ text: "Sitzung am [Datum, falls bekannt]", spacing: { after: 160 } }),
+        new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun({ text: `Betreff: ${subject}`, color: "191919", size: 28, bold: true })],
+          keepNext: true, keepLines: true, spacing: { before: 0, after: 100 }
+        })
+      );
+      if (sd?.meta?.areaName && !subject.includes(metaArea)) {
+        children.push(new Paragraph({ text: `Bereich: ${metaArea}`, spacing: { after: 80 } }));
+      }
+    } else if (formalMotion) {
       children.push(new Paragraph({
         children: [new TextRun({ text: docTitle.toUpperCase(), bold: true, color: "254B61", size: 20 })],
         keepNext: true, spacing: { after: 100 }
@@ -2192,25 +2246,32 @@
     const figCounter = makeFigureCounter();
 
     const motion = motionSections(sd, textLines, hasMap);
-    children.push(new Paragraph({
-      text: formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG",
-      heading: HeadingLevel.HEADING_2,
-      keepNext: true,
-      spacing: { before: 160, after: 100 }
-    }));
+    function motionHeading(text) {
+      return new Paragraph({
+        ...(hannoverDistrictMotion ? { children: [new TextRun({ text, bold: true, size: 24, color: "191919" })] } : { text }),
+        heading: HeadingLevel.HEADING_2,
+        keepNext: true,
+        spacing: { before: 160, after: 100 }
+      });
+    }
+    children.push(motionHeading(hannoverDistrictMotion ? "Antrag" : formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG"));
+    if (hannoverDistrictMotion) {
+      const opening = motion.paragraphs[0] || motion.requests[0] || "";
+      const resolutionFormula = /\b(?:stadt)?bezirksrat\b[^.!?:\n]*?\b(?:beschlie(?:ß|ss)(?:en|t)|beschluss fassen|bittet|beauftragt)\b/i;
+      if (!resolutionFormula.test(opening)) children.push(motionParagraph("Der Bezirksrat möge beschließen:", { keepNext: true }));
+    }
     for (const line of motion.paragraphs) children.push(motionParagraph(line));
     for (const request of motion.requests) {
       children.push(motionParagraph(request, { numbering: { reference: MOTION_NUMBERING, level: 0 } }));
     }
 
-    children.push(new Paragraph({
-      text: formalMotion ? "Begründung" : "BEGRÜNDUNG",
-      heading: HeadingLevel.HEADING_2,
-      keepNext: true,
-      spacing: { before: 160, after: 100 }
-    }));
+    children.push(motionHeading(formalMotion ? "Begründung" : "BEGRÜNDUNG"));
     if (evidence) children.push(motionParagraph(evidenceCountText(evidence)));
     for (const line of motion.reason) children.push(motionParagraph(line));
+    if (hannoverDistrictMotion) children.push(new Paragraph({
+      children: [new TextRun({ text: "[Name und Funktion der zeichnenden Person]", italics: true, size: 20 })],
+      spacing: { before: 80, after: 160 }
+    }));
     for (const source of [motion.source, sd?.meta?.gremium?.source]) {
       if (!source?.label) continue;
       children.push(new Paragraph({
@@ -2219,15 +2280,21 @@
       }));
     }
     const councilSources = councilSourceRuns(sd);
-    if (councilSources.length) {
+    const shownCouncilUrls = new Set(councilSources.map(source => source.href));
+    const additionalSources = selectedCouncilRecords.map(ref => ({
+      text: ref.number ? `DS ${ref.number}` : ref.title,
+      href: reportLink(ref.url),
+    })).filter(source => source.text && source.href && !shownCouncilUrls.has(source.href));
+    const frontSources = [...councilSources, ...additionalSources.slice(0, 2)];
+    if (frontSources.length) {
       children.push(new Paragraph({
-        children: councilSources.flatMap((part, i) => [...(i ? [new TextRun(" · ")] : []), linkedWordRun(part, { size: 18 })]),
+        children: [
+          new TextRun({ text: "Ratsvorgänge im Original  ", bold: true, size: 18 }),
+          ...frontSources.flatMap((part, i) => [...(i ? [new TextRun(" · ")] : []), linkedWordRun(part, { size: 18 })]),
+          ...(additionalSources.length > 2 && formalMotion ? [new TextRun({ text: ` · Weitere Vorgänge in Anlage ${analysisAnnexNumber}.`, size: 18 })] : []),
+        ],
         spacing: { after: 80 }
       }));
-    }
-    const priorWork = motionPoliticalNote(sd, options, analysisAnnexNumber);
-    if (formalMotion && priorWork.length) {
-      children.push(new Paragraph({ children: priorWork.map(part => linkedWordRun(part, { size: 18 })), spacing: { after: 80 } }));
     }
     if (formalMotion) {
       children.push(new Paragraph({ children: [
@@ -2454,7 +2521,8 @@
         children.push(makeDocxTable(
           ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
           ctRows,
-          ctHighlights
+          ctHighlights,
+          { colWeights: [45, 12, 17, 16, 10] }
         ));
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
@@ -2793,8 +2861,110 @@
 
     // ---- 7. Map section (if enabled) ----
     const mapsStart = children.length;
-    if (hasMap) {
-      const plan = reportMapPlan(ctx, filters);
+    const plan = hasMap ? reportMapPlan(ctx, filters) : null;
+    // Older reports may contain map points without a numbered evidence appendix.
+    // P identifiers then belong only to the printed map; A identifiers always
+    // come from the existing, snapshot-bound evidence table.
+    const mapRows = hasMap && UA.EvidenceCohort?.documentPointSheets
+      ? evidence?.rows ?? plan.points.map((point, index) => ({
+          lat: point.lat, lon: point.lon, displayId: 'P' + String(index + 1).padStart(3, '0'),
+          sourceFingerprint: UA.EvidenceCohort.fingerprintForPoint(UA, point)
+        }))
+      : [];
+    if (hasMap && mapRows.some(row => Number.isFinite(row.lat) && Number.isFinite(row.lon))) {
+      const focus = reportDiscoveryFocus(plan, sd);
+      const fingerprints = new Set((focus?.points || []).map(p => UA.EvidenceCohort.fingerprintForPoint(UA, p)));
+      const focusIds = new Set(mapRows.filter(row =>
+        focus ? fingerprints.has(row.sourceFingerprint) : row.discoveryMatch === true
+      ).map(row => row.displayId));
+      const sheets = UA.EvidenceCohort.documentPointSheets(mapRows, focusIds);
+      const refById = new Map();
+      const figure = (image, caption, description, ref) => {
+        const numbered = figCounter.next(caption);
+        const run = new TextRun({ text: numbered.caption, bold: true });
+        const frame = ref ? { width: 640, height: 400 } : { width: 610, height: 345 };
+        children.push(new Paragraph({
+          children: [pngImageRun(image, fitImageToMax(image, frame), {
+            title: caption, description
+          })], alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 120, after: 70 }
+        }));
+        children.push(new Paragraph({
+          children: ref ? [new Bookmark({ id: 'evidence_map_' + ref, children: [run] })] : [run],
+          spacing: { after: 70 }
+        }));
+      };
+      children.push(new Paragraph({
+        text: formalMotion ? 'Anlage 1 – Karten' : 'Kartenausschnitt', heading: HeadingLevel.HEADING_2, pageBreakBefore: formalMotion, keepNext: true,
+        spacing: { after: 160 }
+      }));
+      const photo = await UA.fetchDocumentOrthophoto?.(ctx, plan.bounds);
+      let aerial = null;
+      if (photo) {
+        const label = 'Amtliches Luftbild des Untersuchungsbereichs';
+        const place = sd?.siteNetwork?.label || sd?.meta?.areaName;
+        figure(photo.image, place ? label + ' – ' + place : label, place || label);
+        const credit = photo.provider.attribution;
+        const licence = photo.provider.license;
+        const sourceUrl = reportLink(photo.provider.metadataUrl);
+        const licenseUrl = reportLink(photo.provider.licenseUrl);
+        const linked = (value, url) => url
+          ? new ExternalHyperlink({ link: url, children: [new TextRun({ text: value, style: 'Hyperlink' })] })
+          : new TextRun({ text: value });
+        children.push(new Paragraph({
+          children: [new TextRun('Bildquelle: '), linked(credit, sourceUrl), new TextRun(' · '),
+            linked(licence, licenseUrl), new TextRun('. Nord ist oben. Das Aufnahmedatum ist im Kartenbild nicht ausgewiesen.')], spacing: { after: 140 }
+        }));
+        // Reuse this exact image for the detail crops, with the same GetMap bounds.
+        if (window.Image) {
+          const bitmap = new window.Image();
+          bitmap.src = photo.image;
+          try {
+            await bitmap.decode();
+            aerial = { bounds: photo.bounds, bitmap };
+          } catch (error) {
+            console.warn('Luftbild konnte für die Punktkarte nicht dekodiert werden:', error);
+          }
+        }
+      } else {
+        children.push(motionParagraph('Für diesen Ausschnitt war beim Export kein amtliches Luftbild verfügbar.'));
+      }
+      children.push(motionParagraph('Die Punkte liegen auf den veröffentlichten Koordinaten. '
+          + (evidence ? 'Die Linien verbinden sie mit den Kennungen in der Unfallliste.' : 'Die Linien führen zu den Punktkennungen dieses Kartenausschnitts.')
+          + (aerial ? ' Bildhintergrund: ' + photo.provider.attribution + ' · ' + photo.provider.license + '.' : ' Darstellung ohne Bildhintergrund.')));
+      for (const sheet of sheets) {
+        const ids = sheet.locations.flatMap(location => location.ids);
+        const subject = sheet.kind === 'focus' ? 'ausgewählte Unfälle'
+          : sheet.kind === 'other' ? 'weitere Unfälle im Gebiet' : 'Unfälle im Gebiet';
+        const title = `Punktkarte ${sheet.ref} – ${subject}`;
+        const description = ids.length + (ids.length === 1 ? ' Unfall an ' : ' Unfälle an ')
+          + (sheet.locations.length === 1 ? 'einem veröffentlichten Unfallort.' : sheet.locations.length + ' veröffentlichten Unfallorten.');
+        children.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_3, keepNext: true,
+          spacing: { before: 180, after: 60 } }));
+        let intro = description;
+        if (sheet.kind === 'focus' && focus?.label) intro += ' ' + focus.label + '.';
+        const shared = sheet.locations.filter(location => location.ids.length > 1);
+        if (shared.length) intro += ' Gleiche Koordinaten: '
+          + shared.map(p => p.ids[0] + ' ×' + p.ids.length + ' (' + p.ids.join(', ') + ')').join(' · ') + '.';
+        children.push(new Paragraph({ text: intro, keepNext: true, spacing: { after: 60 } }));
+        const image = UA.EvidenceCohort.drawDocumentPointMap(window, sheet, aerial);
+        figure(image, 'Veröffentlichte Unfallorte auf ' + sheet.ref, 'Unfall-IDs ' + ids.join(', '), sheet.ref);
+        for (const id of ids) refById.set(id, sheet.ref);
+        renderedEvidenceMapRefs.add(sheet.ref);
+      }
+      if (focus?.recentText) children.push(motionParagraph(focus.recentText));
+      if (focus?.query) {
+        const criteria = focusCriteria(focus.query);
+        if (criteria) children.push(motionParagraph(criteria));
+      }
+      if (evidence?.link) children.push(new Paragraph({
+        children: [new ExternalHyperlink({ link: evidence.link,
+          children: [new TextRun({ text: 'Nummerierte Unfallkarte in der Werkbank öffnen', style: 'Hyperlink' })] })],
+        spacing: { after: 100 }
+      }));
+      // Map references in this Word table address its own sheets. The source
+      // cohort (also used by the CSV, PDF and evidence export) remains immutable.
+      if (evidence) evidence = { ...evidence, rows: evidence.rows.map(row => ({ ...row, mapRef: refById.get(row.displayId) })) };
+    } else if (hasMap) {
       const focus = reportDiscoveryFocus(plan, sd);
       const mapOptions = { ...options, exportPoints: plan.points, exportBounds: plan.bounds };
       const documentMap = UA.createDocumentMapContext(ctx);
@@ -3121,7 +3291,9 @@
     const networkSite = reportNetworkSite(ctx, sd);
     if (networkSite) {
       children.push(new Paragraph({ text: "Befund aus dem Netzregister", heading: HeadingLevel.HEADING_2, keepNext: true }));
-      for (const line of networkSite.lines) children.push(motionParagraph(line));
+      networkSite.lines.forEach((line, index) => {
+        children.push(motionParagraph(line, { keepNext: index === 0 && networkSite.lines.length > 1 }));
+      });
       for (const source of networkSite.sources) {
         children.push(new Paragraph({ children: [linkedWordRun(source)], spacing: { after: 80 }, keepLines: true }));
       }
@@ -3404,7 +3576,7 @@
     }
 
     // ---- 10. FACHLICHE BEZÜGE section (if enabled) ----
-    if (options.includeReferences) {
+    if (includeReferences) {
       const refs = sd && sd.references;
       const refsTextSection = extractSection(textLines, "Bezugsdokumente:");
       if ((refs && refs.documents && refs.documents.length > 0) || refsTextSection.length > 0) {
@@ -3458,11 +3630,13 @@
         }));
         for (const ref of polRefs) {
           const title = ref.title || "Ohne Titel";
-          const meta = [ref.type, ref.date, ref.gremium, ref.number].filter(Boolean).join(" · ");
+          const href = reportLink(ref.url);
+          const meta = [ref.type, ref.date, ref.gremium].filter(Boolean).join(" · ");
           children.push(new Paragraph({
             children: [
-              new TextRun({ text: `- ${title}`, bold: true }),
-              ...(meta ? [new TextRun({ text: ` (${meta})`, italics: true })] : [])
+              linkedWordRun({ text: title, href }, { bold: true }),
+              ...(meta ? [new TextRun({ text: ` · ${meta}`, italics: true })] : []),
+              ...(ref.number ? [new TextRun(" · "), linkedWordRun({ text: `DS ${ref.number}`, href })] : []),
             ],
             spacing: { after: 40 }
           }));
@@ -3483,15 +3657,6 @@
               children: [new TextRun({ text: `  Relevanz: ${ref.reason}`, italics: true })],
               spacing: { after: 20 }
             }));
-          }
-          if (ref.url) {
-            const urlLink = ExternalHyperlink
-              ? new ExternalHyperlink({
-                  link: ref.url,
-                  children: [new TextRun({ text: "Vorgang öffnen", style: "Hyperlink" })]
-                })
-              : new TextRun({ text: "Vorgang verfügbar", italics: true });
-            children.push(new Paragraph({ children: [urlLink], spacing: { after: 20 } }));
           }
           if (ref.source) {
             children.push(new Paragraph({

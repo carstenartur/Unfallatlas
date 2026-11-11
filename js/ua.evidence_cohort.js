@@ -1340,6 +1340,148 @@
     return true;
   }
 
+  const pointSheetLayout = { width: 1320, height: 780, labelTop: 66, labelBottom: 694, labelPitch: 43 };
+
+  // A printed sheet owns its scale; a raster provider's maximum Leaflet zoom
+  // must not limit the separation of the published accident coordinates.
+  function documentPointSheets(rows, focusIds) {
+    const sheets = [];
+    const { labelTop, labelBottom, labelPitch } = pointSheetLayout;
+    const capacity = 2 * (1 + Math.floor((labelBottom - labelTop) / labelPitch));
+    const placed = list(rows).filter(row => Number.isFinite(row.lat) && Number.isFinite(row.lon));
+    const focus = placed.filter(row => focusIds.has(row.displayId));
+    function addSheets(locations, kind) {
+      if (!locations.length) return;
+      if (locations.length <= capacity) {
+        sheets.push({ ref: 'K' + (sheets.length + 1), kind, locations });
+        return;
+      }
+      const bounds = boundsForRows(locations);
+      const longitudeScale = Math.cos((bounds.south + bounds.north) * Math.PI / 360);
+      const axis = (bounds.east - bounds.west) * longitudeScale > bounds.north - bounds.south ? 'lon' : 'lat';
+      locations.sort((a, b) => a[axis] - b[axis]);
+      const mid = Math.ceil(locations.length / 2);
+      addSheets(locations.slice(0, mid), kind);
+      addSheets(locations.slice(mid), kind);
+    }
+    function group(records, kind) {
+      const locations = new Map();
+      for (const { lat, lon, displayId } of records) {
+        // Ignore binary conversion noise below a tenth of a millimetre.
+        // The marker itself retains the unrounded published coordinate.
+        const key = lat.toFixed(9) + ',' + lon.toFixed(9);
+        if (!locations.has(key)) locations.set(key, { lat, lon, ids: [] });
+        locations.get(key).ids.push(displayId);
+      }
+      addSheets([...locations.values()], kind);
+    }
+    if (focus.length) {
+      group(focus, 'focus');
+      group(placed.filter(row => !focusIds.has(row.displayId)), 'other');
+    } else {
+      group(placed, 'area');
+    }
+    return sheets;
+  }
+
+  function drawDocumentPointMap(root, sheet, aerial) {
+    const canvas = root.document.createElement('canvas');
+    const { width, height, labelTop, labelBottom, labelPitch } = pointSheetLayout;
+    canvas.width = width;
+    canvas.height = height;
+    const pen = canvas.getContext('2d');
+    const rad = Math.PI / 180;
+    // Use the same projection as the official EPSG:3857 GetMap image.
+    const northing = lat => Math.log(Math.tan(Math.PI / 4 + lat * rad / 2));
+    const bounds = boundsForRows(sheet.locations);
+    const midX = (bounds.west + bounds.east) / 2 * rad;
+    const midY = (northing(bounds.north) + northing(bounds.south)) / 2;
+    const groundMeters = 6378137 * Math.cos((bounds.south + bounds.north) / 2 * rad);
+    const widthUnits = (bounds.east - bounds.west) * rad;
+    const heightUnits = northing(bounds.north) - northing(bounds.south);
+    const pxPerUnit = Math.min((width - 340) / Math.max(widthUnits, 5 / groundMeters),
+      (height - 180) / Math.max(heightUnits, 5 / groundMeters));
+    const xFor = lon => width / 2 + (lon * rad - midX) * pxPerUnit;
+    const yFor = lat => height / 2 - (northing(lat) - midY) * pxPerUnit;
+
+    pen.fillStyle = '#f1f4f4';
+    pen.fillRect(0, 0, width, height);
+    if (aerial?.bitmap && aerial.bounds) {
+      const photo = aerial.bounds;
+      pen.globalAlpha = 0.57;
+      pen.drawImage(aerial.bitmap, xFor(photo.west), yFor(photo.north),
+        xFor(photo.east) - xFor(photo.west), yFor(photo.south) - yFor(photo.north));
+      pen.globalAlpha = 1;
+    }
+    const points = sheet.locations.map(location => ({
+      ...location, x: xFor(location.lon), y: yFor(location.lat)
+    })).sort((a, b) => a.x - b.x || a.y - b.y);
+    // Split by position rather than screen half: even a vertical line of
+    // tightly spaced points gets two balanced, non-overlapping label columns.
+    const middle = Math.ceil(points.length / 2);
+    const lanes = [points.slice(0, middle), points.slice(middle)];
+    pen.font = 'bold 26px sans-serif';
+    pen.textAlign = 'center';
+    pen.textBaseline = 'middle';
+    for (const [side, lane] of lanes.entries()) {
+      lane.sort((a, b) => a.y - b.y || a.x - b.x);
+      let next = labelTop;
+      for (const [index, p] of lane.entries()) {
+        p.label = p.ids[0] + (p.ids.length > 1 ? ' ×' + p.ids.length : '');
+        p.boxWidth = Math.max(82, pen.measureText(p.label).width + 18);
+        p.boxX = side === 0 ? 14 + p.boxWidth / 2 : width - 14 - p.boxWidth / 2;
+        p.boxY = Math.max(next, Math.min(p.y, labelBottom - (lane.length - index - 1) * labelPitch));
+        next = p.boxY + labelPitch;
+        pen.beginPath();
+        pen.moveTo(p.x, p.y);
+        pen.lineTo(p.boxX, p.boxY);
+        pen.lineWidth = 4.5;
+        pen.strokeStyle = '#ffffff';
+        pen.stroke();
+        pen.lineWidth = 1.8;
+        pen.strokeStyle = '#314758';
+        pen.stroke();
+      }
+    }
+    for (const p of points) {
+      // Close-but-distinct recorded sites get separate dots at their exact
+      // positions. Their large external labels retain the same print size.
+      const nearest = Math.min(...points.filter(q => q !== p).map(q => Math.hypot(p.x - q.x, p.y - q.y)));
+      const radius = Math.min(7, nearest / 3);
+      pen.beginPath();
+      pen.arc(p.x, p.y, radius, 0, 2 * Math.PI);
+      pen.fillStyle = '#0a4260';
+      pen.fill();
+      pen.strokeStyle = '#ffffff';
+      pen.lineWidth = Math.min(2, radius / 2);
+      pen.stroke();
+      pen.fillStyle = '#ffffff';
+      pen.fillRect(p.boxX - p.boxWidth / 2, p.boxY - 18, p.boxWidth, 36);
+      pen.strokeStyle = '#466276';
+      pen.lineWidth = 1.5;
+      pen.strokeRect(p.boxX - p.boxWidth / 2, p.boxY - 18, p.boxWidth, 36);
+      pen.fillStyle = '#133d53';
+      pen.fillText(p.label, p.boxX, p.boxY);
+    }
+    // Round the scale bar down to 1, 2 or 5 × a power of ten in ground metres.
+    const target = (width * 0.16) / pxPerUnit * groundMeters;
+    const unit = 10 ** Math.floor(Math.log10(target));
+    const length = (target >= 5 * unit ? 5 : target >= 2 * unit ? 2 : 1) * unit;
+    const barWidth = length / groundMeters * pxPerUnit;
+    pen.fillStyle = '#ffffff';
+    pen.fillRect(14, height - 60, Math.max(barWidth + 28, 110), 49);
+    pen.fillStyle = '#172c39';
+    pen.textAlign = 'left';
+    pen.font = 'bold 23px sans-serif';
+    pen.fillText(length.toLocaleString('de-DE', { maximumSignificantDigits: 2 }) + ' m', 24, height - 40);
+    pen.fillRect(24, height - 25, barWidth, 4);
+    pen.fillStyle = '#ffffff';
+    pen.fillRect(width - 83, 10, 69, 37);
+    pen.fillStyle = '#172c39';
+    pen.fillText('N ↑', width - 75, 29);
+    return canvas.toDataURL('image/png');
+  }
+
   function annotateMapImage(rootValue, ctx, dataUrl, rows) {
     return new Promise((resolve, reject) => {
       const image = new rootValue.Image();
@@ -1472,6 +1614,8 @@
     buildCohorts,
     buildEvidenceStructured,
     buildAppendix,
+    documentPointSheets,
+    drawDocumentPointMap,
     captureEvidenceMaps,
     annotateMapImage,
     partitionRows,

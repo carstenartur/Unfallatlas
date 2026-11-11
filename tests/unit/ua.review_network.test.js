@@ -2,6 +2,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { gunzipSync } = require('node:zlib');
+const dataBudget = require('../../js/ua.data-budget');
 const spatialGrid = require('../../js/ua.spatial-grid');
 
 const revision = '398a1a71f25db801';
@@ -61,6 +63,14 @@ test('an unconfigured city only reads the optional catalog', async () => {
   expect(UA.DataResources.fetchJson.mock.calls.map(args => args[0])).toEqual(['reviewNetworkCatalog']);
 });
 
+test('another load can recover when a malformed catalog was served first', async () => {
+  const UA = setup();
+  UA.DataResources.fetchJson.mockResolvedValueOnce({ schemaVersion: 1, cities: [] });
+  await expect(UA.ReviewNetwork.load('Hannover')).resolves.toBeNull();
+  const result = await UA.ReviewNetwork.load('Hannover');
+  expect(result?.revision).toBe(revision);
+});
+
 test('register snapshots validate source, counts and unique stable IDs across parts', async () => {
   const UA = setup();
   expect(UA.ReviewNetwork).toBeDefined();
@@ -73,6 +83,33 @@ test('register snapshots validate source, counts and unique stable IDs across pa
   await expect(differentRevision.ReviewNetwork.load('Hannover')).resolves.toBeNull();
   const mismatchedCount = setup(undefined, { counts: { segment: 4, junction: 1, crossing: 1 } });
   await expect(mismatchedCount.ReviewNetwork.load('Hannover')).resolves.toBeNull();
+});
+
+test('loads all Hanover partitions when progress continues beyond twenty seconds', async () => {
+  const UA = setup();
+  UA.DataBudget = dataBudget;
+  const directory = path.resolve(__dirname, '../../data/mobility/review-network');
+  const json = file => JSON.parse(fs.readFileSync(path.join(directory, file), 'utf8'));
+  const snapshot = json('hannover/index.json');
+  UA.DataResources.fetchJson.mockImplementation(async (kind, { part }) => {
+    if (kind === 'reviewNetworkCrossings') return null;
+    await new Promise(resolve => setTimeout(resolve, 6000));
+    if (kind === 'reviewNetworkCatalog') return json('catalog.json');
+    if (kind === 'reviewNetworkIndex') return snapshot;
+    return JSON.parse(gunzipSync(fs.readFileSync(path.join(directory, 'hannover', part + '.json.gz'))));
+  });
+  jest.useFakeTimers();
+  try {
+    const loaded = UA.ReviewNetwork.load('Hannover');
+    await jest.advanceTimersByTimeAsync(6000 * (2 + Math.ceil(snapshot.parts.length / 6)));
+    const network = await loaded;
+    expect(network?.revision).toBe(snapshot.revision);
+    expect(network.sites.has('j:60655478')).toBe(true);
+    expect(network.counts).toEqual(snapshot.counts);
+    expect(jest.getTimerCount()).toBe(0);
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test.each([true, false])('falls back from a stalled fetch when another part is missing %s', async missing => {

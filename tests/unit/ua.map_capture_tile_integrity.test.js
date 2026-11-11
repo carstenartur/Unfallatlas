@@ -166,3 +166,67 @@ describe('map capture tile integrity wrapper', () => {
     expect(matches).toHaveLength(1);
   });
 });
+describe('official aerial image for a Word document', () => {
+  const bounds = { south: 52.3755287, west: 9.7264805, north: 52.3759064, east: 9.7270992 };
+  const area = { CITY_RAW: 'Hannover', mapMode: 'standard' };
+
+  function initialise() {
+    loadModule(jest.fn());
+    window.L = require('leaflet');
+    eval(fs.readFileSync(path.resolve(__dirname, '../../js/ua.map_layer_registry.js'), 'utf8'));
+    const picture = { decode: jest.fn().mockResolvedValue(undefined), naturalWidth: 1500, naturalHeight: 900 };
+    jest.spyOn(window, 'Image').mockImplementation(() => picture);
+    const pixels = new Uint8ClampedArray([23, 37, 46, 255, 92, 114, 63, 255]);
+    const drawing = { drawImage: jest.fn(), getImageData: jest.fn(() => ({ data: pixels })) };
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(drawing);
+    return { picture, drawing };
+  }
+
+  afterEach(() => {
+    delete window.fetch;
+    delete window.UA;
+    delete window.L;
+    delete window.leafletImage;
+    jest.restoreAllMocks();
+  });
+
+  test('fetches a print-size WMS frame containing the selected place regardless of live map mode', async () => {
+    initialise();
+    window.fetch = jest.fn(async () => ({ ok: true, blob: async () => new Blob(['image'], { type: 'image/png' }) }));
+    const capture = await window.UA.fetchDocumentOrthophoto(area, bounds);
+    expect(window.fetch).toHaveBeenCalledTimes(1);
+    const url = new URL(capture.url);
+    expect(url.hostname).toBe('opendata.lgln.niedersachsen.de');
+    expect(url.searchParams.get('LAYERS')).toBe('ni_dop20');
+    expect(url.searchParams.get('SRS')).toBe('EPSG:3857');
+    expect(url.searchParams.get('WIDTH')).toBe('1500');
+    expect(url.searchParams.get('HEIGHT')).toBe('900');
+    const [left, bottom, right, top] = url.searchParams.get('BBOX').split(',').map(Number);
+    expect((right - left) / (top - bottom)).toBeCloseTo(1500 / 900, 7);
+    expect(capture.bounds.south).toBeLessThan(bounds.south);
+    expect(capture.bounds.west).toBeLessThan(bounds.west);
+    expect(capture.bounds.north).toBeGreaterThan(bounds.north);
+    expect(capture.bounds.east).toBeGreaterThan(bounds.east);
+    expect(capture.provider.officialForExport).toBe(true);
+    expect(capture.provider.license).toBe('CC BY 4.0');
+    expect(capture.image).toMatch(/^data:image\/png;base64,/);
+  });
+
+  test('skips placeholder or malformed rasters and never requests an unofficial fallback', async () => {
+    const { picture, drawing } = initialise();
+    picture.decode.mockImplementationOnce(async () => { throw new Error('decode'); });
+    drawing.getImageData.mockReturnValue({ data: new Uint8ClampedArray([255, 255, 255, 255, 255, 255, 255, 255]) });
+    window.fetch = jest.fn(async () => ({ ok: true, blob: async () => new Blob(['bad'], { type: 'image/png' }) }));
+    expect(await window.UA.fetchDocumentOrthophoto(area, bounds)).toBeNull();
+    expect(window.fetch.mock.calls.map(([url]) => new URL(url).hostname))
+      .toEqual(['opendata.lgln.niedersachsen.de', 'sg.geodatenzentrum.de']);
+  });
+
+  test('does not request an image when no coordinates were selected', async () => {
+    initialise();
+    window.fetch = jest.fn();
+    expect(await window.UA.fetchDocumentOrthophoto(area, null)).toBeNull();
+    expect(await window.UA.fetchDocumentOrthophoto(area, { ...bounds, west: null })).toBeNull();
+    expect(window.fetch).not.toHaveBeenCalled();
+  });
+});

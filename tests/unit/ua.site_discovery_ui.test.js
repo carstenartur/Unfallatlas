@@ -398,6 +398,29 @@ describe('optional network register', () => {
     expect(ctx.discoveryFocus.key).toBe('turning:5');
   });
 
+  test.each(['report', 'discovery'])('retries a failed shared network when reopening the %s, once per opening', async target => {
+    const { UA, ctx } = setup(options => {
+      registerReviewNetwork(options);
+      options.UA.qBool = name => name === 'export';
+      options.ctx.ui = { btnOpenExport: document.createElement('button') };
+      options.UA.ReviewNetwork.load.mockResolvedValueOnce(null);
+      restoreNetworkFocus(options.ctx, options.bounds);
+    });
+    await expect(ctx.reviewNetworkPromise).resolves.toBeNull();
+    UA.SiteDiscoveryUI.dataChanged(ctx);
+    expect(UA.ReviewNetwork.load).toHaveBeenCalledTimes(1);
+    const open = target === 'report' ? ctx.ui.btnOpenExport : document.querySelector('#btnDiscover');
+    open.click();
+    UA.SiteDiscoveryUI.dataChanged(ctx);
+    const result = await ctx.reviewNetworkPromise;
+    expect(UA.ReviewNetwork.load).toHaveBeenCalledTimes(2);
+    expect(result?.network.revision).toBe(networkRevision);
+    expect(document.querySelector('#siteDiscoveryPanel').textContent).toContain('Knoten Friedrichswall');
+    open.click();
+    await Promise.resolve();
+    expect(UA.ReviewNetwork.load).toHaveBeenCalledTimes(2);
+  });
+
   test.each(['revision', 'bounds', 'profile'])('retains the original rectangle when the saved %s is unavailable', async mismatch => {
     const { ctx } = setup(options => {
       registerReviewNetwork(options);
