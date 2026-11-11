@@ -65,7 +65,7 @@
         {
           "rowId": "severity.fatal",
           "cellPatterns": [
-            "^1\\s*–\\s*Getötete$",
+            "^Unfälle mit Getöteten$",
             "^1$",
             "^4,2%$"
           ]
@@ -73,7 +73,7 @@
         {
           "rowId": "severity.serious",
           "cellPatterns": [
-            "^2\\s*–\\s*Schwerverletzte$",
+            "^Unfälle mit Schwerverletzten$",
             "^6$",
             "^25,0%$"
           ]
@@ -81,7 +81,7 @@
         {
           "rowId": "severity.light",
           "cellPatterns": [
-            "^3\\s*–\\s*Leichtverletzte$",
+            "^Unfälle mit Leichtverletzten$",
             "^17$",
             "^70,8%$"
           ]

@@ -65,7 +65,7 @@ describe('Werkbank deployment asset versions', () => {
   test('loads the documented cost model and the source-checked renderers', () => {
     expect(html).toContain('js/ua.costs.js?v=2026-11-11-kostenmodell"');
     expect(html).toContain('js/ua.export_v2.js?v=2026-11-11-antrag-amtliche-belege"');
-    expect(html).toContain('js/ua.report_v2.js?v=2026-11-11-antragsbelege-lesart"');
+    expect(html).toContain('js/ua.report_v2.js?v=2026-11-11-belege-luftbild"');
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {

@@ -49,9 +49,8 @@ describe('CI package installation reliability', () => {
     }
   });
 
-  test('all Docker APT layers retry transient mirrors, bound connections and verify binaries', () => {
+  test('application Docker APT layers retry transient mirrors, bound connections and verify binaries', () => {
     const applicationDockerfile = read('Dockerfile');
-    const analysisDockerfile = read('analysis-service/Dockerfile');
 
     expect(applicationDockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
     expect(applicationDockerfile.match(/Acquire::ForceIPv4=true/g)).toHaveLength(2);
@@ -61,12 +60,14 @@ describe('CI package installation reliability', () => {
     expect(applicationDockerfile).toContain('sh /tmp/configure-ubuntu-mirrors.sh');
     expect(applicationDockerfile).toContain('test -x /usr/bin/ffmpeg');
     expect(applicationDockerfile).toContain('command -v convert >/dev/null');
+  });
 
-    expect(analysisDockerfile.match(/Acquire::Retries=5/g)).toHaveLength(2);
-    expect(analysisDockerfile.match(/Acquire::http::Timeout=30/g)).toHaveLength(2);
-    expect(analysisDockerfile.match(/Acquire::https::Timeout=30/g)).toHaveLength(2);
-    expect(analysisDockerfile).toContain('DEBIAN_FRONTEND=noninteractive apt-get');
-    expect(analysisDockerfile).toContain('test -x /usr/bin/curl');
+  test('analysis healthcheck runs the locally compiled HTTP probe on its runtime JRE', () => {
+    const dockerfile = read('analysis-service/Dockerfile');
+    const runtime = dockerfile.slice(dockerfile.indexOf('FROM eclipse-temurin:'));
+    expect(runtime).not.toMatch(/\bapt-get\b/);
+    expect(runtime).toContain('COPY --from=build /workspace/target/classes/de/unfallatlas/analysis/health/ContainerHealthCheck.class /app/healthcheck/de/unfallatlas/analysis/health/ContainerHealthCheck.class');
+    expect(runtime).toContain('CMD ["java", "-Xmx16m", "-XX:+UseSerialGC", "-cp", "/app/healthcheck", "de.unfallatlas.analysis.health.ContainerHealthCheck"]');
   });
 
   test('rendered-document dependencies bypass a stalled regional mirror and remain bounded', () => {

@@ -258,6 +258,14 @@
     return evidence.count;
   }
 
+  const aerialOrientation = 'Nord ist oben. Das Aufnahmedatum ist im Kartenbild nicht ausgewiesen.';
+  const aerialUnavailable = 'Für diesen Ausschnitt war beim Export kein amtliches Luftbild verfügbar.';
+
+  function aerialCaption(place) {
+    const label = 'Amtliches Luftbild des Untersuchungsbereichs';
+    return place ? label + ' – ' + place : label;
+  }
+
   function severityPopulationText(sd) {
     const title = "Unfälle im ausgewerteten Ausschnitt nach schwerster Folge";
     const total = sd?.severity?.total;
@@ -2918,9 +2926,9 @@
       const photo = await UA.fetchDocumentOrthophoto?.(ctx, plan.bounds);
       let aerial = null;
       if (photo) {
-        const label = 'Amtliches Luftbild des Untersuchungsbereichs';
         const place = sd?.siteNetwork?.label || sd?.meta?.areaName;
-        figure(photo.image, place ? label + ' – ' + place : label, place || label);
+        const caption = aerialCaption(place);
+        figure(photo.image, caption, place || caption);
         const credit = photo.provider.attribution;
         const licence = photo.provider.license;
         const sourceUrl = reportLink(photo.provider.metadataUrl);
@@ -2930,7 +2938,7 @@
           : new TextRun({ text: value });
         children.push(new Paragraph({
           children: [new TextRun('Bildquelle: '), linked(credit, sourceUrl), new TextRun(' · '),
-            linked(licence, licenseUrl), new TextRun('. Nord ist oben. Das Aufnahmedatum ist im Kartenbild nicht ausgewiesen.')], spacing: { after: 140 }
+            linked(licence, licenseUrl), new TextRun('. ' + aerialOrientation)], spacing: { after: 140 }
         }));
         // Reuse this exact image for the detail crops, with the same GetMap bounds.
         if (window.Image) {
@@ -2944,7 +2952,7 @@
           }
         }
       } else {
-        children.push(motionParagraph('Für diesen Ausschnitt war beim Export kein amtliches Luftbild verfügbar.'));
+        children.push(motionParagraph(aerialUnavailable));
       }
       children.push(motionParagraph('Die Punkte liegen auf den veröffentlichten Koordinaten. '
           + (evidence ? 'Die Linien verbinden sie mit den Kennungen in der Unfallliste.' : 'Die Linien führen zu den Punktkennungen dieses Kartenausschnitts.')
@@ -5380,6 +5388,25 @@
         });
       } finally {
         documentMap.close();
+      }
+      if (formalMotion && sd?.siteNetwork?.status === 'available') {
+        const photo = await UA.fetchDocumentOrthophoto?.(ctx, plan.bounds);
+        if (photo) {
+          const fig = pdfFigCounter.next(aerialCaption(sd.siteNetwork.label || sd.meta?.areaName));
+          const provider = photo.provider;
+          docDefinition.content.push({
+            unbreakable: true,
+            stack: [
+              { image: photo.image, fit: [PDF_MAP_MAX.width, PDF_MAP_MAX.height], alignment: 'center', margin: [0, 10, 0, 6] },
+              { text: fig.caption, style: 'caption', alignment: 'center' },
+              { text: ['Bildquelle: ', linkedPdfRun({ text: provider.attribution, href: reportLink(provider.metadataUrl) }),
+                ' · ', linkedPdfRun({ text: provider.license, href: reportLink(provider.licenseUrl) }), '. ' + aerialOrientation],
+                style: 'small', margin: [0, 4, 0, 8] }
+            ]
+          });
+        } else {
+          docDefinition.content.push({ text: 'Die separate amtliche Luftbildaufnahme für den gesamten Ausschnitt war beim Export nicht verfügbar.', style: 'small', margin: [0, 4, 0, 8] });
+        }
       }
     }
     const mapSection = formalMotion ? docDefinition.content.splice(mapsStart) : [];

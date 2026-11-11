@@ -60,9 +60,9 @@ const rows = model.pages.flatMap(page => page.tableRows || []);
 const byId = new Map(rows.map(row => [row.rowId, row]));
 const expectedRows = {
   'severity.header': ['Kategorie', 'Anzahl', 'Anteil'],
-  'severity.fatal': ['1 – Getötete', '1', '4,2%'],
-  'severity.serious': ['2 – Schwerverletzte', '6', '25,0%'],
-  'severity.light': ['3 – Leichtverletzte', '17', '70,8%'],
+  'severity.fatal': ['Unfälle mit Getöteten', '1', '4,2%'],
+  'severity.serious': ['Unfälle mit Schwerverletzten', '6', '25,0%'],
+  'severity.light': ['Unfälle mit Leichtverletzten', '17', '70,8%'],
   'deviations.header': ['Muster', 'Lokal', 'Lokal%', 'Stadt%', 'Faktor', '95%-KI (lokaler Anteil)'],
   'deviations.rad-car': ['5', '11', '45,8%', '14,6%', '3,13×', '[– – –]'],
   'yearly-accidents.header': ['Jahr', 'Summe', 'Kombinationen'],
