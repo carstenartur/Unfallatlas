@@ -382,6 +382,98 @@
         "maxCells": 5112
       },
       "originalEntrySha256": "3e18321cdc82fd890e4c0060e0d82d5561d9ce58c4e7cdb7eebba1bf950e1ddf"
+    },
+    {
+      "kind": "high-residual",
+      "wayId": "24855098",
+      "name": "Am Lindener Berge",
+      "osmUrl": "https://www.openstreetmap.org/way/24855098",
+      "osmSourceUrl": "https://api.openstreetmap.org/api/0.6/way/24855098/full",
+      "osmVersion": "8",
+      "originalVersion": "8",
+      "originalTimestamp": "2023-11-16T09:50:15Z",
+      "osmRetrievedAt": "2026-11-11T09:34:51Z",
+      "originalTags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Am Lindener Berge",
+        "name:etymology:wikidata": "Q1644422",
+        "sidewalk": "both",
+        "surface": "asphalt",
+        "wikidata": "Q98280558"
+      },
+      "geometry": [
+        {
+          "lat": 52.363877,
+          "lon": 9.7070127
+        },
+        {
+          "lat": 52.3639121,
+          "lon": 9.7070168
+        },
+        {
+          "lat": 52.363935,
+          "lon": 9.7070356
+        },
+        {
+          "lat": 52.3640756,
+          "lon": 9.7071844
+        }
+      ],
+      "sourceUrl": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_Mitte.zip",
+      "archiveSha256": "3c29f3ca59031fd8951612aa5349952fa0053b03c74c4633feb7fdbf08a83e47",
+      "originalEntries": [
+        {
+          "entry": "4801A.xyz",
+          "sha256": "3e18321cdc82fd890e4c0060e0d82d5561d9ce58c4e7cdb7eebba1bf950e1ddf",
+          "bytes": 9250000
+        }
+      ],
+      "dgmRetrievedAt": "2026-11-11T09:34:51Z",
+      "file": "lindener-24855098.xyz",
+      "bytes": 17612,
+      "sha256": "3ba0322380684399cf8921c350f7638e4e8cbce4e9a085246e257974d9adb8bd",
+      "pointCount": 476,
+      "grid": {
+        "crs": "EPSG:25832",
+        "resolutionMeters": 1,
+        "minEasting": 548139.5,
+        "maxEasting": 548155.5,
+        "minNorthing": 5801743.5,
+        "maxNorthing": 5801770.5
+      },
+      "anchor": {
+        "lat": 52.363979802678884,
+        "lon": 9.707083015637396
+      },
+      "expected": {
+        "20": {
+          "result": {
+            "gradientPercent": -26.1,
+            "profileLengthMeters": 25.3,
+            "usable": true,
+            "quality": "low",
+            "sampleCount": 27,
+            "residualMadMeters": 1.625,
+            "uncertaintyReasons": [
+              "elevated_profile_residual"
+            ]
+          }
+        },
+        "50": {
+          "result": {
+            "gradientPercent": -26.1,
+            "profileLengthMeters": 25.3,
+            "usable": true,
+            "quality": "low",
+            "sampleCount": 27,
+            "residualMadMeters": 1.625,
+            "uncertaintyReasons": [
+              "elevated_profile_residual"
+            ]
+          }
+        }
+      }
     }
   ]
 }

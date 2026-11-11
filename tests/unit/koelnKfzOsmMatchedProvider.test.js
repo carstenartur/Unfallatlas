@@ -277,6 +277,19 @@ describe('Cologne OSM-matched traffic provider', () => {
       sources: expect.objectContaining({ osm: expect.objectContaining({ sha256: osmSha256() }) }) }));
   });
 
+  test('indexes measured tile sizes and unique ways when the public v3 way sidecar is a pointer', async () => {
+    const root = makeRoot();
+    const written = writeArtifact(root);
+    const out = writeApplicationTarget(root);
+    fs.writeFileSync(path.join(out, 'ways_koeln.json'), JSON.stringify({schemaVersion:3, coverage:'full'}));
+    const {applyMatchedTraffic} = require('../../scripts/apply-matched-traffic');
+    await applyMatchedTraffic({root, city:'Köln', artifactFile:written.file, expectedArtifactSha256:written.sha256});
+    const read = file => JSON.parse(fs.readFileSync(path.join(out, file)));
+    expect(read('output_all_years_koeln.enrichment.meta.json').traffic.uniqueWayTypes).toEqual({count:1});
+    const compressed = require('node:zlib').gzipSync(fs.readFileSync(path.join(out, 'ctxtiles/koeln/1/2.json')), {level:9});
+    expect(read('ctxtiles/koeln/index.json').tiles[0].bytes).toBe(compressed.length);
+  });
+
   test.each(['coordinate', 'order', 'input-pin'])('fails before any writes when matching geometry changes: %s', async mutation => {
     const root = makeRoot();
     const written = writeArtifact(root);

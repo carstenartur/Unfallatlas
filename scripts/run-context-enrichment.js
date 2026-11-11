@@ -5,6 +5,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { validateAll: validateContextDatasets } = require('./check-context-datasets');
 const { slugify } = require('./lib/static-data-validation');
+const { shouldStageKoelnTraffic } = require('./providers/koeln_traffic_delivery');
 
 const ROOT = path.resolve(__dirname, '..');
 const SELECTED_FILE = path.join(ROOT, '.build', 'context-selected-cities.txt');
@@ -251,8 +252,9 @@ function refreshCity(city, options, state) {
   }
 
   const dgm1Applied = applyHannoverDgm1(city, options);
-  run('scripts/apply-qualitative-traffic-proxy.js', ['--city', city]);
-  const matchedTrafficApplied = applyMatchedTrafficForCity(city);
+  const stagedCounts = shouldStageKoelnTraffic(citySlug(city));
+  if (!stagedCounts) run('scripts/apply-qualitative-traffic-proxy.js', ['--city', city]);
+  const matchedTrafficApplied = stagedCounts || applyMatchedTrafficForCity(city);
   state.cities.push({
     city,
     slug: citySlug(city),

@@ -1,0 +1,57 @@
+{
+  "source": "DGM1, Landeshauptstadt Hannover",
+  "surveyYear": 2010,
+  "crs": "EPSG:25832",
+  "verticalDatum": null,
+  "license": "CC-BY-4.0",
+  "attribution": "Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026)",
+  "archives": [
+    {
+      "part": "West",
+      "url": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_West.zip",
+      "sha256": "cab7e388d7d8eb1bba4b2b3843f08b6ab3f07a2a569c5101412843df3f9b3fd0",
+      "bytes": 114447854,
+      "xyzEntries": 119,
+      "uncompressedBytes": 1100750000,
+      "retrievedAt": "2026-11-11T09:31:38Z"
+    },
+    {
+      "part": "Mitte",
+      "url": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_Mitte.zip",
+      "sha256": "3c29f3ca59031fd8951612aa5349952fa0053b03c74c4633feb7fdbf08a83e47",
+      "bytes": 185387169,
+      "xyzEntries": 192,
+      "uncompressedBytes": 1776000000,
+      "retrievedAt": "2026-11-11T09:31:38Z"
+    },
+    {
+      "part": "Sued",
+      "url": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_Sued.zip",
+      "sha256": "ec93df27fa23db7e08722071d642e9d83448844b1f649c0e595314030d1d3d8b",
+      "bytes": 206432560,
+      "xyzEntries": 216,
+      "uncompressedBytes": 1998000000,
+      "retrievedAt": "2026-11-11T09:31:38Z"
+    },
+    {
+      "part": "Ost",
+      "url": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_Ost.zip",
+      "sha256": "8a1e9b13e783ef4a32917d1469f8d408e73b94eea6ee495397d9376c402fde08",
+      "bytes": 160955982,
+      "xyzEntries": 166,
+      "uncompressedBytes": 1535500000,
+      "retrievedAt": "2026-11-11T09:31:38Z"
+    },
+    {
+      "part": "Nord",
+      "url": "https://opengeodata.hannover-stadt.de/DGM1_XYZ_Teil_Nord.zip",
+      "sha256": "e52664e1fa3ecaf85fd6f475215a6727fef4d564e1d83411afda68b2e935cc70",
+      "bytes": 226965283,
+      "xyzEntries": 236,
+      "uncompressedBytes": 2183000000,
+      "retrievedAt": "2026-11-11T09:31:38Z"
+    }
+  ],
+  "packedRasterSha256": "492a90154f4fd1791dd81d8eb1044717af108c8ecba38a8206bdbfa24ff6c7fb",
+  "packedManifestSha256": "ae059553e8814644c798ba2c5a90b61f4acd6074993fbfc92c19d4c4cedf9af1"
+}
