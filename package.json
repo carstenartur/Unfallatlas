@@ -44,6 +44,7 @@
     "validate:action-pins": "node scripts/validate-action-pins.js",
     "prepare:accident-publication": "node scripts/accident-publication-package.js prepare",
     "verify:accident-publication": "node scripts/accident-publication-package.js verify",
+    "qa:vendor-upstream-rebuild": "bash scripts/verify-docx-upstream.sh && bash scripts/verify-pdfmake-upstream.sh",
     "validate:vendor-build-lock": "node scripts/vendor-build-lock.js --check",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:headed": "playwright test --project=chromium --headed",

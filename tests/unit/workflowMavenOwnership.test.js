@@ -106,6 +106,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
 
   test('specialized workflows call documented Maven profiles', () => {
     const expected = {
+      'verify-export-upstream.yml': ['-Pvendor-upstream-rebuild'],
       'test.yml': [
         '-N process-resources -Prepository-storage',
         '-Ppages',
