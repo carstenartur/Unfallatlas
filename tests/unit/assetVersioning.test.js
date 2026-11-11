@@ -58,13 +58,13 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-11-network-loading"');
   });
 
-  test.each(['ua.context_layers', 'ua.report_v2'])
+  test.each(['ua.context_layers'])
   ('%s loads the published OSM road context for application exports', asset => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-11-osm-road-context"');
   });
 
-  test('loads German number formatting for exported applications', () => {
-    expect(html).toContain('js/ua.export_v2.js?v=2026-11-11-de-counts"');
+  test.each(['ua.costs', 'ua.export_v2', 'ua.report_v2'])('%s loads the documented cost model', asset => {
+    expect(html).toContain('js/' + asset + '.js?v=2026-11-11-kostenmodell"');
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {

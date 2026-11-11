@@ -1960,11 +1960,8 @@
           : 1;
         const calc = UA.costs.computeAnnualCost(sev.bySev, yearsCount, factors);
         economicImpact = {
-          annual: calc.annual,
-          total: calc.total,
-          years: calc.years,
-          breakdown: calc.breakdown,
-          counts: calc.counts,
+          ...calc,
+          modelVersion: 2,
           source: factors.source,
           disclaimer: factors.disclaimer,
           // Trend-Qualifier (PR-β): nutzt die bereits berechnete `yearlyTrend`-
@@ -2348,24 +2345,14 @@
 
     // Add economic impact (PR-C / B2): respect ctx.exportOptions.includeCosts (default ON).
     // Note: `economicImpact` is null when the toggle was off (load gated above).
-    if (includeCosts && economicImpact && economicImpact.total > 0) {
-      const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-      lines.push("Volkswirtschaftliche Bedeutung (Schätzung):");
-      lines.push(`  Geschätzte externe Kosten im Bereich: ${fmt(economicImpact.total)} (Datenzeitraum ${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"}).`);
-      lines.push(`  Pro Jahr: ca. ${fmt(economicImpact.annual)}.`);
-      lines.push(`  Aufschlüsselung – Getötete: ${fmt(economicImpact.breakdown.fatal)} · Schwerverletzte: ${fmt(economicImpact.breakdown.severe)} · Leichtverletzte: ${fmt(economicImpact.breakdown.light)}.`);
-      // Trend-Qualifier: Klassifikation der Mehrjahres-Trendlinie (PR-β),
-      // damit Antragstexte den Kostenblock ehrlich einordnen können.
+    const costTable = includeCosts && economicImpact && UA.costs.reportTable(economicImpact);
+    if (costTable) {
+      lines.push(costTable.title, costTable.note, costTable.headers.join(" | "));
+      for (const row of costTable.rows) lines.push(row.join(" | "));
       const tq = trendQualifierText(economicImpact.trendQualifier);
-      if (tq) lines.push(`  Mehrjahres-Trend: ${tq}.`);
-      if (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year)) {
-        const srcParts = [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ");
-        lines.push(`  Quelle: ${srcParts}.`);
-      }
-      if (economicImpact.disclaimer) {
-        lines.push(`  Hinweis: ${economicImpact.disclaimer}`);
-      }
-      lines.push("");
+      if (tq) lines.push(`Mehrjahres-Trend der Unfallzahlen: ${tq}.`);
+      lines.push(`Quelle: ${costTable.sourceLabel} – ${costTable.sourceUrl}`, "");
+
     }
 
     if (measureAssessmentNote) lines.push(measureAssessmentNote, "");
@@ -2773,31 +2760,16 @@
 
     // Build economic-impact HTML section (PR-C / B2)
     let economicImpactHtmlSection = "";
-    if (includeCosts && economicImpact && economicImpact.total > 0) {
-      const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-      const srcParts = (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year))
-        ? [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ")
-        : "";
-      const srcUrl = (economicImpact.source && economicImpact.source.url) ? economicImpact.source.url : "";
+    if (costTable) {
+      const tq = trendQualifierText(economicImpact.trendQualifier);
       economicImpactHtmlSection = `
-        <div style="margin-top:12px; font-weight:900;">Volkswirtschaftliche Bedeutung (Schätzung)</div>
-        <table class="report" style="margin-top:6px;">
-          <thead>
-            <tr><th>Kategorie</th><th style="text-align:right;">Anzahl</th><th style="text-align:right;">Geschätzte Kosten</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Getötete</td><td style="text-align:right;">${economicImpact.counts.fatal}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.fatal))}</td></tr>
-            <tr><td>Schwerverletzte</td><td style="text-align:right;">${economicImpact.counts.severe}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.severe))}</td></tr>
-            <tr><td>Leichtverletzte</td><td style="text-align:right;">${economicImpact.counts.light}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.light))}</td></tr>
-            <tr style="font-weight:700; border-top:2px solid #aaa;"><td>Gesamt im Datenzeitraum (${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"})</td><td style="text-align:right;">${economicImpact.counts.fatal + economicImpact.counts.severe + economicImpact.counts.light}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.total))}</td></tr>
-            <tr style="font-weight:700;"><td>Pro Jahr</td><td></td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.annual))}</td></tr>
-          </tbody>
-        </table>
-        <div style="margin-top:6px; color:#555; font-size:12px;">
-          ${(() => { const tq = trendQualifierText(economicImpact.trendQualifier); return tq ? `<div><strong>Mehrjahres-Trend:</strong> ${UA.escHtml(tq)}.</div>` : ""; })()}
-          ${srcParts ? `<div><strong>Quelle:</strong> ${UA.escHtml(srcParts)}${srcUrl ? ` (<a href="${UA.escHtml(srcUrl)}" target="_blank" rel="noopener">Link</a>)` : ""}</div>` : ""}
-          ${economicImpact.disclaimer ? `<div style="font-style:italic; margin-top:4px;">${UA.escHtml(economicImpact.disclaimer)}</div>` : ""}
-        </div>`;
+        <div style="margin-top:12px; font-weight:900;">${UA.escHtml(costTable.title)}</div>
+        <p>${UA.escHtml(costTable.note)}</p>
+        <table class="report"><thead><tr>${costTable.headers.map(label => `<th>${UA.escHtml(label)}</th>`).join("")}</tr></thead>
+        <tbody>${costTable.rows.map(row => `<tr>${row.map(cell => `<td>${UA.escHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+        ${tq ? `<div>Mehrjahres-Trend der Unfallzahlen: ${UA.escHtml(tq)}.</div>` : ""}
+        <div>Quelle: <a href="${UA.escHtml(costTable.sourceUrl)}" target="_blank" rel="noopener">${UA.escHtml(costTable.sourceLabel)}</a></div>`;
+
     }
 
     // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec

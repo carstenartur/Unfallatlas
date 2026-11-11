@@ -1,38 +1,40 @@
-/**
- * UA.costs — Volkswirtschaftliche Unfallkosten (BASt-Größenordnungen).
- *
- * Lädt `data/cost_factors_de.json` und stellt reine Helfer bereit, um aus
- * Schweregradzählungen jährliche externe Kosten zu schätzen.
- *
- * Schweregradschlüssel folgen der Unfallatlas-Konvention (`ukategorie`):
- *   "1" → Getötete (fatal)
- *   "2" → Schwerverletzte (severe)
- *   "3" → Leichtverletzte (light)
- *
- * Alle Funktionen sind reine Berechnungen ohne DOM-Zugriff und gut testbar.
- */
+/** Modelled personal injury costs based on accident counts in Unfallatlas. */
 (() => {
   const UA = (window.UA = window.UA || {});
-
   const COST_DATA_URL = "data/cost_factors_de.json";
-
-  // Hardcoded fallback (BASt-Größenordnungen). Wird verwendet, wenn die JSON
-  // nicht geladen werden kann (z. B. in Tests oder bei Offline-Nutzung).
+  // Offline copy of the published factor file. A unit test checks exact parity.
   const FALLBACK = Object.freeze({
-    version: 1,
-    source: {
-      publisher: "BASt – Bundesanstalt für Straßenwesen",
-      title: "Volkswirtschaftliche Kosten von Straßenverkehrsunfällen (Fallback-Größenordnungen)",
-      year: 2023,
-      url: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
+    "version": 2,
+    "source": {
+      "publisher": "Bundesanstalt für Straßenwesen (BASt)",
+      "title": "Verkehrsbericht 2024 des Polizeipräsidiums Osthessen, S. 5, Fußnote 1",
+      "year": 2023,
+      "url": "https://www.polizei.hessen.de/sites/polizei.hessen.de/files/2026-01/ppoh_verkehrsbericht_2024.pdf#page=6"
     },
-    perAccident: {
-      fatal:  { value: 1300000, unit: "EUR", key: "ukategorie=1", label: "Getöteter" },
-      severe: { value:  140000, unit: "EUR", key: "ukategorie=2", label: "Schwerverletzter" },
-      light:  { value:    5000, unit: "EUR", key: "ukategorie=3", label: "Leichtverletzter" }
+    "perPerson": {
+      "fatal": {
+        "value": 1225152,
+        "unit": "EUR/Person",
+        "label": "Getötete Person"
+      },
+      "severe": {
+        "value": 131878,
+        "unit": "EUR/Person",
+        "label": "Schwerverletzte Person"
+      },
+      "light": {
+        "value": 6082,
+        "unit": "EUR/Person",
+        "label": "Leichtverletzte Person"
+      }
     },
-    disclaimer: "Grobe Schätzung volkswirtschaftlicher Kosten nach BASt-Größenordnungen. Sachschäden ohne Personenschaden sind nicht erfasst. Kein Ersatz für ein Fachgutachten."
+    "disclaimer": "Die Rechnung setzt je Unfall eine Person der höchsten erfassten Verletzungsschwere an. Die Unfallstatistik zählt hier Unfälle. Weitere Betroffene und Sachschäden bleiben unberücksichtigt. Der Modellwert erlaubt keine Aussage über den tatsächlichen örtlichen Schaden oder die Einsparung durch eine Maßnahme."
   });
+  const categories = [
+    ["fatal", "Mit Getöteten"],
+    ["severe", "Mit Schwerverletzten"],
+    ["light", "Mit Leichtverletzten"]
+  ];
 
   let _cached = null;
 
@@ -52,7 +54,9 @@
       }
       const data = await r.json();
       // Validiere Mindeststruktur, sonst Fallback
-      if (data && data.perAccident && data.perAccident.fatal && data.perAccident.severe && data.perAccident.light) {
+      if (data?.version === 2 && Number.isInteger(data.source?.year) && /^https:\/\//.test(data.source.url)
+          && data.source.publisher && data.source.title && data.disclaimer && categories.every(([key]) =>
+            data.perPerson?.[key]?.unit === "EUR/Person" && Number.isFinite(data.perPerson[key].value) && data.perPerson[key].value > 0)) {
         _cached = data;
       } else {
         _cached = FALLBACK;
@@ -69,7 +73,7 @@
   function _resetCache() { _cached = null; }
 
   /**
-   * Berechnet die jährlichen externen Kosten aus einer Schweregrad-Zählung.
+   * Berechnet einen Modellwert für Personenschäden aus gezählten Unfällen.
    *
    * @param {{ "1"?: number, "2"?: number, "3"?: number }} severityCounts
    *        Anzahl der Unfälle pro Schweregrad (gesamt über `years` Jahre).
@@ -90,7 +94,8 @@
     const cSevere = Number(sc["2"]) || 0;
     const cLight  = Number(sc["3"]) || 0;
 
-    const f = (factors && factors.perAccident) || FALLBACK.perAccident;
+    // Older callers may supply their own rates under the previous field name.
+    const f = factors?.perPerson || factors?.perAccident || FALLBACK.perPerson;
     const vFatal  = Number(f.fatal && f.fatal.value)  || 0;
     const vSevere = Number(f.severe && f.severe.value) || 0;
     const vLight  = Number(f.light && f.light.value)  || 0;
@@ -110,6 +115,30 @@
       },
       counts:  { fatal: cFatal, severe: cSevere, light: cLight },
       factors: { fatal: vFatal, severe: vSevere, light: vLight }
+    };
+  }
+
+  function reportTable(impact) {
+    if (!impact?.counts) return null;
+    // Previously saved reports used unverified rates. Their crash counts still
+    // allow a calculation using today's documented model and source.
+    if (impact.modelVersion !== 2) {
+      const { fatal, severe, light } = impact.counts;
+      const calc = computeAnnualCost({ 1: fatal, 2: severe, 3: light }, impact.years, FALLBACK);
+      impact = { ...calc, source: FALLBACK.source, disclaimer: FALLBACK.disclaimer };
+    }
+    if (!(impact.total > 0)) return null;
+    const rows = categories.map(([key, label]) => [label, String(impact.counts[key]), formatEUR(impact.factors[key]), formatEUR(impact.breakdown[key])]);
+    const count = categories.reduce((sum, [key]) => sum + impact.counts[key], 0);
+    rows.push([`Gesamt (${impact.years} ${impact.years === 1 ? "Jahr" : "Jahre"})`, String(count), "", formatEUR(impact.total)]);
+    rows.push(["Jahresmittel", "", "", formatEUR(impact.annual)]);
+    return {
+      title: "Modellrechnung für Personenschäden",
+      headers: ["Unfallkategorie", "Unfälle", "Satz je Person", "Modellwert"],
+      rows,
+      note: impact.disclaimer,
+      sourceLabel: `${impact.source.publisher}, Preisstand ${impact.source.year}. ${impact.source.title}`,
+      sourceUrl: impact.source.url
     };
   }
 
@@ -172,6 +201,7 @@
     loadCostFactors,
     computeAnnualCost,
     formatEUR,
+    reportTable,
     computeAmortisationYears,
     FALLBACK,
     _resetCache

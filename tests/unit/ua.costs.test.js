@@ -15,6 +15,19 @@ describe('UA.costs', () => {
   });
 
   describe('computeAnnualCost', () => {
+    test('four crashes with severe injuries use the documented 2023 rate per modelled person', () => {
+      const factors = require('../../data/cost_factors_de.json');
+      expect(UA.costs.FALLBACK).toEqual(factors);
+      const cost = UA.costs.computeAnnualCost({ '2': 4 }, 2, factors);
+      expect(cost.total).toBe(527512);
+      expect(cost.annual).toBe(263756);
+      expect(cost.counts.severe).toBe(4);
+      expect(cost.factors).toEqual({ fatal: 1225152, severe: 131878, light: 6082 });
+      expect(factors.perPerson.severe.unit).toBe('EUR/Person');
+      expect(factors.source.year).toBe(2023);
+      expect(factors.source.url).toMatch(/^https:.*verkehrsbericht_2024.pdf#page=6$/);
+    });
+
     test('returns 0 when no severity counts given', () => {
       const r = UA.costs.computeAnnualCost({}, 5, UA.costs.FALLBACK);
       expect(r.total).toBe(0);
@@ -24,14 +37,14 @@ describe('UA.costs', () => {
 
     test('multiplies counts by per-accident factors', () => {
       const r = UA.costs.computeAnnualCost({ "1": 1, "2": 2, "3": 3 }, 1, UA.costs.FALLBACK);
-      const f = UA.costs.FALLBACK.perAccident;
+      const f = UA.costs.FALLBACK.perPerson;
       expect(r.total).toBe(1 * f.fatal.value + 2 * f.severe.value + 3 * f.light.value);
       expect(r.annual).toBe(r.total);
     });
 
     test('divides total by years for annual cost', () => {
       const r = UA.costs.computeAnnualCost({ "2": 5 }, 5, UA.costs.FALLBACK);
-      const f = UA.costs.FALLBACK.perAccident;
+      const f = UA.costs.FALLBACK.perPerson;
       expect(r.total).toBe(5 * f.severe.value);
       expect(r.annual).toBe(f.severe.value);
       expect(r.years).toBe(5);
@@ -54,12 +67,12 @@ describe('UA.costs', () => {
 
     test('uses fallback if factors arg omitted', () => {
       const r = UA.costs.computeAnnualCost({ "2": 1 }, 1);
-      expect(r.total).toBe(UA.costs.FALLBACK.perAccident.severe.value);
+      expect(r.total).toBe(UA.costs.FALLBACK.perPerson.severe.value);
     });
 
     test('coerces string severity counts to numbers', () => {
       const r = UA.costs.computeAnnualCost({ "1": "1", "3": "10" }, 1, UA.costs.FALLBACK);
-      const f = UA.costs.FALLBACK.perAccident;
+      const f = UA.costs.FALLBACK.perPerson;
       expect(r.total).toBe(f.fatal.value + 10 * f.light.value);
     });
 
@@ -140,9 +153,9 @@ describe('UA.costs', () => {
       UA.costs._resetCache();
       const data = await UA.costs.loadCostFactors();
       expect(data).toBeDefined();
-      expect(data.perAccident.fatal.value).toBeGreaterThan(0);
-      expect(data.perAccident.severe.value).toBeGreaterThan(0);
-      expect(data.perAccident.light.value).toBeGreaterThan(0);
+      expect(data.perPerson.fatal.value).toBeGreaterThan(0);
+      expect(data.perPerson.severe.value).toBeGreaterThan(0);
+      expect(data.perPerson.light.value).toBeGreaterThan(0);
     });
 
     test('returns FALLBACK on fetch error', async () => {
@@ -167,23 +180,27 @@ describe('UA.costs', () => {
       }
     });
 
+    test('discards the obsolete factor file when browser caches contain mixed versions', async () => {
+      const original = global.fetch;
+      global.fetch = async () => ({ ok: true, json: async () => ({ version: 1, perAccident: { fatal: {}, severe: {}, light: {} } }) });
+      try {
+        expect(await UA.costs.loadCostFactors()).toBe(UA.costs.FALLBACK);
+        const table = UA.costs.reportTable({ total: 560000, years: 2, counts: { fatal: 0, severe: 4, light: 0 } });
+        expect(table.rows[1]).toEqual(["Mit Schwerverletzten", "4", "131.878 €", "527.512 €"]);
+      } finally {
+        global.fetch = original;
+      }
+    });
+
     test('returns parsed data on success', async () => {
       UA.costs._resetCache();
-      const fakeData = {
-        version: 1,
-        source: { publisher: "BASt", year: 2024 },
-        perAccident: {
-          fatal:  { value: 1, unit: "EUR" },
-          severe: { value: 2, unit: "EUR" },
-          light:  { value: 3, unit: "EUR" }
-        },
-        disclaimer: "test"
-      };
+      const fakeData = JSON.parse(JSON.stringify(UA.costs.FALLBACK));
+      fakeData.perPerson.fatal.value = 1;
       global.fetch = async () => ({ ok: true, json: async () => fakeData });
       try {
         const data = await UA.costs.loadCostFactors();
         expect(data).toBe(fakeData);
-        expect(data.perAccident.fatal.value).toBe(1);
+        expect(data.perPerson.fatal.value).toBe(1);
       } finally {
         delete global.fetch;
       }
@@ -206,9 +223,9 @@ describe('UA.costs', () => {
 
   describe('FALLBACK structure', () => {
     test('contains all required severity keys', () => {
-      expect(UA.costs.FALLBACK.perAccident.fatal.value).toBeGreaterThan(0);
-      expect(UA.costs.FALLBACK.perAccident.severe.value).toBeGreaterThan(0);
-      expect(UA.costs.FALLBACK.perAccident.light.value).toBeGreaterThan(0);
+      expect(UA.costs.FALLBACK.perPerson.fatal.value).toBeGreaterThan(0);
+      expect(UA.costs.FALLBACK.perPerson.severe.value).toBeGreaterThan(0);
+      expect(UA.costs.FALLBACK.perPerson.light.value).toBeGreaterThan(0);
     });
 
     test('contains source metadata', () => {
@@ -216,9 +233,9 @@ describe('UA.costs', () => {
       expect(UA.costs.FALLBACK.source.year).toBeGreaterThanOrEqual(2020);
     });
 
-    test('contains disclaimer mentioning BASt and Fachgutachten', () => {
-      expect(UA.costs.FALLBACK.disclaimer).toContain('BASt');
-      expect(UA.costs.FALLBACK.disclaimer).toContain('Fachgutachten');
+    test('states the per-crash assumption and excludes local savings claims', () => {
+      expect(UA.costs.FALLBACK.disclaimer).toContain('je Unfall eine Person');
+      expect(UA.costs.FALLBACK.disclaimer).toContain('Einsparung');
     });
   });
 });

@@ -92,6 +92,7 @@
     "Stunden-Heatmap",
     "Verkehrsräumlicher Kontext",
     "Volkswirtschaftliche Bedeutung",
+    "Modellrechnung für Personenschäden",
     "Empfohlene Maßnahmen",
     "POI-Analyse",
     "Bezugsdokumente:",
@@ -2549,42 +2550,15 @@
       }
 
       // Economic impact (PR-C / B2): Volkswirtschaftliche Bedeutung
-      if (options.includeCosts !== false && sd.economicImpact && sd.economicImpact.total > 0) {
-        const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-        const ei = sd.economicImpact;
-        children.push(new Paragraph({
-          text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)",
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 400, after: 200 }
-        }));
-        const eiRows = [
-          ["Getötete", String(ei.counts.fatal), fmt(ei.breakdown.fatal)],
-          ["Schwerverletzte", String(ei.counts.severe), fmt(ei.breakdown.severe)],
-          ["Leichtverletzte", String(ei.counts.light), fmt(ei.breakdown.light)],
-          [`Gesamt im Datenzeitraum (${ei.years} Jahr${ei.years === 1 ? "" : "e"})`,
-            String(ei.counts.fatal + ei.counts.severe + ei.counts.light),
-            fmt(ei.total)],
-          ["Pro Jahr", "", fmt(ei.annual)]
-        ];
-        children.push(makeDocxTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
-        // Trend-Qualifier (PR-β): konsistent mit TEXT/HTML/PDF.
-        const tq = trendQualifierTextDocx(ei.trendQualifier);
-        if (tq) {
-          children.push(new Paragraph({
-            children: [new TextRun({ text: `Mehrjahres-Trend: ${tq}.`, bold: true })],
-            spacing: { before: 80, after: 40 }
-          }));
-        }
-        if (ei.source && (ei.source.publisher || ei.source.year)) {
-          const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
-          children.push(new Paragraph({ text: `Quelle: ${srcParts}`, spacing: { after: 60 } }));
-        }
-        if (ei.disclaimer) {
-          children.push(new Paragraph({
-            children: [new TextRun({ text: ei.disclaimer, italics: true })],
-            spacing: { after: 200 }
-          }));
-        }
+      const costTable = options.includeCosts !== false && UA.costs?.reportTable(sd.economicImpact);
+      if (costTable) {
+        children.push(new Paragraph({ text: costTable.title, heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }));
+        children.push(new Paragraph({ text: costTable.note, spacing: { after: 120 } }));
+        children.push(makeDocxTable(costTable.headers, costTable.rows));
+        const tq = trendQualifierTextDocx(sd.economicImpact.trendQualifier);
+        if (tq) children.push(new Paragraph({ text: `Mehrjahres-Trend der Unfallzahlen: ${tq}.` }));
+        children.push(new Paragraph({ children: [new TextRun("Quelle: "),
+          linkedWordRun({ text: costTable.sourceLabel, href: reportLink(costTable.sourceUrl) })], spacing: { after: 120 } }));
       }
 
       if (options.includeMeasures !== false && sd.measureAssessmentNote) {
@@ -4802,32 +4776,15 @@
 
       // Accident details table – grouped by strategy (consumes structured.accidentDetails.groups)
       // Economic impact (PR-C / B2): Volkswirtschaftliche Bedeutung
-      if (options.includeCosts !== false && sd.economicImpact && sd.economicImpact.total > 0) {
-        const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-        const ei = sd.economicImpact;
-        docDefinition.content.push({ text: "VOLKSWIRTSCHAFTLICHE BEDEUTUNG (SCHÄTZUNG)", style: "subheader", headlineLevel: 2 });
-        const eiRows = [
-          ["Getötete", String(ei.counts.fatal), fmt(ei.breakdown.fatal)],
-          ["Schwerverletzte", String(ei.counts.severe), fmt(ei.breakdown.severe)],
-          ["Leichtverletzte", String(ei.counts.light), fmt(ei.breakdown.light)],
-          [`Gesamt (${ei.years} Jahr${ei.years === 1 ? "" : "e"})`,
-            String(ei.counts.fatal + ei.counts.severe + ei.counts.light),
-            fmt(ei.total)],
-          ["Pro Jahr", "", fmt(ei.annual)]
-        ];
-        docDefinition.content.push(makePdfTable(["Kategorie", "Anzahl", "Geschätzte Kosten"], eiRows));
-        // Trend-Qualifier (PR-β): konsistent mit TEXT/HTML/DOCX.
-        const tq = trendQualifierTextDocx(ei.trendQualifier);
-        if (tq) {
-          docDefinition.content.push({ text: `Mehrjahres-Trend: ${tq}.`, bold: true, margin: [0, 4, 0, 2] });
-        }
-        if (ei.source && (ei.source.publisher || ei.source.year)) {
-          const srcParts = [ei.source.publisher, ei.source.year].filter(Boolean).join(", ");
-          docDefinition.content.push({ text: `Quelle: ${srcParts}`, style: "normal", margin: [0, 4, 0, 0] });
-        }
-        if (ei.disclaimer) {
-          docDefinition.content.push({ text: ei.disclaimer, italics: true, fontSize: 9, margin: [0, 4, 0, 8] });
-        }
+      const costTable = options.includeCosts !== false && UA.costs?.reportTable(sd.economicImpact);
+      if (costTable) {
+        docDefinition.content.push({ text: costTable.title, style: "subheader", headlineLevel: 2 });
+        docDefinition.content.push({ text: costTable.note, style: "normal" });
+        docDefinition.content.push(makePdfTable(costTable.headers, costTable.rows));
+        const tq = trendQualifierTextDocx(sd.economicImpact.trendQualifier);
+        if (tq) docDefinition.content.push({ text: `Mehrjahres-Trend der Unfallzahlen: ${tq}.`, style: "normal" });
+        docDefinition.content.push({ text: ["Quelle: ", { text: costTable.sourceLabel, link: reportLink(costTable.sourceUrl),
+          color: "#174b79", decoration: "underline" }], style: "normal" });
       }
 
       if (options.includeMeasures !== false && sd.measureAssessmentNote) {

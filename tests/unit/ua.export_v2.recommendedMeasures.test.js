@@ -166,6 +166,13 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
   test('economicImpact.trendQualifier is set and "Mehrjahres-Trend" is rendered in TEXT and HTML', async () => {
     const r = await UA.computeExportReport(makeCtx({ osmContextOverride: osmKept() }));
     expect(r.structured.economicImpact).toBeTruthy();
+    for (const output of [r.text, r.html]) {
+      expect(output).toContain('je Unfall eine Person');
+      expect(output).toContain('Preisstand 2023');
+      expect(output).toContain('verkehrsbericht_2024.pdf#page=6');
+      expect(output).toContain('131.878 €');
+      expect(output).not.toContain('Geschätzte externe Kosten im Bereich');
+    }
     // 4-year flat series ≈ "stagnierend" or "rückläufig"/"unbestimmt"; in any case
     // one of the four allowed values from UA.trend.
     expect(['steigend', 'stagnierend', 'rückläufig', 'unbestimmt'])

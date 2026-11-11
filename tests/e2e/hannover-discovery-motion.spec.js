@@ -151,6 +151,13 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     const result = await extract(bytes);
     const { text, links, title } = result;
     checkMotion(text, selector === '#btnExportWord');
+    expect(text).toContain('Modellrechnung für Personenschäden');
+    expect(text).toContain('je Unfall eine Person');
+    expect(text).toContain('Mit Schwerverletzten');
+    expect(text).toMatch(/131\.878\s*€/);
+    expect(text).toMatch(/527\.512\s*€/);
+    expect(text).toContain('Preisstand 2023');
+    expect(links).toContain('https://www.polizei.hessen.de/sites/polizei.hessen.de/files/2026-01/ppoh_verkehrsbericht_2024.pdf#page=6');
     expect(text).toContain('3 von 3 zugeordneten OSM-Wegen');
     expect(text).toMatch(/30 km\/h.+50 km\/h/);
     expect(text).toContain('Datenstand ' + roadSourceDate);
