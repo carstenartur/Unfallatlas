@@ -216,6 +216,28 @@
             </build>
         </profile>
         <profile>
+            <id>bonn-hbf-live-model</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>capture-bonn-model-evidence</id>
+                                <phase>process-resources</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration><arguments>run qa:bonn-hbf-live-model</arguments></configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
             <id>repository-storage</id>
             <build>
                 <plugins>
