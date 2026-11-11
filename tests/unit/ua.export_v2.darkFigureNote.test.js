@@ -65,11 +65,9 @@ describe('UA.computeExportReport – Dunkelziffer-Pflichthinweis (#C3)', () => {
     expect(UA.DARK_FIGURE_NOTE.title.length).toBeGreaterThan(0);
     expect(typeof UA.DARK_FIGURE_NOTE.body).toBe('string');
     expect(UA.DARK_FIGURE_NOTE.body).toMatch(/Dunkelziffer/i);
-    // Source attribution (BASt / UDV) must be present so adressees can verify.
-    expect(UA.DARK_FIGURE_NOTE.sourceLabel).toMatch(/BASt/);
-    expect(UA.DARK_FIGURE_NOTE.sourceLabel).toMatch(/UDV/);
-    // Faktor-Spannweite 2–10× muss im Body erwähnt sein (vom Plan gefordert).
-    expect(UA.DARK_FIGURE_NOTE.body).toMatch(/2[\u2013-]10/);
+    expect(UA.DARK_FIGURE_NOTE.body).toMatch(/am untersuchten Ort/);
+    expect(UA.DARK_FIGURE_NOTE.body).not.toMatch(/Faktor|2[–-]10/);
+    expect(UA.DARK_FIGURE_NOTE.sourceUrl).toBe('https://www.statistikportal.de/de/karten/unfallatlas');
   });
 
   test('text output contains the dark-figure title, body, and source attribution', async () => {
@@ -80,8 +78,8 @@ describe('UA.computeExportReport – Dunkelziffer-Pflichthinweis (#C3)', () => {
     // A representative substring of the body (avoid full-string match which is brittle).
     expect(r.text).toMatch(/Dunkelziffer/);
     // Source attribution must be visible in the rendered text.
-    expect(r.text).toMatch(/BASt/);
-    expect(r.text).toMatch(/UDV/);
+    expect(r.text).toContain(UA.DARK_FIGURE_NOTE.body);
+    expect(r.text).toContain(UA.DARK_FIGURE_NOTE.sourceLabel);
   });
 
   test('html output contains the dark-figure block (escaped) and source link', async () => {
@@ -90,7 +88,7 @@ describe('UA.computeExportReport – Dunkelziffer-Pflichthinweis (#C3)', () => {
     expect(typeof r.html).toBe('string');
     expect(r.html).toContain(UA.DARK_FIGURE_NOTE.title);
     expect(r.html).toMatch(/Dunkelziffer/);
-    expect(r.html).toMatch(/bast\.de/);
+    expect(r.html).toContain(UA.DARK_FIGURE_NOTE.sourceUrl);
   });
 
   test('structured payload exposes darkFigureNote so DOCX/PDF can render it', async () => {

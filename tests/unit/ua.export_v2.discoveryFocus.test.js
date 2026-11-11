@@ -168,6 +168,7 @@ test.each([
 });
 
 test('only a documented decision at the selected network site changes the resolution into a follow-up', async () => {
+  require('../../js/ua.report_v2.js');
   discoveryProvider();
   require('../../js/ua.review_network.js');
   const site = { id: 'j:22', revision: '38f771' };
@@ -175,9 +176,9 @@ test('only a documented decision at the selected network site changes the resolu
     [site.id, { id: site.id, kind: 'junction', label: 'Testknoten', bounds: selected }],
   ]) }, bySite: new Map([[site.id, [points[1]]]]) };
   const decision = { kind: 'council-decision', date: '2021-06-07', precision: 'documented-by',
-    label: 'DS 1/2021: Der Bezirksrat beschloss die Aufpflasterung.', url: 'https://example.org/ratsinfo/1' };
-  const first = { ...decision, kind: 'implementation-status', date: '2022-09-26', label: 'Planung begonnen.', url: 'https://example.org/ratsinfo/2' };
-  const last = { ...first, date: '2023-12-04', label: 'DS 3/2023: Kein Umsetzungstermin.', url: 'https://example.org/ratsinfo/3' };
+    number: '1/2021', label: 'DS 1/2021: Der Bezirksrat beschloss die Aufpflasterung.', url: 'https://example.org/ratsinfo/1' };
+  const first = { ...decision, kind: 'implementation-status', date: '2022-09-26', number: '2/2022', label: 'Planung begonnen.', url: 'https://example.org/ratsinfo/2' };
+  const last = { ...first, date: '2023-12-04', number: '3/2023', label: 'DS 3/2023: Kein Umsetzungstermin.', url: 'https://example.org/ratsinfo/3' };
   const unrelated = { ...decision, kind: 'construction', label: 'Fahrbahn erneuert.' };
   // row is the network producer boundary. Only this row belongs to the selected site.
   const row = window.UA.ReviewNetwork.row;
@@ -199,6 +200,10 @@ test('only a documented decision at the selected network site changes the resolu
   expect(report.structured.motion.priorWork).toEqual([decision, first, last]);
   const preview = document.createElement('div');
   preview.innerHTML = report.html;
+  const resolutionLinks = [...preview.querySelectorAll('ol li:first-child a')];
+  expect(resolutionLinks.map(link => [link.textContent, link.href])).toEqual([
+    ['DS 1/2021', decision.url], ['DS 3/2023', last.url],
+  ]);
   for (const source of [decision, first, last]) {
     expect(preview.querySelector('a[href="' + source.url + '"]')).not.toBeNull();
     expect(report.text).toContain(source.url);

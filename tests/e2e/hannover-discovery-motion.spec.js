@@ -6,7 +6,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 test.use({ locale: 'en-US' });
 
 const intersection = 'Brühlstraße / Escherstraße';
-const councilSources = ['15-1243-2021', '15-2403-2022F1', '15-2377-2023F1'].map(id =>
+const councilSources = ['15-1243-2021', '15-2403-2022F1', '15-2377-2023F1', '15-0778-2021F1', '15-1243-2021S1'].map(id =>
   'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/' + id);
 
 function checkMotion(text, hannoverWord = false) {
@@ -67,10 +67,13 @@ async function readWordDocument(bytes) {
   const archive = await JSZip.loadAsync(bytes);
   const xml = await archive.file('word/document.xml').async('string');
   const rels = await archive.file('word/_rels/document.xml.rels').async('string');
-  const hyperlinks = new Set([...xml.matchAll(/<w:hyperlink\b[^>]*\br:id="([^"]+)"/g)].map(match => match[1]));
-  const links = [...rels.matchAll(/<Relationship\b[^>]+>/g)].map(match => match[0])
-    .filter(element => hyperlinks.has(element.match(/\bId="([^"]+)"/)?.[1]))
-    .map(element => element.match(/\bTarget="([^"]+)"/)?.[1]);
+  const targets = new Map([...rels.matchAll(/<Relationship\b[^>]+>/g)].map(([tag]) =>
+    [tag.match(/\bId="([^"]+)"/)?.[1], tag.match(/\bTarget="([^"]+)"/)?.[1]]));
+  const links = [...xml.matchAll(/<w:hyperlink\b[^>]*>/g)].flatMap(([tag]) => {
+    const target = targets.get(tag.match(/\br:id="([^"]+)"/)?.[1]);
+    const anchor = tag.match(/\bw:anchor="([^"]+)"/)?.[1];
+    return target ? [anchor ? target + '#' + anchor : target] : [];
+  });
   const text = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match => match[1]).join(' ');
   const core = await archive.file('docProps/core.xml').async('string');
   const drawings = [...xml.matchAll(/<wp:docPr\b[^>]*>/g)].map(match => ({
@@ -135,6 +138,9 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
   await expect(page.locator('#exportProgress')).toHaveText('Fertig.', { timeout: 30000 });
   const preview = await page.locator('#exportBoxTa').inputValue();
   checkMotion(preview);
+  const followUp = page.locator('#exportHtml ol li').filter({ hasText: 'aktuellen Planungs- und Umsetzungsstand' });
+  await expect(followUp.getByRole('link', { name: '15-1243/2021', exact: true })).toHaveAttribute('href', councilSources[0]);
+  await expect(followUp.getByRole('link', { name: '15-2377/2023 F1', exact: true })).toHaveAttribute('href', councilSources[2]);
   const summary = preview.split('KURZBEWERTUNG:')[1]?.trim().split(/\r?\n/);
   expect(summary?.[0]).toContain(intersection);
   expect(summary[0]).toContain('Rad + Pkw');
@@ -151,12 +157,30 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     const result = await extract(bytes);
     const { text, links, title } = result;
     checkMotion(text, selector === '#btnExportWord');
+    expect(text).toContain('Modellrechnung für Personenschäden');
+    expect(text).toContain('je Unfall eine Person');
+    expect(text).toContain('Mit Schwerverletzten');
+    expect(text).toMatch(/131\.878\s*€/);
+    expect(text).toMatch(/527\.512\s*€/);
+    expect(text).toContain('Preisstand 2023');
+    expect(links).toContain('https://www.polizei.hessen.de/sites/polizei.hessen.de/files/2026-01/ppoh_verkehrsbericht_2024.pdf#page=6');
     expect(text).toContain('3 von 3 zugeordneten OSM-Wegen');
     expect(text).toMatch(/30 km\/h.+50 km\/h/);
     expect(text).toContain('Datenstand ' + roadSourceDate);
     expect(text).not.toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
     expect(title).toContain(intersection);
-    expect(links).toEqual(expect.arrayContaining(councilSources));
+    expect(links).toEqual(expect.arrayContaining([
+      ...councilSources,
+      'https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/7DC42EC5AB809545C12586D30015F455/$FILE/15-0778-2021-F1_Anlage1.pdf#page=3',
+      'https://www.statistikportal.de/de/karten/unfallatlas',
+      'https://pubmed.ncbi.nlm.nih.gov/22105099/',
+    ]));
+    expect(text).toMatch(/der Polizei unbekannt blieben/);
+    const normalized = text.replace(/\s+/g, ' ');
+    expect(normalized).toContain('2017 bis 2020 an dieser Einmündung 15 Unfälle zwischen Kfz und Radfahrenden');
+    expect(normalized).toContain('Die Verwaltung sagte die Aufpflasterung der Einmündung Brühlstraße / Escherstraße zu.');
+    expect(normalized).toMatch(/nach schwerster Folge \(n = 48\)\. Das ausgewählte Muster umfasst davon 17 Fälle/);
+    expect(normalized).toMatch(/mit Getöteten mit Schwerverletzten mit Leichtverletzten Unfälle gesamt/);
     if (selector === '#btnExportWord') {
       expect(text).toContain('Häufung von Unfällen mit Rad- und Pkw-Beteiligung');
       // External map services are intentionally unavailable in this CI case.

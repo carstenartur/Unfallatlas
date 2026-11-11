@@ -64,7 +64,8 @@
     const ui = ctx.ui;
     const modalController = UA.createModalController(ui.modalOverlay, {
       initialFocus: () => ui.btnCloseModal,
-      returnFocus: () => ui.btnOpenExport,
+      returnFocus: () => document.activeElement?.getAttribute('aria-controls') === ui.modalOverlay.id
+        ? document.activeElement : ui.btnOpenExport,
       fallbackFocus: () => ui.collapseBtn,
     });
 

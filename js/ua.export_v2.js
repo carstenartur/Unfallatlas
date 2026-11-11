@@ -109,24 +109,20 @@
 
   // --------------------
   // Dunkelziffer / Erfassungsgrenzen (#C3)
-  // Pflicht-Hinweisblock in allen Antrags-Ausgaben (Text/HTML/DOCX/PDF), damit
-  // Adressaten verstehen, dass die offiziellen Zahlen nur einen Ausschnitt der
-  // tatsächlichen Verkehrssicherheitsbelastung abbilden. Quelle/Faktor sind in
-  // docs/DOKUMENTATION.md hinterlegt.
-  // --------------------
+  // Gemeinsamer Hinweis für Vorschau, Text, Word und PDF.
   const DARK_FIGURE_NOTE = Object.freeze({
-    title: "Datenerfassung – Dunkelziffer und Erfassungsgrenzen",
-    body: "Erfasst sind ausschließlich polizeilich aufgenommene Verkehrsunfälle mit Personenschaden. Reine Sachschäden, Beinaheunfälle und nicht gemeldete Unfälle (Dunkelziffer) sind nicht enthalten. Studien schätzen, dass insbesondere bei Radunfällen ohne Fremdverschulden sowie bei leichten Verletzungen ein erheblicher Anteil der Vorfälle nicht in der amtlichen Statistik landet — die tatsächliche Belastung kann je nach Verkehrsart um den Faktor 2–10 höher liegen.",
-    sourceLabel: "Quelle: BASt – Bundesanstalt für Straßenwesen; Unfallforschung der Versicherer (UDV).",
-    sourceUrl: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
+    title: "Welche Unfälle sind erfasst?",
+    body: "Der Unfallatlas zählt polizeilich erfasste Unfälle, bei denen mindestens ein Mensch verletzt oder getötet wurde. Unfälle mit reinem Sachschaden und Beinaheunfälle fehlen. Wie viele Unfälle mit Personenschaden am untersuchten Ort der Polizei unbekannt blieben (Dunkelziffer), lässt sich aus diesen Zahlen nicht berechnen.",
+    sourceLabel: "Datengrundlage und Untersuchung zur Dunkelziffer im Radverkehr",
+    sourceUrl: "https://www.statistikportal.de/de/karten/unfallatlas",
     sources: Object.freeze([
       Object.freeze({
-        label: "BASt – Volkswirtschaftliche Kosten von Straßenverkehrsunfällen",
-        url: "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html"
+        label: "Statistische Ämter des Bundes und der Länder – Was der Unfallatlas erfasst",
+        url: "https://www.statistikportal.de/de/karten/unfallatlas"
       }),
       Object.freeze({
-        label: "UDV – Unfallforschung der Versicherer",
-        url: "https://www.udv.de/"
+        label: "Juhra u. a. (2012) – Vergleich von Polizei- und Klinikdaten zu Radunfällen in Münster, 2009 bis 2010",
+        url: "https://pubmed.ncbi.nlm.nih.gov/22105099/"
       })
     ])
   });
@@ -1564,7 +1560,8 @@
   };
 
   function isCouncilRecord(change) {
-    return change?.kind === "council-decision" || change?.kind === "implementation-status";
+    return change?.kind === "council-decision" || change?.kind === "implementation-status" || change?.kind === "police-analysis"
+      || change?.kind === "administrative-commitment";
   }
 
   function motionCouncilRecords(site) {
@@ -1622,7 +1619,10 @@
     const scope = siteNetwork ? "am Netzobjekt räumlich zugeordnet" : "im markierten Bereich ausgewählt";
     const finding = `Für das Muster „${focus.label}“ ${count === 1 ? "ist" : "sind"} ${countLabel} ${scope}. Fallzahlen je Jahr: ${years}.`;
     const findings = Object.entries(severity).map(([key, n]) => `${n} mit ${{ 1: "Getöteten", 2: "Schwerverletzten", 3: "Leichtverletzten" }[key]}`);
+    const historical = priorWork.filter(record => record.kind === "police-analysis" || record.kind === "administrative-commitment");
     const rationale = [finding, findings.length ? `Unfälle nach schwerster Folge: ${findings.join(", ")}.` : "",
+      ...historical.map(record => record.label),
+      historical.some(record => record.kind === "police-analysis") ? "Die Polizeiauswertung und die spätere Musterauswahl haben unterschiedliche Zeiträume und Auswahlkriterien." : "",
       rail?.rationale || "Welche Fahrwege und Konflikte den Einzelfällen zugrunde lagen, ist anhand der Unfallunterlagen und der damaligen örtlichen Situation zu prüfen."].filter(Boolean).join(" ");
     return {
       intro: `Die Verwaltung wird gebeten, für den Bereich „${place}“ das Unfallmuster „${focus.label}“ gemeinsam mit der Unfallkommission zu prüfen.`,
@@ -1960,11 +1960,8 @@
           : 1;
         const calc = UA.costs.computeAnnualCost(sev.bySev, yearsCount, factors);
         economicImpact = {
-          annual: calc.annual,
-          total: calc.total,
-          years: calc.years,
-          breakdown: calc.breakdown,
-          counts: calc.counts,
+          ...calc,
+          modelVersion: 2,
           source: factors.source,
           disclaimer: factors.disclaimer,
           // Trend-Qualifier (PR-β): nutzt die bereits berechnete `yearlyTrend`-
@@ -2175,8 +2172,10 @@
         "", "Begründung:", motion.rationale);
       if (motion.source) lines.push(`${motion.source.label} (${motion.source.url})`);
       if (motion.priorWork?.length) {
-        lines.push("Amtliche Vorbefassung am Netzobjekt", ...motion.priorWork.map(record =>
-          `${councilRecordDate(record)} – ${record.label} (${record.url})`));
+        lines.push("Amtliche Vorbefassung am Netzobjekt", ...motion.priorWork.flatMap(record => [
+          `${councilRecordDate(record)} – ${record.label} (${record.url})`,
+          ...(record.attachment ? [`${record.attachment.label} (${record.attachment.url})`] : []),
+        ]));
       }
       lines.push("");
     }
@@ -2295,7 +2294,7 @@
     // Mehrjahres-Trend (#C2): kompakte Tabelle + Klassifikation.
     if (yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) {
       lines.push("Mehrjahres-Trend (Gesamtzahl pro Jahr):");
-      const header = "  Jahr | Getötete | Schwerverletzte | Leichtverletzte | Summe";
+      const header = "  Jahr | mit Getöteten | mit Schwerverletzten | mit Leichtverletzten | Unfälle gesamt";
       lines.push(header);
       for (let i = 0; i < yearlyTrend.years.length; i++) {
         lines.push(`  ${yearlyTrend.years[i]} | ${yearlyTrend.counts.fatal[i]} | ${yearlyTrend.counts.severe[i]} | ${yearlyTrend.counts.light[i]} | ${yearlyTrend.counts.total[i]}`);
@@ -2348,24 +2347,14 @@
 
     // Add economic impact (PR-C / B2): respect ctx.exportOptions.includeCosts (default ON).
     // Note: `economicImpact` is null when the toggle was off (load gated above).
-    if (includeCosts && economicImpact && economicImpact.total > 0) {
-      const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-      lines.push("Volkswirtschaftliche Bedeutung (Schätzung):");
-      lines.push(`  Geschätzte externe Kosten im Bereich: ${fmt(economicImpact.total)} (Datenzeitraum ${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"}).`);
-      lines.push(`  Pro Jahr: ca. ${fmt(economicImpact.annual)}.`);
-      lines.push(`  Aufschlüsselung – Getötete: ${fmt(economicImpact.breakdown.fatal)} · Schwerverletzte: ${fmt(economicImpact.breakdown.severe)} · Leichtverletzte: ${fmt(economicImpact.breakdown.light)}.`);
-      // Trend-Qualifier: Klassifikation der Mehrjahres-Trendlinie (PR-β),
-      // damit Antragstexte den Kostenblock ehrlich einordnen können.
+    const costTable = includeCosts && economicImpact && UA.costs.reportTable(economicImpact);
+    if (costTable) {
+      lines.push(costTable.title, costTable.note, costTable.headers.join(" | "));
+      for (const row of costTable.rows) lines.push(row.join(" | "));
       const tq = trendQualifierText(economicImpact.trendQualifier);
-      if (tq) lines.push(`  Mehrjahres-Trend: ${tq}.`);
-      if (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year)) {
-        const srcParts = [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ");
-        lines.push(`  Quelle: ${srcParts}.`);
-      }
-      if (economicImpact.disclaimer) {
-        lines.push(`  Hinweis: ${economicImpact.disclaimer}`);
-      }
-      lines.push("");
+      if (tq) lines.push(`Mehrjahres-Trend der Unfallzahlen: ${tq}.`);
+      lines.push(`Quelle: ${costTable.sourceLabel} – ${costTable.sourceUrl}`, "");
+
     }
 
     if (measureAssessmentNote) lines.push(measureAssessmentNote, "");
@@ -2569,7 +2558,7 @@
     // Add cross-table (Beteiligungskombination × Schweregrad)
     if (crossTable.rows.length > 0) {
       lines.push("Beteiligungskombination × Schweregrad:");
-      lines.push("  Kombination | Getötete | Schwerverletzt | Leichtverletzt | Summe");
+      lines.push("  Kombination | mit Getöteten | mit Schwerverletzten | mit Leichtverletzten | Unfälle gesamt");
       for (const r of crossTable.rows) {
         lines.push(`  ${r.label} | ${r.sev1} | ${r.sev2} | ${r.sev3} | ${r.total}`);
       }
@@ -2773,31 +2762,16 @@
 
     // Build economic-impact HTML section (PR-C / B2)
     let economicImpactHtmlSection = "";
-    if (includeCosts && economicImpact && economicImpact.total > 0) {
-      const fmt = (UA.costs && UA.costs.formatEUR) ? UA.costs.formatEUR : (n) => `${n} €`;
-      const srcParts = (economicImpact.source && (economicImpact.source.publisher || economicImpact.source.year))
-        ? [economicImpact.source.publisher, economicImpact.source.year].filter(Boolean).join(", ")
-        : "";
-      const srcUrl = (economicImpact.source && economicImpact.source.url) ? economicImpact.source.url : "";
+    if (costTable) {
+      const tq = trendQualifierText(economicImpact.trendQualifier);
       economicImpactHtmlSection = `
-        <div style="margin-top:12px; font-weight:900;">Volkswirtschaftliche Bedeutung (Schätzung)</div>
-        <table class="report" style="margin-top:6px;">
-          <thead>
-            <tr><th>Kategorie</th><th style="text-align:right;">Anzahl</th><th style="text-align:right;">Geschätzte Kosten</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Getötete</td><td style="text-align:right;">${economicImpact.counts.fatal}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.fatal))}</td></tr>
-            <tr><td>Schwerverletzte</td><td style="text-align:right;">${economicImpact.counts.severe}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.severe))}</td></tr>
-            <tr><td>Leichtverletzte</td><td style="text-align:right;">${economicImpact.counts.light}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.breakdown.light))}</td></tr>
-            <tr style="font-weight:700; border-top:2px solid #aaa;"><td>Gesamt im Datenzeitraum (${economicImpact.years} Jahr${economicImpact.years === 1 ? "" : "e"})</td><td style="text-align:right;">${economicImpact.counts.fatal + economicImpact.counts.severe + economicImpact.counts.light}</td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.total))}</td></tr>
-            <tr style="font-weight:700;"><td>Pro Jahr</td><td></td><td style="text-align:right;">${UA.escHtml(fmt(economicImpact.annual))}</td></tr>
-          </tbody>
-        </table>
-        <div style="margin-top:6px; color:#555; font-size:12px;">
-          ${(() => { const tq = trendQualifierText(economicImpact.trendQualifier); return tq ? `<div><strong>Mehrjahres-Trend:</strong> ${UA.escHtml(tq)}.</div>` : ""; })()}
-          ${srcParts ? `<div><strong>Quelle:</strong> ${UA.escHtml(srcParts)}${srcUrl ? ` (<a href="${UA.escHtml(srcUrl)}" target="_blank" rel="noopener">Link</a>)` : ""}</div>` : ""}
-          ${economicImpact.disclaimer ? `<div style="font-style:italic; margin-top:4px;">${UA.escHtml(economicImpact.disclaimer)}</div>` : ""}
-        </div>`;
+        <div style="margin-top:12px; font-weight:900;">${UA.escHtml(costTable.title)}</div>
+        <p>${UA.escHtml(costTable.note)}</p>
+        <table class="report"><thead><tr>${costTable.headers.map(label => `<th>${UA.escHtml(label)}</th>`).join("")}</tr></thead>
+        <tbody>${costTable.rows.map(row => `<tr>${row.map(cell => `<td>${UA.escHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+        ${tq ? `<div>Mehrjahres-Trend der Unfallzahlen: ${UA.escHtml(tq)}.</div>` : ""}
+        <div>Quelle: <a href="${UA.escHtml(costTable.sourceUrl)}" target="_blank" rel="noopener">${UA.escHtml(costTable.sourceLabel)}</a></div>`;
+
     }
 
     // Orts- und musterbezogene Empfehlungen (UA.contextMeasures, Spec
@@ -2996,6 +2970,12 @@
       return `<div style="margin-top:6px;"><strong>OSM-Schlussfolgerungen:</strong><ul style="margin:4px 0 0 18px;">${ins.map(s => `<li>${UA.escHtml(s)}</li>`).join("")}</ul></div>`;
     })();
 
+    const formatMotionText = motion && UA.createMotionLinkFormatter?.(motion.priorWork, politicalReferences);
+    const motionHtml = text => {
+      const parts = formatMotionText ? formatMotionText(text) : text;
+      return Array.isArray(parts) ? parts.map(part => part.link
+        ? sourceLink({ label: part.text, url: part.link }) : UA.escHtml(part.text)).join("") : UA.escHtml(parts);
+    };
     const htmlOut = `
       <div style="font:14px/1.35 system-ui;">
         <div style="font-weight:950; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
@@ -3012,9 +2992,9 @@
           
         </div>
 
-        ${motion ? `<h3>Beschlussvorschlag</h3><p>${UA.escHtml(motion.intro)}</p><ol>${motion.requests.map(request => `<li>${UA.escHtml(request)}</li>`).join("")}</ol><p>${UA.escHtml(motion.rationale)}</p>${motion.source ? `<p>${sourceLink(motion.source)}</p>` : ""}
+        ${motion ? `<h3>Beschlussvorschlag</h3><p>${motionHtml(motion.intro)}</p><ol>${motion.requests.map(request => `<li>${motionHtml(request)}</li>`).join("")}</ol><p>${motionHtml(motion.rationale)}</p>${motion.source ? `<p>${sourceLink(motion.source)}</p>` : ""}
           ${motion.priorWork?.length ? `<p><strong>Amtliche Vorbefassung am Netzobjekt</strong></p><ul>${motion.priorWork.map(record =>
-            `<li>${sourceLink({ ...record, date: councilRecordDate(record) })}</li>`).join("")}</ul>` : ""}` : ""}
+            `<li>${sourceLink({ ...record, date: councilRecordDate(record) })}${record.attachment ? " · " + sourceLink(record.attachment) : ""}</li>`).join("")}</ul>` : ""}` : ""}
 
         <div style="margin-top:12px; padding:10px 12px; background:#f6f7fb; border-left:4px solid #2a4a8a; border-radius:4px;">
           <div style="font-weight:950; font-size:14px;">KURZBEWERTUNG</div>
@@ -3055,15 +3035,15 @@
           </tbody>
         </table>
 
-        <div style="margin-top:12px; font-weight:900;">Verletzungsschwere im Ausschnitt</div>
+        <div style="margin-top:12px; font-weight:900;">Unfälle im ausgewerteten Ausschnitt nach schwerster Folge (n = ${sev.total.toLocaleString("de-DE")})</div>
         <table class="report" style="margin-top:6px;">
           <thead>
             <tr><th>Kategorie</th><th style="text-align:right;">Anzahl</th><th style="text-align:right;">Anteil</th></tr>
           </thead>
           <tbody>
-            <tr><td>1 – Getötete</td><td style="text-align:right;">${sev.bySev["1"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["1"] || 0) / sev.total) : "0,0 %"}</td></tr>
-            <tr><td>2 – Schwerverletzte</td><td style="text-align:right;">${sev.bySev["2"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["2"] || 0) / sev.total) : "0,0 %"}</td></tr>
-            <tr><td>3 – Leichtverletzte</td><td style="text-align:right;">${sev.bySev["3"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["3"] || 0) / sev.total) : "0,0 %"}</td></tr>
+            <tr><td>Unfälle mit Getöteten</td><td style="text-align:right;">${sev.bySev["1"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["1"] || 0) / sev.total) : "0,0 %"}</td></tr>
+            <tr><td>Unfälle mit Schwerverletzten</td><td style="text-align:right;">${sev.bySev["2"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["2"] || 0) / sev.total) : "0,0 %"}</td></tr>
+            <tr><td>Unfälle mit Leichtverletzten</td><td style="text-align:right;">${sev.bySev["3"] || 0}</td><td style="text-align:right;">${sev.total ? fmtPct((sev.bySev["3"] || 0) / sev.total) : "0,0 %"}</td></tr>
           </tbody>
         </table>
 
@@ -3071,7 +3051,7 @@
         <div style="margin-top:12px; font-weight:900;">Beteiligungskombination × Schweregrad</div>
         <table class="report" style="margin-top:6px;">
           <thead>
-            <tr><th>Kombination</th><th style="text-align:right;">Getötete</th><th style="text-align:right;">Schwerverletzt</th><th style="text-align:right;">Leichtverletzt</th><th style="text-align:right;">Summe</th></tr>
+            <tr><th>Kombination</th><th style="text-align:right;">mit Getöteten</th><th style="text-align:right;">mit Schwerverletzten</th><th style="text-align:right;">mit Leichtverletzten</th><th style="text-align:right;">Unfälle gesamt</th></tr>
           </thead>
           <tbody>
             ${crossTable.rows.map(r => `<tr${isActiveFilterRow(r.mask) ? ' style="background-color:#FFFFCC; font-weight:600;"' : ''}><td>${UA.escHtml(r.label)}</td><td style="text-align:right;">${r.sev1}</td><td style="text-align:right;">${r.sev2}</td><td style="text-align:right;">${r.sev3}</td><td style="text-align:right; font-weight:700;">${r.total}</td></tr>`).join("")}
@@ -3158,7 +3138,7 @@
         <div style="margin-top:12px; font-weight:900;">Mehrjahres-Trend</div>
         <div style="margin:6px 0;">${(UA.trend && UA.trend.renderTrendSVG) ? UA.trend.renderTrendSVG(yearlyTrend) : ""}</div>
         <table class="report" style="font-size:12px;">
-          <thead><tr><th>Jahr</th><th style="text-align:right;">Getötete</th><th style="text-align:right;">Schwerverletzte</th><th style="text-align:right;">Leichtverletzte</th><th style="text-align:right;">Summe</th></tr></thead>
+          <thead><tr><th>Jahr</th><th style="text-align:right;">mit Getöteten</th><th style="text-align:right;">mit Schwerverletzten</th><th style="text-align:right;">mit Leichtverletzten</th><th style="text-align:right;">Unfälle gesamt</th></tr></thead>
           <tbody>
             ${yearlyTrend.years.map((y, i) => `<tr><td>${y}</td><td style="text-align:right;">${yearlyTrend.counts.fatal[i]}</td><td style="text-align:right;">${yearlyTrend.counts.severe[i]}</td><td style="text-align:right;">${yearlyTrend.counts.light[i]}</td><td style="text-align:right;">${yearlyTrend.counts.total[i]}</td></tr>`).join("")}
           </tbody>

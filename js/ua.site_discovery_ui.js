@@ -343,11 +343,15 @@
         + ' · ' + countText(pattern.points.length, 'Fall', 'Fälle')
         + ' · ' + countText(pattern.recentPoints.length, 'Fall', 'Fälle') + ' im jüngsten Jahr dieses Musters (' + pattern.recentYear + ')'
         + '. Violette Ringe kennzeichnen die Musterfälle.'));
-      if (ctx.ui?.btnOpenExport && !networkStatus) {
-        state.detail.append(button('Antragsentwurf für diese Stelle öffnen', () => ctx.ui.btnOpenExport.click()));
-      }
     } else if (!networkStatus) {
       state.detail.append(el('p', '', 'Für diese Auswahl ist kein wiederkehrendes Muster mit mindestens drei Fällen aus zwei Jahren belegt.'));
+    }
+    if (!networkStatus && points.length && ctx.ui?.btnOpenExport) {
+      const label = pattern ? 'Antragsentwurf für diese Stelle öffnen' : 'Antragsentwurf für den markierten Bereich öffnen';
+      const draft = button(label, () => ctx.ui.btnOpenExport.click());
+      draft.setAttribute('aria-haspopup', 'dialog');
+      draft.setAttribute('aria-controls', 'modalOverlay');
+      state.detail.append(draft);
     }
     if (site && ctx.reviewNetworkResult && UA.ReviewNetwork?.compareSites) {
       const predicate = selection.query.mapFilters ? point => matchesMapFilters(ctx, point) : undefined;

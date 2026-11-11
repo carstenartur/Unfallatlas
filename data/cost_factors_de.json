@@ -1,17 +1,27 @@
 {
-  "_comment": "Volkswirtschaftliche Unfallkostensätze (Deutschland) für die automatische Antrags-Berechnung. WICHTIG: Die hier hinterlegten Werte sind grobe Hausnummern auf Basis der publizierten Größenordnungen aus BASt-Berichten und müssen vor produktivem Einsatz mit dem aktuellsten BASt-Bericht 'Volkswirtschaftliche Kosten von Straßenverkehrsunfällen' verifiziert und ggf. aktualisiert werden. Bei jeder Aktualisierung bitte 'source.year' und 'source.url' anpassen.",
-  "version": 1,
+  "version": 2,
   "source": {
-    "publisher": "BASt – Bundesanstalt für Straßenwesen",
-    "title": "Volkswirtschaftliche Kosten von Straßenverkehrsunfällen in Deutschland (Größenordnung)",
+    "publisher": "Bundesanstalt für Straßenwesen (BASt)",
+    "title": "Verkehrsbericht 2024 des Polizeipräsidiums Osthessen, S. 5, Fußnote 1",
     "year": 2023,
-    "url": "https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html",
-    "note": "Werte sind Größenordnungen auf Basis publizierter BASt-Daten. Vor produktiver Nutzung bitte mit aktuellem BASt-Bericht abgleichen."
+    "url": "https://www.polizei.hessen.de/sites/polizei.hessen.de/files/2026-01/ppoh_verkehrsbericht_2024.pdf#page=6"
   },
-  "perAccident": {
-    "fatal":  { "value": 1300000, "unit": "EUR", "key": "ukategorie=1", "label": "Getöteter" },
-    "severe": { "value":  140000, "unit": "EUR", "key": "ukategorie=2", "label": "Schwerverletzter" },
-    "light":  { "value":    5000, "unit": "EUR", "key": "ukategorie=3", "label": "Leichtverletzter" }
+  "perPerson": {
+    "fatal": {
+      "value": 1225152,
+      "unit": "EUR/Person",
+      "label": "Getötete Person"
+    },
+    "severe": {
+      "value": 131878,
+      "unit": "EUR/Person",
+      "label": "Schwerverletzte Person"
+    },
+    "light": {
+      "value": 6082,
+      "unit": "EUR/Person",
+      "label": "Leichtverletzte Person"
+    }
   },
-  "disclaimer": "Grobe Schätzung volkswirtschaftlicher Kosten nach BASt-Größenordnungen. Berücksichtigt sind Personenschäden (Heilbehandlung, Reha, Wiederbeschaffungskosten, Wertschöpfungsverluste, immaterielle Schäden). Sachschäden ohne Personenschaden sind nicht erfasst. Kein Ersatz für ein Fachgutachten."
+  "disclaimer": "Die Rechnung setzt je Unfall eine Person der höchsten erfassten Verletzungsschwere an. Die Unfallstatistik zählt hier Unfälle. Weitere Betroffene und Sachschäden bleiben unberücksichtigt. Der Modellwert erlaubt keine Aussage über den tatsächlichen örtlichen Schaden oder die Einsparung durch eine Maßnahme."
 }

@@ -26,6 +26,9 @@ jobs:
           java-version: '25'
           cache: maven
 
+      - name: Configure Ubuntu release mirrors for browser dependencies
+        run: sudo sh scripts/configure-ubuntu-mirrors.sh
+
       - name: Generate and validate live documentation candidates
         run: mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=false
 

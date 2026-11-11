@@ -38,3 +38,40 @@ test.each(references.cases.map(c=>[c.kind,c]))('real official %s reference prese
     }
   } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('B6 terrain cells reproduce the former high result and the bridge endpoint suppresses the road estimate', async () => {
+  const evidence = require('../fixtures/hannover-dgm1-real/westschnellweg-transition.json');
+  const profile = require('../../scripts/producers/hannover_dgm1_road_profile_producer');
+  const { approach, bridge, terrain } = evidence;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'westschnellweg-dgm1-'));
+  try {
+    fs.copyFileSync(path.join(fixtures, terrain.file), path.join(root, terrain.file));
+    const manifest = Buffer.from(JSON.stringify({
+      schemaVersion: 1, sourceId: 'hannover.dgm1', retrievedAt: terrain.retrievedAt, grid: terrain.grid,
+      distribution: { path: terrain.file, url: terrain.sourceUrl, bytes: terrain.bytes, sha256: terrain.sha256 },
+    }));
+    fs.writeFileSync(path.join(root, 'manifest.json'), manifest);
+    const provider = dgm.createHannoverDgm1XyzProvider({
+      allowedRoot: root, manifestPath: 'manifest.json', expectedManifestSha256: dgm.sha256Buffer(manifest),
+    });
+    await expect(provider.preload()).resolves.toMatchObject({ pointCount: terrain.pointCount });
+    const roads = { [approach.id]: approach.tags, [bridge.id]: bridge.tags };
+    const geometries = { [approach.id]: approach.geometry, [bridge.id]: bridge.geometry };
+    const endpoints = profile.bridgeEndpointIndex(roads, geometries);
+    const tags = risk.riskTagsForWay(approach.tags);
+    const anchor = profile.profileAnchor(approach.geometry);
+    for (const window of [20, 50]) {
+      const parameters = [elevation.computeRoadGradient, provider, approach.geometry, anchor, tags, window];
+      const old = await profile.computeWindow(...parameters);
+      expect(old.result).toMatchObject({ quality: 'high', gradientPercent: 22.6, uncertaintyPercent: 9.5 });
+      const boundary = profile.bridgeEndpointsForWay(endpoints, approach.geometry, tags);
+      expect(boundary).toEqual({ start: [bridge.id], end: [] });
+      const reviewed = await profile.computeWindow(...parameters, boundary);
+      expect(reviewed.result).toMatchObject({ quality: 'unusable', gradientPercent: null,
+        uncertaintyReasons: ['bridge_transition_surface_not_represented_by_dtm'] });
+    }
+    await provider.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -719,8 +719,12 @@
           attribution: '&copy; OpenStreetMap-Mitwirkende'
         });
     }
-    if (!state.labelLayer) {
+    const labelCity = String(ctx.CITY_RAW || ctx.city || '').trim().toLowerCase();
+    if (state.labelCity !== labelCity || !state.labelLayer) {
+      _safeRemoveLayer(ctx.map, state.labelLayer);
+      state.labelCity = labelCity;
       state.labelLayer = (typeof UA.createMapLayer === 'function' && UA.createMapLayer(_getLayerDefinition('hybrid-labels')))
+        || UA.createLocalRoadLabels?.(labelCity, () => _setMapLayerInfo(ctx))
         || null;
     }
     if (!Array.isArray(state.orthophotoCandidates)) {
@@ -740,8 +744,9 @@
       ? UA.resolveMapMode(ctx && ctx.mapMode)
       : ((ctx && ctx.mapMode) || 'standard');
     let warning = [state?.fallbackReason, mode !== 'standard' && state?.partialTileWarning].filter(Boolean).join(' ');
-    if (activeOrthophoto && (mode === 'hybrid' || mode === 'analysis') && !state.labelLayer) {
-      const note = 'Straßenbeschriftungen sind für diese Installation nicht konfiguriert.';
+    if (activeOrthophoto && (mode === 'hybrid' || mode === 'analysis') && (!state.labelLayer || state.labelLayer.localLabelStatus === 'unavailable')) {
+      const note = state.labelLayer ? 'Die lokalen Straßenbeschriftungen konnten nicht geladen werden.'
+        : 'Straßenbeschriftungen sind für diese Installation nicht konfiguriert.';
       warning = warning ? `${warning} ${note}` : note;
     }
     ctx._activeMapLayerInfo = Object.assign({
