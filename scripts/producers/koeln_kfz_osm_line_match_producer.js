@@ -9,7 +9,15 @@ const INPUT_SCHEMA_VERSION = 1;
 const INPUT_TYPE = 'koeln-kfz-official-geometry-join';
 const OUTPUT_SCHEMA_VERSION = 1;
 const OUTPUT_TYPE = 'koeln-kfz-directed-osm-line-match';
-const PRODUCER_VERSION = '1.0.0';
+const PRODUCER_VERSION = '1.1.0';
+const MOTOR_ROAD_CLASSES = new Set([
+  'motorway', 'trunk', 'primary', 'secondary', 'tertiary',
+  'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link',
+  'unclassified', 'residential', 'living_street', 'service',
+]);
+function isMotorRoad(highway) {
+  return MOTOR_ROAD_CLASSES.has(highway);
+}
 const METERS_PER_DEGREE_LAT = 110540;
 const DEFAULTS = Object.freeze({
   sampleSpacingMeters: 10,
@@ -391,8 +399,9 @@ function normalizeOsmDataset(value) {
       boundingBox: lineBoundingBox(geometry),
     });
   });
-  if (!candidates.length) fail('empty_osm_dataset', 'OSM dataset contains no ways');
-  return Object.freeze({ osm, candidates: Object.freeze(candidates) });
+  if (!wayIds.length) fail('empty_osm_dataset', 'OSM dataset contains no ways');
+  const motorRoads = candidates.filter(candidate => isMotorRoad(candidate.highway));
+  return Object.freeze({ osm, wayCount: wayIds.length, candidates: Object.freeze(motorRoads) });
 }
 
 function directedIdentity(observation, index) {
@@ -611,7 +620,8 @@ function buildMatchedArtifact(trafficInput, osmInput, options = {}) {
       osm: Object.freeze({
         fileName: path.basename(osmInput.file),
         sha256: osmInput.sha256,
-        wayCount: osm.candidates.length,
+        wayCount: osm.wayCount,
+        motorRoadCandidateCount: osm.candidates.length,
         ...(osm.osm.source ? { source: osm.osm.source } : {}),
         ...(osm.osm.originalDistribution ? { originalDistribution: osm.osm.originalDistribution } : {}),
       }),
@@ -727,6 +737,7 @@ module.exports = Object.freeze({
   OUTPUT_TYPE,
   PRODUCER_VERSION,
   DEFAULTS,
+  isMotorRoad,
   KoelnKfzOsmLineMatchError,
   sha256,
   canonicalJson,

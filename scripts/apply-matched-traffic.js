@@ -102,6 +102,9 @@ function verifyTargetGeometry(provider, options, payloads, geojson, selected) {
   }
   for (const id of used) {
     if (!current.has(id) || !input.wayGeometries || !input.wayGeometries[id]) throw new Error(`Missing current or pinned geometry for way ${id}`);
+    if (!matcher.isMotorRoad(input.ways?.[id]?.highway)) {
+      throw new Error(`Köln motor count cannot be assigned to road class of way ${id}; recompute matching`);
+    }
     const raw = matcher.normalizeLineString(input.wayGeometries[id], `OSM matching input.wayGeometries.${id}`);
     const expected = encodeGeometry(representation.toleranceMeters > 0 ? douglasPeucker(raw, representation.toleranceMeters) : raw);
     if (JSON.stringify(current.get(id)) !== JSON.stringify(expected)) throw new Error(`Ordered geometry mismatch for way ${id}; recompute matching for the current snapshot`);

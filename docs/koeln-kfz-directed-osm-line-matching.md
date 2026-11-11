@@ -116,11 +116,13 @@ Matcher-Artefakt und externem SHA bleibt unterstützt und hat Vorrang.
 Zwei Originaldatenläufe am 11. November 2026 belegen unterschiedliche Schritte.
 
 - In einem gesonderten Reproduktionslauf auf den bereits generalisierten,
-  ausgelieferten OSM-Linien gab es 3.253 eindeutig gematchte, 396 mehrdeutige
-  und 1.548 ungematchte Beobachtungen. 46 auf einen einzelnen Punkt gerundete
-  Linien wurden vor diesem Vergleich ausgelassen. Bei der kontrollierten
-  Anwendung auf alle 31.120 veröffentlichten Unfallpunkte erhielten 3.770
-  einen Messwert, 26.003 einen qualitativen Proxy und 1.347 keinen Wert.
+  ausgelieferten OSM-Linien wurden 2.731 der 5.197 Beobachtungen eindeutig
+  zugeordnet, 193 blieben mehrdeutig und 2.273 ohne passende Kfz-Straße. Der Kfz-Abgleich berücksichtigt ausschließlich
+  als Kfz-Straßen klassifizierte Ways. Er schließt Fußwege, Radwege, Pfade,
+  Wirtschaftswege und unbekannte Klassen aus. Der Exporter
+  `scripts/producers/export_koeln_public_matching_geometry.py` stellte die
+  114.326 vorhandenen Linien bytegleich wieder her. 46 auf einen einzigen
+  Punkt gerundete Ways sind für den Linienvergleich geometrisch ungeeignet.
   Quelle war der Main-Stand `53cca4ea949932dd29219708d8fe9eef1fdf7e20`.
   Aktuelle Rohlinien können andere Zuordnungen ergeben.
 - Der neue Stagingpfad wurde separat mit zwei echten HTTPS-Downloads, der

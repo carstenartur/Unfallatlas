@@ -78,6 +78,18 @@ function build(observations, ways, options = {}) {
 }
 
 describe('Cologne directed official-line to OSM matching', () => {
+  test('uses a motor road alongside closer pedestrian and cycle tracks', () => {
+    const artifact = build([observation({id:'kfz'})], {
+      path: {highway:'cycleway', coordinates:[coordinate(0),coordinate(100)]},
+      road: {highway:'secondary', coordinates:[coordinate(0,4),coordinate(100,4)]},
+    });
+    expect(artifact.observations[0].osmMatch.wayId).toBe('road');
+    const footOnly = build([observation({id:'kfz'})], {
+      path: {highway:'footway', coordinates:[coordinate(0),coordinate(100)]},
+    });
+    expect(footOnly.coverage.unmatchedObservations).toBe(1);
+  });
+
   test('matches repeated yearly observations once and preserves traffic values', () => {
     const observations = [
       observation({ id: '2018-forward', value: 1234 }),
