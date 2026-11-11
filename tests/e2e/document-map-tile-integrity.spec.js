@@ -154,7 +154,15 @@ test('a tainted numbered raster falls back to a labelled schematic PNG', async (
 
   const result = await page.evaluate(async source => {
     const map = L.map('map', { preferCanvas: true }).setView([50.73, 7.10], 17);
-    const ctx = { map, documentRasterAvailable: true };
+    let requestedTiles = 0;
+    const privateRaster = L.tileLayer(source);
+    const getTileUrl = privateRaster.getTileUrl;
+    privateRaster.getTileUrl = function (...args) {
+      requestedTiles += 1;
+      return getTileUrl.apply(this, args);
+    };
+    privateRaster.addTo(map);
+    const ctx = { map, documentRasterAvailable: true, documentRasterLayers: [privateRaster] };
     const raster = document.createElement('canvas');
     raster.width = 400;
     raster.height = 260;
@@ -182,7 +190,10 @@ test('a tainted numbered raster falls back to a labelled schematic PNG', async (
       const decoded = new Image();
       decoded.src = png;
       await decoded.decode();
+      const previousRequests = requestedTiles;
+      map.setView([50.75, 7.12], 17, { animate: false });
       return { denied, schematic, recorded, width: decoded.width, height: decoded.height,
+        subsequentRequests: requestedTiles - previousRequests,
         rasterAvailable: ctx.documentRasterAvailable, released: raster.width === 0 && raster.height === 0 };
     } finally {
       CanvasRenderingContext2D.prototype.fillText = fillText;
@@ -191,7 +202,7 @@ test('a tainted numbered raster falls back to a labelled schematic PNG', async (
   }, foreignTile);
 
   expect(result).toMatchObject({ denied: 'SecurityError', schematic: true, rasterAvailable: false,
-    width: 400, height: 260, released: true });
+    width: 400, height: 260, released: true, subsequentRequests: 0 });
   expect(result.recorded).toContain('Schematische Unfallkarte ohne Basiskarte');
   expect(result.recorded).toContain('A017');
 });

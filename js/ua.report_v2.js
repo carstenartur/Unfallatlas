@@ -979,15 +979,15 @@
         renderer, maxZoom, zoomControl: false, attributionControl: false,
         zoomAnimation: false, fadeAnimation: false, crs: live.options.crs
       }).setView(live.getCenter(), Math.min(live.getZoom(), maxZoom));
-      for (const layer of raster) {
+      const documentRasterLayers = raster.map(layer => {
         const options = { ...layer.options };
         const clone = layer instanceof L.TileLayer.WMS
           ? L.tileLayer.wms(layer._url, { ...options, ...layer.wmsParams })
           : L.tileLayer(layer._url, options);
-        clone.addTo(map);
-      }
+        return clone.addTo(map);
+      });
       return {
-        ctx: { ...ctx, map, heatLayer: null, contextOverlays: null, documentRasterAvailable: raster.length > 0 },
+        ctx: { ...ctx, map, heatLayer: null, contextOverlays: null, documentRasterAvailable: raster.length > 0, documentRasterLayers },
         close() {
           try { map.remove(); } finally { container.remove(); }
         }
@@ -1083,6 +1083,9 @@
           console.warn("Rasterkartenaufnahme fehlgeschlagen; schematische Karte wird erzeugt:", error);
           // The remaining figures use the same unavailable raster provider.
           ctx.documentRasterAvailable = false;
+          // Without a raster, subsequent schematic sheets only need the map
+          // projection. Detach its private tile layers before changing views.
+          for (const layer of ctx.documentRasterLayers || []) layer.remove();
         }
       }
       if (!image) {
