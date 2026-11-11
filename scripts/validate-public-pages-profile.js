@@ -201,6 +201,16 @@ function validatePublicPagesProfile(options = {}) {
     assert(sha256File(absolute) === license.sha256,
       `supplemental license hash drift ${license.path}`);
   }
+  const svgLicense = supplementalComponents.get('svg-to-pdfkit');
+  const pdfBundle = sbom.components.find(component => component['bom-ref'] === 'urn:unfallatlas:vendor-asset:vendor/export/pdfmake.js');
+  const svgSource = pdfBundle?.components?.find(component => component.name === 'src/3rd-party/svg-to-pdfkit/source.js');
+  assert(svgLicense?.asset === 'vendor/export/pdfmake.js' && svgLicense.spdx === 'MIT' &&
+    svgSource?.type === 'file' && svgSource.name === svgLicense.sourcePath &&
+    svgSource.licenses?.some(entry => entry.expression === 'MIT') &&
+    svgSource.properties?.some(entry => entry.name === 'unfallatlas:license-path' && entry.value === svgLicense.path) &&
+    svgSource.hashes?.some(entry => entry.alg === 'SHA-256' && entry.content === svgLicense.sourceSha256),
+    'missing or inconsistent embedded SVG-to-PDFKit license and source');
+  assertHash(svgLicense.sourceSha256, 'embedded SVG-to-PDFKit source');
   const componentByNameVersion = new Map((notice.components || []).map(component => [
     `${component.name}\0${component.version}`,
     component,

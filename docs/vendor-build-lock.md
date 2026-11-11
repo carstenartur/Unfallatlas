@@ -83,8 +83,7 @@ Build-Provenienz. Insbesondere bleiben als Arbeit in #406:
   enthaltenen transitiven Komponenten;
 - vollständige CycloneDX-`contains`-Kanten von den ausgelieferten Bundles zu
   diesen Komponenten;
-- unabhängige Reproduktion des upstream Bundling-Schritts statt ausschließlicher
-  Verifikation der veröffentlichten npm-Archivbytes;
+- unabhängige signierte Build-Belege für die reproduzierten Bibliotheken;
 - Einbindung der Exact-Copy-Referenzen als nachgewiesene Eingaben in den
   bestehenden vollständigen Vendor-Build-Lock;
 - direkte Bindung an `vendor/third-party-notices.json`, Komponentenlizenzen und
@@ -95,3 +94,54 @@ Bis diese Punkte abgeschlossen sind, bleibt
 `third-party-notices.json.complete` korrekt `false`. Die neue Attestation darf
 nicht benutzt werden, um die bestehenden bekannten Lücken zu verbergen oder
 einen vollständigen SBOM-Status vorzutäuschen.
+
+## Reproduktion des ausgelieferten DOCX-Bundles
+
+Für `docx@9.15.3` wurde das vollständige Upstream-Build mit Node 24.22.1
+und npm 11.9.0 aus dem vom npm-Release benannten Git-Stand
+`ebd29699d5966bffaa9cf829545b8b6d9ed79d9a` ausgeführt. Das im Quellarchiv
+enthaltene npm-Lockfile fixiert auch die Versionen von fflate (0.8.3),
+nanoid (6.0.2), Vite (8.3.5) und Rolldown (1.2.15). Gebautes und vom
+Site-Build kopiertes IIFE haben jeweils 1.061.595 Bytes und denselben SHA-256
+`262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e`.
+
+Nach `npm ci` im Repository reproduziert der folgende Befehl den Vergleich.
+Als optionales Argument akzeptiert er ein bereits heruntergeladenes
+Upstream-Quellarchiv. Die Prüfsummen für Archiv, Lockfile und Bundle werden
+vor dem Build gegen den festgelegten Stand geprüft.
+
+```sh
+bash scripts/verify-docx-upstream.sh
+```
+
+Für pdfmake bindet der Build zusätzlich die in der minifizierten Source Map
+enthaltene SVG-to-PDFKit-Quelldatei an das veröffentlichte npm-Archiv. Die
+vollständige MIT-Lizenz dieses Forks wird mit der Website ausgeliefert.
+Die unabhängigen Signaturen und der vollständige Komponentennachweis sind offen.
+
+## Reproduktion des PDF-Bundles und der eingebetteten Schriftdateien
+
+Für `pdfmake@0.3.14` enthält der in npm benannte Git-Stand
+`fa0011f9767fde46d9828d0ce1005563c3dec902` kein npm-Lockfile. Das separat
+eingecheckte `vendor/pdfmake-build/npm-lock.json` fixiert die für die
+Reproduktion verwendeten Archivversionen und Integritäten. Es betrifft nur
+den optionalen Herstellerbuild. Die Zuordnung lässt sich mit den
+`sources` und `sourcesContent` der ausgelieferten Source Map prüfen.
+
+Der Upstream-Loader `string-replace-webpack-plugin` vergibt bei jedem
+Build Zufallskennungen. Sie ändern die von Webpack erzeugten Modulnummern
+für FileSaver und den zusammengefassten Browser-Einstieg. Die Buildregel
+reserviert für genau diese beiden Module die Nummern 633 und 8069 aus
+der veröffentlichten Version und verwendet den ursprünglichen vierstelligen
+Nummernraum. Bei einer fehlenden oder mehrdeutigen Zuordnung bricht sie ab.
+Quelltext und fertige Bundles werden dabei nicht nachträglich umgeschrieben.
+
+```sh
+bash scripts/verify-pdfmake-upstream.sh
+```
+
+Der Vergleich prüft das minifizierte Bundle, seine Source Map mit 170
+Quelldateien und den aus den Original-TTFs neu erzeugten VFS-Schriftcontainer
+jeweils byteweise gegen das mit `npm ci` installierte pdfmake-Archiv.
+
+Die veröffentlichte PDF-Komponentenliste ordnet die 26 direkt erkennbaren npm-Paketpfade der Source Map einschließlich verschachtelter Kopien dem Herstellerbuild-Lock zu. So enthält das Bundle beide tatsächlich verwendeten Versionen von base64-js (0.0.8 und 1.5.1), sax 1.6.1 und core-js 3.51.0. Fünf Lizenzdateien zu abweichend oder ausschließlich im Herstellerbuild installierten Versionen sind archiviert und werden beim Neuaufbau mit den installierten Originalen verglichen. Der umgeschriebene Quellpfad zu xmldoc sowie intern gebündelte Bestandteile bleiben im Vollständigkeitsnachweis offen.

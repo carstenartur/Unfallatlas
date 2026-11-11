@@ -81,8 +81,8 @@ function parsePackageNameFromLockPath(lockPath) {
   return segments[0].startsWith('@') ? segments.slice(0, 2).join('/') : segments[0];
 }
 
-function loadLockComponents(repoRoot) {
-  const lock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
+function loadLockComponents(repoRoot, lockFile = 'package-lock.json') {
+  const lock = JSON.parse(fs.readFileSync(path.join(repoRoot, lockFile), 'utf8'));
   if (lock.lockfileVersion !== 3 || !lock.packages) {
     throw new Error('[vendor-provenance] package-lock.json must use lockfileVersion 3');
   }
@@ -107,6 +107,40 @@ function loadLockComponents(repoRoot) {
     components.sort((left, right) => left.purl.localeCompare(right.purl) || left.lockPath.localeCompare(right.lockPath));
   }
   return { lock, byName };
+}
+
+// A source-map path selects a specific installed package, including nested copies.
+function pdfmakeSourcePackages(repoRoot, appLock) {
+  const directory = 'vendor/pdfmake-build';
+  const lockFile = directory + '/npm-lock.json';
+  const buildLock = loadLockComponents(repoRoot, lockFile);
+  const lockSha256 = sha256File(path.join(repoRoot, lockFile));
+  const sourceMap = JSON.parse(fs.readFileSync(path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.min.js.map'), 'utf8'));
+  const archived = JSON.parse(fs.readFileSync(path.join(repoRoot, directory, 'license-files.json'), 'utf8'));
+  const components = new Map();
+  const unresolved = new Set();
+  for (const source of sourceMap.sources) {
+    const relative = source.replace(/^webpack:\/\/pdfmake\/\.\//, '');
+    if (!relative.startsWith('node_modules/')) {
+      if (!relative.startsWith('src/') && !source.startsWith('webpack://pdfmake/webpack/')) unresolved.add(source);
+      continue;
+    }
+    const dependency = relative.match(/^(.*node_modules\/((?:@[^/]+\/)?[^/]+))\//);
+    const component = (buildLock.byName.get(dependency?.[2]) || []).find(item => item.lockPath === dependency[1]);
+    if (!component) throw new Error('[vendor-provenance] Missing pdfmake build-lock path for ' + source);
+    if (components.has(component.lockPath)) continue;
+    const installed = (appLock.byName.get(component.name) || []).find(item => item.integrity === component.integrity && item.version === component.version);
+    const license = archived[component.lockPath];
+    if (!installed && !license) throw new Error('[vendor-provenance] Missing upstream license for ' + component.purl);
+    if (license && !/^[a-zA-Z0-9._-]+$/.test(license.file)) throw new Error('[vendor-provenance] Invalid archived license filename');
+    const licenseSource = license && path.join(repoRoot, directory, 'licenses', license.file);
+    if (license && sha256File(licenseSource) !== license.sha256) throw new Error('[vendor-provenance] Changed upstream license for ' + component.purl);
+    components.set(component.lockPath, {
+      ...component, lockFile, lockSha256, installedPath: installed?.lockPath,
+      archivedLicense: licenseSource, upstreamLicenseName: license?.source,
+    });
+  }
+  return { components: [...components.values()], unresolved: [...unresolved].sort() };
 }
 
 function discoverPackageNames(file) {
@@ -134,16 +168,16 @@ function firstLicenseFiles(packageRoot) {
 }
 
 function copyComponentLicenseEvidence(repoRoot, outputRoot, component) {
-  const packageRoot = path.join(repoRoot, component.lockPath);
+  const packageRoot = path.join(repoRoot, component.installedPath || component.lockPath);
   let metadata = null;
   const metadataPath = path.join(packageRoot, 'package.json');
-  if (fs.existsSync(metadataPath)) {
+  if (!component.archivedLicense && fs.existsSync(metadataPath)) {
     metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
   }
   const expression = component.licenseExpression || (metadata && metadata.license) || null;
   const licenseTexts = [];
-  for (const source of firstLicenseFiles(packageRoot)) {
-    const relativePath = `vendor/licenses/components/${safeFileStem(component.name)}-${safeFileStem(component.version)}-${safeFileStem(path.basename(source))}.txt`;
+  for (const source of component.archivedLicense ? [component.archivedLicense] : firstLicenseFiles(packageRoot)) {
+    const relativePath = `vendor/licenses/components/${safeFileStem(component.name)}-${safeFileStem(component.version)}-${safeFileStem(component.upstreamLicenseName || path.basename(source))}.txt`;
     const destination = path.join(outputRoot, relativePath);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(source, destination);
@@ -166,6 +200,7 @@ function copyComponentLicenseEvidence(repoRoot, outputRoot, component) {
       type: 'npm-package-lock-integrity',
       value: component.integrity,
       lockPath: component.lockPath,
+      ...(component.lockFile ? { lockFile: component.lockFile, lockSha256: component.lockSha256 } : {}),
     },
   };
 }
@@ -281,7 +316,7 @@ function verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents) {
   const component = (lockComponents.byName.get('simpleheat') || [])
     .find(candidate => candidate.lockPath === 'node_modules/simpleheat');
   if (!component) throw new Error('[vendor-provenance] Missing locked simpleheat component');
-  const packageRoot = path.join(repoRoot, component.lockPath);
+  const packageRoot = path.join(repoRoot, component.installedPath || component.lockPath);
   const installed = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
   if (installed.name !== component.name || installed.version !== component.version) {
     throw new Error('[vendor-provenance] Installed simpleheat does not match package-lock.json');
@@ -300,7 +335,32 @@ function verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents) {
   return component;
 }
 
-function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
+// pdfmake ships a modified SVG-to-PDFKit implementation inside its npm archive.
+function collectEmbeddedSvgLicense(repoRoot, outputRoot) {
+  const root = path.join(repoRoot, 'node_modules/pdfmake');
+  const sourcePath = 'src/3rd-party/svg-to-pdfkit/source.js';
+  const source = fs.readFileSync(path.join(root, sourcePath));
+  const map = JSON.parse(fs.readFileSync(path.join(root, 'build/pdfmake.min.js.map'), 'utf8'));
+  const entries = map.sources.map((name, index) => name === 'webpack://pdfmake/./' + sourcePath ? index : -1)
+    .filter(index => index >= 0);
+  if (map.file !== 'pdfmake.min.js' || entries.length !== 1 ||
+      typeof map.sourcesContent?.[entries[0]] !== 'string' ||
+      !source.equals(Buffer.from(map.sourcesContent[entries[0]]))) {
+    throw new Error('[vendor-provenance] SVG-to-PDFKit source differs from the delivered PDF bundle map');
+  }
+  const license = fs.readFileSync(path.join(root, 'src/3rd-party/svg-to-pdfkit/LICENSE'));
+  require('./validate-vendor-license-evidence').assertCompleteLicenseText(license.toString('utf8'), 'MIT', sourcePath);
+  const destination = 'vendor/licenses/components/pdfmake-svg-to-pdfkit-MIT.txt';
+  fs.mkdirSync(path.dirname(path.join(outputRoot, destination)), { recursive: true });
+  fs.writeFileSync(path.join(outputRoot, destination), license);
+  return {
+    component: 'svg-to-pdfkit', asset: 'vendor/export/pdfmake.js', sourcePath,
+    sourceSha256: sha256Buffer(source), spdx: 'MIT', copyrightIncluded: true,
+    path: destination, sha256: sha256Buffer(license)
+  };
+}
+
+function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, pdfmake) {
   const gapByPath = new Map();
   const gapKindById = new Map();
   for (const gap of policy.unresolvedAssets) {
@@ -325,13 +385,16 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
     const unresolved = [];
     for (const name of names) {
       const candidates = lockComponents.byName.get(name) || [];
-      if (candidates.length === 0) unresolved.push(name);
-      else for (const component of candidates) purls.push(component.purl);
+      const versions = [...new Set(candidates.map(component => component.purl))];
+      if (versions.length === 1) purls.push(versions[0]);
+      else unresolved.push(name);
     }
     discoveredByAsset.set(assetPath, { purls: [...new Set(purls)].sort(), unresolved });
   };
   discover('vendor/export/docx.js', path.join(repoRoot, 'node_modules/docx/dist/index.iife.js'));
-  discover('vendor/export/pdfmake.js', path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.js.map'));
+  discoveredByAsset.set('vendor/export/pdfmake.js', {
+    purls: pdfmake.components.map(component => component.purl), unresolved: pdfmake.unresolved,
+  });
 
   return copiedAssets.map(asset => {
     const detected = discoveredByAsset.get(asset.path) || { purls: [], unresolved: [] };
@@ -344,14 +407,16 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
       contains.add(verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents).purl);
     }
     const gaps = (gapByPath.get(asset.path) || []).sort();
-    const reproducible = gaps.every(gapId => gapKindById.get(gapId) === 'missing-redistribution-evidence');
+    const rebuilt = policy.verifiedSourceRebuilds?.[asset.path];
+    const sourceRebuild = rebuilt && rebuilt.sha256 === asset.sha256;
+    const exactCopy = gaps.every(gapId => gapKindById.get(gapId) === 'missing-redistribution-evidence');
     return {
       path: asset.path,
       package: asset.package,
       bytes: asset.bytes,
       sha256: asset.sha256,
-      reproducible,
-      reproductionMethod: reproducible ? 'exact-file-from-integrity-pinned-npm-archive' : null,
+      reproducible: Boolean(sourceRebuild || exactCopy),
+      reproductionMethod: sourceRebuild ? rebuilt.command : exactCopy ? 'exact-file-from-integrity-pinned-npm-archive' : null,
       provenanceComplete: gaps.length === 0,
       contains: [...contains].sort(),
       containsFiles: [],
@@ -361,7 +426,7 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
   });
 }
 
-function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy) {
+function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, svgLicense) {
   const componentByPurl = new Map(components.map(component => [component.purl, component]));
   const sbomComponents = components.map(component => ({
     type: 'library',
@@ -409,6 +474,13 @@ function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, polic
       ],
     });
   }
+  // Use the file hash for this vendored fork. The supplier package version is not the upstream SVG-to-PDFKit version.
+  const pdfBundle = sbomComponents.find(component => component['bom-ref'] === 'urn:unfallatlas:vendor-asset:' + svgLicense.asset);
+  pdfBundle.components = [{
+    type: 'file', name: svgLicense.sourcePath, hashes: [{ alg: 'SHA-256', content: svgLicense.sourceSha256 }],
+    licenses: [{ expression: svgLicense.spdx }],
+    properties: [{ name: 'unfallatlas:license-path', value: svgLicense.path }]
+  }];
   const dependencies = assets.map(asset => ({
     ref: `urn:unfallatlas:vendor-asset:${asset.path}`,
     dependsOn: [
@@ -449,12 +521,14 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets) {
   fs.copyFileSync(sourcePath, policyDestination);
 
   const lockComponents = loadLockComponents(repoRoot);
-  const assets = buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents);
+  const pdfmake = pdfmakeSourcePackages(repoRoot, lockComponents);
+  const assets = buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, pdfmake);
   const requiredPurls = new Set(assets.flatMap(asset => asset.contains));
   const selected = [];
   for (const candidates of lockComponents.byName.values()) {
     for (const candidate of candidates) if (requiredPurls.has(candidate.purl)) selected.push(candidate);
   }
+  selected.push(...pdfmake.components);
   const components = [...new Map(selected.map(component => [component.purl, component])).values()]
     .sort((left, right) => left.purl.localeCompare(right.purl))
     .map(component => copyComponentLicenseEvidence(repoRoot, outputRoot, component));
@@ -464,17 +538,18 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets) {
   if (!simpleheatLicense || simpleheat.licenseExpression !== 'BSD-2-Clause') {
     throw new Error('[vendor-provenance] Missing BSD-2-Clause license evidence for locked simpleheat');
   }
+  const svgLicense = collectEmbeddedSvgLicense(repoRoot, outputRoot);
   const supplementalLicenses = [{
     component: `simpleheat@${simpleheat.version}`,
     spdx: simpleheat.licenseExpression,
     ...simpleheatLicense,
-  }];
+  }, svgLicense];
   const fontContainer = assets.find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
   if (!fontContainer) throw new Error('[vendor-provenance] Missing delivered pdfmake font container');
   fontContainer.containsFiles = fontEvidence
     .map(font => `urn:unfallatlas:font:${font.name}`)
     .sort();
-  const sbom = writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy);
+  const sbom = writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, svgLicense);
   return {
     policy: {
       path: policyOutputPath,
