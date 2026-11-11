@@ -5,6 +5,7 @@ on:
     branches: [main]
     tags: ['v*']
     paths:
+      - 'scripts/configure-ubuntu-mirrors.sh'
       - '.github/workflows/docker-publish.yml'
       - 'pom.xml'
       - 'qa-system-tests/**'
@@ -20,6 +21,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/configure-ubuntu-mirrors.sh'
       - '.github/workflows/docker-publish.yml'
       - 'pom.xml'
       - 'qa-system-tests/**'

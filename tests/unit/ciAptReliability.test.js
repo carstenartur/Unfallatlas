@@ -23,14 +23,23 @@ describe('CI package installation reliability', () => {
       const ports = path.join(sources, 'ports.list');
       fs.writeFileSync(ports, 'deb http://ports.ubuntu.com/ubuntu-ports noble main\n');
       const configure = () => execFileSync('sh', [path.join(ROOT, 'scripts/configure-ubuntu-mirrors.sh'), dir]);
+      const runnerList = path.join(dir, 'apt-mirrors.txt');
+      const originalMirrors = 'https://security.ubuntu.com/ubuntu\nhttps://custom.example/ubuntu\n';
+      fs.writeFileSync(runnerList, originalMirrors);
       configure();
       configure();
-      expect(fs.readFileSync(path.join(dir, 'sources.list'), 'utf8')).toBe('deb mirror+file:' + dir + '/apt-mirrors.txt noble-updates main universe\n');
+      const augmented = fs.readFileSync(runnerList, 'utf8');
+      expect(augmented.startsWith(originalMirrors)).toBe(true);
+      expect(augmented.match(/mirrors\.edge\.kernel\.org/g)).toHaveLength(1);
+      fs.writeFileSync(runnerList, 'https://ports.ubuntu.com/ubuntu-ports\n');
+      configure();
+      expect(fs.readFileSync(runnerList, 'utf8')).toBe('https://ports.ubuntu.com/ubuntu-ports\n');
+      expect(fs.readFileSync(path.join(dir, 'sources.list'), 'utf8')).toBe('deb mirror+file:' + dir + '/ua-ubuntu-mirrors.txt noble-updates main universe\n');
       expect(fs.readFileSync(security, 'utf8')).toBe('URIs: mirror+file:' + dir + '/apt-security-mirrors.txt\nSuites: noble-security\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n');
       expect(fs.readFileSync(ports, 'utf8')).toContain('http://ports.ubuntu.com/ubuntu-ports');
-      for (const name of ['apt-mirrors.txt', 'apt-security-mirrors.txt']) {
+      for (const name of ['ua-ubuntu-mirrors.txt', 'apt-security-mirrors.txt']) {
         const mirrors = fs.readFileSync(path.join(dir, name), 'utf8').trim().split('\n');
-        expect(mirrors[0]).toContain(name === 'apt-mirrors.txt' ? 'https://archive.ubuntu.com/ubuntu' : 'https://security.ubuntu.com/ubuntu');
+        expect(mirrors[0]).toContain(name === 'ua-ubuntu-mirrors.txt' ? 'https://archive.ubuntu.com/ubuntu' : 'https://security.ubuntu.com/ubuntu');
         expect(mirrors[1]).toContain('https://mirrors.edge.kernel.org/ubuntu');
       }
     } finally {
@@ -90,6 +99,16 @@ describe('CI package installation reliability', () => {
     expect(extendedQa).toContain('PLAYWRIGHT_INSTALL_SYSTEM_DEPS: \'1\'');
     expect(extendedQa).toContain('set -euo pipefail');
   });
+
+  test.each(['visual-check', 'generate-screenshots', 'live-pages-runtime-health'])(
+    '%s configures mirrors before the live documentation browser install',
+    (workflowName) => {
+      const workflow = read('.github/workflows/' + workflowName + '.yml');
+      const configure = workflow.indexOf('sudo sh scripts/configure-ubuntu-mirrors.sh');
+      expect(configure).toBeGreaterThan(-1);
+      expect(workflow.indexOf('-Pdocumentation-live')).toBeGreaterThan(configure);
+    }
+  );
 
   test('release acceptance provisions browser and document dependencies before the full matrix', () => {
     const workflow = read('.github/workflows/deploy-release.yml');

@@ -5,6 +5,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/configure-ubuntu-mirrors.sh'
       - '.github/workflows/live-pages-runtime-health.yml'
       - '.github/workflows/deploy-pages-current-data.yml'
       - '.github/workflows/generate-data-deploy-pages.yml'
@@ -76,6 +77,9 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
+
+      - name: Configure Ubuntu release mirrors for browser dependencies
+        run: sudo sh scripts/configure-ubuntu-mirrors.sh
 
       - name: Diagnose the published application through the documented Maven profile
         env:

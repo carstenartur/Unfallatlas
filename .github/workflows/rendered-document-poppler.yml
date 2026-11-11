@@ -5,6 +5,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/configure-ubuntu-mirrors.sh'
       - '.github/workflows/rendered-document-poppler.yml'
       - 'config/word-compatibility-inputs.json'
       - 'pom.xml'

@@ -3,11 +3,16 @@
 # index and package downloads on the next mirror if the first one fails.
 set -eu
 apt_dir=${1:-/etc/apt}
-archive_list="$apt_dir/apt-mirrors.txt"
+archive_list="$apt_dir/ua-ubuntu-mirrors.txt"
+runner_list="$apt_dir/apt-mirrors.txt"
 security_list="$apt_dir/apt-security-mirrors.txt"
-if [ -s "$archive_list" ] && ! grep -Eq 'https?://(azure\.)?archive\.ubuntu\.com/ubuntu' "$archive_list"; then
-    # A custom or Ubuntu Ports mirror list belongs to its existing sources.
-    archive_list="$apt_dir/ua-ubuntu-mirrors.txt"
+if [ -s "$runner_list" ]; then
+    # A hosted runner can already reference this list directly. Preserve all
+    # existing mirrors, adding a fallback only for Ubuntu archive/security lists.
+    if grep -Eq 'https?://((azure\.)?archive|security)\.ubuntu\.com/ubuntu(/|[[:space:]]|$)' "$runner_list" &&
+       ! grep -Fq 'https://mirrors.edge.kernel.org/ubuntu' "$runner_list"; then
+        printf '\n%s\tpriority:2\n' 'https://mirrors.edge.kernel.org/ubuntu' >> "$runner_list"
+    fi
 fi
 
 write_mirrors() {
