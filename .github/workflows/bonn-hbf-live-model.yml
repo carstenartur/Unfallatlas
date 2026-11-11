@@ -10,40 +10,63 @@ permissions:
   contents: read
 
 jobs:
-  capture:
-    runs-on: ubuntu-latest
+  provider:
+    name: Modellzugang prüfen
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.availability.outputs.configured }}
+    steps:
+      - name: Verfügbarkeit des Projektzugangs feststellen
+        id: availability
+        env:
+          PROVIDER_CONFIGURED: ${{ secrets.GEMINI_API_KEY != '' }}
+        run: |
+          echo "configured=$PROVIDER_CONFIGURED" >> "$GITHUB_OUTPUT"
+          if [[ "$PROVIDER_CONFIGURED" != true ]]; then
+            echo "### Modellprüfung übersprungen: kein Zugang" >> "$GITHUB_STEP_SUMMARY"
+            echo "Für diesen Lauf ist kein Gemini-Projektzugang konfiguriert. Es wurde keine Modellanfrage gesendet." >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+              echo "::error::Der manuell angeforderte Referenzlauf benötigt den Gemini-Projektzugang."
+              exit 1
+            fi
+          fi
+
+  capture:
+    name: Bonner Referenzfall mit Gemini prüfen
+    needs: provider
+    if: needs.provider.outputs.configured == 'true'
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Check provider configuration
-        id: availability
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          if [[ -z "$GEMINI_API_KEY" ]]; then
-            echo "GEMINI_API_KEY is not configured for this run. No model request was made." >> "$GITHUB_STEP_SUMMARY"
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            [[ "$GITHUB_EVENT_NAME" == push ]] && exit 0
-            exit 1
-          fi
-          echo "configured=true" >> "$GITHUB_OUTPUT"
       - name: Set up Java 25
-        if: steps.availability.outputs.configured == 'true'
         uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
       - name: Run the public-data reference case through the production model adapter
-        if: steps.availability.outputs.configured == 'true'
+        id: review
         env:
           AI_PROVIDER: gemini
           AI_ASSESSMENT_MODEL: ${{ vars.AI_ASSESSMENT_MODEL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: mvn -B -ntp -N process-resources -Pbonn-hbf-live-model
+      - name: Ergebnis der Modellprüfung zusammenfassen
+        if: ${{ !cancelled() }}
+        env:
+          REVIEW_OUTCOME: ${{ steps.review.outcome }}
+        run: |
+          if [[ "$REVIEW_OUTCOME" == success ]]; then
+            echo "### Modellantwort für den Bonner Referenzfall geprüft" >> "$GITHUB_STEP_SUMMARY"
+            echo "Gemini hat geantwortet. Die Antwort ist dem Referenzfall zugeordnet und erfüllt die automatischen Kriterien für diesen gesperrten Fall. Die unabhängige Fachfreigabe steht aus." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Modellprüfung nicht erfolgreich abgeschlossen" >> "$GITHUB_STEP_SUMMARY"
+            echo "Protokoll und vorhandene Prüfarbelege zeigen, wie weit der Referenzlauf gekommen ist. Die unabhängige Fachfreigabe steht aus." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Retain the provider response and review evidence
         if: ${{ !cancelled() && hashFiles('out/qa/bonn-hbf-ai/execution-receipt.json') != '' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
