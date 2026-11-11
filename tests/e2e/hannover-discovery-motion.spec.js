@@ -182,7 +182,10 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     expect(normalized).toMatch(/nach schwerster Folge \(n = 48\)\. Das ausgewählte Muster umfasst davon 17 Fälle/);
     expect(normalized).toMatch(/mit Getöteten mit Schwerverletzten mit Leichtverletzten Unfälle gesamt/);
     if (selector === '#btnExportWord') {
-      expect(text).toContain('Häufung von Unfällen mit Rad- und Pkw-Beteiligung');
+      expect(normalized).toContain('Vergleich der Beteiligung – Rad- und Pkw-Verkehr');
+      expect(normalized).toContain('Im ausgewerteten Ausschnitt sind 31 Unfälle mit dieser Beteiligung erfasst.');
+      expect(normalized).toContain('Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.');
+      expect(normalized).toContain('Für welche Fahrwege zeigen die Unfallskizzen wiederkehrende Konflikte?');
       // External map services are intentionally unavailable in this CI case.
       expect(text).toContain('kein amtliches Luftbild verfügbar');
       expect(text).toMatch(/umfasst\s+20\.379\s+Unfälle/);

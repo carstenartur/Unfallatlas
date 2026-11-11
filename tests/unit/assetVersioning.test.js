@@ -110,9 +110,8 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain(`${asset}?v=2026-11-10-ris-map"`);
   });
 
-  test.each(['js/ua.core.js'])
-  ('%s refreshes the combined map, RIS and application export repairs', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-10-ris-map-antrag"`);
+  test('refreshes the loader for versioned document provenance', () => {
+    expect(html).toContain('js/ua.core.js?v=2026-11-11-build-version"');
   });
 
   test.each(['js/ua.context_measures.js', 'js/ua.osm_context.js'])
@@ -187,7 +186,7 @@ test.each(['ua.popup_context',
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
   const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
   for (const name of ['ua.artifact_provenance', 'ua.export_provenance', 'ua.kml_export_provenance', 'ua.document_export_provenance']) {
-    const version = name === 'ua.export_provenance' ? '2026-11-08-provenance-context-copy' : name === 'ua.document_export_provenance' ? '2026-11-10-antrag-quality' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
+    const version = name === 'ua.export_provenance' ? '2026-11-11-build-version' : name === 'ua.document_export_provenance' ? '2026-11-10-antrag-quality' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
     expect(core).toContain(`${name}.js?v=${version}`);
   }
 });

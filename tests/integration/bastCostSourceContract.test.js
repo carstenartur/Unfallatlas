@@ -8,6 +8,10 @@ const JSZip = require('jszip');
 const ROOT = path.resolve(__dirname, '../..');
 const CANONICAL_BAST_COST_URI =
   'https://www.bast.de/DE/Publikationen/Statistik/Unfaelle/volkswirtschaftliche_kosten.html';
+const PERSON_COST_TABLE_URI =
+  'https://www.polizei.hessen.de/sites/polizei.hessen.de/files/2026-01/ppoh_verkehrsbericht_2024.pdf#page=6';
+const ACCIDENT_ATLAS_URI = 'https://www.statistikportal.de/de/karten/unfallatlas';
+const BICYCLE_UNDERREPORTING_STUDY_URI = 'https://pubmed.ncbi.nlm.nih.gov/22105099/';
 const LEGACY_BAST_COST_PATH =
   ['/DE/Statistik', 'Unfaelle', 'volkswirtschaftliche_kosten.html'].join('/');
 const GOVDATA_LICENSE_URI = 'https://www.govdata.de/dl-de/by-2-0';
@@ -162,17 +166,17 @@ afterEach(() => {
 });
 
 describe('canonical BASt cost-source contract', () => {
-  test('all repository and runtime consumers agree and the legacy path is absent', () => {
+  test('references, person-cost factors and reporting limits cite their respective sources', () => {
     // Literal counts belong only to artifacts that intrinsically store URLs.
     // JavaScript consumers are checked through their runtime values below so a
     // future shared-constant refactor remains valid.
     const literalArtifacts = {
-      'docs/credits.md': 1,
-      'data/cost_factors_de.json': 1,
-      'templates/references_global.json': 1,
+      'docs/credits.md': CANONICAL_BAST_COST_URI,
+      'data/cost_factors_de.json': PERSON_COST_TABLE_URI,
+      'templates/references_global.json': CANONICAL_BAST_COST_URI,
     };
-    for (const [relative, expectedCount] of Object.entries(literalArtifacts)) {
-      expect(occurrenceCount(read(relative), CANONICAL_BAST_COST_URI)).toBe(expectedCount);
+    for (const [relative, expectedUrl] of Object.entries(literalArtifacts)) {
+      expect(occurrenceCount(read(relative), expectedUrl)).toBe(1);
     }
 
     const consumerFiles = [
@@ -206,19 +210,14 @@ describe('canonical BASt cost-source contract', () => {
     const fallbackUrl = window.UA.costs.FALLBACK.source.url;
     evaluateBrowserScript('js/ua.export_v2.js');
     const darkFigure = window.UA.DARK_FIGURE_NOTE;
-    const darkFigureBast = darkFigure.sources.find(source => /BASt/.test(source.label));
-    expect(darkFigureBast).toBeDefined();
-
-    const consumers = {
-      documentation: creditsMatch[1],
-      machineReadableFactors: costsJson.source.url,
-      runtimeFallback: fallbackUrl,
-      darkFigurePrimary: darkFigure.sourceUrl,
-      darkFigureSourceList: darkFigureBast.url,
-      globalReferences: bastReference.url,
-    };
-    expect(new Set(Object.values(consumers))).toEqual(new Set([CANONICAL_BAST_COST_URI]));
-    for (const url of Object.values(consumers)) expect(url).toMatch(/^https:\/\//);
+    expect(creditsMatch[1]).toBe(CANONICAL_BAST_COST_URI);
+    expect(bastReference.url).toBe(CANONICAL_BAST_COST_URI);
+    expect(costsJson.source.url).toBe(PERSON_COST_TABLE_URI);
+    expect(fallbackUrl).toBe(PERSON_COST_TABLE_URI);
+    expect(darkFigure.sourceUrl).toBe(ACCIDENT_ATLAS_URI);
+    expect(darkFigure.sources.map(source => source.url)).toEqual(expect.arrayContaining([
+      ACCIDENT_ATLAS_URI, BICYCLE_UNDERREPORTING_STUDY_URI,
+    ]));
 
     // Regression guard against the rejected Wayback substitution in #514.
     expect(read('README.md')).toContain(GOVDATA_LICENSE_URI);

@@ -53,8 +53,8 @@
   ]);
   const manifestCache = new WeakMap();
   const manifestSnapshots = new WeakMap();
-  const buildFingerprintPromises = new WeakMap();
-  let fallbackBuildFingerprintPromise = null;
+  const buildInfoPromises = new WeakMap();
+  let fallbackBuildInfoPromise = null;
 
   class LiveExportProvenanceError extends Error {
     constructor(code, message, details) {
@@ -567,13 +567,13 @@
     return String(UA?.BUILD || meta?.content || "unfallwerkbank-browser").trim();
   }
 
-  async function buildFingerprint(UA, root) {
+  async function readBuildInfo(UA, root) {
     const cacheableRoot = root && (typeof root === "object" || typeof root === "function");
-    if (cacheableRoot && buildFingerprintPromises.has(root)) {
-      return buildFingerprintPromises.get(root);
+    if (cacheableRoot && buildInfoPromises.has(root)) {
+      return buildInfoPromises.get(root);
     }
-    if (!cacheableRoot && fallbackBuildFingerprintPromise) {
-      return fallbackBuildFingerprintPromise;
+    if (!cacheableRoot && fallbackBuildInfoPromise) {
+      return fallbackBuildInfoPromise;
     }
     const promise = (async () => {
       if (typeof root?.fetch === "function") {
@@ -581,26 +581,30 @@
           const response = await root.fetch("build-manifest.json", { cache: "no-store" });
           if (response?.ok) {
             const manifest = await response.json();
-            for (const candidate of [
+            const version = manifest?.application?.version;
+            const declaredFingerprint = [
               manifest?.buildFingerprint,
               manifest?.applicationFingerprint,
               manifest?.appFingerprint,
               manifest?.siteFingerprint,
-            ]) {
-              if (typeof candidate === "string" && /^[a-f0-9]{64}$/i.test(candidate)) {
-                return candidate.toLowerCase();
-              }
-            }
-            return artifactProvenance.sha256(sourceManifest.stableStringify(manifest));
+            ].find(candidate => typeof candidate === "string" && /^[a-f0-9]{64}$/i.test(candidate));
+            return {
+              applicationVersion: (typeof version === "string" && version.trim()) || "Version unbekannt",
+              fingerprint: declaredFingerprint?.toLowerCase()
+                || await artifactProvenance.sha256(sourceManifest.stableStringify(manifest)),
+            };
           }
         } catch (_) {
           // Local source tests and direct module consumers use the build-label fallback.
         }
       }
-      return artifactProvenance.sha256(buildLabel(UA, root));
+      return {
+        applicationVersion: "Version unbekannt",
+        fingerprint: await artifactProvenance.sha256(buildLabel(UA, root)),
+      };
     })();
-    if (cacheableRoot) buildFingerprintPromises.set(root, promise);
-    else fallbackBuildFingerprintPromise = promise;
+    if (cacheableRoot) buildInfoPromises.set(root, promise);
+    else fallbackBuildInfoPromise = promise;
     return promise;
   }
 
@@ -652,12 +656,13 @@
       ...(contextPoints.length ? { contextSources: contextFacts } : {}) };
     const dataCanonical = sourceManifest.stableStringify(dataSnapshot);
     const dataFingerprint = await artifactProvenance.sha256(dataCanonical);
-    const appFingerprint = await buildFingerprint(UA, root);
+    const { applicationVersion, fingerprint: appFingerprint } = await readBuildInfo(UA, root);
     const cached = manifestCache.get(ctx);
     if (
       cached &&
       cached.dataFingerprint === dataFingerprint &&
-      cached.buildFingerprint === appFingerprint
+      cached.buildFingerprint === appFingerprint &&
+      cached.manifest.applicationVersion === applicationVersion
     ) {
       // Population order may change without changing the canonical data hash.
       // Retain the currently selected order for an outer wrapper's bound export.
@@ -678,7 +683,7 @@
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "") || "export"}-${dataFingerprint.slice(0, 12)}`,
       generatedAt,
-      applicationVersion: buildLabel(UA, root),
+      applicationVersion,
       buildFingerprint: appFingerprint,
       dataFingerprint,
       scenario: {
@@ -727,7 +732,7 @@
             "Auswahl im Exportbereich unter Schwere-, Zeit-, Zustands- und Kontextfiltern; Beteiligungsfilter werden dokumentiert, der Datenexport bewahrt jedoch alle Beteiligungskombinationen. Exportfelder werden normalisiert.",
           sourceIds: [SOURCE_ID],
           outputFields: CORE_FIELDS,
-          softwareVersion: buildLabel(UA, root),
+          softwareVersion: applicationVersion,
           parameters: { bounds, filters },
         },
         ...(contextPoints.length ? [{
