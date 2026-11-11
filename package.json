@@ -18,6 +18,7 @@
     "test:unit": "jest --testPathPatterns=tests/unit",
     "test:integration": "node -e \"require('fs').mkdirSync('coverage',{recursive:true})\" && jest --testPathPatterns=tests/integration --runInBand --json --outputFile=coverage/integration-results.json",
     "test:integration:tc": "NODE_OPTIONS=--experimental-vm-modules jest --config=tests/integration/jest.testcontainers.config.js",
+    "qa:bonn-hbf-live-model": "node scripts/install-playwright-browsers.cjs chromium && node scripts/qa-bonn-hbf-ai-golden.js --run-model",
     "qa:location-brief-golden": "node scripts/qa-location-brief-golden-cases.js",
     "qa:location-brief-golden:prepare": "node scripts/prepare-location-brief-golden-fixtures.js",
     "qa:live-documentation-links": "node scripts/run-live-documentation-links.cjs",

@@ -116,6 +116,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
       'bonn-oparl-live.yml': ['-N test -Pbonn-oparl-live'],
       'rendered-document-poppler.yml': ['-Pdocument-render'],
       'enrich.yml': ['-Pcontext-data-e2e'],
+      'bonn-hbf-live-model.yml': ['-Pbonn-hbf-live-model'],
       'generate-screenshots.yml': ['-Pdocumentation-live'],
       'visual-check.yml': ['-Pdocumentation-live'],
       'regenerate-readme-demo-candidate.yml': ['-Preadme-demo-candidate'],

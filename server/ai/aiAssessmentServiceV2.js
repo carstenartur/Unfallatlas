@@ -15,6 +15,7 @@ const { preselectMeasures }    = require('./scoring/preselectMeasures.js');
 const { MEASURE_BY_ID }        = require('./catalog/measureCatalog.js');
 const { getCatalogForCity, normalizeSlug: normalizeCitySlug } = require('./catalog/cityMeasureCatalog.js');
 const { buildPrompt, PROMPT_VERSION } = require('./prompts/exportAssessmentPrompt.v2.js');
+const { configuredModel } = require('./providers/geminiApi');
 const { getProvider, activeProviderName } = require('./providers/index.js');
 const { sharedCache, AiAssessmentCache } = require('./cache/aiAssessmentCache.js');
 const { sharedQueue }          = require('./jobs/aiJobQueue.js');
@@ -73,7 +74,7 @@ async function runAssessmentV2(args) {
   const preselected = preselectMeasures(features, { citySlug });
   const aiInput = buildAiInputV2(structured, features, preselected, contextHints);
 
-  const model = process.env.AI_ASSESSMENT_MODEL || 'gemini-2.0-flash';
+  const model = configuredModel();
   const cacheKey = AiAssessmentCache.buildKey({
     input: aiInput,
     promptVersion: PROMPT_VERSION,
