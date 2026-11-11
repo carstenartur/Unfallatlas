@@ -1907,6 +1907,24 @@
       }
     }
 
+    // Keep partial, accident-matched way evidence distinct from a complete
+    // Overpass result. It must never enable a ranking or assert zero crossings.
+    if (markedBounds && osmContextOverride === undefined && osmContext?.quality?.error
+        && UA.contextLayers?.matchedRoadEvidence) {
+      let timer;
+      try {
+        const matchedRoads = await Promise.race([
+          UA.contextLayers.matchedRoadEvidence(ctx, filteredPts),
+          new Promise(resolve => { timer = setTimeout(() => resolve(null), 8000); }),
+        ]);
+        if (matchedRoads) osmContext = { ...osmContext, matchedRoads };
+      } catch (error) {
+        console.warn("Published OSM road context unavailable:", error);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
     const hasLocalOsm = Boolean(osmContext?.summary && !osmContext.quality?.error && osmContext.quality?.elementCount !== 0);
     let trackSource = null;
     if (includeMeasures && includeOsmContext && markedBounds) {
@@ -2078,8 +2096,8 @@
       CITY: CITY_RAW,
       bounds: bStr,
       BOUNDS: bStr,
-      local_total: dev.local.total.toLocaleString(),
-      baseline_total: dev.baseline.total.toLocaleString(),
+      local_total: dev.local.total.toLocaleString("de-DE"),
+      baseline_total: dev.baseline.total.toLocaleString("de-DE"),
       severity_summary: `Die Unfallzahlen nach Schwere lauten ${sev.bySev["1"] || 0} mit Getöteten, ${sev.bySev["2"] || 0} mit Schwerverletzten und ${sev.bySev["3"] || 0} mit Leichtverletzten.`,
       date: new Date().toLocaleDateString("de-DE"),
       DATE: new Date().toLocaleDateString("de-DE"),
@@ -2323,7 +2341,8 @@
       lines.push(`  Quelle: ${osmContext.source.publisher} (${osmContext.source.license}), via ${osmContext.source.retrievedVia}.`);
       lines.push("");
     } else if (osmContext && osmContext.quality && osmContext.quality.error) {
-      lines.push("Verkehrsräumlicher Kontext (OSM): OSM-Kontextdaten konnten beim Export nicht geladen werden.");
+      if (osmContext.matchedRoads) lines.push("Verkehrsräumlicher Kontext (OSM):", ...osmContext.matchedRoads.lines);
+      else lines.push("Verkehrsräumlicher Kontext (OSM): OSM-Kontextdaten konnten beim Export nicht geladen werden.");
       lines.push("");
     }
 
@@ -3181,7 +3200,7 @@
         ${_osmInsightsHtml}
         ` : (osmContext && osmContext.quality && osmContext.quality.error) ? `
         <div style="margin-top:12px; font-weight:900;">Verkehrsräumlicher Kontext (OSM)</div>
-        <div style="font-size:12px; color:#777;">OSM-Kontextdaten konnten beim Export nicht geladen werden.</div>
+        <div style="font-size:12px; color:#777;">${(osmContext.matchedRoads?.lines || ["OSM-Kontextdaten konnten beim Export nicht geladen werden."]).map(line => UA.escHtml(line)).join("<br>")}</div>
         ` : ``}
 
         <div style="margin-top:10px; color:#555; font-size:12px;">

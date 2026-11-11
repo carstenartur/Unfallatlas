@@ -33,7 +33,11 @@ on:
       - 'config/context-data-git-budget.json'
       - 'scripts/generate-context-city.js'
       - 'scripts/apply-hannover-dgm1-road-profiles.js'
+      - 'scripts/prepare-hannover-dgm1.py'
+      - 'config/hannover-dgm1-city-archives.json'
       - 'scripts/apply-qualitative-traffic-proxy.js'
+      - 'scripts/apply-matched-traffic.js'
+      - 'config/koeln-kfz-geometry-schema.json'
       - 'scripts/check-enrichment-inputs.js'
       - 'scripts/review-context-data-git-delta.js'
       - 'scripts/run-context-data-git-delta-if-enabled.js'
@@ -92,6 +96,45 @@ jobs:
             context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-
             context-${{ runner.os }}-
 
+      - name: Restore the pinned Hannover raster
+        id: raster-cache
+        if: >-
+          (inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true') &&
+          (inputs.city == '' || inputs.city == 'Hannover') &&
+          vars.HANNOVER_DGM1_ROOT == '' && vars.HANNOVER_DGM1_MANIFEST == '' &&
+          vars.HANNOVER_DGM1_MANIFEST_SHA256 == '' && vars.HANNOVER_DGM1_PRECOMPUTED_PROFILES == ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/hannover-dgm1/raster
+          key: hannover-dgm1-${{ hashFiles('config/hannover-dgm1-city-archives.json', 'scripts/prepare-hannover-dgm1.py') }}
+
+      - name: Prepare the verified Hannover city raster when requested
+        id: hannover-raster
+        if: >-
+          (inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true') &&
+          (inputs.city == '' || inputs.city == 'Hannover') &&
+          vars.HANNOVER_DGM1_ROOT == '' && vars.HANNOVER_DGM1_MANIFEST == '' &&
+          vars.HANNOVER_DGM1_MANIFEST_SHA256 == '' && vars.HANNOVER_DGM1_PRECOMPUTED_PROFILES == ''
+        env:
+          RASTER_CACHE_HIT: ${{ steps.raster-cache.outputs.cache-hit }}
+        run: |
+          raster_root="$RUNNER_TEMP/hannover-dgm1"
+          if [[ "$RASTER_CACHE_HIT" != "true" ]]; then
+            python3 scripts/prepare-hannover-dgm1.py --archives "$raster_root/archives" --output "$raster_root/raster"
+          fi
+          raster_sha=$(python3 -c 'import json;print(json.load(open("config/hannover-dgm1-city-archives.json"))["packedManifestSha256"])')
+          echo "$raster_sha  $raster_root/raster/manifest.json" | sha256sum --check
+          echo "root=$raster_root/raster" >> "$GITHUB_OUTPUT"
+          echo "manifest=manifest.json" >> "$GITHUB_OUTPUT"
+          echo "sha256=$raster_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the verified city raster
+        if: steps.hannover-raster.outputs.sha256 != '' && steps.raster-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/hannover-dgm1/raster
+          key: hannover-dgm1-${{ hashFiles('config/hannover-dgm1-city-archives.json', 'scripts/prepare-hannover-dgm1.py') }}
+
       - name: Generate, validate and review selected context data
         env:
           REQUESTED_CITY: ${{ inputs.city }}
@@ -99,9 +142,10 @@ jobs:
           CONTEXT_ALLOW_STALE_ON_TRANSIENT: ${{ inputs.allow_stale_on_transient == true || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
           CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
           CONTEXT_REVIEW_GIT_DELTA: 'true'
-          HANNOVER_DGM1_ROOT: ${{ vars.HANNOVER_DGM1_ROOT }}
-          HANNOVER_DGM1_MANIFEST: ${{ vars.HANNOVER_DGM1_MANIFEST }}
-          HANNOVER_DGM1_MANIFEST_SHA256: ${{ vars.HANNOVER_DGM1_MANIFEST_SHA256 }}
+          CONTEXT_KOELN_MEASURED_COUNTS: 'true'
+          HANNOVER_DGM1_ROOT: ${{ steps.hannover-raster.outputs.root || vars.HANNOVER_DGM1_ROOT }}
+          HANNOVER_DGM1_MANIFEST: ${{ steps.hannover-raster.outputs.manifest || vars.HANNOVER_DGM1_MANIFEST }}
+          HANNOVER_DGM1_MANIFEST_SHA256: ${{ steps.hannover-raster.outputs.sha256 || vars.HANNOVER_DGM1_MANIFEST_SHA256 }}
           HANNOVER_DGM1_PRECOMPUTED_PROFILES: ${{ vars.HANNOVER_DGM1_PRECOMPUTED_PROFILES }}
         run: >-
           mvn -B -ntp verify -Pcontext-data-e2e

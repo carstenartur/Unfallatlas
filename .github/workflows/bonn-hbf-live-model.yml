@@ -1,0 +1,54 @@
+name: Bonn Hbf live model review
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/bonn-hbf-live-model.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check provider configuration
+        id: availability
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [[ -z "$GEMINI_API_KEY" ]]; then
+            echo "GEMINI_API_KEY is not configured for this run. No model request was made." >> "$GITHUB_STEP_SUMMARY"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            [[ "$GITHUB_EVENT_NAME" == push ]] && exit 0
+            exit 1
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+      - name: Set up Java 25
+        if: steps.availability.outputs.configured == 'true'
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Run the public-data reference case through the production model adapter
+        if: steps.availability.outputs.configured == 'true'
+        env:
+          AI_PROVIDER: gemini
+          AI_ASSESSMENT_MODEL: ${{ vars.AI_ASSESSMENT_MODEL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: mvn -B -ntp -N process-resources -Pbonn-hbf-live-model
+      - name: Retain the provider response and review evidence
+        if: ${{ !cancelled() && hashFiles('out/qa/bonn-hbf-ai/execution-receipt.json') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bonn-hbf-model-evidence-${{ github.run_id }}
+          path: out/qa/bonn-hbf-ai/
+          retention-days: 30
+          if-no-files-found: error

@@ -106,6 +106,25 @@ describe('UA.computeExportReport – structured.osmContext (#C4)', () => {
     expect(r.html).not.toContain('HTTP 504');
   });
 
+  test('shows source-bound matched roads in text/HTML without promoting a failed live area inventory', async () => {
+    const live = { quality: { error: 'HTTP 406' } };
+    const evidence = { lines: ['Kartierte Tempolimits: 50 km/h (2 Wege).'], ways: [{ id: '123' }] };
+    UA.osmContext.fetchOsmContext = jest.fn(async () => live);
+    UA.contextLayers = { matchedRoadEvidence: jest.fn(async () => evidence) };
+    UA.measures = { loadCatalog: jest.fn(), recommendMeasures: jest.fn() };
+    const report = await UA.computeExportReport(makeCtx({ includeMeasures: true }));
+    expect(report.structured.osmContext.matchedRoads).toBe(evidence);
+    expect(report.structured.osmContext.summary).toBeUndefined();
+    expect(report.structured.recommendedMeasures).toBeNull();
+    expect(UA.measures.recommendMeasures).not.toHaveBeenCalled();
+    expect(report.text).toContain(evidence.lines[0]);
+    expect(report.html).toContain(evidence.lines[0]);
+    expect(report.html).not.toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
+    expect(live).not.toHaveProperty('matchedRoads');
+    await UA.computeExportReport(makeCtx({ includeOsmContext: false }));
+    expect(UA.contextLayers.matchedRoadEvidence).toHaveBeenCalledTimes(1);
+  });
+
   test('exportOptions.includeOsmContext=false suppresses the section entirely', async () => {
     const r = await UA.computeExportReport(makeCtx({ includeOsmContext: false }));
     expect(r.structured.osmContext).toBeNull();

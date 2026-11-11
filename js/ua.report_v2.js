@@ -3567,12 +3567,9 @@
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 400, after: 200 }
       }));
-      children.push(new Paragraph({
-        // QA-PR „Export-Semantik": keine technischen Fehlerstrings im
-        // Antrag (vorher: „Nicht verfügbar (Fetch is aborted)").
-        children: [new TextRun({ text: "OSM-Kontextdaten konnten beim Export nicht geladen werden.", italics: true })],
-        spacing: { after: 200 }
-      }));
+      for (const line of sd.osmContext.matchedRoads?.lines || ["OSM-Kontextdaten konnten beim Export nicht geladen werden."]) {
+        children.push(new Paragraph({ children: [new TextRun({ text: line, italics: true })], spacing: { after: 200 } }));
+      }
     }
 
     // ---- 10. FACHLICHE BEZÜGE section (if enabled) ----
@@ -5625,14 +5622,9 @@
       }
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       docDefinition.content.push({ text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)", style: "subheader", headlineLevel: 2 });
-      docDefinition.content.push({
-        // QA-PR „Export-Semantik": verwaltungstauglicher Hinweis statt
-        // technischer Fehlerstring.
-        text: "OSM-Kontextdaten konnten beim Export nicht geladen werden.",
-        italics: true,
-        fontSize: 9,
-        margin: [0, 0, 0, 8]
-      });
+      for (const line of sd.osmContext.matchedRoads?.lines || ["OSM-Kontextdaten konnten beim Export nicht geladen werden."]) {
+        docDefinition.content.push({ text: line, italics: true, fontSize: 9, margin: [0, 0, 0, 8] });
+      }
     }
 
     // ---- FACHLICHE BEZÜGE section (if enabled) ----

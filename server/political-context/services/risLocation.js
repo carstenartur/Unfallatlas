@@ -130,11 +130,12 @@ function indexPublicFacilities(gazetteer) {
     const following = new RegExp(
       String.raw`^(?:\s*,\s*|\s+(?:im stadtteil [\p{L}\p{M}-]+\s+)?)(?:(?:der|die|des|dem|eine|einer)\s+)?${name}(?![\p{L}\p{M}\p{N}'-]|\s*\d|\s*\(\s*frw\b)`, 'u');
     const address = street.name + ' ' + facility.houseNumber;
-    const attribution = [{ attribution: facilities.attribution }];
+    const attribution = [{ attribution: facility.attribution ?? facilities.attribution }];
     if (!facility.coordinates && gazetteer.addressAttribution) attribution.push({ attribution: gazetteer.addressAttribution });
     const found = location('place', facility.name + ' (' + address + ')', { type: 'Point', coordinates }, attribution);
     const entries = result.get(street.name) || [];
-    entries.push({ preceding, following, address, number, from: facility.from, found });
+    entries.push({ preceding, following, address, number, from: facility.from, found,
+      subjectName: facility.namedSubject ? normalize(facility.name) : null });
     result.set(street.name, entries);
   }
   return result;
@@ -585,6 +586,46 @@ function evidenceSentences(text) {
   return sentences;
 }
 
+// A stop named as the object of a regional construction project can be cited
+// outside the city gazetteer. Only independently reviewed tram areas can
+// locate the named station. They do not delimit works on individual tracks.
+function regionalPlatformProject(title, register, recordId) {
+  const project = /^Stadtbahnstrecke ([A-D]-(?:Nord|Ost|Süd|West)):\s*Barrierefreier Ausbau der Haltestelle (.+?)\s+[-–]\s+(.+)$/iu.exec(title);
+  if (!project) return null;
+  const [, corridor, name, stage] = project;
+  const planningStage = /^(?:Realisierung und Finanzierung|Finanzierung(?: \d{4} [-–] \d{4})?|Einleitung (?:des Planfeststellungsverfahrens|Planfeststellung(?:sverfahren)?)|Antrag auf Planfeststellung)$/iu;
+  if (!planningStage.test(stage) || !/^[\p{L}\p{M}][\p{L}\p{M} .()/-]{0,95}$/u.test(name)
+      || /\b(?:und|oder|sowie|neben|gegenüber|zwischen|statt|nicht|bis)\b/iu.test(name)) return null;
+  const label = `Haltestelle ${name}`;
+  const matches = register?.entries?.filter(site => normalize(site.corridor) === normalize(corridor)
+    && ([site.name, ...(site.aliases ?? [])].some(alias => normalize(alias) === normalize(name))
+      || site.historicalProjects?.some(project => project.recordId === recordId && normalize(project.titleName) === normalize(name))));
+  if (matches?.length !== 1 || !register.attribution || !isPosition(matches[0].coordinates)) {
+    return location('place', label, null, []);
+  }
+  const [site] = matches;
+  const attribution = `Stadtbahnbereich ${site.name}, ${site.municipality} · ${register.attribution}`;
+  return location('place', label, { type: 'Point', coordinates: site.coordinates }, [{ attribution }]);
+}
+
+function parkingProposalStreet(title, byFirstWord) {
+  // The SIM series explicitly labels the street after this heading. Preserve
+  // an independently evidenced address or section in preference to its line.
+  const topic = /^(?:entscheidung:\s*)?(?:entschärfung|verbesserung) der parksituation(?: durch umsetzung der vorschläge des verkehrsforums)?;\s*hier:\s*(.+)$/u.exec(normalize(title));
+  if (!topic) return null;
+  const name = topic[1];
+  const entry = byFirstWord.get(name.match(WORD)?.[0])?.get(name);
+  return entry?.kind === 'street' ? { entry, geometry: entry.geometry } : null;
+}
+
+function publicFacilityTopic(title, facilities, date) {
+  const match = /^(?:anhörung zum|(?:freibade|bade)saison im) (.+)$/u.exec(normalize(title));
+  if (!match || !facilities) return null;
+  const sites = [...facilities.values()].flat().filter(site => site.subjectName === match[1]
+    && (!site.from || /^\d{4}-\d{2}-\d{2}$/u.test(date) && date >= site.from));
+  return sites.length === 1 ? sites[0].found : null;
+}
+
 function measureLocations(record, byFirstWord, gazetteer, limit, requireHannoverScope, facilities) {
   const document = (Array.isArray(record.locationEvidence) ? record.locationEvidence : [])
     .filter(paragraph => typeof paragraph === 'string' && paragraph.trim()).flatMap(paragraph =>
@@ -621,6 +662,11 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     const existing = locations.get(key);
     if (!existing || (!existing.geometry && candidate.geometry)) locations.set(key, candidate);
   };
+  for (const title of titles) {
+    const found = requireHannoverScope ? regionalPlatformProject(title, gazetteer.regionalTramStops, record.id)
+      : gazetteer.city === 'hannover' && record.source === 'hannover-sim' && publicFacilityTopic(title, publicFacilities, record.date);
+    if (found) keep(found, { source: 'title', text: title });
+  }
   for (const proof of evidence) {
     const normalized = normalize(proof.text);
     if (COMPARISON_CUE.test(normalized)) continue;
@@ -644,7 +690,9 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     const specific = parseMeasureLocations(proof.text, byFirstWord, gazetteer, publicFacilities, record.date);
     for (const found of specific) keep(found, proof);
     if (!specific.length) {
-      const match = matchSingleLocation(proof.text, byFirstWord, proof.source === 'document');
+      const parkingStreet = proof.source === 'title' && gazetteer.city === 'hannover' && record.source === 'hannover-sim'
+        && parkingProposalStreet(proof.text, byFirstWord);
+      const match = parkingStreet || matchSingleLocation(proof.text, byFirstWord, proof.source === 'document');
       if (match) general.push({ ...match, proof });
     }
   }
@@ -673,7 +721,8 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     selected = selected.map(found => found.kind === 'address'
       ? { kind: found.kind, label: found.label, evidence: found.evidence } : found);
   }
-  return { locations: selected, truncated, reasons: [...reasons], gazetteerApplicable: !scoped || evidence.length > 0 };
+  return { locations: selected, truncated, reasons: [...reasons],
+    gazetteerApplicable: !scoped || evidence.length > 0 || selected.some(site => site.geometry) };
 }
 
 /**

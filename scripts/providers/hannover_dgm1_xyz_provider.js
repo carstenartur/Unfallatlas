@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 const elevation = require("../../js/ua.elevation_provider");
+const {loadPackedGrid, validatePackedManifest} = require("./hannover_dgm1_packed_grid");
 
 const MANIFEST_SCHEMA_VERSION = 1;
 const SOURCE_ID = "hannover.dgm1";
@@ -396,7 +397,7 @@ function loadManifest(options) {
   } catch (error) {
     fail("invalid_json", "DGM1 manifest is not valid UTF-8 JSON", { message: error.message });
   }
-  const manifest = normalizeManifest(value);
+  const manifest = value && value.schemaVersion === 2 ? validatePackedManifest(value) : normalizeManifest(value);
   const dataFile = resolveConfinedFile(
     opts.allowedRoot,
     manifest.distribution.path,
@@ -409,12 +410,19 @@ function createHannoverDgm1XyzProvider(options) {
   const loaded = loadManifest(options);
   let gridPromise = null;
   const getGrid = () => {
-    if (!gridPromise) gridPromise = loadGrid(loaded.dataFile, loaded.manifest);
+    if (!gridPromise) {
+      gridPromise = loaded.manifest.schemaVersion === 2
+        ? Promise.resolve().then(() => loadPackedGrid(loaded.dataFile, loaded.manifest))
+        : loadGrid(loaded.dataFile, loaded.manifest);
+    }
     return gridPromise;
   };
   const descriptor = {
     ...elevation.createHannoverDgm1Descriptor(loaded.manifest.retrievedAt),
-    distributionUrl: loaded.manifest.distribution.url,
+    ...(loaded.manifest.schemaVersion === 2 ? {
+      requiredAttribution: require('../../config/hannover-dgm1-city-archives.json').attribution,
+    } : {}),
+    ...(loaded.manifest.distribution.url ? {distributionUrl: loaded.manifest.distribution.url} : {}),
     ...(loaded.manifest.distribution.publicationDate
       ? { publicationDate: loaded.manifest.distribution.publicationDate }
       : {}),
@@ -451,6 +459,12 @@ function createHannoverDgm1XyzProvider(options) {
       dataSha256: loaded.manifest.distribution.sha256,
       grid: loaded.manifest.grid,
     }),
+    async close() {
+      if (!gridPromise) return;
+      const grid = await gridPromise;
+      if (grid.close) grid.close();
+      gridPromise = null;
+    },
     async preload() {
       const grid = await getGrid();
       return Object.freeze({ pointCount: grid.pointCount, sha256: grid.sha256 });

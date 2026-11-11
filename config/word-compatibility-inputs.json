@@ -3,6 +3,8 @@
   "files": [
     "js/ua.report_v2.js",
     "js/ua.export_v2.js",
+    "js/ua.context_layers.js",
+    "js/ua.evidence_safe_semantics.js",
     "js/ua.export_template_defaults.js",
     "js/ua.export_provenance.js",
     "js/ua.artifact_provenance.js",

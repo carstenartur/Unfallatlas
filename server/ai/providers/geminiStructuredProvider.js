@@ -14,7 +14,7 @@
  *
  * Konfiguration (Umgebungsvariablen):
  *   GEMINI_API_KEY                    – Pflicht
- *   AI_ASSESSMENT_MODEL               – Standard: gemini-2.0-flash
+ *   AI_ASSESSMENT_MODEL               – Standard: gemini-3.6-flash
  *   AI_ASSESSMENT_TIMEOUT_MS          – Standard: 30000
  *   AI_ASSESSMENT_MAX_RETRIES         – Standard: 2 (bis zu 3 Versuche bei 5xx/Timeout)
  *   AI_ASSESSMENT_RATELIMIT_RETRIES   – Standard: 0 (kein Retry bei 429)
@@ -25,7 +25,7 @@
 
 const https = require('https');
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const { apiBase, configuredModel, answerText } = require('./geminiApi');
 
 /** Hard-Cap für Retry-After-Werte, um endlose Hänger zu vermeiden (5 Minuten). */
 const RATE_LIMIT_DELAY_HARD_CAP_MS = 5 * 60 * 1000;
@@ -73,7 +73,13 @@ class RateLimitError extends RetryableError {
  * @param {number} [args.maxRetries]        – Standard aus Env (AI_ASSESSMENT_MAX_RETRIES)
  * @returns {Promise<string>}                 – roher JSON-String
  */
-async function callStructuredGemini({ system, user, responseSchema, temperature, maxRetries } = {}) {
+async function callStructuredGemini(options) {
+  const response = await callStructuredGeminiWithMetadata(options);
+  return response.text;
+}
+
+/** Retains the serving model version from the response for reproducible assessments. */
+async function callStructuredGeminiWithMetadata({ system, user, responseSchema, temperature, maxRetries } = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new FatalError('GEMINI_API_KEY ist nicht konfiguriert.', 0);
@@ -82,7 +88,7 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
     throw new FatalError('Benutzerprompt fehlt oder ist ungültig.', 0);
   }
 
-  const model           = process.env.AI_ASSESSMENT_MODEL     || 'gemini-2.0-flash';
+  const model           = configuredModel();
   const timeoutMs       = Number(process.env.AI_ASSESSMENT_TIMEOUT_MS) || 30_000;
   const retries         = Number.isFinite(maxRetries) ? maxRetries
                          : (Number(process.env.AI_ASSESSMENT_MAX_RETRIES) || 2);
@@ -91,7 +97,7 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
   const rlMinDelayMs    = Number.isFinite(parsedRlMinDelayMs) ? Math.max(parsedRlMinDelayMs, 0) : 60_000;
   const temp            = Number.isFinite(temperature) ? temperature : 0.2;
 
-  const url = `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
+  const url = `${apiBase}/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
   const generationConfig = {
     temperature: temp,
@@ -115,12 +121,12 @@ async function callStructuredGemini({ system, user, responseSchema, temperature,
     try {
       const rawText = await httpPost(url, body, timeoutMs);
       const parsed  = JSON.parse(rawText);
-      const text    = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text    = answerText(parsed?.candidates?.[0]);
       if (typeof text !== 'string' || !text.trim()) {
         const reason = parsed?.candidates?.[0]?.finishReason || 'unknown';
         throw new RetryableError(`Gemini lieferte keine verwertbare Antwort (finishReason: ${reason}).`);
       }
-      return text;
+      return { text, model, modelVersion: parsed.modelVersion || null };
     } catch (err) {
       if (!err || !err.retryable) {
         throw err;
@@ -250,6 +256,7 @@ function parseRetryAfterMs(headers, bodyText) {
 }
 
 module.exports = {
+  callStructuredGeminiWithMetadata,
   callStructuredGemini,
   RetryableError,
   FatalError,

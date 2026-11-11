@@ -15,6 +15,7 @@ const { preselectMeasures }    = require('./scoring/preselectMeasures.js');
 const { MEASURE_BY_ID }        = require('./catalog/measureCatalog.js');
 const { getCatalogForCity, normalizeSlug: normalizeCitySlug } = require('./catalog/cityMeasureCatalog.js');
 const { buildPrompt, PROMPT_VERSION } = require('./prompts/exportAssessmentPrompt.v2.js');
+const { configuredModel } = require('./providers/geminiApi');
 const { getProvider, activeProviderName } = require('./providers/index.js');
 const { sharedCache, AiAssessmentCache } = require('./cache/aiAssessmentCache.js');
 const { sharedQueue }          = require('./jobs/aiJobQueue.js');
@@ -73,7 +74,7 @@ async function runAssessmentV2(args) {
   const preselected = preselectMeasures(features, { citySlug });
   const aiInput = buildAiInputV2(structured, features, preselected, contextHints);
 
-  const model = process.env.AI_ASSESSMENT_MODEL || 'gemini-2.0-flash';
+  const model = configuredModel();
   const cacheKey = AiAssessmentCache.buildKey({
     input: aiInput,
     promptVersion: PROMPT_VERSION,
@@ -95,14 +96,7 @@ async function runAssessmentV2(args) {
     throw new NotConfiguredError();
   }
 
-  const prompt = buildPrompt(aiInput, mode);
-  let system = prompt.system;
-  let user = prompt.user;
-  if (mode === 'proposal-brief') {
-    const valueAddPrompt = buildProposalValueAddPrompt(aiInput);
-    system += '\n\nDer nachfolgende Mehrwertvertrag ist verbindlich. Fehlende Pflichtteile müssen als blocked ausgewiesen werden.';
-    user += `\n\n${valueAddPrompt}`;
-  }
+  const { system, user } = buildProviderPrompt(aiInput, mode);
 
   const responseSchema = toGeminiSchema(
     mode === 'proposal-brief' ? schemaProposalV1 : schemaAssessmentV2
@@ -170,6 +164,15 @@ async function runAssessmentV2(args) {
 
   cache.set(cacheKey, parsed);
   return { result: parsed, source, cacheKey };
+}
+
+function buildProviderPrompt(aiInput, mode) {
+  const prompt = buildPrompt(aiInput, mode);
+  if (mode === 'proposal-brief') {
+    prompt.system += '\n\nDer nachfolgende Mehrwertvertrag ist verbindlich. Fehlende Pflichtteile müssen als blocked ausgewiesen werden.';
+    prompt.user += '\n\n' + buildProposalValueAddPrompt(aiInput);
+  }
+  return prompt;
 }
 
 function isAvailable() {
@@ -779,6 +782,7 @@ function tagToText(tag) {
 
 module.exports = {
   runAssessmentV2,
+  buildProviderPrompt,
   isAvailable,
   buildAiInputV2,
   buildDeterministicFallback,

@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
+test.use({ locale: 'en-US' });
+
 const intersection = 'Brühlstraße / Escherstraße';
 const councilSources = ['15-1243-2021', '15-2403-2022F1', '15-2377-2023F1'].map(id =>
   'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/' + id);
@@ -121,6 +123,12 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     matchingCases: 17, samePatternInRectangle: 20, rectangleInPeriod: 28, completeCases: 48,
   });
 
+  const roadSourceDate = await page.evaluate(async () => {
+    const index = await window.UA.DataResources.fetchJson('contextTileIndex', { city: 'hannover' });
+    return index.extractDate;
+  });
+  expect(roadSourceDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
   // Exercise the PDF text separately and inspect the Word download with its map appendix enabled.
   await detail.getByRole('button', { name: 'Antragsentwurf für diese Stelle öffnen' }).click();
   await page.locator('#cbIncludeMap').uncheck();
@@ -143,11 +151,17 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     const result = await extract(bytes);
     const { text, links, title } = result;
     checkMotion(text, selector === '#btnExportWord');
+    expect(text).toContain('3 von 3 zugeordneten OSM-Wegen');
+    expect(text).toMatch(/30 km\/h.+50 km\/h/);
+    expect(text).toContain('Datenstand ' + roadSourceDate);
+    expect(text).not.toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
     expect(title).toContain(intersection);
     expect(links).toEqual(expect.arrayContaining(councilSources));
     if (selector === '#btnExportWord') {
+      expect(text).toContain('Häufung von Unfällen mit Rad- und Pkw-Beteiligung');
       // External map services are intentionally unavailable in this CI case.
       expect(text).toContain('kein amtliches Luftbild verfügbar');
+      expect(text).toMatch(/umfasst\s+20\.379\s+Unfälle/);
       expect(text).toContain('17 Unfälle an 12 veröffentlichten Unfallorten');
       const sheets = result.drawings.filter(image => /^Veröffentlichte Unfallorte auf K\d+$/.test(image.title));
       expect(sheets.map(sheet => sheet.title)).toEqual(['Veröffentlichte Unfallorte auf K1', 'Veröffentlichte Unfallorte auf K2']);

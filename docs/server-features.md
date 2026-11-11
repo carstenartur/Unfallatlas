@@ -555,7 +555,7 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 | `BASE_URL` | `http://localhost:${PORT}` | Basis-URL für den Video-Export (interner Playwright-Aufruf) |
 | `GEMINI_API_KEY` | – | API-Key für Google Gemini. Ohne Key: KI-Endpunkte fallen auf Fallback (`v2`) bzw. `503` (`v1`) zurück. |
 | `AI_PROVIDER` | `gemini` | Auswahl des KI-Providers (`gemini` oder `null` zum Deaktivieren) |
-| `AI_ASSESSMENT_MODEL` | `gemini-2.0-flash` | Modellname; geht in den Cache-Key ein |
+| `AI_ASSESSMENT_MODEL` | `gemini-3.6-flash` | Modellname; geht in den Cache-Key ein |
 | `AI_ASSESSMENT_TIMEOUT_MS` | `30000` | Hard-Timeout pro KI-Request (ms) |
 | `AI_ASSESSMENT_MAX_RETRIES` | `2` | Retry-Versuche im strukturierten Provider bei `5xx`/Timeout |
 | `AI_ASSESSMENT_RATELIMIT_RETRIES` | `0` | Retry-Versuche bei `429` (Rate Limit). Standard `0` → `429` wird sofort an den Aufrufer weitergegeben (deterministischer Fallback greift in v2). |

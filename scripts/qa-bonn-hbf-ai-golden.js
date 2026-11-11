@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { once } = require('events');
+const { configuredModel } = require('../server/ai/providers/geminiApi');
 const zlib = require('zlib');
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_ORIGIN = 'https://carstenartur.github.io';
@@ -38,13 +39,17 @@ function canonicalUrl(raw) {
   const url=new URL(raw);url.protocol='https:';url.host='carstenartur.github.io';url.port='';url.pathname='/Unfallatlas/werkbank_v2.html';url.searchParams.delete('export');url.searchParams.sort();return url.href;
 }
 function reviewModelResponse(response, receipt, binding) {
-  const fields=['provider','model','modelVersion','executedAt','inputSha256','promptSha256'];
-  const verified=Boolean(receipt && fields.every(k=>typeof receipt[k]==='string'&&receipt[k].trim()) &&
-    Number.isFinite(Date.parse(receipt.executedAt)) && receipt.inputSha256===binding.inputSha256 && receipt.promptSha256===binding.promptSha256);
+  const digestFields = ['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256'];
+  const verified = Boolean(receipt && ['provider', 'model', 'modelVersion', 'executedAt'].every(
+    key => typeof receipt[key] === 'string' && receipt[key].trim()
+  ) && Number.isFinite(Date.parse(receipt.executedAt))
+    && digestFields.every(key => /^[a-f0-9]{64}$/.test(receipt[key]) && receipt[key] === binding[key])
+    && receipt.responseSha256 === hash(json(response)));
   const {evaluateProposalValueAdd}=require('../server/ai/proposalBriefValueAdd');
   const rubric=evaluateProposalValueAdd(response);
   const schemaValidation=require('../server/ai/aiAssessmentServiceV2').validateAgainstMode(response,'proposal-brief',{normalizeProposal:false});
-  return {status:'blocked',providerReceiptVerified:verified,schemaValidation,rubric,
+  const blockerCasePassed = verified && schemaValidation.valid && rubric.valid && response?.filingReadinessVerdict?.status === 'blocked';
+  return {status:'blocked',providerReceiptVerified:verified,blockerCasePassed,schemaValidation,rubric,
     blockingReasons:[...(!verified?['Missing or mismatched actual provider receipt']:[]),
       'This case has no completed political research or four-mode live map inspection; it cannot establish positive release approval.'],
     receiptTrust:'Locally supplied receipt claims; provider execution is not independently authenticated by this offline harness.'};
@@ -178,28 +183,55 @@ function prepareModelReview(raw,outDir) {
   const {deriveFeatures}=require('../server/ai/features/deriveFeatures');
   const {preselectMeasures}=require('../server/ai/scoring/preselectMeasures');
   const service=require('../server/ai/aiAssessmentServiceV2');
-  const {buildPrompt,PROMPT_VERSION}=require('../server/ai/prompts/exportAssessmentPrompt.v2');
-  const valueAdd=require('../server/ai/proposalBriefValueAdd');
+  const {PROMPT_VERSION}=require('../server/ai/prompts/exportAssessmentPrompt.v2');
   const features=deriveFeatures(raw.structured),preselected=preselectMeasures(features,{citySlug:'bonn'});
   const input=service.buildAiInputV2(raw.structured,features,preselected);
-  const prompt=buildPrompt(input,'proposal-brief');
-  prompt.system+='\n\nDer nachfolgende Mehrwertvertrag ist verbindlich. Fehlende Pflichtteile müssen als blocked ausgewiesen werden.';
-  prompt.user+='\n\n'+valueAdd.buildProposalValueAddPrompt(input);
+  const prompt = service.buildProviderPrompt(input, 'proposal-brief');
   const binding={inputSha256:hash(json(input)),promptSha256:hash(json(prompt))};
   const schema='server/ai/schema/proposalBrief.v1.schema.json',rubric='server/ai/proposalBriefValueAddCore.js';
-  const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:'gemini',requestedModel:process.env.AI_ASSESSMENT_MODEL||'gemini-2.0-flash',actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
+  const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:service.activeProviderName(),requestedModel:configuredModel(),actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
     rubricDimensions:['Methodentreue','Erhalt amtlicher Fakten','Zusätzlicher Erkenntniswert','Politische Anschlussfähigkeit','Maßnahmenqualität','Quellenauflösbarkeit'],
-    requiredProviderReceiptFields:['provider','model','modelVersion','executedAt','inputSha256','promptSha256'],
+    requiredProviderReceiptFields:['provider','model','modelVersion','executedAt','inputSha256','promptSha256','schemaSha256','rubricSha256','responseSha256'],
     blockingReasons:['No configured provider execution has been performed by this harness.','No real positive political/map evidence exists for this generation.']};
   write(path.join(outDir,'production-model-input.json'),input);write(path.join(outDir,'production-model-prompt.json'),prompt);
   write(path.join(outDir,'external-facts.json'),raw.facts);fs.writeFileSync(path.join(outDir,'external-prompt.md'),raw.externalPrompt);
-  write(path.join(outDir,'model-review-receipt.json'),receipt);return receipt;
+  write(path.join(outDir,'model-review-receipt.json'),receipt);return {receipt, prompt};
+}
+async function runBoundModelReview(prompt, binding, outDir) {
+  const service = require('../server/ai/aiAssessmentServiceV2');
+  if (service.activeProviderName() !== 'gemini' || !service.isAvailable()) {
+    throw new Error('A live model review requires AI_PROVIDER=gemini and GEMINI_API_KEY.');
+  }
+  const { callStructuredGeminiWithMetadata } = require('../server/ai/providers/geminiStructuredProvider');
+  const schema = require('../server/ai/schema/proposalBrief.v1.schema.json');
+  const capture = await callStructuredGeminiWithMetadata({ ...prompt, responseSchema: service.toGeminiSchema(schema) });
+  const executedAt = new Date().toISOString();
+  const runDir = fs.mkdtempSync(path.join(outDir, 'provider-run-'));
+  fs.writeFileSync(path.join(runDir, 'raw-response.txt'), capture.text);
+  const response = service.parseJsonLoose(capture.text);
+  const receipt = {
+    provider: 'gemini', model: capture.model, modelVersion: capture.modelVersion, executedAt,
+    inputSha256: binding.inputSha256, promptSha256: binding.promptSha256,
+    schemaSha256: binding.schemaSha256, rubricSha256: binding.rubricSha256,
+    promptVersion: binding.promptVersion, responseSha256: hash(json(response)), rawResponseSha256: hash(capture.text),
+  };
+  write(path.join(runDir, 'response.json'), response);
+  write(path.join(runDir, 'receipt.json'), receipt);
+  const review = reviewModelResponse(response, receipt, binding);
+  write(path.join(runDir, 'review.json'), review);
+  if (!review.providerReceiptVerified) throw new Error('Provider returned incomplete execution evidence: ' + runDir);
+  if (!review.blockerCasePassed) throw new Error('Live model failed the blocked case; inspect review.json in ' + runDir);
+  console.log('[bonn-hbf-ai] Live provider response and review: ' + runDir);
 }
 async function main(args=process.argv.slice(2)) {
+  const runModel = args.includes('--run-model');
+  if (runModel && (args.includes('--model-response') || args.includes('--update'))) {
+    throw new Error('--run-model requires independent comparison with the existing Golden.');
+  }
   const outDir=path.join(ROOT,'out/qa/bonn-hbf-ai'),fixture=path.join(ROOT,'tests/fixtures/bonn-hbf-ai-golden.v1.json');
   fs.mkdirSync(outDir,{recursive:true});
   const raw=await captureRuntime({skipBuild:args.includes('--skip-build')});
-  const snapshot=snapshotFromRuntime(raw);const review=prepareModelReview(raw,outDir);
+  const snapshot=snapshotFromRuntime(raw);const {receipt:review, prompt}=prepareModelReview(raw,outDir);
   write(path.join(outDir,'current-snapshot.json'),snapshot);write(path.join(outDir,'source-manifest.json'),raw.manifest);
   fs.writeFileSync(path.join(outDir,'deterministic-report.txt'),raw.reportText);
   const execution={generatedAt:new Date().toISOString(),sourceAcquisition:raw.sourceAcquisition,node:process.version,templatePath:'canonical-generated-offline-defaults',...review,
@@ -215,7 +247,8 @@ async function main(args=process.argv.slice(2)) {
     write(path.join(outDir,'golden-drift.json'),differences);
     if(differences.length) throw new Error(`Golden drift (${differences.length} paths). Inspect out/qa/bonn-hbf-ai/golden-drift.json; source/runtime hashes distinguish input/code drift from changed facts. Update only after review.`);
   }
+  if (runModel) await runBoundModelReview(prompt, review, outDir);
   console.log(`[bonn-hbf-ai] PASS: ${snapshot.facts.totalAccidents} selected / ${snapshot.facts.completeAreaCount} complete area; reproducible facts, model/political/map release remains blocked.`);
 }
 if(require.main===module)main().catch(e=>{console.error(e.stack);process.exitCode=1;});
-module.exports={BOUNDS,AREA,PLACES,canonicalUrl,compareSnapshots,snapshotFromRuntime,reviewModelResponse,captureRuntime,main};
+module.exports={BOUNDS,AREA,PLACES,canonicalUrl,compareSnapshots,snapshotFromRuntime,reviewModelResponse,runBoundModelReview,captureRuntime,main};

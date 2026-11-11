@@ -48,7 +48,7 @@ describe('Werkbank deployment asset versions', () => {
     expect(scripts.indexOf('js/ua.facility_context.js')).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
   });
 
-  test.each(['ua.site_discovery', 'ua.hannover_layers', 'ua.export_v2'])
+  test.each(['ua.site_discovery', 'ua.hannover_layers'])
   ('%s loads the local evidence and motion update', asset => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-10-site-evidence"');
   });
@@ -58,13 +58,25 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/' + asset + '.js?v=2026-11-11-network-loading"');
   });
 
+  test.each(['ua.context_layers', 'ua.report_v2'])
+  ('%s loads the published OSM road context for application exports', asset => {
+    expect(html).toContain('js/' + asset + '.js?v=2026-11-11-osm-road-context"');
+  });
+
+  test('loads German number formatting for exported applications', () => {
+    expect(html).toContain('js/ua.export_v2.js?v=2026-11-11-de-counts"');
+  });
+
   test('loads the matching Word report, map capture and accident point renderers', () => {
-    for (const asset of ['ua.report_v2', 'ua.bootstrap', 'ua.data_paths']) {
-      expect(html).toContain(`js/${asset}.js?v=2026-11-11-word-maps"`);
-    }
+    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-word-maps"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-word-maps');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
+  });
+
+  test('loads inflected evidence labels in reports', () => {
+    expect(html).toContain('js/ua.bootstrap.js?v=2026-11-11-antragsgrammatik"');
+    expect(bootstrap).toContain('ua.evidence_safe_semantics.js?v=2026-11-11-antragsgrammatik');
   });
 
   test('loads optional review-network support before site selection and document export', () => {
@@ -164,7 +176,7 @@ describe('Werkbank deployment asset versions', () => {
 });
 
 
-test.each(['ua.context_layers', 'ua.popup_context',
+test.each(['ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
   const version = name === 'ua.elevation_provider' ? '2026-11-10-profile-quality' : '2026-11-08-context';

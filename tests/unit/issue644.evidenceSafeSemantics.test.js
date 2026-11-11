@@ -29,6 +29,18 @@ describe('issue #644 evidence-safe semantics', () => {
     expect(UA.COMBO_LABEL[33]).toBe('Beteiligungskategorien: Rad + Sonstige');
   });
 
+  test.each([
+    ['Rad+PKW', 'Rad- und Pkw-Beteiligung'],
+    ['Rad+Fuß', 'Rad- und Fuß-Beteiligung'],
+    ['Rad+Gkfz', 'Rad- und Güterkraftfahrzeug-Beteiligung'],
+  ])('preserves accident noun case in report headings for %s', (abbreviation, label) => {
+    const { safeText } = loadBootstrap().EvidenceSafeSemantics;
+    expect(safeText('Bewertung – Auffällige Häufung von ' + abbreviation + '-Unfällen'))
+      .toBe('Bewertung – Auffällige Häufung von Unfällen mit ' + label);
+    expect(safeText(abbreviation + '-Unfälle im Ausschnitt'))
+      .toBe('Unfälle mit ' + label + ' im Ausschnitt');
+  });
+
   test('escalates severity only from the same involvement cohort', () => {
     const UA = loadBootstrap();
     UA.contextMeasures = {

@@ -283,37 +283,41 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
     unusableByRisk20m: 0,
     unusableByRisk50m: 0,
   };
-  for (const id of validated.wayIds) {
-    const geometry = geometries[id];
-    const anchor = profileAnchor(geometry);
-    const riskTags = Object.freeze({ ...validated.osm.ways[id].elevationRiskTags });
-    const windows = {};
-    for (const windowMeters of WINDOWS_METERS) {
-      const record = await computeWindow(
-        compute,
-        provider,
-        geometry,
-        anchor,
-        riskTags,
-        windowMeters,
-      );
-      windows[String(windowMeters)] = record;
-      const suffix = windowMeters === 20 ? '20m' : '50m';
-      if (record.status === 'unavailable') coverage[`unavailable${suffix}`] += 1;
-      else {
-        coverage[`computed${suffix}`] += 1;
-        if (record.result.usable) coverage[`usable${suffix}`] += 1;
-        else coverage[`unusableByRisk${suffix}`] += 1;
+  try {
+    for (const id of validated.wayIds) {
+      const geometry = geometries[id];
+      const anchor = profileAnchor(geometry);
+      const riskTags = Object.freeze({ ...validated.osm.ways[id].elevationRiskTags });
+      const windows = {};
+      for (const windowMeters of WINDOWS_METERS) {
+        const record = await computeWindow(
+          compute,
+          provider,
+          geometry,
+          anchor,
+          riskTags,
+          windowMeters,
+        );
+        windows[String(windowMeters)] = record;
+        const suffix = windowMeters === 20 ? '20m' : '50m';
+        if (record.status === 'unavailable') coverage[`unavailable${suffix}`] += 1;
+        else {
+          coverage[`computed${suffix}`] += 1;
+          if (record.result.usable) coverage[`usable${suffix}`] += 1;
+          else coverage[`unusableByRisk${suffix}`] += 1;
+        }
       }
+      profiles[id] = Object.freeze({
+        wayId: id,
+        highway: validated.osm.ways[id].highway == null ? null : String(validated.osm.ways[id].highway),
+        geometryPointCount: geometry.length,
+        anchor,
+        elevationRiskTags: riskTags,
+        windows: Object.freeze(windows),
+      });
     }
-    profiles[id] = Object.freeze({
-      wayId: id,
-      highway: validated.osm.ways[id].highway == null ? null : String(validated.osm.ways[id].highway),
-      geometryPointCount: geometry.length,
-      anchor,
-      elevationRiskTags: riskTags,
-      windows: Object.freeze(windows),
-    });
+  } finally {
+    if (provider.close) await provider.close();
   }
   calls.push('profiles');
 
@@ -366,6 +370,7 @@ async function prepareHannoverDgm1RoadProfiles(options = {}, runtime = {}) {
     calls: Object.freeze(calls),
     context,
   });
+
 }
 
 function parseArgs(argv) {

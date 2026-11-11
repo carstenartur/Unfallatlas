@@ -334,6 +334,64 @@
     }));
   }
 
+  // The published tiles cover road ways. They do not inventory signal or crossing nodes.
+  // Only look up IDs attached to accidents in the caller's report area. A tile may
+  // contain thousands of unrelated ways and is stored at the way's assigned tile.
+  async function matchedRoadEvidence(ctx, points) {
+    const ids = new Set();
+    for (const point of points) {
+      const props = point.props;
+      if (props?.road_context_source === 'osm' && /^[1-9]\d{0,15}$/.test(props.matched_way_id)) {
+        ids.add(String(props.matched_way_id));
+      }
+    }
+    if (!ids.size) return null;
+    const slug = citySlug(ctx.CITY_RAW);
+    const state = ctx.contextLayerState?.slug === slug ? ctx.contextLayerState : await load(ctx, slug);
+    const index = state.tileIndex;
+    const source = index || state.meta?.sources?.osm;
+    if ((index && index.citySlug !== slug) || !/^OpenStreetMap\b/i.test(source?.source || '')
+        || !/^\d{4}-\d{2}-\d{2}$/.test(source.extractDate)) return null;
+
+    const tiles = new Map();
+    for (const id of ids) {
+      const location = index?.wayIndex?.[id];
+      if (!state.ways?.[id] && Array.isArray(location) && location.length === 2
+          && location.every(Number.isInteger) && index.tileKeySet.has(location.join('/'))) {
+        tiles.set(location.join('/'), location);
+      }
+    }
+    await Promise.all([...tiles.values()].map(([x, y]) => fetchTile(state, x, y)));
+    const ways = [];
+    for (const id of [...ids].sort((a, b) => a.length - b.length || a.localeCompare(b))) {
+      const row = resolveWay(state, id);
+      if (typeof row?.highway !== 'string' || !row.highway) continue;
+      const speed = Number(row.maxspeed);
+      const lanes = Number(row.lanes);
+      ways.push({
+        id, highway: row.highway,
+        maxspeed: Number.isFinite(speed) && speed > 0 ? speed : null,
+        lanes: Number.isInteger(lanes) && lanes > 0 ? lanes : null,
+      });
+    }
+    if (!ways.length) return null;
+    const lines = [
+      `Für ${ways.length} von ${ids.size} zugeordneten OSM-Wegen liegen Straßenmerkmale im veröffentlichten Stadtdatensatz vor. Die Zuordnung bezieht sich auf die ausgewerteten Unfälle im Ausschnitt.`,
+    ];
+    for (const [key, label, unit] of [['maxspeed', 'Kartierte Tempolimits', ' km/h'], ['lanes', 'Kartierte Fahrstreifenzahlen', '']]) {
+      const counts = new Map();
+      for (const way of ways) {
+        const value = way[key];
+        if (value != null) counts.set(value, (counts.get(value) || 0) + 1);
+      }
+      const values = [...counts].sort(([a], [b]) => a - b)
+        .map(([value, count]) => `${value}${unit} (${count} ${count === 1 ? 'Weg' : 'Wege'})`);
+      if (values.length) lines.push(label + ': ' + values.join(', ') + '.');
+    }
+    lines.push(`Quelle: © OpenStreetMap-Mitwirkende (ODbL 1.0), Datenstand ${source.extractDate}. Die Live-Abfrage für den gesamten Ausschnitt war nicht verfügbar. Ampeln und Querungen sind in diesen Wegdaten nicht erfasst.`);
+    return { ways, requestedCount: ids.size, sourceDate: source.extractDate, lines };
+  }
+
   function resolveWayAcrossTiles(state, wayId) {
     if (!state || !wayId) return null;
     const direct = resolveWay(state, wayId);
@@ -361,6 +419,7 @@
     loadTilesForBbox,
     resolveWay,
     resolveWayAcrossTiles,
+    matchedRoadEvidence,
     clearCache,
     PER_FEATURE_FIELDS,
   };

@@ -1,0 +1,45 @@
+name: Verify upstream export builds
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-export-upstream.yml'
+      - 'vendor/docx-build/**'
+      - 'vendor/pdfmake-build/**'
+      - 'vendor/build-lock.recipe.json'
+      - 'scripts/verify-*-upstream.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Java 25
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Rebuild both export libraries with the checked upstream inputs
+        run: mvn -B -ntp -N process-resources -Pvendor-upstream-rebuild
+      - name: Record the SHA-256 values for the matching release bytes
+        run: |
+          mkdir -p out/qa
+          sha256sum node_modules/docx/dist/index.iife.js \
+            node_modules/pdfmake/build/{pdfmake.min.js,pdfmake.min.js.map,vfs_fonts.js} \
+            > out/qa/vendor-upstream-sha256.txt
+      - name: Preserve the independently reproduced release hashes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upstream-export-rebuild-${{ github.run_id }}
+          path: out/qa/vendor-upstream-sha256.txt
+          if-no-files-found: error
+          retention-days: 90

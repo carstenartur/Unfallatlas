@@ -710,7 +710,7 @@ Status-Endpunkt für Frontend / Smoke: `GET http://localhost:8000/api/status`
 |---|---|---|
 | `PORT` | `8000` | Port des Express-Servers |
 | `GEMINI_API_KEY` | – | aktiviert die KI-Bewertung; ohne Key bleibt der Fallback aktiv |
-| `AI_ASSESSMENT_MODEL` | `gemini-2.0-flash` | Gemini-Modell für die Bewertung |
+| `AI_ASSESSMENT_MODEL` | `gemini-3.6-flash` | Gemini-Modell für die Bewertung |
 | `AI_ASSESSMENT_TIMEOUT_MS` | `30000` | Timeout pro KI-Request (ms) |
 | `AI_ASSESSMENT_MAX_RETRIES` | `2` | Retries bei `429`/`5xx` |
 | `PORTAL_SEARCH_TIMEOUT_MS` | `10000` | Timeout pro Portal-Anfrage (ms) der politischen Recherche |

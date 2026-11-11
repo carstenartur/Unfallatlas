@@ -70,9 +70,17 @@ input, prompt, schema and rubric and record provider availability only as a
 boolean, with no credential values. A model version and execution timestamp
 remain null until real evidence is supplied.
 
+Run `node scripts/qa-bonn-hbf-ai-golden.js --run-model` with the configured
+`GEMINI_API_KEY` and `AI_ASSESSMENT_MODEL` to submit the captured production
+prompt after the Golden comparison passes. Each live request saves its raw
+answer, parsed JSON, serving model version, execution receipt and rubric in
+a separate `out/qa/bonn-hbf-ai/provider-run-*/` directory. Missing model
+version, invalid output and an unsupported filing verdict fail the live check.
+The default run stays offline.
+
 An offline imported response can be examined with `--model-response FILE
 --provider-receipt FILE`; the receipt must name the provider/model/exact version,
-execution time and matching input/prompt hashes. The production value-add rubric
+execution time and matching input, prompt, schema, rubric and canonical JSON response hashes. The production value-add rubric
 runs even on an invalid/missing receipt. A locally supplied receipt is a claim,
 not independently authenticated provider execution. This case stays blocked
 while political and live-map evidence are incomplete, even if a response claims

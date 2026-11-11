@@ -1,0 +1,10 @@
+{
+  "version": "2.0.3",
+  "commit": "e16f238f93395a5ea5fb78b1670c27fd135c4eed",
+  "archiveUrl": "https://codeload.github.com/nfarina/xmldoc/tar.gz/e16f238f93395a5ea5fb78b1670c27fd135c4eed",
+  "archiveSha256": "f85e155bae4bfeb2c546c24b5a5210394a5a64cf716be160d1cc64fddfed98d9",
+  "sourcePath": "xmldoc.ts",
+  "sourceSha256": "0afb17bd67b5f56e0b66422addc1e3eda466dcf0986fd245df8afbd7ac7f69f3",
+  "jsSha256": "30d368c2941a2916cc58600909322cadc5fd726c5586b0ffaa62b2baa9453474",
+  "mapSha256": "85efc27e54348840c57d2470342c79627b3ca3b9ffdaa777ef0756e65a3731e8"
+}

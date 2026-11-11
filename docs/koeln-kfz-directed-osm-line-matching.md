@@ -101,3 +101,37 @@ brechen vor der ersten Ausgabeänderung ab. Die Metadaten bewahren den geprüfte
 Eingabepin, die Darstellungsregel, den Hash der geordneten Geometrien und die Zahl
 der tatsächlich geprüften Ways. Nicht verwendete Quell-Ways außerhalb des
 aktuellen Ausgabebestands werden nicht als veröffentlichte Way-Abdeckung gezählt.
+
+## Bereitstellung im Kontextworkflow
+
+Für Köln aktiviert der gehostete Kontextworkflow `CONTEXT_KOELN_MEASURED_COUNTS=true`.
+Im privaten Stagingverzeichnis des Stadtlaufs lädt der Provider die beiden
+geprüften amtlichen Distributionen, verifiziert Umfang und SHA-256 und verbindet
+alle 5.197 Beobachtungen mit der amtlichen Geometrie. Er matcht auf die gerade
+erzeugten OSM-Rohlinien und prüft die von der Werkbank ausgelieferten geordneten
+Linien vor der Anwendung. Nur die vollständig validierte Stadt wird mit der
+bestehenden Transaktion veröffentlicht. Das lokale Paar aus vorbereitetem
+Matcher-Artefakt und externem SHA bleibt unterstützt und hat Vorrang.
+
+Zwei Originaldatenläufe am 11. November 2026 belegen unterschiedliche Schritte.
+
+- In einem gesonderten Reproduktionslauf auf den bereits generalisierten,
+  ausgelieferten OSM-Linien wurden 2.731 der 5.197 Beobachtungen eindeutig
+  zugeordnet, 193 blieben mehrdeutig und 2.273 ohne passende Kfz-Straße. Der Kfz-Abgleich berücksichtigt ausschließlich
+  als Kfz-Straßen klassifizierte Ways. Er schließt Fußwege, Radwege, Pfade,
+  Wirtschaftswege und unbekannte Klassen aus. Der Exporter
+  `scripts/producers/export_koeln_public_matching_geometry.py` stellte die
+  114.326 vorhandenen Linien bytegleich wieder her. 46 auf einen einzigen
+  Punkt gerundete Ways sind für den Linienvergleich geometrisch ungeeignet.
+  Quelle war der Main-Stand `53cca4ea949932dd29219708d8fe9eef1fdf7e20`.
+  Aktuelle Rohlinien können andere Zuordnungen ergeben.
+- Der neue Stagingpfad wurde separat mit zwei echten HTTPS-Downloads, der
+  Originalgeometrie des OSM-Ways 146235935 am Wiener Platz und seinen fünf
+  tatsächlich zugeordneten Unfällen ausgeführt. Alle fünf erhielten einen
+  Messwert. Für 2019 blieben 24.760 und 28.870 Kfz/24 h als getrennte
+  Richtungen erhalten, für 2017 23.610 und 26.710. Diese historische
+  Werktagszählung enthält keine Aussage über die heutige Verkehrsmenge.
+
+Die allgemeine fachliche Freigabe der verbleibenden mehrdeutigen Strecken, die
+BASt-Stationszuordnung und die richtungs- und zeitbezogene Düsseldorfer
+Fahrradzählung bleiben offen.
