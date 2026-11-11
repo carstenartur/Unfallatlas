@@ -28,6 +28,9 @@ function checkMotion(text, hannoverWord = false) {
   expect(motion).toContain('Escherstraße');
   expect(rationale).toMatch(/\b17 Fälle am Netzobjekt/i);
   expect(rationale).toMatch(/2021.*2025/);
+  expect(rationale).toMatch(/Arbeitshypothese.*Escherstraße.*Lücke.*Brühlstraße.*von rechts/);
+  expect(rationale).toMatch(/Typ 342.*Typ 244/);
+  expect(motion).toMatch(/Warteposition/);
   expect(motion).toMatch(/Rad/i);
   expect(motion).toMatch(/Pkw/i);
   expect(motion).toMatch(/Abbiege/i);
@@ -172,6 +175,7 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     expect(links).toEqual(expect.arrayContaining([
       ...councilSources,
       'https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/7DC42EC5AB809545C12586D30015F455/$FILE/15-0778-2021-F1_Anlage1.pdf#page=3',
+      'https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/4EC37A348F912CE5C1258A8C001CC6BE/$FILE/Druckversion.pdf#page=2',
       'https://www.statistikportal.de/de/karten/unfallatlas',
       'https://pubmed.ncbi.nlm.nih.gov/22105099/',
     ]));
