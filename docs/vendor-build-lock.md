@@ -83,8 +83,7 @@ Build-Provenienz. Insbesondere bleiben als Arbeit in #406:
   enthaltenen transitiven Komponenten;
 - vollständige CycloneDX-`contains`-Kanten von den ausgelieferten Bundles zu
   diesen Komponenten;
-- bytegenaue Reproduktion des pdfmake-Builds und unabhängige signierte
-  Build-Belege für beide Bibliotheken;
+- unabhängige signierte Build-Belege für die reproduzierten Bibliotheken;
 - Einbindung der Exact-Copy-Referenzen als nachgewiesene Eingaben in den
   bestehenden vollständigen Vendor-Build-Lock;
 - direkte Bindung an `vendor/third-party-notices.json`, Komponentenlizenzen und
@@ -118,4 +117,29 @@ bash scripts/verify-docx-upstream.sh
 Für pdfmake bindet der Build zusätzlich die in der minifizierten Source Map
 enthaltene SVG-to-PDFKit-Quelldatei an das veröffentlichte npm-Archiv. Die
 vollständige MIT-Lizenz dieses Forks wird mit der Website ausgeliefert.
-Die unabhängigen Signaturen und die vollständige pdfmake-Reproduktion sind offen.
+Die unabhängigen Signaturen und der vollständige Komponentennachweis sind offen.
+
+## Reproduktion des PDF-Bundles und der eingebetteten Schriftdateien
+
+Für `pdfmake@0.3.14` enthält der in npm benannte Git-Stand
+`fa0011f9767fde46d9828d0ce1005563c3dec902` kein npm-Lockfile. Das separat
+eingecheckte `vendor/pdfmake-build/npm-lock.json` fixiert die für die
+Reproduktion verwendeten Archivversionen und Integritäten. Es betrifft nur
+den optionalen Herstellerbuild. Die Zuordnung lässt sich mit den
+`sources` und `sourcesContent` der ausgelieferten Source Map prüfen.
+
+Der Upstream-Loader `string-replace-webpack-plugin` vergibt bei jedem
+Build Zufallskennungen. Sie ändern die von Webpack erzeugten Modulnummern
+für FileSaver und den zusammengefassten Browser-Einstieg. Die Buildregel
+reserviert für genau diese beiden Module die Nummern 633 und 8069 aus
+der veröffentlichten Version und verwendet den ursprünglichen vierstelligen
+Nummernraum. Bei einer fehlenden oder mehrdeutigen Zuordnung bricht sie ab.
+Quelltext und fertige Bundles werden dabei nicht nachträglich umgeschrieben.
+
+```sh
+bash scripts/verify-pdfmake-upstream.sh
+```
+
+Der Vergleich prüft das minifizierte Bundle, seine Source Map mit 170
+Quelldateien und den aus den Original-TTFs neu erzeugten VFS-Schriftcontainer
+jeweils byteweise gegen das mit `npm ci` installierte pdfmake-Archiv.
