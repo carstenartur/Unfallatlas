@@ -199,3 +199,60 @@ describe('printed point maps for a council motion', () => {
   });
 
 });
+
+test('links to the overview and individual rows open the map without inheriting another selected ID', () => {
+  const { UA, ctx, report } = fixture();
+  report.structured.meta.link += '&export=1&evidenceAccident=A099';
+  const cohorts = api.buildCohorts(UA, ctx, report);
+  const overview = new URL(cohorts.numberedMapUrl);
+  const individual = new URL(cohorts.completeEvidenceCohort.rows[1].mapDeepLink);
+  expect(overview.searchParams.get('evidenceScope')).toBe('complete');
+  expect(overview.searchParams.has('evidenceAccident')).toBe(false);
+  expect(overview.searchParams.has('export')).toBe(false);
+  expect(individual.searchParams.get('evidenceAccident')).toBe('A002');
+  expect(individual.searchParams.has('export')).toBe(false);
+});
+
+test('DOM updates during a report and after Leaflet inserts its markers reuse the numbered evidence map', async () => {
+  const { UA, ctx, report } = fixture();
+  ctx.map = {};
+  UA.getRuntimeContext = () => ctx;
+  let finish;
+  const compute = jest.fn(() => new Promise(resolve => { finish = resolve; }));
+  UA.computeExportReport = compute;
+  let mutation;
+  const groups = [];
+  const marker = jest.fn(() => ({ bindPopup() {}, addTo() {} }));
+  const scope = {
+    document: { documentElement: {}, getElementById: () => null },
+    location: new URL('https://example.test/?evidenceLabels=1&evidenceScope=complete&evidenceAccident=A002'),
+    MutationObserver: class { constructor(callback) { mutation = callback; } observe() {} },
+    L: { marker, divIcon: options => options, layerGroup: () => {
+      const layer = { addTo: jest.fn(), remove: jest.fn() };
+      groups.push(layer);
+      return layer;
+    } },
+  };
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+  api.install(UA, scope);
+  mutation();
+  mutation();
+  await settle();
+  expect(compute).toHaveBeenCalledTimes(1);
+  finish(report);
+  await settle();
+  mutation();
+  await settle();
+  expect(compute).toHaveBeenCalledTimes(1);
+  expect(groups).toHaveLength(1);
+  expect(groups[0].addTo).toHaveBeenCalledWith(ctx.map);
+  expect(marker).toHaveBeenCalledTimes(4);
+  const selected = marker.mock.calls.filter(([, options]) => options.icon.className.includes('ua-evidence-id-selected'));
+  expect(selected).toHaveLength(1);
+  expect(selected[0][1]).toMatchObject({ title: 'A002', zIndexOffset: 1000 });
+
+  scope.location.search = '?city=Hannover';
+  mutation();
+  expect(groups[0].remove).toHaveBeenCalledTimes(1);
+  expect(ctx.__uaEvidenceLabelLayer).toBeUndefined();
+});

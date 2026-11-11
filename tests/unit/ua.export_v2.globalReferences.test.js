@@ -154,6 +154,64 @@ describe('UA.loadReferenceDocuments – global + city merging', () => {
     expect(shared.description).toBe("city wins");
   });
 
+  test.each(['hannover', 'berlin'])('cites the publisher record for ERA 2010 once in %s and keeps the local publications', async city => {
+    const cityCatalog = require(`../../templates/references_${city}.json`);
+    const fetchImpl = makeFetch({
+      'references_global.json': GLOBAL_REFS,
+      [`references_${city}.json`]: cityCatalog
+    });
+    global.fetch = fetchImpl;
+    UA = loadUA(fetchImpl);
+    const report = await UA.computeExportReport(makeCtx(UA, city));
+    const documents = report.structured.references.documents;
+    const title = 'Empfehlungen für Radverkehrsanlagen (ERA)';
+    expect(documents.filter(doc => doc.title === title)).toEqual([expect.objectContaining({
+      title, author: 'Forschungsgesellschaft für Straßen- und Verkehrswesen (FGSV)',
+      date: '2010', isbn: '978-3-941790-63-6', url: 'https://www.fgsv-verlag.de/era'
+    })]);
+    expect(documents.map(doc => doc.title)).toEqual(expect.arrayContaining(cityCatalog.documents.map(doc => doc.title)));
+    expect(report.text.split(title)).toHaveLength(2);
+  });
+
+  test('uses the source publications for the four Hannover planning references', async () => {
+    const cityCatalog = require('../../templates/references_hannover.json');
+    const fetchImpl = makeFetch({ 'references_global.json': GLOBAL_REFS, 'references_hannover.json': cityCatalog });
+    global.fetch = fetchImpl;
+    UA = loadUA(fetchImpl);
+    const report = await UA.computeExportReport(makeCtx(UA, 'Hannover'));
+    const references = report.structured.references.documents;
+    const byTitle = new Map(references.map(doc => [doc.title, doc]));
+    const regionalGuide = byTitle.get('Die Ideale Kreuzung – Ein Leitfaden für Planerinnen und Planer');
+    expect(regionalGuide).toMatchObject({ date: '2021', url: expect.stringContaining('/875371/file/') });
+    const dutchDesign = byTitle.get('Kreuzungen für alle von 8 bis 80 – Gestaltungsvarianten aus den Niederlanden');
+    expect(dutchDesign).toMatchObject({ date: '2020', url: expect.stringContaining('/adfc_innorad_kreuzungen_web.pdf') });
+    expect(byTitle.get('Schulwegpläne für die Grundschule')).toMatchObject({
+      author: 'Verkehrswacht Medien & Service GmbH', url: expect.stringContaining('/105-Infoblatt-Schulwegplaene-fuer-die-Grundschule.pdf')
+    });
+    expect(byTitle.get('Richtlinien für die Anlage von Stadtstraßen (RASt 06)').url).toBe('https://www.fgsv-verlag.de/rast');
+    const preview = new DOMParser().parseFromString(report.html, 'text/html');
+    const links = Array.from(preview.querySelectorAll('a[href]'), anchor => anchor.href);
+    for (const entry of references) expect(links).toContain(entry.url);
+  });
+
+  test('retains different editions and publishers even when their title or catalogue URL agrees', async () => {
+    const shared = { title: 'Planungsleitfaden', author: 'Verkehrsverlag', date: '2010', url: 'https://example.org/katalog' };
+    const local = [
+      { ...shared, date: '2025' },
+      { ...shared, author: 'Stadt Hannover' },
+      { ...shared, isbn: '978-3-941790-07-0' }
+    ];
+    const fetchImpl = makeFetch({
+      'references_global.json': { documents: [{ ...shared, isbn: '978-3-941790-63-6' }] },
+      'references_testcity.json': { documents: local }
+    });
+    global.fetch = fetchImpl;
+    UA = loadUA(fetchImpl);
+    const report = await UA.computeExportReport(makeCtx(UA, 'testcity'));
+    expect(report.structured.references.documents).toHaveLength(4);
+    expect(report.structured.references.documents).toEqual(expect.arrayContaining(local));
+  });
+
   test('gracefully falls back to global docs when city file fetch fails', async () => {
     const fetchImpl = makeFetch({ 'references_global.json': globalDocs });
     global.fetch = fetchImpl;

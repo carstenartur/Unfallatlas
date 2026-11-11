@@ -69,9 +69,10 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
-    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-pdf-download"');
+    expect(html).toContain('js/ua.state.js?v=2026-11-11-evidence-links"');
+    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-evidence-links"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
-    expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-pdf-download');
+    expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-evidence-links');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
   });
 
@@ -95,9 +96,8 @@ describe('Werkbank deployment asset versions', () => {
     expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-road-labels"');
   });
 
-  test.each(['ua.state', 'ua.ui'])
-  ('%s refreshes the optional review network', asset => {
-    expect(html).toContain('js/' + asset + '.js?v=2026-11-10-review-network"');
+  test('refreshes the optional review-network controls', () => {
+    expect(html).toContain('js/ua.ui.js?v=2026-11-10-review-network"');
   });
 
   test.each([

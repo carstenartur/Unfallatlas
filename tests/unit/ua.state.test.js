@@ -18,6 +18,18 @@ function loadState(href) {
 }
 
 describe('UA.cleanUrlIfNeeded', () => {
+  test('preserves document evidence keys and opens the map from older export links', () => {
+    const input = 'http://localhost/werkbank_v2.html?city=Hannover&evidenceScope=complete&evidenceLabels=1&evidenceAccident=A021&export=1';
+    const win = loadState(input);
+    expect(win.UA.cleanUrlIfNeeded()).toBe(true);
+    const canonical = new URL(win.location.replace.mock.calls[0][0]);
+    expect(Object.fromEntries(canonical.searchParams)).toEqual({
+      city: 'Hannover', evidenceScope: 'complete', evidenceLabels: '1', evidenceAccident: 'A021',
+    });
+    expect(loadState(canonical.href).UA.cleanUrlIfNeeded()).toBe(false);
+    expect(loadState('http://localhost/werkbank_v2.html?city=Hannover&export=1').UA.cleanUrlIfNeeded()).toBe(false);
+  });
+
   const listQuery = {
     risList: '1', risListCollapsed: '1', risQuery: 'Leine, Radweg', risLevels: 'region,state',
     risSearchPage: 'ris2.eyJ2IjoxfQ.' + 'a'.repeat(64), risSearchSnapshot: 'b'.repeat(64),

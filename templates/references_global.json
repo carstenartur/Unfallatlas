@@ -14,23 +14,24 @@
     },
     {
       "title": "Empfehlungen für Radverkehrsanlagen (ERA)",
+      "isbn": "978-3-941790-63-6",
       "author": "Forschungsgesellschaft für Straßen- und Verkehrswesen (FGSV)",
       "date": "2010",
       "url": "https://www.fgsv-verlag.de/era",
-      "description": "Bundesweit geltendes Regelwerk zur Planung, zum Entwurf und zum Betrieb von Radverkehrsanlagen. Definiert Standards für sichere Radverkehrsführung, insbesondere an Knotenpunkten und im Längsverkehr."
+      "description": "Die Empfehlungen behandeln Planung, Entwurf und Betrieb von Radverkehrsanlagen, unter anderem die Führung an Knotenpunkten."
     },
     {
       "title": "Richtlinien für die Anlage von Stadtstraßen (RASt 06)",
       "author": "Forschungsgesellschaft für Straßen- und Verkehrswesen (FGSV)",
       "date": "2006",
-      "url": "https://www.fgsv-verlag.de/rast-06",
-      "description": "Bundesweit geltendes Regelwerk zur Gestaltung von Stadtstraßen. Grundlage für Querschnitts- und Knotenpunktplanung sowie für die Bemessung und Sicherheitsbewertung innerörtlicher Straßenräume."
+      "url": "https://www.fgsv-verlag.de/rast",
+      "description": "Die Richtlinien behandeln den Entwurf innerörtlicher Straßen, unter anderem die Gestaltung von Querschnitten und Knotenpunkten."
     },
     {
-      "title": "Schulwegsicherung – Systematische Analyse und Maßnahmen",
-      "author": "Deutsche Verkehrswacht",
-      "url": "https://www.verkehrswacht-medien-service.de/schulweg/",
-      "description": "Leitfaden zur Identifikation und Entschärfung von Gefahrenstellen auf Schulwegen. Relevant bei Unfallhäufungen im Umfeld von Schulen, Kindergärten und Kitas."
+      "title": "Schulwegpläne für die Grundschule",
+      "author": "Verkehrswacht Medien & Service GmbH",
+      "url": "https://www.verkehrswacht-medien-service.de/wp-content/uploads/105-Infoblatt-Schulwegplaene-fuer-die-Grundschule.pdf",
+      "description": "Das Infoblatt nennt geeignete Querungsstellen, Sichtbehinderungen und weitere Gefahrenpunkte, die in einem Schulwegplan erfasst werden können."
     }
   ]
 }

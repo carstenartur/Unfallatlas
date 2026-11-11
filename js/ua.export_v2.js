@@ -1003,12 +1003,20 @@
     }
   }
 
-  /**
-   * Load references_global.json plus (if citySlug is given) references_<city>.json,
-   * merge the two document lists, and deduplicate by (title+author).
-   * City-specific entries win over global entries on collision.
-   * Keep local political cases separate from general reference documents.
-   */
+  function sameReferenceEdition(left, right) {
+    const text = value => String(value ?? "").trim().toLowerCase();
+    const isbn = value => text(value).replace(/[\s-]/g, "");
+    const leftDate = text(left.date), rightDate = text(right.date);
+    if (left.isbn && right.isbn) {
+      const identifier = isbn(left.isbn);
+      return /^(?:97[89]\d{10}|\d{9}[\dx])$/.test(identifier) && identifier === isbn(right.isbn) &&
+        (!leftDate || !rightDate || leftDate === rightDate);
+    }
+    return Boolean(text(left.title) && text(left.author)) && leftDate === rightDate &&
+      text(left.title) === text(right.title) && text(left.author) === text(right.author);
+  }
+
+  /** Merge the publication catalogue with the city's sources and local reading notes. */
   async function loadReferenceDocuments(citySlug) {
     const globalData = await _fetchRefFile("templates/references_global.json");
     const cityData = citySlug ? await _fetchRefFile(`templates/references_${citySlug}.json`) : null;
@@ -1016,13 +1024,22 @@
     const globalDocs = (globalData && Array.isArray(globalData.documents)) ? globalData.documents : [];
     const cityDocs   = (cityData   && Array.isArray(cityData.documents))   ? cityData.documents   : [];
 
-    // Deduplicate: city entries override global entries with the same title+author key.
-    const dedupKey = (d) => `${(d.title || "").trim().toLowerCase()}|${(d.author || "").trim().toLowerCase()}`;
-    const cityKeys = new Set(cityDocs.map(dedupKey));
-    const merged = [
-      ...globalDocs.filter(d => !cityKeys.has(dedupKey(d))),
-      ...cityDocs
-    ];
+    const merged = [...globalDocs];
+    for (const local of cityDocs) {
+      const index = merged.findIndex(doc => sameReferenceEdition(doc, local));
+      if (index < 0) {
+        merged.push(local);
+        continue;
+      }
+      const [catalogue] = merged.splice(index, 1);
+      const citation = { ...catalogue, ...local };
+      if (catalogue.isbn && local.isbn) {
+        // An ISBN identifies the edition. Retain its publisher record and the local reading note.
+        citation.author = catalogue.author || local.author;
+        citation.url = catalogue.url || local.url;
+      }
+      merged.push(citation);
+    }
     return {
       referenceDocuments: merged.length ? { documents: merged } : null,
       localPoliticalCases: cityData?.localPoliticalCases
