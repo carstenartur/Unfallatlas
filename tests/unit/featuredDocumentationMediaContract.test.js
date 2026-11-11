@@ -71,7 +71,17 @@ describe('featured README media stays visibly informative', () => {
     expect(asset.target).toEqual(target);
   });
 
-  test('selection fill remains transparent enough not to hide the heatmap', () => {
-    expect(read('js/ua.ui.js')).toContain('fillOpacity:0.06');
+  test('the visible selection outline leaves the heatmap and underlying click targets clear', () => {
+    const window = {};
+    const rectangle = jest.fn();
+    new Function('window', 'L', read('js/ua.ui.js'))(window, { rectangle });
+    const { UA } = window;
+    UA.recomputeAndRender = jest.fn();
+    UA.syncViewToUrl = jest.fn();
+    const bounds = { getSouth: () => 50, getNorth: () => 51, getWest: () => 7, getEast: () => 8 };
+    UA.setSelectionArea({ drawnItems: { clearLayers() {}, addLayer() {} } }, bounds);
+    expect(rectangle).toHaveBeenCalledWith(bounds, expect.objectContaining({
+      fill: false, interactive: false, weight: expect.any(Number)
+    }));
   });
 });
