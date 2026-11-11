@@ -7,13 +7,19 @@ const intersection = 'Brühlstraße / Escherstraße';
 const councilSources = ['15-1243-2021', '15-2403-2022F1', '15-2377-2023F1'].map(id =>
   'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/' + id);
 
-function checkMotion(text) {
+function checkMotion(text, hannoverWord = false) {
   // Inspect the formal request and its reasons, before the maps or the statistics.
   // A correct caption in the annex must not hide a proposal about another pattern.
   const normalized = text.replace(/\s+/g, ' ');
-  const cover = normalized.split(/Beschlussvorschlag/i, 1)[0];
+  const heading = hannoverWord ? /\bAntrag (?=Der Bezirksrat möge beschließen:)/ : /\bBeschlussvorschlag\s*:?\s*/i;
+  const [cover, body] = normalized.split(heading);
   expect(cover).toContain('Prüfung und Verbesserung der Verkehrssicherheit im Bereich ' + intersection);
-  const [motion, rationale] = normalized.match(/Beschlussvorschlag\s*:? (.+?) Begründung\s*:? (.+?)(?:Amtliche Vorbefassung am Netzobjekt|KURZBEWERTUNG|Anlagen? 1\b|DATENQUELLEN|$)/i)?.slice(1) || [];
+  if (hannoverWord) {
+    expect(cover).toContain('Entwurf · Stand');
+    expect(cover).toContain('An den Stadtbezirksrat Mitte');
+    expect(cover).toContain('Sitzung am [Datum, falls bekannt]');
+  }
+  const [motion, rationale] = body?.match(/(.+?) Begründung\s*:? (.+?)(?:Amtliche Vorbefassung am Netzobjekt|KURZBEWERTUNG|Anlagen? 1\b|DATENQUELLEN|$)/i)?.slice(1) || [];
   expect(motion).toBeTruthy();
   expect(rationale).toBeTruthy();
   expect(motion).toContain('Brühlstraße');
@@ -136,7 +142,7 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     const bytes = await readFile(path);
     const result = await extract(bytes);
     const { text, links, title } = result;
-    checkMotion(text);
+    checkMotion(text, selector === '#btnExportWord');
     expect(title).toContain(intersection);
     expect(links).toEqual(expect.arrayContaining(councilSources));
     if (selector === '#btnExportWord') {

@@ -133,6 +133,7 @@ test('Antrags-PDF trennt Beschluss, Begründung, alle nummerierten Fälle und Me
 test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennungen als Tabelle', async () => {
   const window = loadReport();
   const data = reportData();
+  data.structured.meta.date = '11.11.2026';
   data.structured.motion = {
     intro: 'Die Verwaltung wird gebeten, innerhalb von drei Monaten zu berichten.',
     requests: ['Schienenquerungen und Sichtbeziehungen örtlich untersuchen.', 'Zeitplan und Wirkungskontrolle vorlegen.'],
@@ -148,7 +149,16 @@ test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennunge
   const firstAnnexIndex = xml.indexOf('Anlage 1 – Vollständige Unfallliste');
   expect(firstAnnexIndex).toBeGreaterThan(0);
   const front = xml.slice(0, firstAnnexIndex);
-  expect(front).toMatch(/Beschlussvorschlag[\s\S]+Schienenquerungen und Sichtbeziehungen örtlich untersuchen\.[\s\S]+Begründung[\s\S]+Die kodierten Unfallarten/);
+  const words = [...front.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match => match[1]).join(' ');
+  expect(words).toContain('Entwurf · Stand 11.11.2026');
+  expect(words).toContain('Antragsteller: [Name des Mitglieds, der Fraktion oder der Gruppe]');
+  expect(words).toContain('An den Stadtbezirksrat Nord');
+  expect(words).toContain('über die Bezirksratsbetreuung der Landeshauptstadt Hannover');
+  expect(words).toContain('Sitzung am [Datum, falls bekannt]');
+  expect(words).toMatch(/Betreff:\s+Verkehrssicherheit im Bereich/);
+  expect(words).toMatch(/Antrag Der Bezirksrat möge beschließen: Die Verwaltung wird gebeten, innerhalb von drei Monaten zu berichten\..+Schienenquerungen und Sichtbeziehungen örtlich untersuchen\..+Begründung.+Die kodierten Unfallarten/);
+  expect(words).not.toContain('Beschlussvorschlag');
+  expect(words).toMatch(/Die kodierten Unfallarten.+\[Name und Funktion der zeichnenden Person\].+Ratsvorgänge im Original/);
   expect(front).toContain('DS 1/2023 (04.12.2023)');
   expect(rels).toContain('Target="https://example.test/ris/123"');
   const pdf = await exportPdf(loadReport(), data);
@@ -167,6 +177,29 @@ test('Antrags-DOCX rendert den fachlichen Beschluss und verlinkte Unfallkennunge
   expect(evidenceTable.match(/<w:cantSplit\s*\/>/g)).toHaveLength(54);
   expect([...evidenceTable.matchAll(/>(A\d{3})</g)].map(match => match[1])).toEqual(ids);
   expect(rels).toContain('Target="' + source + '?evidenceAccident=A001"');
+});
+
+test.each([
+  ['Hannover', 'Stadtbezirksrat', 'Stadtbezirksrat Nord', 'Der Stadtbezirksrat Nord möge beschließen:', true],
+  ['Hannover', 'Bezirksrat', null, 'Der Bezirksrat beschließt:', true],
+  ['Braunschweig', 'Stadtbezirksrat', 'Stadtbezirksrat Mitte', 'Die Verwaltung wird gebeten zu berichten.', false],
+  ['Hannover', 'Ausschuss', 'Verkehrsausschuss', 'Die Verwaltung wird gebeten zu berichten.', false],
+])('Word preserves an existing introduction and scopes the draft to %s / %s', async (city, typ, gremium, intro, localDraft) => {
+  const window = loadReport();
+  const data = reportData();
+  Object.assign(data.structured.meta, { city, gremium: { typ, gremium } });
+  data.text = data.text.replace('Der Stadtbezirksrat Nord bittet die Verwaltung um Prüfung.', intro);
+  await window.UA.exportToWord({ CITY_RAW: city }, data);
+  const zip = await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
+  const xml = await zip.file('word/document.xml').async('string');
+  const front = xml.slice(0, xml.indexOf('Anlage 1 – Vollständige Unfallliste'));
+  expect(front).toContain(intro);
+  expect(front.includes('Entwurf · Stand')).toBe(localDraft);
+  expect(front.includes('>Beschlussvorschlag<')).toBe(!localDraft);
+  if (localDraft) {
+    expect(front.toLowerCase().match(/beschließ(?:en|t)/g)).toHaveLength(1);
+    if (!gremium) expect(front).toContain('An den Stadtbezirksrat [Stadtbezirk]');
+  }
 });
 
 test('Word links cited council numbers in the motion and the selected RIS document at its title', async () => {

@@ -2088,7 +2088,29 @@
     const metaDate    = (sd && sd.meta && sd.meta.date)     || today;
     const metaToWhom  = gremiumMeta.gremium || "Zuständiges Gremium vor Einreichung prüfen";
     const subject = replaceEmojisForDocx(reportSubject(reportData));
-    if (formalMotion) {
+    const hannoverDistrictMotion = formalMotion
+      && /^(?:Landeshauptstadt\s+)?Hannover$/i.test(metaCity.trim())
+      && /^(?:Stadt)?Bezirksrat(?:\s*\([^)]*\))?$/i.test((gremiumMeta.typ || "").trim());
+    if (hannoverDistrictMotion) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `Entwurf · Stand ${metaDate}`, size: 19 })],
+          alignment: AlignmentType.RIGHT, spacing: { after: 140 }
+        }),
+        new Paragraph({ text: "Antragsteller: [Name des Mitglieds, der Fraktion oder der Gruppe]", spacing: { after: 100 } }),
+        new Paragraph({ text: `An den ${gremiumMeta.gremium || "Stadtbezirksrat [Stadtbezirk]"}`, spacing: { after: 40 } }),
+        new Paragraph({ text: "über die Bezirksratsbetreuung der Landeshauptstadt Hannover", spacing: { after: 40 } }),
+        new Paragraph({ text: "Sitzung am [Datum, falls bekannt]", spacing: { after: 160 } }),
+        new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun({ text: `Betreff: ${subject}`, color: "191919", size: 28, bold: true })],
+          keepNext: true, keepLines: true, spacing: { before: 0, after: 100 }
+        })
+      );
+      if (sd?.meta?.areaName && !subject.includes(metaArea)) {
+        children.push(new Paragraph({ text: `Bereich: ${metaArea}`, spacing: { after: 80 } }));
+      }
+    } else if (formalMotion) {
       children.push(new Paragraph({
         children: [new TextRun({ text: docTitle.toUpperCase(), bold: true, color: "254B61", size: 20 })],
         keepNext: true, spacing: { after: 100 }
@@ -2224,25 +2246,32 @@
     const figCounter = makeFigureCounter();
 
     const motion = motionSections(sd, textLines, hasMap);
-    children.push(new Paragraph({
-      text: formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG",
-      heading: HeadingLevel.HEADING_2,
-      keepNext: true,
-      spacing: { before: 160, after: 100 }
-    }));
+    function motionHeading(text) {
+      return new Paragraph({
+        ...(hannoverDistrictMotion ? { children: [new TextRun({ text, bold: true, size: 24, color: "191919" })] } : { text }),
+        heading: HeadingLevel.HEADING_2,
+        keepNext: true,
+        spacing: { before: 160, after: 100 }
+      });
+    }
+    children.push(motionHeading(hannoverDistrictMotion ? "Antrag" : formalMotion ? "Beschlussvorschlag" : "ANTRAG / BESCHLUSSVORSCHLAG"));
+    if (hannoverDistrictMotion) {
+      const opening = motion.paragraphs[0] || motion.requests[0] || "";
+      const resolutionFormula = /\b(?:stadt)?bezirksrat\b[^.!?:\n]*?\b(?:beschlie(?:ß|ss)(?:en|t)|beschluss fassen|bittet|beauftragt)\b/i;
+      if (!resolutionFormula.test(opening)) children.push(motionParagraph("Der Bezirksrat möge beschließen:", { keepNext: true }));
+    }
     for (const line of motion.paragraphs) children.push(motionParagraph(line));
     for (const request of motion.requests) {
       children.push(motionParagraph(request, { numbering: { reference: MOTION_NUMBERING, level: 0 } }));
     }
 
-    children.push(new Paragraph({
-      text: formalMotion ? "Begründung" : "BEGRÜNDUNG",
-      heading: HeadingLevel.HEADING_2,
-      keepNext: true,
-      spacing: { before: 160, after: 100 }
-    }));
+    children.push(motionHeading(formalMotion ? "Begründung" : "BEGRÜNDUNG"));
     if (evidence) children.push(motionParagraph(evidenceCountText(evidence)));
     for (const line of motion.reason) children.push(motionParagraph(line));
+    if (hannoverDistrictMotion) children.push(new Paragraph({
+      children: [new TextRun({ text: "[Name und Funktion der zeichnenden Person]", italics: true, size: 20 })],
+      spacing: { before: 80, after: 160 }
+    }));
     for (const source of [motion.source, sd?.meta?.gremium?.source]) {
       if (!source?.label) continue;
       children.push(new Paragraph({
