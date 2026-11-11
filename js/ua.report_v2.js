@@ -2492,7 +2492,8 @@
         children.push(makeDocxTable(
           ["Kombination", "Getötete", "Schwerverletzt", "Leichtverletzt", "Summe"],
           ctRows,
-          ctHighlights
+          ctHighlights,
+          { colWeights: [48, 10, 17, 16, 9] }
         ));
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
@@ -3261,7 +3262,9 @@
     const networkSite = reportNetworkSite(ctx, sd);
     if (networkSite) {
       children.push(new Paragraph({ text: "Befund aus dem Netzregister", heading: HeadingLevel.HEADING_2, keepNext: true }));
-      for (const line of networkSite.lines) children.push(motionParagraph(line));
+      networkSite.lines.forEach((line, index) => {
+        children.push(motionParagraph(line, { keepNext: index === 0 && networkSite.lines.length > 1 }));
+      });
       for (const source of networkSite.sources) {
         children.push(new Paragraph({ children: [linkedWordRun(source)], spacing: { after: 80 }, keepLines: true }));
       }

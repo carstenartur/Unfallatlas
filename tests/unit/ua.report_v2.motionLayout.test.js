@@ -207,3 +207,48 @@ test('Word links cited council numbers in the motion and the selected RIS docume
   const front = xml.slice(0, xml.indexOf('Anlage 1 – Vollständige Unfallliste'));
   expect(front).toContain('Ratsvorgänge im Original');
 });
+
+describe('Word annex layout', () => {
+  let xml;
+
+  beforeAll(async () => {
+    const window = loadReport();
+    new Function('window', fs.readFileSync(path.resolve(__dirname, '../../js/ua.review_network.js'), 'utf8'))(window);
+    const data = reportData();
+    data.structured.crossTable = {
+      rows: [{ mask: 1, textLabel: 'Unfall mit ausschließlich gesetzter Beteiligungskategorie Pkw', sev1: 0, sev2: 0, sev3: 1, total: 1 }],
+      totals: { sev1: 0, sev2: 0, sev3: 1, total: 1 },
+    };
+    data.structured.siteNetwork = {
+      status: 'available', kind: 'junction', label: area,
+      site: { id: 'j:22', revision: 'testrevision' },
+      bounds: { south: 52.37, west: 9.72, north: 52.38, east: 9.73 },
+      query: {}, assignedCount: 4, queryCount: 3, mapCount: 2,
+    };
+    await window.UA.exportToWord({ CITY_RAW: 'Hannover' }, data);
+    const zip = await JSZip.loadAsync(await window.saveAs.mock.calls[0][0].arrayBuffer());
+    xml = await zip.file('word/document.xml').async('string');
+  });
+
+  test('allocates room for long involvement labels and keeps the count columns compact', () => {
+    const table = [...xml.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)].map(match => match[0])
+      .find(tableXml => tableXml.includes('ausschließlich gesetzter Beteiligungskategorie Pkw'));
+    expect(table).toBeDefined();
+    const widths = [...table.matchAll(/<w:gridCol w:w="(\d+)"\s*\/>/g)].map(match => Number(match[1]));
+    const [label, fatal, serious, slight, total] = widths;
+    expect(widths).toHaveLength(5);
+    expect(label).toBeGreaterThan(widths.reduce((sum, n) => sum + n, 0) * 0.44);
+    expect(Math.min(serious, slight)).toBeGreaterThan(Math.max(fatal, total));
+  });
+
+  test('keeps the network heading and identifier with the first finding without binding the whole section', () => {
+    const paragraphs = xml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g);
+    const index = paragraphs.findIndex(p => p.includes('Befund aus dem Netzregister'));
+    expect(index).toBeGreaterThan(-1);
+    expect(paragraphs[index]).toMatch(/<w:keepNext\s*\/>/);
+    expect(paragraphs[index + 1]).toContain('Kennung j:22');
+    expect(paragraphs[index + 1]).toMatch(/<w:keepNext\s*\/>/);
+    expect(paragraphs[index + 2]).toContain('4 räumlich zugeordnete Fälle');
+    expect(paragraphs[index + 2]).not.toMatch(/<w:keepNext\s*\/>/);
+  });
+});
