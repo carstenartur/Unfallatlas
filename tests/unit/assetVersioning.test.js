@@ -33,7 +33,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test('refreshes the map registry with the verified LGLN imagery layer', () => {
-    expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-10-lgln"');
+    expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-11-nrw-dop"');
   });
 
   test('site discovery is available from the ordinary Werkbank entry point', () => {
@@ -90,7 +90,7 @@ describe('Werkbank deployment asset versions', () => {
 
   test('loads the current discovery app and orthophoto fallback', () => {
     expect(html).toContain('js/ua.app_v2.js?v=2026-11-10-site-discovery"');
-    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-orthophoto"');
+    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-nrw-tile-retry"');
   });
 
   test.each(['ua.state', 'ua.ui'])

@@ -63,9 +63,10 @@
       attribution: 'Quelle: Bundesstadt Bonn – Orthofoto',
       license: 'Kommunales Open Data / siehe Dienst-Metadaten',
       metadataUrl: 'https://www.bonn.de/stadtplan-wms/services/orthofoto/MapServer/WMSServer?SERVICE=WMS&REQUEST=GetCapabilities',
-      officialForExport: true,
-      usageConstraint: 'Für amtliche Berichte geeignet',
-      coverageNote: 'Kommunaler Layer für Bonn',
+      retired: true,
+      officialForExport: false,
+      usageConstraint: 'Historische Quelle des früheren Bonner Stadtplans',
+      coverageNote: 'Ehemaliger kommunaler Layer für Bonn',
       updateInfo: 'Befliegungsjahr laut Dienst-Metadaten',
       priority: 400,
       fallbackLayerId: 'nrw-orthophoto'
@@ -77,7 +78,7 @@
       layerType: 'orthophoto',
       technicalType: 'WMS',
       url: 'https://www.wms.nrw.de/geobasis/wms_nw_dop',
-      layers: 'nw_dop',
+      layers: 'nw_dop_rgb',
       format: 'image/png',
       transparent: false,
       minZoom: 0,
@@ -86,6 +87,7 @@
       scope: 'state:nw',
       attribution: 'Quelle: Geobasis NRW',
       license: 'Datenlizenz Deutschland – Zero – Version 2.0',
+      licenseUrl: 'https://www.govdata.de/dl-de/zero-2-0',
       metadataUrl: 'https://www.wms.nrw.de/geobasis/wms_nw_dop?SERVICE=WMS&REQUEST=GetCapabilities',
       officialForExport: true,
       usageConstraint: 'Für amtliche Berichte geeignet',
@@ -167,7 +169,11 @@
   ]);
 
   const DEF_BY_ID = Object.freeze(Object.fromEntries(LAYER_DEFINITIONS.map(def => [def.id, def])));
-  const CITY_STATE_HINTS = Object.freeze({ bonn: 'nw', hannover: 'ni' });
+  const CITY_STATE_HINTS = Object.freeze({
+    bonn: 'nw', bielefeld: 'nw', bochum: 'nw', dortmund: 'nw', duisburg: 'nw', essen: 'nw', wuppertal: 'nw',
+    koln: 'nw', koeln: 'nw', dusseldorf: 'nw', duesseldorf: 'nw', munster: 'nw', muenster: 'nw',
+    hannover: 'ni', braunschweig: 'ni', wolfsburg: 'ni',
+  });
 
   function norm(value) {
     return String(value || '')
@@ -195,8 +201,7 @@
     const city = norm(ctx.city);
     const state = norm(ctx.state);
     const ids = [];
-    if (city === 'bonn') ids.push('bonn-orthophoto');
-    if (city === 'bonn' || state === 'nw') ids.push('nrw-orthophoto');
+    if (state === 'nw') ids.push('nrw-orthophoto');
     if (city === 'hannover' || state === 'ni') ids.push('niedersachsen-orthophoto');
     ids.push('bkg-orthophoto', 'esri-world-imagery');
     return Array.from(new Set(ids));
@@ -241,7 +246,7 @@
   }
 
   function createMapLayer(definition) {
-    if (!definition || !window.L) return null;
+    if (!definition || definition.retired || !window.L) return null;
     const common = leafletOptions(definition);
     if (definition.technicalType === 'WMS') {
       if (!window.L.tileLayer || typeof window.L.tileLayer.wms !== 'function') return null;
@@ -268,7 +273,7 @@
   UA.MAP_MODE_LABELS = MAP_MODE_LABELS;
   UA.MAP_INTERACTIVE_MAX_ZOOM = INTERACTIVE_MAX_ZOOM;
   UA.getMapLayerRegistry = function getMapLayerRegistry() {
-    return LAYER_DEFINITIONS.slice();
+    return LAYER_DEFINITIONS.filter(def => !def.retired);
   };
   UA.getMapLayerDefinition = getDefinition;
   UA.resolveRegionalOrthophotoCandidates = resolveOrthophotoCandidates;

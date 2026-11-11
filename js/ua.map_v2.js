@@ -739,7 +739,7 @@
     const mode = (typeof UA.resolveMapMode === 'function')
       ? UA.resolveMapMode(ctx && ctx.mapMode)
       : ((ctx && ctx.mapMode) || 'standard');
-    let warning = state?.fallbackReason || '';
+    let warning = [state?.fallbackReason, mode !== 'standard' && state?.partialTileWarning].filter(Boolean).join(' ');
     if (activeOrthophoto && (mode === 'hybrid' || mode === 'analysis') && !state.labelLayer) {
       const note = 'Straßenbeschriftungen sind für diese Installation nicht konfiguriert.';
       warning = warning ? `${warning} ${note}` : note;
@@ -797,7 +797,9 @@
       }
       state.orthophotoLayer = layer;
       state.activeOrthophotoDef = def;
+      state.partialTileWarning = '';
       if (typeof layer.on === 'function') {
+        const retriedTiles = new WeakSet();
         // Leaflet fires load after both successes and errors and finishes using the map
         // after the event returns. Evaluate the current viewport before removing a layer.
         layer.on('load', () => queueMicrotask(() => {
@@ -809,11 +811,21 @@
               Math.min(box.bottom, view.bottom) > Math.max(box.top, view.top);
           });
           if (!visible.length || visible.some(tile => !tile.complete)) return;
-          if (visible.some(tile => tile.classList.contains('leaflet-tile-loaded'))) {
-            if (!state.fallbackReason) _setMapLayerInfo(ctx);
+          const missing = visible.filter(tile => !tile.classList.contains('leaflet-tile-loaded'));
+          if (missing.length === visible.length) {
+            _applyOrthophotoFallback(ctx, `${def.displayName} ist aktuell nicht erreichbar – Fallback aktiviert.`);
             return;
           }
-          _applyOrthophotoFallback(ctx, `${def.displayName} ist aktuell nicht erreichbar – Fallback aktiviert.`);
+          // Keep successful imagery on screen. A transient failure in one tile
+          // does not make the whole service unavailable for this viewport.
+          const pending = missing.filter(tile => !retriedTiles.has(tile));
+          for (const tile of pending) {
+            retriedTiles.add(tile);
+            tile.setAttribute('src', tile.src);
+          }
+          state.partialTileWarning = missing.length && !pending.length
+            ? `${missing.length} von ${visible.length} sichtbaren Luftbildkacheln konnten nicht geladen werden.` : '';
+          _setMapLayerInfo(ctx);
         }));
       }
       return layer;

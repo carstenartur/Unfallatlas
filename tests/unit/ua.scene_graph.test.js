@@ -555,7 +555,7 @@ describe('UA.SceneGraph', () => {
           mapMode: 'orthophoto',
           baseLayerUrl: 'https://www.wms.nrw.de/geobasis/wms_nw_dop',
           baseLayerTechnicalType: 'WMS',
-          baseLayerWmsLayers: 'nw_dop',
+          baseLayerWmsLayers: 'nw_dop_rgb',
           baseLayerFormat: 'image/png',
           baseLayerTransparent: false,
           baseLayerAttribution: 'Quelle: Geobasis NRW',
@@ -568,7 +568,7 @@ describe('UA.SceneGraph', () => {
       expect(rasterNodes).toHaveLength(1);
       const raster = rasterNodes[0];
       expect(raster.geometry.technicalType).toBe('WMS');
-      expect(raster.geometry.layers).toBe('nw_dop');
+      expect(raster.geometry.layers).toBe('nw_dop_rgb');
       expect(raster.geometry.format).toBe('image/png');
     });
 
