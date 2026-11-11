@@ -143,3 +143,5 @@ bash scripts/verify-pdfmake-upstream.sh
 Der Vergleich prüft das minifizierte Bundle, seine Source Map mit 170
 Quelldateien und den aus den Original-TTFs neu erzeugten VFS-Schriftcontainer
 jeweils byteweise gegen das mit `npm ci` installierte pdfmake-Archiv.
+
+Die veröffentlichte PDF-Komponentenliste ordnet die 26 direkt erkennbaren npm-Paketpfade der Source Map einschließlich verschachtelter Kopien dem Herstellerbuild-Lock zu. So enthält das Bundle beide tatsächlich verwendeten Versionen von base64-js (0.0.8 und 1.5.1), sax 1.6.1 und core-js 3.51.0. Fünf Lizenzdateien zu abweichend oder ausschließlich im Herstellerbuild installierten Versionen sind archiviert und werden beim Neuaufbau mit den installierten Originalen verglichen. Der umgeschriebene Quellpfad zu xmldoc sowie intern gebündelte Bestandteile bleiben im Vollständigkeitsnachweis offen.

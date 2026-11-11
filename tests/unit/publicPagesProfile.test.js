@@ -140,6 +140,22 @@ describe('public Pages distribution profile', () => {
     expect(license.sourceSha256).toBe(digest);
   });
 
+  test('links PDF source-map modules to the exact upstream build packages and archives their licenses', () => {
+    const notice = readJson('vendor/third-party-notices.json');
+    const pdf = notice.assetAssessments.find(asset => asset.path === 'vendor/export/pdfmake.js');
+    expect(pdf).toMatchObject({ reproducible: true, provenanceComplete: false, reproductionMethod: 'bash scripts/verify-pdfmake-upstream.sh' });
+    const expected = ['base64-js@0.0.8', 'base64-js@1.5.1', 'buffer@6.0.3', 'core-js@3.51.0', 'sax@1.6.1'];
+    expect(pdf.contains).toEqual(expect.arrayContaining(expected.map(name => 'pkg:npm/' + name)));
+    expect(pdf.contains).not.toContain('pkg:npm/base64-js@1.3.1');
+    expect(pdf.contains).not.toContain('pkg:npm/sax@1.6.0');
+    const sax = notice.components.find(item => item.purl === 'pkg:npm/sax@1.6.1');
+    expect(sax.attestation.lockFile).toBe('vendor/pdfmake-build/npm-lock.json');
+    expect(sax.licenseExpression).toBe('BlueOak-1.0.0');
+    expect(fs.readFileSync(path.join(OUTPUT, sax.licenseTexts[0].path))).toEqual(
+      fs.readFileSync(path.join(ROOT, 'vendor/pdfmake-build/licenses/sax-1.6.1.txt'))
+    );
+  });
+
   test('binds the embedded Simpleheat version and license to the heatmap and SBOM', () => {
     const purl = 'pkg:npm/simpleheat@1.0.0';
     const notice = readJson('vendor/third-party-notices.json');

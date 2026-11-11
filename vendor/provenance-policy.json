@@ -18,8 +18,7 @@
       ],
       "kind": "opaque-supplier-bundle",
       "missingEvidence": [
-        "integrity-pinned build-tool lock",
-        "byte-for-byte reproduction from component sources",
+        "two independently signed source-build attestations",
         "complete component contains relation",
         "full license and copyright evidence for every embedded component"
       ],
@@ -35,9 +34,8 @@
       ],
       "kind": "opaque-supplier-bundle",
       "missingEvidence": [
-        "integrity-pinned build-tool lock including svg-to-pdfkit",
-        "byte-for-byte reproduction from component sources",
-        "complete component contains relation for the webpack source-map inventory",
+        "two independently signed source-build attestations",
+        "complete component contains relation for generated code and remapped sources",
         "full license and copyright evidence for every embedded component"
       ],
       "migrationOptions": [
@@ -52,8 +50,8 @@
       ],
       "kind": "embedded-font-container",
       "missingEvidence": [
-        "integrity-pinned upstream font source",
-        "deterministic VFS generator attestation"
+        "original typeface build and upstream font provenance",
+        "independently signed VFS generator attestations"
       ],
       "migrationOptions": [
         "Pin a redistributable Roboto source archive, verify all four TTF name tables and hashes, and generate vfs_fonts.js in the site build.",
@@ -87,5 +85,19 @@
         "Replace leaflet-image with a maintained map-capture implementation whose dependencies expose complete license files."
       ]
     }
-  ]
+  ],
+  "verifiedSourceRebuilds": {
+    "vendor/export/docx.js": {
+      "sha256": "262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e",
+      "command": "bash scripts/verify-docx-upstream.sh"
+    },
+    "vendor/export/pdfmake.js": {
+      "sha256": "e095e5b991dce0eb84f1989c42a2dbf7d0672fb8510ea3fe1c958920d6d3751d",
+      "command": "bash scripts/verify-pdfmake-upstream.sh"
+    },
+    "vendor/export/pdfmake-fonts.js": {
+      "sha256": "f3db5ac36ce8c9a6a3f55d5d00c2a0e21a3d7698db149dff22f4e670ffcfd5c4",
+      "command": "bash scripts/verify-pdfmake-upstream.sh"
+    }
+  }
 }

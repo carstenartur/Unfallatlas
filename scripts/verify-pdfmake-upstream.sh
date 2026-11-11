@@ -27,6 +27,18 @@ npm pkg set 'devDependencies.ajv=^8.20.0'
 node --version
 npm --version
 npm ci --legacy-peer-deps --no-audit --no-fund
+# Compare the five archived notices against the packages actually installed by this build.
+node - "$repo_root/vendor/pdfmake-build" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const root = process.argv[2];
+const files = JSON.parse(fs.readFileSync(path.join(root, 'license-files.json'), 'utf8'));
+for (const [lockPath, license] of Object.entries(files)) {
+  const original = fs.readFileSync(path.join(lockPath, license.source));
+  const archived = fs.readFileSync(path.join(root, 'licenses', license.file));
+  if (!original.equals(archived)) throw new Error('License differs from installed PDF build dependency: ' + lockPath);
+}
+NODE
 node "$repo_root/vendor/pdfmake-build/webpack.cjs"
 npm run build:vfs
 for file in pdfmake.min.js pdfmake.min.js.map vfs_fonts.js; do
