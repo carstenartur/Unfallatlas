@@ -94,24 +94,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # GitHub's Ubuntu image normally starts with an Azure mirror followed
-          # by archive.ubuntu.com in apt-mirrors.txt. If the regional mirror is
-          # unreachable, Acquire::Retries keeps retrying it until the outer
-          # timeout expires. Use the canonical Ubuntu archive directly instead.
-          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
-            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' \
-              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
-          fi
-          for apt_source in \
-            /etc/apt/sources.list \
-            /etc/apt/sources.list.d/*.list \
-            /etc/apt/sources.list.d/*.sources; do
-            [[ -f "$apt_source" ]] || continue
-            sudo sed -i \
-              -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-              -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-              "$apt_source"
-          done
+          sudo sh scripts/configure-ubuntu-mirrors.sh
 
           APT_OPTIONS=(
             -o Acquire::Retries=5

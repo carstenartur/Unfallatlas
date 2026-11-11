@@ -26,25 +26,12 @@ FROM mcr.microsoft.com/playwright:v1.65.0-noble
 #
 # Die NodeSource-Installation des Playwright-Images wird durch die gepinnte
 # Node-Distribution ersetzt. Deren Linux-Binary benötigt libatomic1.
-# Regional nicht erreichbare Azure-Ubuntu-Mirrors werden auf das kanonische
-# Ubuntu-Archiv normalisiert. APT wiederholt danach nur noch vorübergehend
-# fehlgeschlagene Abrufe und begrenzt jede einzelne Verbindung.
+# APT kann ausgefallene Paketquellen pro Datei durch einen zweiten Spiegel ersetzen.
+COPY scripts/configure-ubuntu-mirrors.sh /tmp/configure-ubuntu-mirrors.sh
 RUN set -eux; \
     rm -f /etc/apt/sources.list.d/nodesource.list; \
     dpkg --purge nodejs; \
-    if [ -f /etc/apt/apt-mirrors.txt ]; then \
-      printf '%s\n' 'https://archive.ubuntu.com/ubuntu' > /etc/apt/apt-mirrors.txt; \
-    fi; \
-    for apt_source in \
-      /etc/apt/sources.list \
-      /etc/apt/sources.list.d/*.list \
-      /etc/apt/sources.list.d/*.sources; do \
-      [ -f "$apt_source" ] || continue; \
-      sed -i \
-        -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-        -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-        "$apt_source"; \
-    done; \
+    sh /tmp/configure-ubuntu-mirrors.sh; \
     rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*; \
     apt-get \
       -o Acquire::Retries=5 \
