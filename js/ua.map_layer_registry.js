@@ -218,7 +218,7 @@
     return VALID_MAP_MODES.has(mode) ? mode : 'standard';
   }
 
-  function normalizeMapOpacity(raw, fallback = 0.92) {
+  function normalizeMapOpacity(raw, fallback = 1) {
     const value = Number(raw);
     if (!Number.isFinite(value)) return fallback;
     return Math.max(0.2, Math.min(1, value));

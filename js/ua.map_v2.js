@@ -136,25 +136,10 @@
   // Severity colors are also used by the export map overlay – expose them.
   UA.SEVERITY_COLORS = SEVERITY_COLORS;
 
-  // ----------------------------
-  // PDF/DOCX export – Kartenoptimierung
-  // ----------------------------
-  // Ziel (Aufgabenstellung):
-  //   Im Export sollen einzelne Unfallorte deutlich erkennbar sein
-  //   (Knotenpunkt vs. Korridor), nicht nur die Heatmap-Dichte. Wir
-  //   ergänzen die Karte deshalb vor jeder Aufnahme um eine zusätzliche
-  //   Schicht hochkontraster, severity-farbiger Punkte mit weißem Rand
-  //   und reduzieren parallel die Heatmap-Deckkraft.
-  // Wirkung ist bewusst auf den Export-Pfad beschränkt – die interaktive
-  // Karte bleibt unverändert.
-  // ----------------------------
-
-  // Marker-Größen / -Stile für den Export. Bewusst nur leicht größer als
-  // die interaktiven Marker (radius 4) – wir wollen Sichtbarkeit, aber
-  // weder Überlappung verstärken noch die Karte „verstopfen" (Task 5/7).
-  const EXPORT_MARKER_RADIUS = 6;
-  const EXPORT_MARKER_BORDER = "#ffffff";
-  const EXPORT_MARKER_BORDER_W = 1.5;
+  // Use the same opaque severity colours and dark outline on screen and in exports.
+  const EXPORT_MARKER_RADIUS = 7;
+  const ACCIDENT_MARKER_BORDER = "#162633";
+  const ACCIDENT_MARKER_BORDER_WIDTH = 2.5;
   const EXPORT_HEAT_OPACITY_MAX = 0.35;
 
   function createAccidentHeatLayer(ctx, points, zoom) {
@@ -174,14 +159,14 @@
    * Aktiviert den Export-Stil auf der Karte:
    *  - dimmt die Heatmap (CSS-Opacity ≤ 0.35), damit Punkte sichtbar bleiben.
    *  - überlagert die aktuellen Punkte (`ctx.viewportPts`) mit hochkontrast­
-   *    farbigen Severity-Punkten (rot/orange/gelb, weißer Rand).
+   *    farbigen Severity-Punkten (rot/orange/gelb, dunkler Rand).
    * Liefert ein Token, das `endExportMapMode` zum Wiederherstellen braucht.
    * Idempotent: ein doppelter Aufruf legt keine zweite Overlay-Schicht an.
    *
    * @param {object} ctx
    * @param {object} [opts]
    * @param {Array}  [opts.points]   Override für die Punkte (Default: ctx.viewportPts)
-   * @param {number} [opts.radius]   Override für den Marker-Radius (Default 6)
+   * @param {number} [opts.radius]   Override für den Marker-Radius (Default 7)
    * @returns {{layer:object|null, prevHeatOpacity:string|null, active:boolean}}
    */
   UA.beginExportMapMode = function beginExportMapMode(ctx, opts) {
@@ -224,11 +209,11 @@
       try {
         window.L.circleMarker([p.lat, p.lon], {
           radius,
-          color: EXPORT_MARKER_BORDER,
-          weight: EXPORT_MARKER_BORDER_W,
+          color: ACCIDENT_MARKER_BORDER,
+          weight: ACCIDENT_MARKER_BORDER_WIDTH,
           opacity: 1.0,
           fillColor: fill,
-          fillOpacity: 0.95,
+          fillOpacity: 1,
           // Ohne Interaktion → leaflet-image rendert nur Geometrie.
           interactive: false
         }).addTo(layer);
@@ -693,12 +678,13 @@
     } catch (_) {}
   }
 
+  UA.maxOrthophotoOpacity = mode => mode === 'analysis' ? 0.72 : 1;
+
   function _effectiveOrthophotoOpacity(ctx, mode) {
     const requested = (typeof UA.normalizeMapOpacity === 'function')
-      ? UA.normalizeMapOpacity(ctx && ctx.orthophotoOpacity, 0.92)
-      : 0.92;
-    if (mode === 'analysis') return Math.min(requested, 0.72);
-    return requested;
+      ? UA.normalizeMapOpacity(ctx && ctx.orthophotoOpacity, 1)
+      : 1;
+    return Math.min(requested, UA.maxOrthophotoOpacity(mode));
   }
 
   function _ensureBaseMapState(ctx) {
@@ -908,7 +894,7 @@
         circle: false,
         marker: false,
         circlemarker: false,
-        rectangle: { shapeOptions: { color: "#2b7cff", weight: 2 } },
+        rectangle: { shapeOptions: UA.selectionFrameStyle },
       },
       edit: { featureGroup: ctx.drawnItems, edit: false, remove: false },
     });
@@ -2390,12 +2376,12 @@
           const ukategorie = String(p.props?.ukategorie || "");
           const color = SEVERITY_COLORS[ukategorie] || SEVERITY_COLORS["default"];
           const marker = L.circleMarker([p.lat, p.lon], {
-            radius: 4,
+            radius: 7,
             fillColor: color,
-            color: color,
-            weight: 1,
-            opacity: 0.8,
-            fillOpacity: 0.6,
+            color: ACCIDENT_MARKER_BORDER,
+            weight: ACCIDENT_MARKER_BORDER_WIDTH,
+            opacity: 1,
+            fillOpacity: 1,
           });
           marker._uaProps = p.props || {};
           marker._uaPoint = p;

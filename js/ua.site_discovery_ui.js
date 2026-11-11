@@ -173,12 +173,18 @@
     if (!ctx.map.addLayer || !window.L?.layerGroup || (!locationGroups.size && !coordinates?.length)) return;
     const paneName = 'uaDiscoveryCases';
     const pane = ctx.map.getPane?.(paneName) || ctx.map.createPane?.(paneName);
-    if (pane) pane.style.zIndex = '620';
+    if (pane) {
+      pane.style.zIndex = '620';
+      // Only the individual SVG paths should intercept a tap. A full-screen
+      // canvas here blocks unrelated accidents and clusters below the selection.
+      state.caseRenderer ||= window.L.svg?.({ pane: paneName });
+    }
+    const placement = pane ? { pane: paneName, renderer: state.caseRenderer } : {};
     const layers = [];
     if (coordinates?.length) {
       const latLngs = [];
       for (let i = 0; i < coordinates.length; i += 2) latLngs.push([coordinates[i], coordinates[i + 1]]);
-      const style = { color: '#0a7368', weight: 3, interactive: false, ...(pane ? { pane: paneName } : {}) };
+      const style = { color: '#0a7368', weight: 3, interactive: false, ...placement };
       const geometry = selection.kind === 'segment' ? window.L.polyline(latLngs, style)
         : window.L.circleMarker(latLngs[0], { ...style, radius: 10, fill: false });
       layers.push(geometry);
@@ -190,7 +196,7 @@
         radius: target.isFocus ? 7 : 5,
         color: target.isFocus ? '#861878' : '#114780',
         fillColor: '#fff', fillOpacity: 0.8, opacity: 1, weight: target.isFocus ? 3 : 2,
-        ...(pane ? { pane: paneName } : {}),
+        ...placement,
         bubblingMouseEvents: false,
       });
       group.marker = marker;

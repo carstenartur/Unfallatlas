@@ -33,7 +33,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test('refreshes the map registry with the verified LGLN imagery layer', () => {
-    expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-11-nrw-dop"');
+    expect(html).toContain('js/ua.map_layer_registry.js?v=2026-11-11-kartenlesbarkeit"');
   });
 
   test('site discovery is available from the ordinary Werkbank entry point', () => {
@@ -65,14 +65,14 @@ describe('Werkbank deployment asset versions', () => {
   test('loads the documented cost model and the source-checked renderers', () => {
     expect(html).toContain('js/ua.costs.js?v=2026-11-11-kostenmodell"');
     expect(html).toContain('js/ua.export_v2.js?v=2026-11-11-oertliche-arbeitshypothese"');
-    expect(html).toContain('js/ua.report_v2.js?v=2026-11-11-belege-luftbild"');
+    expect(html).toContain('js/ua.report_v2.js?v=2026-11-11-kartenlesbarkeit"');
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
     expect(html).toContain('js/ua.state.js?v=2026-11-11-evidence-links"');
-    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-evidence-links"');
+    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-kartenlesbarkeit"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
-    expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-evidence-links');
+    expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-kartenlesbarkeit');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
   });
 
@@ -91,17 +91,18 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test('loads the current discovery app and orthophoto fallback', () => {
-    expect(html).toContain('js/ua.app_v2.js?v=2026-11-11-area-draft"');
-    expect(html).toContain('js/ua.site_discovery_ui.js?v=2026-11-11-area-draft"');
-    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-road-labels"');
+    expect(html).toContain('js/ua.app_v2.js?v=2026-11-11-kartenlesbarkeit"');
+    expect(html).toContain('js/ua.site_discovery_ui.js?v=2026-11-11-kartenlesbarkeit"');
+    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-kartenlesbarkeit"');
   });
 
-  test('refreshes the optional review-network controls', () => {
-    expect(html).toContain('js/ua.ui.js?v=2026-11-10-review-network"');
+  test('loads the matching evidence map controls and marker styles', () => {
+    expect(html).toContain('css/ua.css?v=2026-11-11-kartenlesbarkeit"');
+    expect(html).toContain('js/ua.ui.js?v=2026-11-11-kartenlesbarkeit"');
   });
 
   test.each([
-    'css/ua.css', 'css/ris-record-view.css',
+    'css/ris-record-view.css',
     'js/ua.filters.js', 'js/ua.map_scene.js', 'js/ua.map_store.js',
     'js/ua.political-context.js', 'js/ua.ris-catalogue.js',
     'js/ua.ris-details.js', 'js/ua.ris-layer.js', 'js/ua.ris-partitions.js', 'js/ua.ris-sources.js',

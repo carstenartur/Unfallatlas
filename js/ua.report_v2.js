@@ -854,6 +854,10 @@
               }
 
               try {
+                if (options.returnCanvasForLabels) {
+                  finish(null, canvas);
+                  return;
+                }
                 // Convert canvas to base64 data URL (PNG format preserves transparency)
                 const dataUrl = canvas.toDataURL("image/png");
 
@@ -917,9 +921,11 @@
           : undefined;
         token = UA.beginExportMapMode(ctx, beginOpts);
       }
-      // A short wait gives Leaflet a tick to lay out the overlay layer
-      // before leaflet-image walks the layer list.
-      await new Promise(r => setTimeout(r, 50));
+      // Isolated document maps await tile, overlay and animation-frame readiness
+      // in captureMapImage. Legacy/live map captures also allow a layout tick.
+      if (ctx.documentRasterAvailable === undefined || typeof UA.waitForMapFullyRendered !== "function") {
+        await new Promise(r => setTimeout(r, 50));
+      }
       // leaflet-image ignores the canvas CSS opacity that beginExportMapMode
       // sets, so we additionally clamp the baked heatmap opacity used by
       // captureMapImage to the same ≤0.35 ceiling. Cloned to avoid mutating
@@ -973,15 +979,15 @@
         renderer, maxZoom, zoomControl: false, attributionControl: false,
         zoomAnimation: false, fadeAnimation: false, crs: live.options.crs
       }).setView(live.getCenter(), Math.min(live.getZoom(), maxZoom));
-      for (const layer of raster) {
+      const documentRasterLayers = raster.map(layer => {
         const options = { ...layer.options };
         const clone = layer instanceof L.TileLayer.WMS
           ? L.tileLayer.wms(layer._url, { ...options, ...layer.wmsParams })
           : L.tileLayer(layer._url, options);
-        clone.addTo(map);
-      }
+        return clone.addTo(map);
+      });
       return {
-        ctx: { ...ctx, map, heatLayer: null, contextOverlays: null, documentRasterAvailable: raster.length > 0 },
+        ctx: { ...ctx, map, heatLayer: null, contextOverlays: null, documentRasterAvailable: raster.length > 0, documentRasterLayers },
         close() {
           try { map.remove(); } finally { container.remove(); }
         }
@@ -1036,7 +1042,7 @@
     drawing.font = "bold 17px sans-serif";
     drawing.textAlign = "right";
     drawing.fillText("N ↑", size.x - 14, 24);
-    return canvas.toDataURL("image/png");
+    return canvas;
   }
 
   UA.captureDocumentMap = async function captureDocumentMap(ctx, options = {}) {
@@ -1047,25 +1053,44 @@
       [[bounds.south, bounds.west], [bounds.north, bounds.east]],
       { color: "#2563eb", weight: 2, fill: false, interactive: false }
     ).addTo(map) : null;
+    const labelRows = options.evidenceRows;
+    async function finishMap(rendered) {
+      const canvas = typeof rendered?.getContext === "function" ? rendered : null;
+      try {
+        const png = labelRows?.length
+          ? await UA.EvidenceCohort.annotateMapImage(window, ctx, rendered, labelRows)
+          : canvas ? canvas.toDataURL("image/png") : rendered;
+        if (typeof png !== "string" || !png.startsWith("data:image/png;base64,") || png.length === "data:image/png;base64,".length) {
+          throw new Error("Invalid map image data URL generated");
+        }
+        return png;
+      } finally {
+        // Each figure owns its bitmap. Free it before the next map, including
+        // after a tainted raster rejects PNG serialization.
+        if (canvas) canvas.width = canvas.height = 0;
+      }
+    }
     let image;
     let schematic = false;
     try {
       if (ctx.documentRasterAvailable !== false) {
         try {
-          image = await UA.captureExportMapImage(ctx, options);
+          const captureOptions = labelRows?.length ? { ...options, returnCanvasForLabels: true } : options;
+          const rendered = await UA.captureExportMapImage(ctx, captureOptions);
+          image = await finishMap(rendered);
         } catch (error) {
           if (!isolated) throw error;
           console.warn("Rasterkartenaufnahme fehlgeschlagen; schematische Karte wird erzeugt:", error);
           // The remaining figures use the same unavailable raster provider.
           ctx.documentRasterAvailable = false;
+          // Without a raster, subsequent schematic sheets only need the map
+          // projection. Detach its private tile layers before changing views.
+          for (const layer of ctx.documentRasterLayers || []) layer.remove();
         }
       }
       if (!image) {
-        image = drawSchematicMap(ctx, options.exportPoints || [], bounds);
+        image = await finishMap(drawSchematicMap(ctx, options.exportPoints || [], bounds));
         schematic = true;
-      }
-      if (options.evidenceRows?.length) {
-        image = await UA.EvidenceCohort.annotateMapImage(window, ctx, image, options.evidenceRows);
       }
       const center = map.getCenter?.();
       return { image, schematic, center: center && { lat: center.lat, lon: center.lng }, zoom: map.getZoom?.() };
@@ -2007,7 +2032,8 @@
         });
       return new Table({
         width: compact ? { size: 9800, type: WidthType.DXA } : { size: 100, type: WidthType.PERCENTAGE },
-        ...(compact ? { layout: TableLayoutType.FIXED, margins: { top: 32, bottom: 32, left: 48, right: 48 } } : {}),
+        ...(compact ? { layout: TableLayoutType.FIXED } : {}),
+        margins: { top: 65, bottom: 65, left: 75, right: 75 },
         columnWidths: colWidths,
         rows: [
           makeRow(headers, true, false, true),
@@ -2363,6 +2389,12 @@
         text: `Anlage ${analysisAnnexNumber} – Auswertung und Methodik`,
         heading: HeadingLevel.HEADING_1, pageBreakBefore: true, keepNext: true, spacing: { after: 140 }
       }), ...setup);
+      const coverageNotes = evidence ? [evidence.sourceNote, ...evidence.limitations].filter(Boolean) : [];
+      if (coverageNotes.length) {
+        children.push(new Paragraph({ text: 'Erfassungsgrenzen der Unfallstatistik', heading: HeadingLevel.HEADING_3,
+          keepNext: true, spacing: { before: 200, after: 100 } }));
+        for (const line of coverageNotes) children.push(motionParagraph(line, { spacing: { after: 70 } }));
+      }
     }
 
     // ---- 4b. KURZBEWERTUNG (Task 2) ----
@@ -2531,7 +2563,7 @@
 
       // Year table
       if (sd.yearTable && sd.yearTable.length > 0) {
-        children.push(new Paragraph({ text: "Unfälle pro Jahr im Ausschnitt:", spacing: { after: 100 } }));
+        children.push(new Paragraph({ text: "Unfälle pro Jahr im Ausschnitt:", keepNext: true, spacing: { after: 100 } }));
         const yrRows = sd.yearTable.map(row => {
           // Phase 1.2: DOCX bevorzugt das deterministische Bracket-Label
           // (`textClasses`), damit auch ohne Emoji-fähigen Body-Font in Word
@@ -2554,7 +2586,7 @@
 
       // Cross-table: Beteiligungskombination × Schweregrad
       if (sd.crossTable && sd.crossTable.rows && sd.crossTable.rows.length > 0) {
-        children.push(new Paragraph({ text: "Beteiligungskombination × Schweregrad:", spacing: { after: 100 } }));
+        children.push(new Paragraph({ text: "Beteiligungskombination × Schweregrad:", keepNext: true, spacing: { after: 100 } }));
         // PR-QA Task 1: deterministische Text-Labels in der DOCX-Tabelle.
         const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
         const ctRows = sd.crossTable.rows.map(r => [
@@ -2575,7 +2607,7 @@
           ["Kombination", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
           ctRows,
           ctHighlights,
-          { colWeights: [45, 12, 17, 16, 10] }
+          { colWeights: [33, 13, 21, 21, 12] }
         ));
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
@@ -2954,7 +2986,7 @@
       } else {
         children.push(motionParagraph(aerialUnavailable));
       }
-      children.push(motionParagraph('Die Punkte liegen auf den veröffentlichten Koordinaten. '
+      children.push(motionParagraph('Jeder gelbe Punkt markiert eine veröffentlichte Unfallkoordinate. '
           + (evidence ? 'Die Linien verbinden sie mit den Kennungen in der Unfallliste.' : 'Die Linien führen zu den Punktkennungen dieses Kartenausschnitts.')
           + (aerial ? ' Bildhintergrund: ' + photo.provider.attribution + ' · ' + photo.provider.license + '.' : ' Darstellung ohne Bildhintergrund.')));
       for (const sheet of sheets) {
@@ -3554,7 +3586,7 @@
       const s = oc.summary;
       children.push(new Paragraph({
         text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
-        heading: HeadingLevel.HEADING_2,
+        heading: HeadingLevel.HEADING_2, keepNext: true,
         spacing: { before: 400, after: 200 }
       }));
       const ocRows = [];
@@ -3590,7 +3622,7 @@
     } else if (sd && sd.osmContext && sd.osmContext.quality && sd.osmContext.quality.error) {
       children.push(new Paragraph({
         text: "VERKEHRSRÄUMLICHER KONTEXT (OSM)",
-        heading: HeadingLevel.HEADING_2,
+        heading: HeadingLevel.HEADING_2, keepNext: true,
         spacing: { before: 400, after: 200 }
       }));
       for (const line of sd.osmContext.matchedRoads?.lines || ["OSM-Kontextdaten konnten beim Export nicht geladen werden."]) {
@@ -3752,9 +3784,6 @@
           compact: true, colWeights: [33, 26, 64, 95, 52, 63, 54, 44, 30].slice(0, headers.length)
         }));
       }
-      for (const line of [evidence.sourceNote, ...evidence.limitations].filter(Boolean)) {
-        evidenceSection.push(motionParagraph(line, { spacing: { before: 70, after: 30 } }));
-      }
     }
     if (formalMotion) children.splice(firstAnnexIndex, 0, ...mapSection, ...evidenceSection);
 
@@ -3763,7 +3792,12 @@
       ...(formalMotion ? {
         title: subject,
         description: docTitle,
-        styles: { default: { document: { run: { size: 22, language: { value: "de-DE" } } } } }
+        styles: { default: {
+          document: { run: { size: 22, language: { value: "de-DE" } } },
+          heading1: { run: { bold: true, color: "182632", size: 32 }, paragraph: { keepNext: true } },
+          heading2: { run: { bold: true, color: "182632", size: 28 }, paragraph: { keepNext: true } },
+          heading3: { run: { bold: true, color: "182632", size: 24 }, paragraph: { keepNext: true } },
+        } }
       } : {}),
       ...(motion.requests.length ? {
         numbering: { config: [{ reference: MOTION_NUMBERING, levels: [{

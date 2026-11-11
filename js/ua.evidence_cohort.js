@@ -1345,6 +1345,78 @@
 
   const pointSheetLayout = { width: 1320, height: 780, labelTop: 66, labelBottom: 694, labelPitch: 43 };
 
+  const printPanelWidth = (pointSheetLayout.width - 6) / 2;
+
+  function rowsAtSameLocation(rows) {
+    const groups = new Map();
+    for (const row of rows) {
+      if (!Number.isFinite(row.lat) || !Number.isFinite(row.lon)) continue;
+      // Disregard sub-millimetre conversion noise; retain the published location.
+      const key = row.lat.toFixed(9) + ',' + row.lon.toFixed(9);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    }
+    return [...groups.values()];
+  }
+
+  function printProjection(locations, width = pointSheetLayout.width) {
+    const { height } = pointSheetLayout;
+    const rad = Math.PI / 180;
+    // Use the same projection as the official EPSG:3857 GetMap image.
+    const northing = lat => Math.log(Math.tan(Math.PI / 4 + lat * rad / 2));
+    const bounds = boundsForRows(locations);
+    const midX = (bounds.west + bounds.east) / 2 * rad;
+    const midY = (northing(bounds.north) + northing(bounds.south)) / 2;
+    const groundMeters = 6378137 * Math.cos((bounds.south + bounds.north) / 2 * rad);
+    const widthUnits = (bounds.east - bounds.west) * rad;
+    const heightUnits = northing(bounds.north) - northing(bounds.south);
+    const pxPerUnit = Math.min((width - Math.min(340, width * 0.36)) / Math.max(widthUnits, 5 / groundMeters),
+      (height - 180) / Math.max(heightUnits, 5 / groundMeters));
+    const xFor = lon => width / 2 + (lon * rad - midX) * pxPerUnit;
+    const yFor = lat => height / 2 - (northing(lat) - midY) * pxPerUnit;
+
+    return { xFor, yFor, pxPerUnit, groundMeters };
+  }
+
+  // A 15-pixel gap leaves two distinct rings at the normal Word print width.
+  // Choose neighbours by distance to the closest distinguishable pair. Keep
+  // them in the same geographic frame, with room for both rings and labels.
+  function crowdedPrintDetail(locations) {
+    if (locations.length < 3) return null;
+    const { xFor, yFor, pxPerUnit } = printProjection(locations);
+    const points = locations.map(site => ({ site, x: xFor(site.lon), y: yFor(site.lat) }));
+    let pair = null;
+    let gap = 15;
+    let detailScale = 0;
+    for (const [i, a] of points.entries()) {
+      for (const b of points.slice(i + 1)) {
+        const distance = Math.hypot(a.x - b.x, a.y - b.y);
+        if (distance >= gap) continue;
+        const requiredScale = 15 * pxPerUnit / distance;
+        // A five-metre minimum frame avoids implying an arbitrarily precise
+        // position for distinct coordinates very near or below raster resolution.
+        if (printProjection([a.site, b.site]).pxPerUnit < requiredScale) continue;
+        gap = distance;
+        detailScale = requiredScale;
+        pair = [a, b];
+      }
+    }
+    if (!pair) return null;
+    const detail = pair.map(p => p.site);
+    const cx = (pair[0].x + pair[1].x) / 2;
+    const cy = (pair[0].y + pair[1].y) / 2;
+    const byDistance = points.filter(p => !pair.includes(p)).sort((a, b) =>
+      Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
+    for (const p of byDistance) {
+      if (printProjection([...detail, p.site]).pxPerUnit >= detailScale) detail.push(p.site);
+    }
+    // A single outlier can share the sheet with the detail panel. Where the
+    // narrower panel cannot resolve the group, use two ordinary map frames.
+    if (locations.length - detail.length === 1 && detail.length > 2
+        && printProjection(detail, printPanelWidth).pxPerUnit < detailScale) detail.pop();
+    return detail;
+  }
+
   // A printed sheet owns its scale; a raster provider's maximum Leaflet zoom
   // must not limit the separation of the published accident coordinates.
   function documentPointSheets(rows, focusIds) {
@@ -1356,7 +1428,16 @@
     function addSheets(locations, kind) {
       if (!locations.length) return;
       if (locations.length <= capacity) {
-        sheets.push({ ref: 'K' + (sheets.length + 1), kind, locations });
+        const detail = crowdedPrintDetail(locations);
+        if (detail && locations.length - detail.length >= 2) {
+          addSheets(locations.filter(p => !detail.includes(p)), kind);
+          addSheets(detail, kind);
+          return;
+        }
+        const sheet = { ref: 'K' + (sheets.length + 1), kind, locations };
+        // A close group and a lone outlier share one physical sheet.
+        if (detail) sheet.detail = detail;
+        sheets.push(sheet);
         return;
       }
       const bounds = boundsForRows(locations);
@@ -1368,15 +1449,10 @@
       addSheets(locations.slice(mid), kind);
     }
     function group(records, kind) {
-      const locations = new Map();
-      for (const { lat, lon, displayId } of records) {
-        // Ignore binary conversion noise below a tenth of a millimetre.
-        // The marker itself retains the unrounded published coordinate.
-        const key = lat.toFixed(9) + ',' + lon.toFixed(9);
-        if (!locations.has(key)) locations.set(key, { lat, lon, ids: [] });
-        locations.get(key).ids.push(displayId);
-      }
-      addSheets([...locations.values()], kind);
+      const locations = rowsAtSameLocation(records).map(rows => ({
+        lat: rows[0].lat, lon: rows[0].lon, ids: rows.map(row => row.displayId),
+      }));
+      addSheets(locations, kind);
     }
     if (focus.length) {
       group(focus, 'focus');
@@ -1387,36 +1463,33 @@
     return sheets;
   }
 
-  function drawDocumentPointMap(root, sheet, aerial) {
+  function drawPointPanel(root, locations, extent, width, aerial, detailBounds, title) {
     const canvas = root.document.createElement('canvas');
-    const { width, height, labelTop, labelBottom, labelPitch } = pointSheetLayout;
+    const { height, labelTop, labelBottom, labelPitch } = pointSheetLayout;
     canvas.width = width;
     canvas.height = height;
     const pen = canvas.getContext('2d');
-    const rad = Math.PI / 180;
-    // Use the same projection as the official EPSG:3857 GetMap image.
-    const northing = lat => Math.log(Math.tan(Math.PI / 4 + lat * rad / 2));
-    const bounds = boundsForRows(sheet.locations);
-    const midX = (bounds.west + bounds.east) / 2 * rad;
-    const midY = (northing(bounds.north) + northing(bounds.south)) / 2;
-    const groundMeters = 6378137 * Math.cos((bounds.south + bounds.north) / 2 * rad);
-    const widthUnits = (bounds.east - bounds.west) * rad;
-    const heightUnits = northing(bounds.north) - northing(bounds.south);
-    const pxPerUnit = Math.min((width - 340) / Math.max(widthUnits, 5 / groundMeters),
-      (height - 180) / Math.max(heightUnits, 5 / groundMeters));
-    const xFor = lon => width / 2 + (lon * rad - midX) * pxPerUnit;
-    const yFor = lat => height / 2 - (northing(lat) - midY) * pxPerUnit;
-
+    const { xFor, yFor, pxPerUnit, groundMeters } = printProjection(extent, width);
     pen.fillStyle = '#f1f4f4';
     pen.fillRect(0, 0, width, height);
     if (aerial?.bitmap && aerial.bounds) {
       const photo = aerial.bounds;
-      pen.globalAlpha = 0.57;
       pen.drawImage(aerial.bitmap, xFor(photo.west), yFor(photo.north),
         xFor(photo.east) - xFor(photo.west), yFor(photo.south) - yFor(photo.north));
-      pen.globalAlpha = 1;
     }
-    const points = sheet.locations.map(location => ({
+    if (detailBounds) {
+      const x = xFor((detailBounds.west + detailBounds.east) / 2);
+      const y = yFor((detailBounds.north + detailBounds.south) / 2);
+      const w = Math.max(16, xFor(detailBounds.east) - xFor(detailBounds.west) + 14);
+      const h = Math.max(16, yFor(detailBounds.south) - yFor(detailBounds.north) + 14);
+      pen.strokeStyle = '#ffffff';
+      pen.lineWidth = 7;
+      pen.strokeRect(x - w / 2, y - h / 2, w, h);
+      pen.strokeStyle = '#162633';
+      pen.lineWidth = 3;
+      pen.strokeRect(x - w / 2, y - h / 2, w, h);
+    }
+    const points = locations.map(location => ({
       ...location, x: xFor(location.lon), y: yFor(location.lat)
     })).sort((a, b) => a.x - b.x || a.y - b.y);
     // Split by position rather than screen half: even a vertical line of
@@ -1450,13 +1523,17 @@
       // Close-but-distinct recorded sites get separate dots at their exact
       // positions. Their large external labels retain the same print size.
       const nearest = Math.min(...points.filter(q => q !== p).map(q => Math.hypot(p.x - q.x, p.y - q.y)));
-      const radius = Math.min(7, nearest / 3);
+      const radius = Math.min(12, nearest / 3);
       pen.beginPath();
       pen.arc(p.x, p.y, radius, 0, 2 * Math.PI);
-      pen.fillStyle = '#0a4260';
+      pen.fillStyle = '#ffcf25';
       pen.fill();
+      // Both edges follow the same coordinate even on near-coincident records.
       pen.strokeStyle = '#ffffff';
-      pen.lineWidth = Math.min(2, radius / 2);
+      pen.lineWidth = Math.min(7, radius * 0.7);
+      pen.stroke();
+      pen.strokeStyle = '#162633';
+      pen.lineWidth = Math.min(3, radius * 0.3);
       pen.stroke();
       pen.fillStyle = '#ffffff';
       pen.fillRect(p.boxX - p.boxWidth / 2, p.boxY - 18, p.boxWidth, 36);
@@ -1482,72 +1559,99 @@
     pen.fillRect(width - 83, 10, 69, 37);
     pen.fillStyle = '#172c39';
     pen.fillText('N ↑', width - 75, 29);
+    if (title) {
+      pen.fillStyle = '#ffffff';
+      pen.fillRect(12, 10, pen.measureText(title).width + 20, 36);
+      pen.fillStyle = '#172c39';
+      pen.fillText(title, 22, 29);
+    }
+    return canvas;
+  }
+
+  function drawDocumentPointMap(root, sheet, aerial) {
+    const { width, height } = pointSheetLayout;
+    if (!sheet.detail) {
+      return drawPointPanel(root, sheet.locations, sheet.locations, width, aerial).toDataURL('image/png');
+    }
+    const canvas = root.document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const pen = canvas.getContext('2d');
+    const overview = sheet.locations.filter(p => !sheet.detail.includes(p));
+    pen.fillStyle = '#162633';
+    pen.fillRect(0, 0, width, height);
+    pen.drawImage(drawPointPanel(root, overview, sheet.locations, printPanelWidth, aerial,
+      boundsForRows(sheet.detail), 'Übersicht · Rahmen zeigt Detail'), 0, 0);
+    pen.drawImage(drawPointPanel(root, sheet.detail, sheet.detail, printPanelWidth, aerial, null,
+      'Detail · vergrößert'), width - printPanelWidth, 0);
     return canvas.toDataURL('image/png');
   }
 
-  function annotateMapImage(rootValue, ctx, dataUrl, rows) {
-    return new Promise((resolve, reject) => {
+  async function annotateMapImage(rootValue, ctx, source, rows) {
+    // A regular capture already owns its finished canvas. Older capture
+    // providers can still supply a PNG instead.
+    let canvas = source;
+    if (typeof source === 'string') {
       const image = new rootValue.Image();
-      image.onload = () => {
-        try {
-          const canvas = rootValue.document.createElement('canvas');
-          canvas.width = image.naturalWidth || image.width;
-          canvas.height = image.naturalHeight || image.height;
-          const context = canvas.getContext('2d');
-          context.drawImage(image, 0, 0);
-          const mapSize = ctx?.map?.getSize?.() || { x: canvas.width, y: canvas.height };
-          const sx = canvas.width / Math.max(1, Number(mapSize.x) || canvas.width);
-          const sy = canvas.height / Math.max(1, Number(mapSize.y) || canvas.height);
-          context.font = 'bold 17px sans-serif';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          const lanes = [[], []];
-          for (const row of rows) {
-            const point = ctx.map.latLngToContainerPoint([row.lat, row.lon]);
-            const x = point.x * sx;
-            lanes[x < canvas.width / 2 ? 0 : 1].push({
-              x, y: point.y * sy, row, width: context.measureText(row.displayId).width + 16
-            });
-          }
-          lanes.forEach((labels, side) => {
-            labels.sort((a, b) => a.y - b.y || a.x - b.x || a.row.displayId.localeCompare(b.row.displayId));
-            const top = 44;
-            const bottom = canvas.height - 25;
-            const spacing = Math.min(30, (bottom - top) / Math.max(1, labels.length - 1));
-            let nextY = top;
-            for (const [index, label] of labels.entries()) {
-              label.boxX = side === 0 ? 12 + label.width / 2 : canvas.width - 12 - label.width / 2;
-              label.boxY = Math.max(nextY, Math.min(label.y, bottom - (labels.length - index - 1) * spacing));
-              nextY = label.boxY + spacing;
-            }
-          });
-          const labels = lanes.flat();
-          for (const label of labels) {
-            context.beginPath();
-            context.moveTo(label.x, label.y);
-            context.lineTo(label.boxX, label.boxY);
-            context.strokeStyle = '#fff';
-            context.lineWidth = 3;
-            context.stroke();
-            context.strokeStyle = '#374151';
-            context.lineWidth = 1;
-            context.stroke();
-          }
-          for (const { boxX, boxY, width, row } of labels) {
-            context.fillStyle = row.discoveryMatch ? '#fff2a8' : '#fff';
-            context.strokeStyle = '#374151';
-            context.lineWidth = 1.5;
-            context.fillRect(boxX - width / 2, boxY - 11, width, 22);
-            context.strokeRect(boxX - width / 2, boxY - 11, width, 22);
-            context.fillStyle = '#111827';
-            context.fillText(row.displayId, boxX, boxY);
-          }
-          resolve(canvas.toDataURL('image/png'));
-        } catch (error) { reject(error); }
-      };
-      image.onerror = () => reject(new Error('Die nummerierte Unfallkarte konnte nicht gelesen werden.'));
-      image.src = dataUrl;
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error('Die nummerierte Unfallkarte konnte nicht gelesen werden.'));
+        image.src = source;
+      });
+      canvas = rootValue.document.createElement('canvas');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      canvas.getContext('2d').drawImage(image, 0, 0);
+    }
+    const context = canvas.getContext('2d');
+    const mapSize = ctx?.map?.getSize?.() || { x: canvas.width, y: canvas.height };
+    const sx = canvas.width / Math.max(1, Number(mapSize.x) || canvas.width);
+    const sy = canvas.height / Math.max(1, Number(mapSize.y) || canvas.height);
+    context.font = 'bold 17px sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    const lanes = [[], []];
+    for (const row of rows) {
+      const point = ctx.map.latLngToContainerPoint([row.lat, row.lon]);
+      const x = point.x * sx;
+      lanes[x < canvas.width / 2 ? 0 : 1].push({
+        x, y: point.y * sy, row, width: context.measureText(row.displayId).width + 16
+      });
+    }
+    lanes.forEach((labels, side) => {
+      labels.sort((a, b) => a.y - b.y || a.x - b.x || a.row.displayId.localeCompare(b.row.displayId));
+      const top = 44;
+      const bottom = canvas.height - 25;
+      const spacing = Math.min(30, (bottom - top) / Math.max(1, labels.length - 1));
+      let nextY = top;
+      for (const [index, label] of labels.entries()) {
+        label.boxX = side === 0 ? 12 + label.width / 2 : canvas.width - 12 - label.width / 2;
+        label.boxY = Math.max(nextY, Math.min(label.y, bottom - (labels.length - index - 1) * spacing));
+        nextY = label.boxY + spacing;
+      }
     });
+    const labels = lanes.flat();
+    for (const label of labels) {
+      context.beginPath();
+      context.moveTo(label.x, label.y);
+      context.lineTo(label.boxX, label.boxY);
+      context.strokeStyle = '#fff';
+      context.lineWidth = 3;
+      context.stroke();
+      context.strokeStyle = '#374151';
+      context.lineWidth = 1;
+      context.stroke();
+    }
+    for (const { boxX, boxY, width, row } of labels) {
+      context.fillStyle = row.discoveryMatch ? '#fff2a8' : '#fff';
+      context.strokeStyle = '#374151';
+      context.lineWidth = 1.5;
+      context.fillRect(boxX - width / 2, boxY - 11, width, 22);
+      context.strokeRect(boxX - width / 2, boxY - 11, width, 22);
+      context.fillStyle = '#111827';
+      context.fillText(row.displayId, boxX, boxY);
+    }
+    return canvas.toDataURL('image/png');
   }
 
   function removeLiveLabelLayer(request) {
@@ -1572,7 +1676,11 @@
         || UA.isHydrating?.() || ctx.accidentDataCoverage?.complete === false) return false;
     const bounds = exportBounds(ctx);
     if (!bounds || (params.has('selSouth') && !ctx.selectionBounds)) return false;
-    const key = JSON.stringify([params.toString(), bounds, ctx.allPts.length]);
+    const evidenceParams = new URLSearchParams(params);
+    if (ctx.selectionBounds) {
+      for (const name of ['zoom', 'centerLat', 'centerLon']) evidenceParams.delete(name);
+    }
+    const key = JSON.stringify([evidenceParams.toString(), bounds, ctx.allPts.length]);
     const network = ctx.reviewNetworkResult || ctx.reviewNetworkPromise;
     // The DOM observer also sees Leaflet adding its own markers. Reuse an in-flight
     // or displayed set for the same data, selection and document link.
@@ -1587,21 +1695,67 @@
       if (!rows.length) return;
       const layer = rootValue.L.layerGroup();
       const selected = params.get('evidenceAccident');
-      for (const row of rows) {
-        const isSelected = row.displayId === selected;
+      const L = rootValue.L;
+      // Keep case pins above the discovery canvas, which also receives pointer events.
+      const paneName = 'uaEvidenceCases';
+      const pane = ctx.map.getPane?.(paneName) || ctx.map.createPane?.(paneName);
+      if (pane) pane.style.zIndex = '635';
+      const clustered = L.markerClusterGroup?.({
+        showCoverageOnHover: false, maxClusterRadius: 36, animate: false,
+        ...(pane ? { clusterPane: paneName } : {}),
+        iconCreateFunction(cluster) {
+          const count = cluster.getAllChildMarkers().reduce((sum, marker) => sum + marker.evidenceCount, 0);
+          return L.divIcon({ className: 'ua-evidence-cluster', iconSize: [38, 38],
+            html: '<span aria-hidden="true">' + count + '</span><span class="ua-evidence-sr">Gruppe mit ' + count + ' Unfällen öffnen</span>' });
+        },
+      });
+      if (clustered) layer.addLayer(clustered);
+      for (const records of rowsAtSameLocation(rows)) {
+        const selectedRow = records.find(row => row.displayId === selected);
+        const row = selectedRow || records[0];
+        const isSelected = Boolean(selectedRow);
+        const multiple = records.length > 1;
+        const label = row.displayId + (multiple ? ' ×' + records.length : '');
+        const description = multiple ? label + ' · Fälle am selben Unfallort' : row.displayId;
         const marker = rootValue.L.marker([row.lat, row.lon], {
-          interactive: true,
-          title: row.displayId,
+          interactive: true, ...(pane ? { pane: paneName } : {}),
+          title: description, alt: description,
           zIndexOffset: isSelected ? 1000 : 0,
           icon: rootValue.L.divIcon({
-            className: isSelected ? 'ua-evidence-id-marker ua-evidence-id-selected' : 'ua-evidence-id-marker',
-            html: `<span style="display:inline-block;padding:${isSelected ? '3px 6px' : '2px 4px'};border:2px solid #111;background:${row.discoveryMatch ? '#fff2a8' : '#fff'};border-radius:4px;font:bold ${isSelected ? '14px' : '11px'} sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.45);">${escHtml(row.displayId)}</span>`,
-            iconSize: null,
-            iconAnchor: [14, 22],
+            className: 'ua-evidence-id-marker' + (isSelected ? ' ua-evidence-id-selected' : ''),
+            html: '<span class="ua-evidence-pin' + (records.some(r => r.discoveryMatch) ? ' ua-evidence-pin-focus' : '')
+              + '">' + escHtml(label) + '</span>',
+            iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -16],
           }),
         });
-        marker.bindPopup(`<strong>${escHtml(row.displayId)}</strong><br>${escHtml(row.severityLabel)}<br>${escHtml(row.involvementLabel)}<br>${row.discoveryMatch ? 'durch Suchfilter hervorgehoben' : 'weitere Gebietsevidenz'}`);
-        marker.addTo(layer);
+        marker.evidenceCount = records.length;
+        const items = (isSelected ? [row, ...records.filter(r => r !== row)] : records).map(r => {
+          const id = escHtml(r.displayId);
+          const label = multiple && selected !== r.displayId
+            ? '<a href="' + escHtml(deepLink(rootValue.location.href, r)) + '" aria-label="Unfall ' + id + ' einzeln anzeigen">' + id + '</a>'
+            : '<strong>' + id + '</strong>';
+          return '<li>' + label + ' · ' + escHtml(r.year) + '<br>'
+          + escHtml(r.severityLabel) + ' · ' + escHtml(r.involvementLabel) + '<br>'
+          + (r.discoveryMatch ? 'durch Suchfilter hervorgehoben' : 'weiterer Unfall im Gebiet') + '</li>';
+        });
+        marker.bindPopup((multiple ? '<strong>' + records.length + ' Unfälle an derselben Koordinate</strong>' : '')
+          + '<ul class="ua-evidence-records">' + items.join('') + '</ul>', { maxHeight: 230 });
+        if (multiple) marker.on?.('popupopen', ({ popup }) => {
+          const icon = marker.getElement?.();
+          if (!icon?.matches(':focus-visible')) return;
+          const content = popup.getElement();
+          content.querySelector('li a')?.focus({ preventScroll: true });
+          const returnToPin = event => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            marker.closePopup();
+            icon.focus({ preventScroll: true });
+          };
+          content.addEventListener('keydown', returnToPin);
+          marker.once('popupclose', () => content.removeEventListener('keydown', returnToPin));
+        });
+        marker.addTo(isSelected || !clustered ? layer : clustered);
       }
       layer.addTo(ctx.map);
       request.layer = layer;
