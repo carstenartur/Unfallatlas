@@ -1751,3 +1751,53 @@ test.each([
   expect(record.locations).toEqual([]);
   expect(record.locationAssessment.reasons).toContain('gazetteer_unavailable');
 });
+
+test('maps the subject of Hannover hearing 15-0792/2025 to the reviewed public pool address', () => {
+  const title = 'Anhörung zum Lister Bad';
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([expect.objectContaining({ kind: 'place', label: 'Lister Bad (Am Lister Bad 1)',
+    geometry: { type: 'Point', coordinates: [9.748884, 52.406721] },
+    attribution: expect.stringMatching(/Sport und Bäder.*LGLN/u), evidence: { source: 'title', text: title } })]);
+});
+
+test.each(['Schwimm-Express zum Lister Bad für Schülerinnen und Schüler', 'Anhörung im Lister Bad',
+  'Anhörung zum Lister Bad in Garbsen', 'Umgestaltung des Fahrradabstellplatzes an der Westseite des Lister Bades',
+  'Geplante Schließzeiten für das Nord-Ost-Bad und das Lister Bad', 'Radverkehr auf der Straße Am Lister Bad'])
+('keeps pool destinations, venues, adjacent works and roads distinct: %s', title => {
+  const [record] = enrichRisLocations([{ source: 'hannover-sim', title }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations.some(site => site.kind === 'place' && site.label.startsWith('Lister Bad'))).toBe(false);
+});
+
+test.each([
+  ['1004573', 'Stadtbahnstrecke C-Ost: Barrierefreier Ausbau der Haltestelle Hannover Congress Centrum (HCC) - Einleitung des Planfeststellungsverfahrens', 'Hannover Congress Centrum (HCC)'],
+  ['1006580', 'Stadtbahnstrecke C-Ost: Barrierefreier Ausbau der Haltestelle Hannover Congress Centrum - Realisierung und Finanzierung', 'Hannover Congress Centrum'],
+  ['1001738', 'Stadtbahnstrecke B-Süd: Barrierefreier Ausbau der Haltestelle Rethen/Bahnhof - Realisierung und Finanzierung', 'Rethen/Bahnhof'],
+])('keeps the named regional tram construction site in %s without assigning an unrelated street or platform point', (id, title, name) => {
+  const [record] = enrichRisLocations([{ id, source: 'region-hannover-ris', title }],
+    { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([{ kind: 'place', label: `Haltestelle ${name}`, evidence: { source: 'title', text: title } }]);
+});
+
+test.each(['Straßenbau neben der Haltestelle', 'Barrierefreier Ausbau neben der Haltestelle', 'Prüfung der Erreichbarkeit der Haltestelle',
+  'Kein barrierefreier Ausbau der Haltestelle'])('does not turn a regional transport reference into a construction site: %s', subject => {
+  const title = `Stadtbahnstrecke C-Ost: ${subject} Hannover Congress Centrum - Realisierung und Finanzierung`;
+  const [record] = enrichRisLocations([{ source: 'region-hannover-ris', title }], { city: 'hannover', gazetteer: hannoverFacilityGazetteer() });
+  expect(record.locations).toEqual([]);
+});
+
+test('uses the explicitly named street of the SIM parking proposal and decision 15-0301/2002', () => {
+  const gazetteer = hannoverFacilityGazetteer();
+  const street = gazetteer.entries.find(entry => entry.name === 'Husarenstraße');
+  const topic = 'Entschärfung der Parksituation durch Umsetzung der Vorschläge des Verkehrsforums; hier: ';
+  for (const prefix of ['', 'ENTSCHEIDUNG: ']) {
+    const title = `${prefix}${topic}Husarenstraße`;
+    const [record] = enrichRisLocations([{ source: 'hannover-sim', title }], { city: 'hannover', gazetteer });
+    expect(record.locations).toEqual([expect.objectContaining({ kind: 'street', label: street.name,
+      geometry: street.geometry, evidence: { source: 'title', text: title } })]);
+  }
+  const controls = ['Husarenstraße 6', 'Husarenstraße zwischen zwei Einmündungen', 'Husarenstraße und Bonifatiusplatz'];
+  const results = enrichRisLocations(controls.map(tail => ({ source: 'hannover-sim', title: topic + tail })), { city: 'hannover', gazetteer });
+  expect(results.flatMap(record => record.locations).some(site => site.kind === 'street' && site.geometry)).toBe(false);
+});
