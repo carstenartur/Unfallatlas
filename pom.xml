@@ -267,6 +267,28 @@
         </profile>
 
         <profile>
+            <id>vendor-upstream-rebuild</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend-maven-plugin.version}</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>verify-upstream-export-bundles</id>
+                                <phase>process-resources</phase>
+                                <goals><goal>npm</goal></goals>
+                                <configuration><arguments>run qa:vendor-upstream-rebuild</arguments></configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
             <id>pages-regenerated</id>
             <properties>
                 <skip.pages.qa>false</skip.pages.qa>

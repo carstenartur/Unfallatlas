@@ -27,6 +27,7 @@ check_hash "$archive_sha" "$archive" || { echo "docx source archive checksum mis
 tar -xzf "$archive" -C "$build_dir"
 cd "$build_dir/docx-$commit"
 check_hash "$lock_sha" package-lock.json || { echo "docx upstream npm lock checksum mismatch." >&2; exit 1; }
+gzip -dc "$repo_root/vendor/docx-build/npm-lock.json.gz" | cmp - package-lock.json
 node --version
 npm --version
 npm ci --no-audit --no-fund

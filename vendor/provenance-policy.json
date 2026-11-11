@@ -50,11 +50,11 @@
       ],
       "kind": "embedded-font-container",
       "missingEvidence": [
-        "original typeface build and upstream font provenance",
+        "reproduction of the source-to-TTF typeface build",
         "independently signed VFS generator attestations"
       ],
       "migrationOptions": [
-        "Pin a redistributable Roboto source archive, verify all four TTF name tables and hashes, and generate vfs_fonts.js in the site build.",
+        "Use the pinned, verified typeface-release archive to reproduce and attest the source-to-TTF step.",
         "Use a checked-in OFL font family with deterministic subsetting and VFS generation."
       ]
     },

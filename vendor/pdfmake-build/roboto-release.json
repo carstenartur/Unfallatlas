@@ -1,0 +1,31 @@
+{
+  "release": "3.016",
+  "archiveUrl": "https://github.com/googlefonts/roboto-3-classic/releases/download/v3.016/Roboto_v3.016.zip",
+  "archiveSha256": "1653dbe12f248da8fb0b9920db7b9496cd677ed3981154f6f15285c8bd4e334f",
+  "files": {
+    "Roboto-Italic.ttf": {
+      "path": "web/static/Roboto-Italic.ttf",
+      "sha256": "0efc07ef597e416675d3bb82585d78f93558d76f7aa692f12ff1e857a81c3db4",
+      "postscriptName": "Roboto-Italic",
+      "version": "Version 3.016; 2026"
+    },
+    "Roboto-Medium.ttf": {
+      "path": "web/static/Roboto-Medium.ttf",
+      "sha256": "71f5e045584ffccfe28e89abc8b4d91841c824c9c9a8379009ef6711f22b462d",
+      "postscriptName": "Roboto-Medium",
+      "version": "Version 3.016; 2026"
+    },
+    "Roboto-MediumItalic.ttf": {
+      "path": "web/static/Roboto-MediumItalic.ttf",
+      "sha256": "c7845496f25ccc759092aeababf7b35b288248d88380c474006b0ae2fe38fa4f",
+      "postscriptName": "Roboto-MediumItalic",
+      "version": "Version 3.016; 2026"
+    },
+    "Roboto-Regular.ttf": {
+      "path": "web/static/Roboto-Regular.ttf",
+      "sha256": "a6ec0ffaad7339c18c90c6a9728465e9003ae725a8769401af356a8afe523690",
+      "postscriptName": "Roboto-Regular",
+      "version": "Version 3.016; 2026"
+    }
+  }
+}

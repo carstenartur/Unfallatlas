@@ -254,7 +254,16 @@ function validatePublicPagesProfile(options = {}) {
 
   assert(Array.isArray(notice.fontEvidence) && notice.fontEvidence.length === 4,
     'expected four embedded Roboto font records');
+  const fontRelease = readJson(path.join(repoRoot, 'vendor/pdfmake-build/roboto-release.json'), 'Roboto release lock');
+  exactSorted(notice.fontEvidence.map(font => font.name), Object.keys(fontRelease.files), 'Roboto release fonts');
   for (const font of notice.fontEvidence) {
+    const expected = fontRelease.files[font.name];
+    const source = font.upstreamRelease;
+    assert(source?.version === fontRelease.release && source?.archiveUrl === fontRelease.archiveUrl &&
+      source?.archiveSha256 === fontRelease.archiveSha256 && source?.path === expected.path &&
+      font.sourceSha256 === expected.sha256 && font.decodedSha256 === expected.sha256 &&
+      font.nameTable?.postscriptName === expected.postscriptName && font.nameTable?.version === expected.version,
+    `original Roboto release evidence drift for ${font.name}`);
     assert(font.licenseExpression === 'OFL-1.1', `font license drift for ${font.name}`);
     assert(Array.isArray(font.licenseTexts) && font.licenseTexts.length > 0,
       `font lacks bundled OFL text: ${font.name}`);

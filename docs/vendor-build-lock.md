@@ -100,7 +100,9 @@ einen vollständigen SBOM-Status vorzutäuschen.
 Für `docx@9.15.3` wurde das vollständige Upstream-Build mit Node 24.22.1
 und npm 11.9.0 aus dem vom npm-Release benannten Git-Stand
 `ebd29699d5966bffaa9cf829545b8b6d9ed79d9a` ausgeführt. Das im Quellarchiv
-enthaltene npm-Lockfile fixiert auch die Versionen von fflate (0.8.3),
+enthaltene npm-Lockfile liegt vollständig in `vendor/docx-build/npm-lock.json.gz`.
+Das Prüfskript vergleicht die entpackte Kopie byteweise mit der Herstellerdatei.
+Sie fixiert auch die Versionen von fflate (0.8.3),
 nanoid (6.0.2), Vite (8.3.5) und Rolldown (1.2.15). Gebautes und vom
 Site-Build kopiertes IIFE haben jeweils 1.061.595 Bytes und denselben SHA-256
 `262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e`.
@@ -145,3 +147,18 @@ Quelldateien und den aus den Original-TTFs neu erzeugten VFS-Schriftcontainer
 jeweils byteweise gegen das mit `npm ci` installierte pdfmake-Archiv.
 
 Die veröffentlichte PDF-Komponentenliste ordnet die 26 direkt erkennbaren npm-Paketpfade der Source Map einschließlich verschachtelter Kopien dem Herstellerbuild-Lock zu. So enthält das Bundle beide tatsächlich verwendeten Versionen von base64-js (0.0.8 und 1.5.1), sax 1.6.1 und core-js 3.51.0. Fünf Lizenzdateien zu abweichend oder ausschließlich im Herstellerbuild installierten Versionen sind archiviert und werden beim Neuaufbau mit den installierten Originalen verglichen. Der umgeschriebene Quellpfad zu xmldoc sowie intern gebündelte Bestandteile bleiben im Vollständigkeitsnachweis offen.
+
+Der Nachbau vergleicht die vier als Generator-Eingaben verwendeten TTF-Dateien
+mit den Originaldateien unter `web/static/` im Roboto-3.016-Release von
+Google Fonts. `vendor/pdfmake-build/roboto-release.json` bindet das
+Releasearchiv, die vier Pfade, SHA-256, PostScript-Namen und Versionsfelder.
+Der normale Seitenbuild prüft die dekodierten VFS-Dateien gegen dieselben
+Hash- und Namensangaben und veröffentlicht den Archivnachweis je Schrift.
+
+Der PDF-Quellverweis `webpack://pdfmake/../xmldoc.ts` entsteht aus der
+Source Map des ES-Modul-Einstiegs von `xmldoc@2.0.3`. Der Hersteller liefert
+die TypeScript-Datei im Git-Quellarchiv. Die unabhängige Prüfung übersetzt
+sie mit TypeScript 5.9.3 und vergleicht das JavaScript und seine Source Map
+byteweise mit den tatsächlich für pdfmake installierten Dateien. Der
+Seitenbuild prüft die beiden Hashes und ordnet den Eintrag dem exakten
+PDF-Build-Lock und dem MIT-Lizenztext zu.
