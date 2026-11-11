@@ -143,6 +143,10 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     const result = await extract(bytes);
     const { text, links, title } = result;
     checkMotion(text, selector === '#btnExportWord');
+    expect(text).toContain('3 von 3 zugeordneten OSM-Wegen');
+    expect(text).toMatch(/30 km\/h.+50 km\/h/);
+    expect(text).toContain('2026-11-10');
+    expect(text).not.toContain('OSM-Kontextdaten konnten beim Export nicht geladen werden.');
     expect(title).toContain(intersection);
     expect(links).toEqual(expect.arrayContaining(councilSources));
     if (selector === '#btnExportWord') {
