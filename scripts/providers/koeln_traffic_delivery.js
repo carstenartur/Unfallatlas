@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const {setTimeout: wait} = require('node:timers/promises');
 const fs = require('node:fs');
 const path = require('node:path');
 const archive = require('./koeln_kfz_geometry_archive_provider');
@@ -16,8 +17,23 @@ const distributions = [
   { name: 'counts.csv', url: csv.DISTRIBUTION_URL, sha256: csv.REVIEWED_DISTRIBUTION_SHA256, bytes: 2374685 },
 ];
 
-async function fetchDistribution(root, source, request = fetch) {
-  const response = await request(source.url, { signal: AbortSignal.timeout(120000) });
+async function requestDistribution(url, request, delay) {
+  const retryableStatus = new Set([408, 429, 500, 502, 503, 504]);
+  for (let attempt = 0; ; attempt++) {
+    let response;
+    try {
+      response = await request(url, { signal: AbortSignal.timeout(120000) });
+    } catch (error) {
+      if (attempt >= 2) throw error;
+    }
+    if (response && (!retryableStatus.has(response.status) || attempt >= 2)) return response;
+    if (response && response.body) await response.body.cancel();
+    await delay(1000 * 2 ** attempt);
+  }
+}
+
+async function fetchDistribution(root, source, request = fetch, delay = wait) {
+  const response = await requestDistribution(source.url, request, delay);
   if (!response.ok || !response.body) throw new Error('Köln traffic download failed: ' + response.status);
   const chunks = [];
   let size = 0;
