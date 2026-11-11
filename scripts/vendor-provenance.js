@@ -300,6 +300,31 @@ function verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents) {
   return component;
 }
 
+// pdfmake ships a modified SVG-to-PDFKit implementation inside its npm archive.
+function collectEmbeddedSvgLicense(repoRoot, outputRoot) {
+  const root = path.join(repoRoot, 'node_modules/pdfmake');
+  const sourcePath = 'src/3rd-party/svg-to-pdfkit/source.js';
+  const source = fs.readFileSync(path.join(root, sourcePath));
+  const map = JSON.parse(fs.readFileSync(path.join(root, 'build/pdfmake.min.js.map'), 'utf8'));
+  const entries = map.sources.map((name, index) => name === 'webpack://pdfmake/./' + sourcePath ? index : -1)
+    .filter(index => index >= 0);
+  if (map.file !== 'pdfmake.min.js' || entries.length !== 1 ||
+      typeof map.sourcesContent?.[entries[0]] !== 'string' ||
+      !source.equals(Buffer.from(map.sourcesContent[entries[0]]))) {
+    throw new Error('[vendor-provenance] SVG-to-PDFKit source differs from the delivered PDF bundle map');
+  }
+  const license = fs.readFileSync(path.join(root, 'src/3rd-party/svg-to-pdfkit/LICENSE'));
+  require('./validate-vendor-license-evidence').assertCompleteLicenseText(license.toString('utf8'), 'MIT', sourcePath);
+  const destination = 'vendor/licenses/components/pdfmake-svg-to-pdfkit-MIT.txt';
+  fs.mkdirSync(path.dirname(path.join(outputRoot, destination)), { recursive: true });
+  fs.writeFileSync(path.join(outputRoot, destination), license);
+  return {
+    component: 'svg-to-pdfkit', asset: 'vendor/export/pdfmake.js', sourcePath,
+    sourceSha256: sha256Buffer(source), spdx: 'MIT', copyrightIncluded: true,
+    path: destination, sha256: sha256Buffer(license)
+  };
+}
+
 function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
   const gapByPath = new Map();
   const gapKindById = new Map();
@@ -331,7 +356,7 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
     discoveredByAsset.set(assetPath, { purls: [...new Set(purls)].sort(), unresolved });
   };
   discover('vendor/export/docx.js', path.join(repoRoot, 'node_modules/docx/dist/index.iife.js'));
-  discover('vendor/export/pdfmake.js', path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.js.map'));
+  discover('vendor/export/pdfmake.js', path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.min.js.map'));
 
   return copiedAssets.map(asset => {
     const detected = discoveredByAsset.get(asset.path) || { purls: [], unresolved: [] };
@@ -361,7 +386,7 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents) {
   });
 }
 
-function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy) {
+function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, svgLicense) {
   const componentByPurl = new Map(components.map(component => [component.purl, component]));
   const sbomComponents = components.map(component => ({
     type: 'library',
@@ -409,6 +434,13 @@ function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, polic
       ],
     });
   }
+  // Use the file hash for this vendored fork. The supplier package version is not the upstream SVG-to-PDFKit version.
+  const pdfBundle = sbomComponents.find(component => component['bom-ref'] === 'urn:unfallatlas:vendor-asset:' + svgLicense.asset);
+  pdfBundle.components = [{
+    type: 'file', name: svgLicense.sourcePath, hashes: [{ alg: 'SHA-256', content: svgLicense.sourceSha256 }],
+    licenses: [{ expression: svgLicense.spdx }],
+    properties: [{ name: 'unfallatlas:license-path', value: svgLicense.path }]
+  }];
   const dependencies = assets.map(asset => ({
     ref: `urn:unfallatlas:vendor-asset:${asset.path}`,
     dependsOn: [
@@ -464,17 +496,18 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets) {
   if (!simpleheatLicense || simpleheat.licenseExpression !== 'BSD-2-Clause') {
     throw new Error('[vendor-provenance] Missing BSD-2-Clause license evidence for locked simpleheat');
   }
+  const svgLicense = collectEmbeddedSvgLicense(repoRoot, outputRoot);
   const supplementalLicenses = [{
     component: `simpleheat@${simpleheat.version}`,
     spdx: simpleheat.licenseExpression,
     ...simpleheatLicense,
-  }];
+  }, svgLicense];
   const fontContainer = assets.find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
   if (!fontContainer) throw new Error('[vendor-provenance] Missing delivered pdfmake font container');
   fontContainer.containsFiles = fontEvidence
     .map(font => `urn:unfallatlas:font:${font.name}`)
     .sort();
-  const sbom = writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy);
+  const sbom = writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, svgLicense);
   return {
     policy: {
       path: policyOutputPath,

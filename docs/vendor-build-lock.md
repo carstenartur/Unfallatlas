@@ -83,8 +83,8 @@ Build-Provenienz. Insbesondere bleiben als Arbeit in #406:
   enthaltenen transitiven Komponenten;
 - vollständige CycloneDX-`contains`-Kanten von den ausgelieferten Bundles zu
   diesen Komponenten;
-- unabhängige Reproduktion des upstream Bundling-Schritts statt ausschließlicher
-  Verifikation der veröffentlichten npm-Archivbytes;
+- bytegenaue Reproduktion des pdfmake-Builds und unabhängige signierte
+  Build-Belege für beide Bibliotheken;
 - Einbindung der Exact-Copy-Referenzen als nachgewiesene Eingaben in den
   bestehenden vollständigen Vendor-Build-Lock;
 - direkte Bindung an `vendor/third-party-notices.json`, Komponentenlizenzen und
@@ -95,3 +95,27 @@ Bis diese Punkte abgeschlossen sind, bleibt
 `third-party-notices.json.complete` korrekt `false`. Die neue Attestation darf
 nicht benutzt werden, um die bestehenden bekannten Lücken zu verbergen oder
 einen vollständigen SBOM-Status vorzutäuschen.
+
+## Reproduktion des ausgelieferten DOCX-Bundles
+
+Für `docx@9.15.3` wurde das vollständige Upstream-Build mit Node 24.22.1
+und npm 11.9.0 aus dem vom npm-Release benannten Git-Stand
+`ebd29699d5966bffaa9cf829545b8b6d9ed79d9a` ausgeführt. Das im Quellarchiv
+enthaltene npm-Lockfile fixiert auch die Versionen von fflate (0.8.3),
+nanoid (6.0.2), Vite (8.3.5) und Rolldown (1.2.15). Gebautes und vom
+Site-Build kopiertes IIFE haben jeweils 1.061.595 Bytes und denselben SHA-256
+`262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e`.
+
+Nach `npm ci` im Repository reproduziert der folgende Befehl den Vergleich.
+Als optionales Argument akzeptiert er ein bereits heruntergeladenes
+Upstream-Quellarchiv. Die Prüfsummen für Archiv, Lockfile und Bundle werden
+vor dem Build gegen den festgelegten Stand geprüft.
+
+```sh
+bash scripts/verify-docx-upstream.sh
+```
+
+Für pdfmake bindet der Build zusätzlich die in der minifizierten Source Map
+enthaltene SVG-to-PDFKit-Quelldatei an das veröffentlichte npm-Archiv. Die
+vollständige MIT-Lizenz dieses Forks wird mit der Website ausgeliefert.
+Die unabhängigen Signaturen und die vollständige pdfmake-Reproduktion sind offen.

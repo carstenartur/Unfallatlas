@@ -130,6 +130,16 @@ describe('public Pages distribution profile', () => {
     }
   });
 
+  test('publishes the original license of the SVG-to-PDFKit fork embedded in the PDF export', () => {
+    const notice = readJson('vendor/third-party-notices.json');
+    const source = path.join(ROOT, 'node_modules/pdfmake/src/3rd-party/svg-to-pdfkit');
+    const license = notice.supplementalLicenses.find(item => item.component === 'svg-to-pdfkit');
+    expect(license).toMatchObject({ spdx: 'MIT', asset: 'vendor/export/pdfmake.js' });
+    expect(fs.readFileSync(path.join(OUTPUT, license.path))).toEqual(fs.readFileSync(path.join(source, 'LICENSE')));
+    const digest = require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(source, 'source.js'))).digest('hex');
+    expect(license.sourceSha256).toBe(digest);
+  });
+
   test('binds the embedded Simpleheat version and license to the heatmap and SBOM', () => {
     const purl = 'pkg:npm/simpleheat@1.0.0';
     const notice = readJson('vendor/third-party-notices.json');
