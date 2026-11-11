@@ -12,7 +12,8 @@ const PUBLIC_ORIGIN = 'https://carstenartur.github.io';
 const AREA = 'Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße';
 const PLACES = ['Münsterplatz', 'Maximilianstraße', 'Thomas-Mann-Straße'];
 const BOUNDS = Object.freeze({south:50.73,west:7.091,north:50.7355,east:7.101});
-const CASE_QUERY = 'city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.732211&centerLon=7.095119&zoom=16&selSouth=50.730000&selWest=7.091000&selNorth=50.735500&selEast=7.101000&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeGkfz=0&includeSonstig=0&showSchools=1&showKindergartens=1&showArgumentation=1';
+// Replay the recorded map state, including its original aerial opacity.
+const CASE_QUERY = 'city=Bonn&includeCyclist=1&includePedestrian=0&includeCar=1&includeMotorcycle=0&involvementMode=and&showCluster=0&showHeatmap=0&showOnlyAboveAverage=0&severity=all&dayType=all&roadCondition=all&hourFrom=0&hourTo=23&centerLat=50.732211&centerLon=7.095119&zoom=16&selSouth=50.730000&selWest=7.091000&selNorth=50.735500&selEast=7.101000&maxPoints=100000&viewportPaddingPct=20&heatRadius=25&includeGkfz=0&includeSonstig=0&showSchools=1&showKindergartens=1&showArgumentation=1&orthophotoOpacity=92';
 const SOURCES = ['out/output_all_years_bonn.geojson.gz','out/poi_bonn.geojson.gz','out/output_all_years_bonn.enrichment.meta.json.gz','templates/gremien_bonn.json'];
 const RUNTIME = ['ua.export_v2.js','ua.filters.js','ua.stats.js','ua.trend.js','ua.heatmap.js','ua.analysis_scope.js','ua.evidence_safe_semantics.js','ua.evidence_safe_semantics_hardening.js','ua.ai_political_reference_bridge.js','ua.ai_political_evidence.js','ua.area_name_control.js','ua.export_template_defaults.js'];
 function stable(value) {

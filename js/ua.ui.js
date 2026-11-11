@@ -323,6 +323,9 @@
     UA.saveCityState(ctx);
   };
 
+  // The boundary remains visible without tinting the imagery or intercepting taps on accidents.
+  UA.selectionFrameStyle = Object.freeze({ color: "#2b7cff", weight: 2, fill: false, interactive: false });
+
   UA.setSelectionArea = function setSelectionArea(ctx, bounds, { layer, fit } = {}){
     const coordinates = bounds && [
       bounds.getSouth?.() ?? bounds.south,
@@ -341,7 +344,8 @@
     ctx.drawnItems.clearLayers();
     ctx.selectionBounds = bounds || null;
     if (bounds) {
-      ctx.drawnItems.addLayer(layer || L.rectangle(bounds, { color: "#2b7cff", weight: 2 }));
+      layer?.setStyle?.(UA.selectionFrameStyle);
+      ctx.drawnItems.addLayer(layer || L.rectangle(bounds, UA.selectionFrameStyle));
     }
     UA.SiteDiscoveryUI?.selectionChanged?.(ctx);
     UA.AreaNameControl?.reconcile?.(ctx);
@@ -381,7 +385,7 @@
       showKindergartens: ctx.showKindergartens ? 1 : 0,
       showArgumentation: ctx.showArgumentation ? 1 : 0,
       mapMode: ctx.mapMode || 'standard',
-      orthophotoOpacity: Math.round((Number(ctx.orthophotoOpacity) || 0.92) * 100),
+      orthophotoOpacity: Math.round((Number(ctx.orthophotoOpacity) || 1) * 100),
       // PR-D: Kontextfilter — leere Strings (kein Filter aktiv) werden
       // von UA.setQS automatisch aus der URL entfernt.
       ctxSlope:        slopeStr,
@@ -491,8 +495,8 @@
       ? UA.resolveMapMode(UA.qGet("mapMode", ctx.mapMode || "standard"))
       : (ctx.mapMode || "standard");
     ctx.orthophotoOpacity = (typeof UA.normalizeMapOpacity === "function")
-      ? UA.normalizeMapOpacity((UA.qNum("orthophotoOpacity", Math.round((ctx.orthophotoOpacity || 0.92) * 100)) || 92) / 100, ctx.orthophotoOpacity || 0.92)
-      : (ctx.orthophotoOpacity || 0.92);
+      ? UA.normalizeMapOpacity((UA.qNum("orthophotoOpacity", Math.round((ctx.orthophotoOpacity || 1) * 100)) || 100) / 100, ctx.orthophotoOpacity || 1)
+      : (ctx.orthophotoOpacity || 1);
 
     ui.incBikeEl.checked = UA.qBool("includeCyclist", true);
     ui.incPedEl.checked  = UA.qBool("includePedestrian", true);
@@ -546,7 +550,7 @@
       if (allFinite && inLatRange && inLonRange) {
         ctx.selectionBounds = L.latLngBounds([s,w],[n,e]);
         ctx.drawnItems.clearLayers();
-        ctx.drawnItems.addLayer(L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2, fillOpacity:0.06}));
+        ctx.drawnItems.addLayer(L.rectangle(ctx.selectionBounds, UA.selectionFrameStyle));
       } else {
         console.warn("Ungültige sel*-Parameter in URL ignoriert:", { s, w, n, e });
       }
@@ -592,6 +596,7 @@
         ctx.mapMode = mode;
         if (typeof UA.applyMapMode === "function") UA.applyMapMode(ctx);
         UA.syncMapModeButtons(ctx);
+        UA.syncOrthophotoOpacityUi(ctx);
         UA.syncAllToUrl(ctx);
         UA.renderMapLayerStatus(ctx);
       });
@@ -602,9 +607,9 @@
     bindMapMode(ui.mapModeAnalysisBtn, "analysis");
     if (ui.orthophotoOpacityEl) {
       ui.orthophotoOpacityEl.addEventListener("input", () => {
-        const raw = (parseInt(ui.orthophotoOpacityEl.value, 10) || 92) / 100;
+        const raw = (parseInt(ui.orthophotoOpacityEl.value, 10) || 100) / 100;
         ctx.orthophotoOpacity = (typeof UA.normalizeMapOpacity === "function")
-          ? UA.normalizeMapOpacity(raw, ctx.orthophotoOpacity || 0.92)
+          ? UA.normalizeMapOpacity(raw, ctx.orthophotoOpacity || 1)
           : raw;
         UA.syncOrthophotoOpacityUi(ctx);
         if (typeof UA.applyMapMode === "function") UA.applyMapMode(ctx);
@@ -711,12 +716,15 @@
     const ui = ctx && ctx.ui;
     if (!ui || !ui.orthophotoOpacityEl || !ui.orthophotoOpacityLbl) return;
     const fallbackRaw = Number(ctx && ctx.orthophotoOpacity);
-    const fallbackOpacity = Number.isFinite(fallbackRaw) ? Math.max(0, Math.min(1, fallbackRaw)) : 0.92;
+    const fallbackOpacity = Number.isFinite(fallbackRaw) ? Math.max(0, Math.min(1, fallbackRaw)) : 1;
     const opacity = (typeof UA.normalizeMapOpacity === "function")
-      ? UA.normalizeMapOpacity(ctx.orthophotoOpacity, 0.92)
+      ? UA.normalizeMapOpacity(ctx.orthophotoOpacity, 1)
       : fallbackOpacity;
-    const percent = Math.round(opacity * 100);
+    const max = UA.maxOrthophotoOpacity?.(ctx.mapMode) ?? 1;
+    const percent = Math.round(Math.min(opacity, max) * 100);
+    ui.orthophotoOpacityEl.max = String(Math.round(100 * max));
     ui.orthophotoOpacityEl.value = String(percent);
+    ui.orthophotoOpacityEl.setAttribute?.('aria-valuetext', percent + ' Prozent');
     ui.orthophotoOpacityLbl.textContent = `${percent} %`;
   };
 

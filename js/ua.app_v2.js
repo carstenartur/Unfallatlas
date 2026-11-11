@@ -230,7 +230,7 @@
       showKindergartens: true,
       showArgumentation: true,
       mapMode: "standard",
-      orthophotoOpacity: 0.92,
+      orthophotoOpacity: 1,
       lifecyclePrimary: true
     };
     // Deliberate runtime integration port for modules that execute outside
@@ -273,8 +273,8 @@
       ? UA.resolveMapMode(UA.qGet("mapMode", "standard"))
       : "standard";
     ctx.orthophotoOpacity = (typeof UA.normalizeMapOpacity === "function")
-      ? UA.normalizeMapOpacity((UA.qNum("orthophotoOpacity", 92) || 92) / 100, 0.92)
-      : 0.92;
+      ? UA.normalizeMapOpacity((UA.qNum("orthophotoOpacity", 100) || 100) / 100, 1)
+      : 1;
     // Accident-view strategy (URL ?accidentView=bySeverity|byInvolvement|flat)
     {
       const v = UA.qGet("accidentView", UA.ACCIDENT_VIEW_DEFAULT || "bySeverity");
@@ -346,7 +346,7 @@
       // if selectionBounds restored: draw it
       if (ctx.selectionBounds) {
         ctx.drawnItems.clearLayers();
-        ctx.drawnItems.addLayer(L.rectangle(ctx.selectionBounds, {color:"#2b7cff", weight:2}));
+        ctx.drawnItems.addLayer(L.rectangle(ctx.selectionBounds, UA.selectionFrameStyle));
       }
     }
 

@@ -178,9 +178,62 @@ describe('printed point maps for a council motion', () => {
     expect(sheets.flatMap(s => s.locations.flatMap(p => p.ids)).sort()).toEqual(rows.map(r => r.displayId).sort());
     expect(sheets.flatMap(s => s.locations).find(p => p.ids.includes('duplicate')).ids).toContain('A0');
   });
+  function printedCanvases(sheet) {
+    const pens = [];
+    const root = { document: { createElement() {
+      const pen = Object.fromEntries(['arc', 'beginPath', 'drawImage', 'fill', 'fillRect', 'fillText',
+        'lineTo', 'moveTo', 'stroke', 'strokeRect'].map(key => [key, jest.fn()]));
+      pen.measureText = text => ({ width: 16 * text.length });
+      pens.push(pen);
+      return { getContext: () => pen, toDataURL: () => 'png' };
+    } } };
+    api.drawDocumentPointMap(root, sheet);
+    return pens;
+  }
+
+  // Published Brühlstraße/Escherstraße coordinates. The wide extent originally
+  // drew A006/A046 only 4.5 pixels apart on the 1320-pixel print image.
+  const bruehl = [
+    row('A001', 52.375641440, 9.726492447), row('A002', 52.375721164, 9.726782768),
+    row('A003', 52.375740574, 9.726761118), row('A004', 52.375835492, 9.727035048),
+    row('A006', 52.375782557, 9.726925887), row('A010', 52.375721164, 9.726782768),
+    row('A014', 52.375777742, 9.726914663), row('A017', 52.375737935, 9.726763005),
+    row('A032', 52.375744119, 9.726755716), row('A040', 52.375559118, 9.726604628),
+    row('A046', 52.375783750, 9.726928669),
+  ];
+  test('keeps near Brühlstraße anchors together at a readable print scale and indexes each ID once', () => {
+    const sheets = api.documentPointSheets(bruehl, new Set());
+    const pairSheet = sheets.find(s => s.locations.some(p => p.ids.includes('A006')));
+    expect(pairSheet.locations.map(p => p.ids)).toContainEqual(['A046']);
+    const groups = sheets.flatMap(s => s.locations.map(p => p.ids));
+    expect(groups).toContainEqual(['A002', 'A010']);
+    expect(groups.flat().sort()).toEqual(bruehl.map(r => r.displayId).sort());
+    expect(sheets.map(s => s.ref)).toEqual(sheets.map((s, i) => 'K' + (i + 1)));
+    expect(sheets.every(s => s.locations.length >= 2)).toBe(true);
+    const arcs = printedCanvases(pairSheet).flatMap(pen => pen.arc.mock.calls);
+    expect(Math.min(...arcs.map(([, , radius]) => radius))).toBeGreaterThanOrEqual(6);
+  });
+
+  test.each([
+    ['A001', 'A006', 'A046'],
+    ['A001', 'A006', 'A014', 'A046'],
+  ])('shows one outlier and its nearby group on one sheet at two labelled map scales (%s)', (...ids) => {
+    const rows = bruehl.filter(r => ids.includes(r.displayId));
+    const sheets = api.documentPointSheets(rows, new Set());
+    expect(sheets).toHaveLength(1);
+    const pens = printedCanvases(sheets[0]);
+    const labels = pens.flatMap(pen => pen.fillText.mock.calls.map(([s]) => s));
+    expect(labels.filter(s => /^A[0-9]+$/.test(s)).sort()).toEqual(ids.sort());
+    expect(labels.filter(s => / m$/.test(s))).toHaveLength(2);
+    const arcs = pens.flatMap(pen => pen.arc.mock.calls);
+    expect(arcs).toHaveLength(rows.length);
+    expect(Math.min(...arcs.map(([, , radius]) => radius))).toBeGreaterThanOrEqual(6);
+  });
   test('places true coordinate anchors across the printed frame and registers them to the aerial', () => {
     const pen = Object.fromEntries(['arc', 'beginPath', 'drawImage', 'fill', 'fillRect', 'fillText',
       'lineTo', 'moveTo', 'stroke', 'strokeRect'].map(key => [key, jest.fn()]));
+    pen.globalAlpha = 1;
+    pen.drawImage.mockImplementation(() => expect(pen.globalAlpha).toBe(1));
     pen.measureText = text => ({ width: 16 * text.length });
     const root = { document: { createElement: () => ({ getContext: () => pen, toDataURL: () => 'png' }) } };
     const rows = [row('A001', 52.37570, 9.726780), row('A002', 52.37572, 9.726800), row('A003', 52.37572, 9.726800)];
@@ -190,6 +243,7 @@ describe('printed point maps for a council motion', () => {
     expect(pen.arc).toHaveBeenCalledTimes(2);
     const [[x1, y1], [x2, y2]] = pen.arc.mock.calls;
     expect(x1).toBeLessThan(x2);
+    expect(pen.arc.mock.calls[0][2]).toBeGreaterThanOrEqual(10);
     expect(y1 - y2).toBeGreaterThan(250);
     const [[bitmap, left, , imageWidth]] = pen.drawImage.mock.calls;
     expect(bitmap).toBe(photo.bitmap);
@@ -222,13 +276,14 @@ test('DOM updates during a report and after Leaflet inserts its markers reuse th
   UA.computeExportReport = compute;
   let mutation;
   const groups = [];
-  const marker = jest.fn(() => ({ bindPopup() {}, addTo() {} }));
+  const marker = jest.fn(() => ({ bindPopup: jest.fn(), addTo: jest.fn() }));
+  const clustered = {};
   const scope = {
     document: { documentElement: {}, getElementById: () => null },
     location: new URL('https://example.test/?evidenceLabels=1&evidenceScope=complete&evidenceAccident=A002'),
     MutationObserver: class { constructor(callback) { mutation = callback; } observe() {} },
-    L: { marker, divIcon: options => options, layerGroup: () => {
-      const layer = { addTo: jest.fn(), remove: jest.fn() };
+    L: { marker, divIcon: options => options, markerClusterGroup: () => clustered, layerGroup: () => {
+      const layer = { addTo: jest.fn(), addLayer: jest.fn(), remove: jest.fn() };
       groups.push(layer);
       return layer;
     } },
@@ -239,6 +294,7 @@ test('DOM updates during a report and after Leaflet inserts its markers reuse th
   mutation();
   await settle();
   expect(compute).toHaveBeenCalledTimes(1);
+  Object.assign(ctx.allPts[0], { lat: ctx.allPts[1].lat, lon: ctx.allPts[1].lon });
   finish(report);
   await settle();
   mutation();
@@ -246,10 +302,20 @@ test('DOM updates during a report and after Leaflet inserts its markers reuse th
   expect(compute).toHaveBeenCalledTimes(1);
   expect(groups).toHaveLength(1);
   expect(groups[0].addTo).toHaveBeenCalledWith(ctx.map);
-  expect(marker).toHaveBeenCalledTimes(4);
+  expect(marker).toHaveBeenCalledTimes(3);
   const selected = marker.mock.calls.filter(([, options]) => options.icon.className.includes('ua-evidence-id-selected'));
   expect(selected).toHaveLength(1);
-  expect(selected[0][1]).toMatchObject({ title: 'A002', zIndexOffset: 1000 });
+  expect(selected[0][1]).toMatchObject({ title: 'A002 ×2 · Fälle am selben Unfallort', zIndexOffset: 1000 });
+  const selectedMarker = marker.mock.results.find(r => r.value.evidenceCount === 2).value;
+  expect(selectedMarker.addTo).toHaveBeenCalledWith(groups[0]);
+  expect(selectedMarker.bindPopup.mock.calls[0][0]).toContain('derselben Koordinate');
+  expect(selectedMarker.bindPopup.mock.calls[0][0]).toMatch(/A002.*A001/);
+  expect(marker.mock.results.filter(r => r.value.evidenceCount === 1)
+    .every(r => r.value.addTo.mock.calls[0][0] === clustered)).toBe(true);
+  scope.location.searchParams.set('zoom', '18');
+  mutation();
+  await settle();
+  expect(compute).toHaveBeenCalledTimes(1);
 
   scope.location.search = '?city=Hannover';
   mutation();

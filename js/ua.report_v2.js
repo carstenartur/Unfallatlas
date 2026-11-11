@@ -2007,7 +2007,8 @@
         });
       return new Table({
         width: compact ? { size: 9800, type: WidthType.DXA } : { size: 100, type: WidthType.PERCENTAGE },
-        ...(compact ? { layout: TableLayoutType.FIXED, margins: { top: 32, bottom: 32, left: 48, right: 48 } } : {}),
+        ...(compact ? { layout: TableLayoutType.FIXED } : {}),
+        margins: { top: 65, bottom: 65, left: 75, right: 75 },
         columnWidths: colWidths,
         rows: [
           makeRow(headers, true, false, true),
@@ -2363,6 +2364,12 @@
         text: `Anlage ${analysisAnnexNumber} – Auswertung und Methodik`,
         heading: HeadingLevel.HEADING_1, pageBreakBefore: true, keepNext: true, spacing: { after: 140 }
       }), ...setup);
+      const coverageNotes = evidence ? [evidence.sourceNote, ...evidence.limitations].filter(Boolean) : [];
+      if (coverageNotes.length) {
+        children.push(new Paragraph({ text: 'Erfassungsgrenzen der Unfallstatistik', heading: HeadingLevel.HEADING_3,
+          keepNext: true, spacing: { before: 200, after: 100 } }));
+        for (const line of coverageNotes) children.push(motionParagraph(line, { spacing: { after: 70 } }));
+      }
     }
 
     // ---- 4b. KURZBEWERTUNG (Task 2) ----
@@ -2575,7 +2582,7 @@
           ["Kombination", "mit Getöteten", "mit Schwerverletzten", "mit Leichtverletzten", "Unfälle gesamt"],
           ctRows,
           ctHighlights,
-          { colWeights: [45, 12, 17, 16, 10] }
+          { colWeights: [33, 13, 21, 21, 12] }
         ));
         children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
       }
@@ -2954,7 +2961,7 @@
       } else {
         children.push(motionParagraph(aerialUnavailable));
       }
-      children.push(motionParagraph('Die Punkte liegen auf den veröffentlichten Koordinaten. '
+      children.push(motionParagraph('Jeder gelbe Punkt markiert eine veröffentlichte Unfallkoordinate. '
           + (evidence ? 'Die Linien verbinden sie mit den Kennungen in der Unfallliste.' : 'Die Linien führen zu den Punktkennungen dieses Kartenausschnitts.')
           + (aerial ? ' Bildhintergrund: ' + photo.provider.attribution + ' · ' + photo.provider.license + '.' : ' Darstellung ohne Bildhintergrund.')));
       for (const sheet of sheets) {
@@ -3752,9 +3759,6 @@
           compact: true, colWeights: [33, 26, 64, 95, 52, 63, 54, 44, 30].slice(0, headers.length)
         }));
       }
-      for (const line of [evidence.sourceNote, ...evidence.limitations].filter(Boolean)) {
-        evidenceSection.push(motionParagraph(line, { spacing: { before: 70, after: 30 } }));
-      }
     }
     if (formalMotion) children.splice(firstAnnexIndex, 0, ...mapSection, ...evidenceSection);
 
@@ -3763,7 +3767,12 @@
       ...(formalMotion ? {
         title: subject,
         description: docTitle,
-        styles: { default: { document: { run: { size: 22, language: { value: "de-DE" } } } } }
+        styles: { default: {
+          document: { run: { size: 22, language: { value: "de-DE" } } },
+          heading1: { run: { bold: true, color: "182632", size: 32 } },
+          heading2: { run: { bold: true, color: "182632", size: 28 } },
+          heading3: { run: { bold: true, color: "182632", size: 24 } },
+        } }
       } : {}),
       ...(motion.requests.length ? {
         numbering: { config: [{ reference: MOTION_NUMBERING, levels: [{

@@ -284,7 +284,7 @@ describe('Word annex layout', () => {
     xml = await zip.file('word/document.xml').async('string');
   });
 
-  test('allocates room for long involvement labels and keeps the count columns compact', () => {
+  test('keeps the involvement column widest and allows both long injury headings to wrap without orphan letters', () => {
     const table = [...xml.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)].map(match => match[0])
       .find(tableXml => tableXml.includes('ausschließlich gesetzter Beteiligungskategorie Pkw'));
     expect(table).toBeDefined();
@@ -292,7 +292,9 @@ describe('Word annex layout', () => {
     const [label, fatal, serious, slight, total] = widths;
     expect(widths).toHaveLength(5);
     const tableWidth = widths.reduce((sum, n) => sum + n, 0);
-    expect(label).toBeGreaterThan(tableWidth * 0.44);
+    expect(label).toBeGreaterThan(Math.max(serious, slight));
+    expect(label).toBeGreaterThanOrEqual(tableWidth * 0.32);
+    expect(Math.min(serious, slight)).toBeGreaterThanOrEqual(tableWidth * 0.20);
     expect(fatal).toBeGreaterThanOrEqual(tableWidth * 0.115);
     expect(total).toBeGreaterThanOrEqual(tableWidth * 0.10);
     expect(Math.min(serious, slight)).toBeGreaterThan(Math.max(fatal, total));
