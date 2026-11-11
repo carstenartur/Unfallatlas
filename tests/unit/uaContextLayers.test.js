@@ -83,7 +83,9 @@ describe('UA.contextLayers public contract', () => {
       ['7989370', 30, null], ['24565115', 50, 3], ['315228065', 50, 3],
     ]);
     expect(result.requestedCount).toBe(4);
-    expect(result.sourceDate).toBe('2026-11-10');
+    const manifest = JSON.parse(zlib.gunzipSync(fs.readFileSync(
+      path.resolve(__dirname, '../../out/ctxtiles/hannover/index.json.gz'))));
+    expect(result.sourceDate).toBe(manifest.extractDate);
     expect(result.lines.join(' ')).toContain('3 von 4');
     expect(result.lines.join(' ')).toContain('30 km/h');
     expect(result.lines.join(' ')).toContain('50 km/h');
