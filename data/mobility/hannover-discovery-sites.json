@@ -107,12 +107,12 @@
         },
         "conflictHypothesis": {
           "patternKey": "turning:5",
-          "evidence": "Der Antrag 15-1243/2021 beschreibt einen Zweirichtungsradweg. 2022/23 erfasste die Polizei zwei Einbiegeunfälle mit Radverkehr von rechts (Typ 342) und einen Rechtsabbiegeunfall mit entgegenkommendem Radverkehr (Typ 244)",
-          "mechanism": "Auf der Suche nach einer Lücke im Verkehr auf der Brühlstraße könnten aus der Escherstraße einfahrende Kfz-Fahrende Radfahrende von rechts zu spät wahrnehmen.",
-          "check": "Unfallskizzen nach Fahrweg und Kollisionspunkt ordnen: Wie viele Kfz fuhren aus der Escherstraße ein, wie viele bogen von der Brühlstraße ab? Andere Fahrwege getrennt erfassen. Sicht, Blickverhalten und Tempo an der Warteposition beobachten.",
-          "options": "Prüfen, ob die beschlossene Aufpflasterung die Querung erkennbarer macht und langsames Einfahren begünstigt. Bei verdeckter Sicht das Sichtfeld freihalten.",
+          "evidence": "Antrag 15-1243/2021 nennt einen Zweirichtungsradweg. 2022/23 erfasste die Polizei zwei Einbiegeunfälle mit Radverkehr von rechts (Typ 342) und einen Rechtsabbiegeunfall mit entgegenkommendem Radverkehr (Typ 244)",
+          "mechanism": "Unsere Arbeitshypothese ist, dass Kfz-Fahrende aus der Escherstraße bei der Suche nach einer Lücke im Verkehr auf der Brühlstraße Radfahrende von rechts zu spät wahrnehmen.",
+          "check": "Wo zeigen die Unfallskizzen den Kollisionspunkt? Wie viele Kfz kamen aus der Escherstraße, wie viele bogen von der Brühlstraße ab? Andere Fahrwege mitzählen. Sicht, Blick und Tempo an der Warteposition prüfen.",
+          "options": "Macht die beschlossene Aufpflasterung die Querung erkennbarer? Begünstigt sie langsames Einfahren? Verdeckte Sichtfelder freihalten.",
           "locator": "S. 2",
-          "scopeNote": "Bei zeitlicher Überschneidung können diese Polizeifälle bereits in der Auswahl enthalten sein."
+          "scopeNote": "Je nach Zeitraum können diese Polizeifälle zur Auswahl gehören."
         }
       }
     ]

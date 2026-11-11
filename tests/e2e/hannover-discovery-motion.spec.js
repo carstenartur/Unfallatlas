@@ -28,7 +28,7 @@ function checkMotion(text, hannoverWord = false) {
   expect(motion).toContain('Escherstraße');
   expect(rationale).toMatch(/\b17 Fälle am Netzobjekt/i);
   expect(rationale).toMatch(/2021.*2025/);
-  expect(rationale).toMatch(/Arbeitshypothese.*Lücke.*Brühlstraße.*Escherstraße.*von rechts/);
+  expect(rationale).toMatch(/Arbeitshypothese.*Escherstraße.*Lücke.*Brühlstraße.*von rechts/);
   expect(rationale).toMatch(/Typ 342.*Typ 244/);
   expect(motion).toMatch(/Warteposition/);
   expect(motion).toMatch(/Rad/i);

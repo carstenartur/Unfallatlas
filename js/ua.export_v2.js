@@ -1645,7 +1645,7 @@
     const historical = priorWork.filter(record => record.kind === "police-analysis" || record.kind === "administrative-commitment");
     const citation = hypothesis ? [sourceRecord.number, hypothesis.locator].filter(Boolean).join(", ") : "";
     const rationale = [hypothesis ? `${hypothesis.evidence} (${citation}).` : "",
-      hypothesis?.scopeNote, hypothesis ? `Als Arbeitshypothese prüfen wir: ${hypothesis.mechanism}` : "", finding, findings.length ? `Unfälle nach schwerster Folge: ${findings.join(", ")}.` : "",
+      hypothesis?.scopeNote, hypothesis?.mechanism, finding, findings.length ? `Unfälle nach schwerster Folge: ${findings.join(", ")}.` : "",
       ...historical.map(record => record.label),
       historical.some(record => record.kind === "police-analysis") ? "Die Polizeiauswertung und die spätere Musterauswahl haben unterschiedliche Zeiträume und Auswahlkriterien." : "",
       hypothesis ? "" : rail?.rationale || "Welche Fahrwege und Konflikte den Einzelfällen zugrunde lagen, ist anhand der Unfallunterlagen und der damaligen örtlichen Situation zu prüfen."].filter(Boolean).join(" ");

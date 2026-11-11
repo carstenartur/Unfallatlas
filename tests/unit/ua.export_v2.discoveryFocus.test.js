@@ -270,7 +270,7 @@ test('the documented junction hypothesis follows the selected pattern, its sourc
     expect(output).toMatch(/von rechts/);
     expect(output).toMatch(/342/);
     expect(output).toMatch(/244/);
-    expect(output).toContain('diese Polizeifälle bereits in der Auswahl');
+    expect(output).toContain('diese Polizeifälle zur Auswahl');
   }
   expect(motion.discoveryEvidence.count).toBe(1);
   expect(motion.requests.join(' ')).toMatch(/Unfallskizzen.*Kollisionspunkt/);
