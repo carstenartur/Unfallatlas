@@ -32,6 +32,8 @@ test.each(references.cases.map(c=>[c.kind,c]))('real official %s reference prese
       else expect(result.gradientPercent).toBeCloseTo(expected.gradientPercent, 6);
       expect(result.profileLengthMeters).toBe(expected.profileLengthMeters);
       expect(result.uncertaintyReasons).toEqual(expected.uncertaintyReasons);
+      if (expected.quality) expect(result.quality).toBe(expected.quality);
+      if (expected.residualMadMeters != null) expect(result.residualMadMeters).toBe(expected.residualMadMeters);
       if(c.kind==='structure')expect(result.gradientPercent).toBeNull();
     }
   } finally {fs.rmSync(root,{recursive:true,force:true});}

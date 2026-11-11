@@ -5,6 +5,7 @@
 // and matching remain in the existing producer; no nearest-road rematching here.
 const path = require('path');
 const fs = require('fs');
+const zlib = require('node:zlib');
 const matcher = require('./producers/koeln_kfz_osm_line_match_producer');
 const { encodeGeometry, douglasPeucker, DEFAULT_GEOM_TOLERANCE_M } = require('./enrich_geojson');
 const { resolveRegularFile, requiredHash, sha256 } = require('./providers/koeln_kfz_osm_matched_provider');
@@ -101,6 +102,9 @@ function verifyTargetGeometry(provider, options, payloads, geojson, selected) {
   }
   for (const id of used) {
     if (!current.has(id) || !input.wayGeometries || !input.wayGeometries[id]) throw new Error(`Missing current or pinned geometry for way ${id}`);
+    if (!matcher.isMotorRoad(input.ways?.[id]?.highway)) {
+      throw new Error(`Köln motor count cannot be assigned to road class of way ${id}; recompute matching`);
+    }
     const raw = matcher.normalizeLineString(input.wayGeometries[id], `OSM matching input.wayGeometries.${id}`);
     const expected = encodeGeometry(representation.toleranceMeters > 0 ? douglasPeucker(raw, representation.toleranceMeters) : raw);
     if (JSON.stringify(current.get(id)) !== JSON.stringify(expected)) throw new Error(`Ordered geometry mismatch for way ${id}; recompute matching for the current snapshot`);
@@ -155,17 +159,31 @@ async function applyMatchedTraffic(options) {
     const type = feature.properties && feature.properties.traffic_measurement_type;
     if (type) featureTypes[type] = (featureTypes[type] || 0) + 1;
   }
-  for (const row of Object.values(ways.value.ways || {})) {
-    const type = row.traffic_measurement_type;
-    if (type) wayTypes[type] = (wayTypes[type] || 0) + 1;
+  const observedWays = new Set();
+  let classifiedWayRows = 0;
+  for (const artifact of [ways, ...tiles]) {
+    for (const [id, row] of Object.entries(artifact.value.ways || {})) {
+      const type = row.traffic_measurement_type;
+      if (type === 'proxy') classifiedWayRows++;
+      if (type && !observedWays.has(id)) {
+        observedWays.add(id);
+        wayTypes[type] = (wayTypes[type] || 0) + 1;
+      }
+    }
   }
   const types = [...new Set([...Object.keys(featureTypes), ...Object.keys(wayTypes)])];
   meta.value.traffic = { ...(meta.value.traffic || {}), typedFeatures: features, typedWayRows: wayRows,
     featureTypes, uniqueWayTypes: wayTypes,
-    classifiedFeatures: proxyFeatures, uniqueMatchedWays: [...selected.values()].filter(row => row.evidence.observation).length,
+    classifiedFeatures: proxyFeatures, classifiedWayRows, uniqueMatchedWays: [...selected.values()].filter(row => row.evidence.observation).length,
     referenceYear, measurementType: types.length > 1 ? 'mixed' : types[0] || 'proxy',
     numericValuesPresent: features > 0 || wayRows > 0 };
   for (const artifact of [ways, ...tiles, geojson, meta]) writeJsonArtifact(artifact);
+  for (const [position, tile] of tiles.entries()) {
+    index.value.tiles[position].bytes = tile.gzip
+      ? fs.statSync(tile.file).size
+      : zlib.gzipSync(fs.readFileSync(tile.file), {level: 9}).length;
+  }
+  writeJsonArtifact(index);
   return { city, features, wayRows, publishedObservations: observations.length };
 }
 

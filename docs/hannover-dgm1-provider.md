@@ -147,3 +147,49 @@ QGIS-/Fahrbahnprofile. Die DGM-Metadaten nennen die Laserscannerbefliegung 2010
 und die Veröffentlichung 2024; das Höhendatum ist dort nicht belegt. Eine
 stadtweite Aktivierung oder Aussage über heutige Fahrbahnhöhen folgt daraus
 nicht.
+
+## Stadtweiter Originalbestand
+
+`scripts/prepare-hannover-dgm1.py` beschafft die fünf vollständigen XYZ-Archive der
+Landeshauptstadt. Der Katalog `config/hannover-dgm1-city-archives.json` bindet
+Download-URLs, Originalgrößen, SHA-256 und die geprüften Ableitungen. Die
+929 Gitterkacheln enthalten 232.250.000 Höhen. Jede 500-m-Kachel wird auf die
+Originalkoordinaten, Reihenfolge und vollständige Belegung geprüft. Die
+seekbare, little-endian Float32-Datei verwendet dieselbe numerische Präzision
+wie der Einzelraster-Provider. Die Lageinterpolation berücksichtigt angrenzende
+Kacheln und gibt außerhalb der verfügbaren Rasterzellen keinen Wert aus.
+Der Leser prüft den vollständigen Rasterhash und hält bis zu 16 Kacheln im Speicher.
+
+```sh
+python3 scripts/prepare-hannover-dgm1.py --archives /tmp/hannover/xyz --output /tmp/hannover/raster
+```
+
+Die letzte Ausgabezeile ist der externe SHA-256 für `manifest.json`. Python ab
+3.11 genügt. NumPy beschleunigt die Verarbeitung. Der Quellenzeitpunkt im
+Manifest bezeichnet die erste dokumentierte Beschaffung dieser identischen
+Archivbytes am 11. November 2026. Ein neuer Workflowlauf oder Cachetreffer
+aktualisiert dieses Datum nicht. Der Höhenbezug der kommunalen Befliegung
+von 2010 bleibt unbekannt. Der Kontextworkflow bereitet das Stadtraster beim
+bestehenden Schalter `require_hannover_dgm1` automatisch vor und kann die
+hashgebundene Ableitung aus dem Actions-Cache laden. Ein vom Betreiber
+vorgegebener vollständiger Quellensatz bleibt verwendbar.
+
+Auf dem vollständigen Raster lagen 21.495 der 21.539 geprüften Hannoveraner
+Unfallkoordinaten innerhalb interpolierbarer Zellen, 44 außerhalb. Diese
+Zählung beschreibt die Verfügbarkeit von Geländehöhen an Koordinaten.
+Das vollständige OSM-Way-Profil und seine produktive Veröffentlichung sind
+eigene Schritte. Die gespeicherten 1-m-Referenzen ergaben im 50-m-Fenster
+0,0 % am Friedrichswall, +2,8 % an der Hardenbergstraße und −4,4 % am
+Lindener Berg. Für die Friederikenbrücke wurde der Fahrbahnwert unterdrückt.
+Bei Way 24855098 wurden −26,1 % über 25,3 m mit 27 Punkten, MAD 1,625 m
+und Unsicherheit 19,1 Prozentpunkten gemessen. Die Profilqualität ist gering.
+Bei 2 m und 5 m Abtastabstand ergeben sich −20,9 % und −33,9 %, jeweils
+mit geringer Profilqualität. Die archivierten Originalhöhen und die
+OSM-Geometrie befinden sich unter `tests/fixtures/hannover-dgm1-real/`.
+Eine unabhängige vermessungstechnische oder heutige Fahrbahnprüfung steht aus.
+
+Eine vom Produktionsleser getrennte Prüfung hat für jede der 929 Kacheln
+drei räumlich verschiedene Original-XYZ-Zeilen gegen die konvertierte
+Float32-Zelle geprüft. Alle 2.787 Zellen stimmten überein. Der
+SHA-256 der vollständigen 929.000.000 Rasterbytes lautet
+`492a90154f4fd1791dd81d8eb1044717af108c8ecba38a8206bdbfa24ff6c7fb`.

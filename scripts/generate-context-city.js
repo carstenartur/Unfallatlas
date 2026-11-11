@@ -17,6 +17,7 @@ const osmProducer = require('./producers/osm_producer');
 const demTileProducer = require('./producers/dem_tile_producer');
 const demProducer = require('./producers/dem_producer');
 const trafficProducer = require('./producers/traffic_producer');
+const { shouldStageKoelnTraffic, stageKoelnTraffic } = require('./providers/koeln_traffic_delivery');
 const enricher = require('./enrich_geojson');
 const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { validateAll: validateContextDatasets } = require('./check-context-datasets');
@@ -350,6 +351,12 @@ async function generateContextCity(options) {
     }));
     if (enrichment.skipped || !enrichment.wroteCompanions) {
       throw new Error(`Enrichment produced no context data: ${enrichment.reason || 'no companions'}`);
+    }
+
+    if (shouldStageKoelnTraffic(slug)) {
+      const measured = await stageKoelnTraffic({workDir: path.join(runRoot, 'counts'),
+        outputDir: stagedOut, osmFile, trafficDir: dirs.trafficDir});
+      console.log('[context-generation] Köln measured traffic:', JSON.stringify(measured));
     }
 
     const validation = validateContextDatasets(runRoot);

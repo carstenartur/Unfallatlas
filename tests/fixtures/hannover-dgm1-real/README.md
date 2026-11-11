@@ -20,5 +20,9 @@ Missing cells in the sparse full-archive excerpt are intentionally NoData.
 
 These tests demonstrate repeatable computation from real source bytes. They do
 **not** constitute manual QGIS, survey, current-ground or road-surface validation.
-The quality anomaly identified in the full dataset is documented in the task
-report; its existing high-quality label is not used as an acceptance reference.
+The anomalous profile is documented separately below.
+
+On 11 November 2026 the complete Mitte archive was verified and original rows
+for Way 24855098 (Am Lindener Berge) were extracted from `4801A.xyz`.
+The reference now verifies the reproduced high residual and the low quality
+rating. Source and derived hashes are recorded in `reference-cases.json`.
