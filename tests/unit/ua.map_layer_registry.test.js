@@ -170,6 +170,25 @@ describe('map layer registry and map modes', () => {
       expect(UA.getActiveMapLayerInfo(ctx).orthophoto.id).toBe('niedersachsen-orthophoto');
     });
 
+    test('retries only an isolated missing tile, keeps the official source and clears the warning on recovery', async () => {
+      openMap(0, 128);
+      const [good, missing] = activeTiles();
+      const goodWrite = jest.spyOn(good, 'setAttribute');
+      const missingWrite = jest.spyOn(missing, 'setAttribute');
+      finishTile(good, true);
+      finishTile(missing, false);
+      await Promise.resolve();
+      expect(missingWrite.mock.calls.filter(([name]) => name === 'src')).toEqual([['src', missing.src]]);
+      expect(goodWrite.mock.calls.filter(([name]) => name === 'src')).toHaveLength(0);
+      finishTile(missing, false);
+      await Promise.resolve();
+      expect(missingWrite.mock.calls.filter(([name]) => name === 'src')).toHaveLength(1);
+      expect(UA.getActiveMapLayerInfo(ctx).warning).toContain('1 von 2');
+      finishTile(missing, true);
+      await Promise.resolve();
+      expect(UA.getActiveMapLayerInfo(ctx)).toMatchObject({ orthophoto: { id: 'niedersachsen-orthophoto' }, warning: '' });
+    });
+
     test.each([[128, 1], [0, 2]])('falls back after all tiles fail at x offset %i (%i tiles)', async (x, count) => {
       openMap(x, 128);
       const originalLayer = ctx.baseMapState.orthophotoLayer;
