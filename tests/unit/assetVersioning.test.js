@@ -64,12 +64,15 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
-    for (const asset of ['ua.bootstrap', 'ua.data_paths']) {
-      expect(html).toContain(`js/${asset}.js?v=2026-11-11-word-maps"`);
-    }
+    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-word-maps"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-word-maps');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
+  });
+
+  test('loads inflected evidence labels in reports', () => {
+    expect(html).toContain('js/ua.bootstrap.js?v=2026-11-11-antragsgrammatik"');
+    expect(bootstrap).toContain('ua.evidence_safe_semantics.js?v=2026-11-11-antragsgrammatik');
   });
 
   test('loads optional review-network support before site selection and document export', () => {

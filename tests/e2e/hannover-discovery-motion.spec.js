@@ -156,6 +156,7 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
     expect(title).toContain(intersection);
     expect(links).toEqual(expect.arrayContaining(councilSources));
     if (selector === '#btnExportWord') {
+      expect(text).toContain('Häufung von Unfällen mit Rad- und Pkw-Beteiligung');
       // External map services are intentionally unavailable in this CI case.
       expect(text).toContain('kein amtliches Luftbild verfügbar');
       expect(text).toContain('17 Unfälle an 12 veröffentlichten Unfallorten');
