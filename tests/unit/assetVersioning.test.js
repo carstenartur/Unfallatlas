@@ -78,7 +78,7 @@ describe('Werkbank deployment asset versions', () => {
 
   test('loads the current discovery app and orthophoto fallback', () => {
     expect(html).toContain('js/ua.app_v2.js?v=2026-11-10-site-discovery"');
-    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-nrw-tile-retry"');
+    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-road-labels"');
   });
 
   test.each(['ua.state', 'ua.ui'])
