@@ -85,7 +85,8 @@ describe('live documentation screenshot boundary', () => {
     expect(transformed).toContain('const LIVE_TILE_REQUEST_TIMEOUT_MS = 8000;');
     expect(transformed).toContain('const LIVE_TILE_PROVENANCE_TIMEOUT_MS = 30000;');
     expect(transformed).toContain('const response = await route.fetch({');
-    expect(transformed).toContain('timeout: LIVE_TILE_REQUEST_TIMEOUT_MS');
+    expect(transformed).toContain('const LIVE_ORTHOPHOTO_REQUEST_TIMEOUT_MS = 15000;');
+    expect(transformed).toContain("timeout: kind === 'orthophoto' ? LIVE_ORTHOPHOTO_REQUEST_TIMEOUT_MS : LIVE_TILE_REQUEST_TIMEOUT_MS,");
     expect(transformed).toContain('maxRetries: 1');
     expect(transformed).toContain('await route.fulfill({ response });');
     expect(transformed).toContain('status: 504');
