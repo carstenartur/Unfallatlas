@@ -2,7 +2,29 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "dependencyDashboardHeader": "### analysis-service framework stack safety\n- Do not merge framework-stack updates unless `mvn -f analysis-service/pom.xml clean verify` is green.\n- Spring Boot / Hibernate ORM / Hibernate Search version jumps must be reviewed as a coordinated migration (or kept split in separate PRs).",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Read the Maven Node.js version from the same bookworm-slim image tags as Docker.",
+      "managerFilePatterns": ["/^pom\\.xml$/"],
+      "matchStrings": ["<node\\.version>v(?<currentValue>\\d+\\.\\d+\\.\\d+)</node\\.version>"],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^(?<version>\\d+\\.\\d+\\.\\d+)-bookworm-slim$"
+    }
+  ],
   "packageRules": [
+    {
+      "description": "Keep Maven and Docker on the same Node.js release within the current major line.",
+      "matchManagers": ["dockerfile", "custom.regex"],
+      "matchFileNames": ["Dockerfile", "pom.xml"],
+      "matchPackageNames": ["node"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Node.js runtime",
+      "groupSlug": "node-runtime",
+      "minimumGroupSize": 2
+    },
     {
       "description": "Update Playwright packages and the production browser image together; the container uses the preinstalled browser.",
       "matchPackageNames": ["@playwright/test", "playwright", "playwright-core", "mcr.microsoft.com/playwright"],
