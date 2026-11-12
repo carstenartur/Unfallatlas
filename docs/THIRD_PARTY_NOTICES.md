@@ -33,15 +33,11 @@ records below `_site/vendor/` and records their SHA-256 digests in
 - `provenance-policy.json` is the checked-in, machine-readable decision record
   for every remaining gap and its migration options.
 
-> **Release blocker:** this inventory is deliberately marked
-> `complete: false`. The prebuilt Docx/Pdfmake files contain components whose
-> exact build versions cannot be reproduced from this project's lockfile, and
-> `pdfmake-fonts.js` embeds four Roboto font binaries. Issue
-> [#406](https://github.com/carstenartur/Unfallatlas/issues/406) tracks the
-> reproducible vendor build, component-level SBOM and complete license/font
-> evidence. Pages and release workflows fail closed while that issue remains
-> unresolved; the diagnostic CycloneDX file must not be presented as a
-> complete SBOM.
+The inventory reports `complete: false`. GitHub Pages checks the delivered
+files, known component evidence and declared gaps while serving the browser
+features. The optional `--require-complete` check for strictly attested release builds
+requires the remaining component and font evidence and two trusted independent
+build attestations. [Tracking issue #406](https://github.com/carstenartur/Unfallatlas/issues/406)
 
 The validator does not trust the `complete` boolean by itself. A complete claim
 also requires an integrity-pinned reproducible vendor-build lock, an exact
@@ -66,26 +62,25 @@ orphaned known component.
 | `leaflet.markercluster` | MIT | Complete package license text |
 | `leaflet.heat` | BSD-2-Clause | Complete package license text |
 | `simpleheat` (bundled by `leaflet.heat`) | BSD-2-Clause | Complete locked package license text |
-| `leaflet-draw` | MIT | License declaration from installed `package.json` |
-| `leaflet-image` | BSD-2-Clause | License declaration from installed `package.json` |
+| `leaflet-draw` | MIT | Complete upstream license text checked into the repository |
+| `leaflet-image` | BSD-2-Clause | Complete upstream license text checked into the repository |
 | `docx` | MIT | Complete package license text |
 | `pdfmake` | MIT | Complete package license text |
 | `file-saver` | MIT | Complete package license text |
 
-Where the published npm archive contains a license file, the build copies its
-unmodified contents to `vendor/licenses/` and records both path and SHA-256.
-The published `leaflet-draw` and `leaflet-image` archives used here do not
-contain a top-level license text; their installed package metadata is preserved
-as explicit `installed-package-metadata` evidence instead of silently implying
-that a text was bundled. That metadata is diagnostic only and not sufficient
-redistribution evidence.
+The build copies the full direct-package license texts to `vendor/licenses/`
+and records their paths and SHA-256 digests. For `leaflet-draw` and
+`leaflet-image`, the source is the upstream license text retained in
+`licenses/vendor/`.
 
-The build additionally discovers package paths in the Docx bundle and the
-Pdfmake source map, maps resolvable names to exact package-lock purls, and emits
-the available package license files. This is deliberately an over-documented
-diagnostic inventory, not proof that the supplier bundles were built from this
-project's dependency tree. The unresolved names remain attached to the exact
-asset assessment.
+The build verifies three DOCX module paths against the exact, reproduced IIFE
+and the supplier lock. It publishes `fflate@0.8.3`, `nanoid@6.0.2` and their
+complete MIT notices. The PDF source map and PDF build lock identify 27
+embedded npm packages, including the remapped `xmldoc` module. The PDF asset
+also contains the modified SVG-to-PDFKit source file, which has a stable
+CycloneDX reference and pinned source and MIT license hashes. `png-js@2.0.0`
+has an MIT license file in its npm archive. The distribution pins that file
+and records the SPDX expression even though the package metadata omits it.
 
 For Leaflet.heat, the build checks the Simpleheat source embedded in the global
 bundle's supplied source map against the locked Simpleheat source. The notice
@@ -95,12 +90,11 @@ and SBOM record the matching component without claiming an independent rebuild.
 
 | Asset | Missing proof | Supported resolution paths |
 |---|---|---|
-| `vendor/export/docx.js` | Pinned build-tool lock, reproducible source build, complete contains/licenses | Source-build a browser entry with retained metafile/source map, or preserve the DOCX contract behind a separately maintained export service |
-| `vendor/export/pdfmake.js` | Reproducible webpack build including `svg-to-pdfkit`, complete source-map inventory/licenses | Rebuild from a dedicated locked workspace, or replace it with a source-buildable renderer that passes the PDF render gate |
-| `vendor/export/pdfmake-fonts.js` | Integrity-pinned font source, OFL/copyright file, deterministic VFS generator | Pin the Roboto source and generate VFS locally, or use another checked-in OFL family |
+| `vendor/export/docx.js` | Generated-code attribution and two independently signed builds | Retain bundler evidence for generated code and attest the pinned supplier build |
+| `vendor/export/pdfmake.js` | Sources and data inside prebundled modules, missing license texts and two independently signed builds | Resolve each inner bundle and attest the pinned Webpack build |
+| `vendor/export/pdfmake-fonts.js` | Source-to-TTF build and independent signed VFS-generator evidence | Reproduce the typeface build from the pinned release sources and attest the result |
 | `vendor/leaflet.heat/leaflet-heat.js` | Independent source-build attestation for the global bundle | Rebuild Leaflet.heat and its locked Simpleheat dependency with a pinned toolchain |
-| `vendor/leaflet-image/leaflet-image.js` | Source-build attestation plus complete leaflet-image license evidence | Rebuild with locked `d3-queue@2.0.3`, or replace map capture with a maintained implementation |
-| Leaflet Draw assets | Exact full upstream MIT/copyright file | Vendor the exact upstream evidence, or upgrade to an archive that ships it |
+| `vendor/leaflet-image/leaflet-image.js` | Source-build attestation | Rebuild with locked `d3-queue@2.0.3`, or replace map capture with a maintained implementation |
 
 The normative version of this table is `vendor/provenance-policy.json`; this
 documentation is explanatory and is not a substitute for legal review.

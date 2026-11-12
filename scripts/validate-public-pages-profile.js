@@ -25,6 +25,7 @@ const {
   assertSymlinkFreeTree,
 } = require('./build-site');
 const { LEAFLET_HEAT_ASSET } = require('./vendor-provenance');
+const { validateVendorProvenance } = require('./validate-vendor-provenance');
 
 function assert(condition, message) {
   if (!condition) throw new Error(`[validate-public-pages-profile] ${message}`);
@@ -202,8 +203,7 @@ function validatePublicPagesProfile(options = {}) {
       `supplemental license hash drift ${license.path}`);
   }
   const svgLicense = supplementalComponents.get('svg-to-pdfkit');
-  const pdfBundle = sbom.components.find(component => component['bom-ref'] === 'urn:unfallatlas:vendor-asset:vendor/export/pdfmake.js');
-  const svgSource = pdfBundle?.components?.find(component => component.name === 'src/3rd-party/svg-to-pdfkit/source.js');
+  const svgSource = sbom.components.find(component => component['bom-ref'] === svgLicense?.ref);
   assert(svgLicense?.asset === 'vendor/export/pdfmake.js' && svgLicense.spdx === 'MIT' &&
     svgSource?.type === 'file' && svgSource.name === svgLicense.sourcePath &&
     svgSource.licenses?.some(entry => entry.expression === 'MIT') &&
@@ -300,6 +300,7 @@ function validatePublicPagesProfile(options = {}) {
     'build manifest provenance gaps');
   assertHash(manifest.thirdPartyNotices.sha256, 'build-manifest notice hash');
   assert(sha256File(noticePath) === manifest.thirdPartyNotices.sha256, 'notice hash drift');
+  validateVendorProvenance(noticePath);
 
   validateHtml(siteRoot);
   assertLocalAssetReferences(siteRoot);

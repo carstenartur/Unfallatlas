@@ -12,6 +12,7 @@ const {
   VENDOR_BUILD_LOCK_TYPE,
   sriSha512Hex,
   validateCompletenessClaims,
+  validateVerifiedBundleInventories,
 } = require('./vendor-provenance');
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
@@ -133,6 +134,9 @@ function assertExactStringSet(actual, expected, label) {
 
 function validateDiagnosticSbom(manifest, sbom) {
   const sbomComponents = toUniqueMap(sbom.components, 'bom-ref', 'SBOM component ref');
+  if (sbom.components.some(component => component.components?.length)) {
+    throw new Error('[validate-vendor-provenance] Undeclared nested SBOM component');
+  }
   const expectedRefs = new Set();
 
   for (const component of manifest.components) {
@@ -149,6 +153,19 @@ function validateDiagnosticSbom(manifest, sbom) {
         properties.get('unfallatlas:lock-integrity')?.value !== component.integrity ||
         (component.licenseExpression && !expressions.includes(component.licenseExpression))) {
       throw new Error(`[validate-vendor-provenance] SBOM component evidence mismatch: ${component.purl}`);
+    }
+  }
+
+  for (const source of (manifest.supplementalLicenses || []).filter(record => record.ref)) {
+    expectedRefs.add(source.ref);
+    const sbomSource = sbomComponents.get(source.ref);
+    const properties = sbomSource ? propertiesMap(sbomSource, `source ${source.ref}`) : new Map();
+    if (!sbomSource || sbomSource.type !== 'file' || sbomSource.name !== source.sourcePath ||
+        hashValue(sbomSource, 'SHA-256') !== source.sourceSha256 ||
+        !sbomSource.licenses?.some(license => license.expression === source.spdx) ||
+        properties.get('unfallatlas:license-path')?.value !== source.path ||
+        properties.get('unfallatlas:license-sha256')?.value !== source.sha256) {
+      throw new Error(`[validate-vendor-provenance] SBOM embedded source evidence mismatch: ${source.ref}`);
     }
   }
 
@@ -184,6 +201,7 @@ function validateDiagnosticSbom(manifest, sbom) {
         properties.get('unfallatlas:reproducible')?.value !== String(asset.reproducible) ||
         properties.get('unfallatlas:provenance-complete')?.value !== String(asset.provenanceComplete) ||
         properties.get('unfallatlas:gaps')?.value !== JSON.stringify(asset.gaps) ||
+        properties.get('unfallatlas:component-lock-attestations')?.value !== JSON.stringify(asset.componentAttestations) ||
         properties.get('unfallatlas:unresolved-detected-components')?.value !==
           JSON.stringify(asset.unresolvedDetectedComponents)) {
       throw new Error(`[validate-vendor-provenance] SBOM delivered asset evidence mismatch: ${asset.path}`);
@@ -232,6 +250,7 @@ function validatePolicyBinding(manifest, policy, trustedPolicy = policy) {
   if (JSON.stringify(projected) !== JSON.stringify(manifest.knownGaps)) {
     throw new Error('[validate-vendor-provenance] Notice gaps drift from the checked-in provenance policy');
   }
+  validateVerifiedBundleInventories(manifest, trustedPolicy);
 }
 
 function decodeCanonicalBase64(value, label) {
@@ -403,12 +422,20 @@ function validateDiagnosticInventory(manifest) {
       }
     }
   }
-  const fontsByRef = new Map(manifest.fontEvidence.map(font => [`urn:unfallatlas:font:${font.name}`, font]));
+  const containedFiles = new Map(manifest.fontEvidence.map(font => [`urn:unfallatlas:font:${font.name}`, font.decodedFrom]));
+  for (const source of (manifest.supplementalLicenses || []).filter(record => record.ref)) {
+    if (typeof source.ref !== 'string' || !source.ref.startsWith('urn:unfallatlas:vendor-source:') ||
+        containedFiles.has(source.ref) || !source.sourcePath || !HASH_PATTERN.test(source.sourceSha256) ||
+        !source.asset || !source.spdx || source.copyrightIncluded !== true) {
+      throw new Error('[validate-vendor-provenance] Invalid embedded source component');
+    }
+    containedFiles.set(source.ref, source.asset);
+  }
   const assetsByPath = new Map(manifest.assetAssessments.map(asset => [asset.path, asset]));
   const fileOwners = new Map();
   for (const asset of manifest.assetAssessments) {
     for (const ref of asset.containsFiles) {
-      if (!fontsByRef.has(ref)) {
+      if (!containedFiles.has(ref)) {
         throw new Error(`[validate-vendor-provenance] Asset contains unknown file component: ${asset.path} -> ${ref}`);
       }
       if (fileOwners.has(ref)) {
@@ -417,9 +444,10 @@ function validateDiagnosticInventory(manifest) {
       fileOwners.set(ref, asset.path);
     }
   }
-  for (const [ref, font] of fontsByRef) {
-    if (!assetsByPath.has(font.decodedFrom) || fileOwners.get(ref) !== font.decodedFrom) {
-      throw new Error(`[validate-vendor-provenance] Font is orphaned from its delivered asset: ${font.name}`);
+  for (const [ref, asset] of containedFiles) {
+    if (!assetsByPath.has(asset) || fileOwners.get(ref) !== asset) {
+      const kind = ref.startsWith('urn:unfallatlas:font:') ? 'Font' : 'Source component';
+      throw new Error(`[validate-vendor-provenance] ${kind} is orphaned from its delivered asset: ${ref}`);
     }
   }
 }
@@ -486,6 +514,9 @@ function verifyDiagnosticEvidenceFiles(artifactRoot, manifest) {
     for (const license of font.licenseTexts) {
       verifyEvidenceFile(artifactRoot, license, `font license text for ${font.name}`);
     }
+  }
+  for (const license of manifest.supplementalLicenses || []) {
+    verifyEvidenceFile(artifactRoot, license, `supplemental license text for ${license.component}`);
   }
 }
 
