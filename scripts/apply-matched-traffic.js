@@ -38,7 +38,13 @@ function applyRow(row, selection) {
   let evidence = selection.evidence;
   const observations = [...selection.observations];
   if (traffic.hasUsableTypedEvidence(row, { referenceYear, mode: 'motor_vehicle' })) {
-    evidence = traffic.selectTrafficEvidence([row.traffic_evidence, evidence], { referenceYear, mode: 'motor_vehicle' });
+    const previous = row.traffic_evidence.observation;
+    const current = evidence.observation;
+    // The same pinned observation carries the current provider's presentation metadata.
+    if (previous.sourceId !== current.sourceId || previous.observationId !== current.observationId ||
+        previous.source.contentHash !== current.source.contentHash) {
+      evidence = traffic.selectTrafficEvidence([row.traffic_evidence, evidence], { referenceYear, mode: 'motor_vehicle' });
+    }
     for (const raw of row.traffic_observations || [row.traffic_evidence.observation]) {
       try {
         const normalized = traffic.normalizeObservation(raw, traffic.normalizeDescriptor(raw.source), 0);

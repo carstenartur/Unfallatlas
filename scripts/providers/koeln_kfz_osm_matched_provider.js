@@ -10,6 +10,11 @@ const matcher = require('../producers/koeln_kfz_osm_line_match_producer');
 
 const PROVIDER_ID = 'traffic.count.koeln-kfz-osm-2016-2019';
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
+const CSV_STAGE_NOTE = 'Noch kein OSM-Segmentmatching in diesem Parser-Slice.';
+const PRE_MATCH_OBSERVATION_NOTES = new Set([
+  'Kölner Segmentkennung ist noch nicht auf eine OpenStreetMap-Way-ID gematcht.',
+  'Noch keine OpenStreetMap-Zuordnung; wayId bleibt die synthetische Kölner Segmentkennung.',
+]);
 
 class KoelnKfzOsmMatchedProviderError extends Error {
   constructor(code, message, details) {
@@ -112,7 +117,6 @@ function sourceDescriptor(loaded) {
   const original = plainObject(joinedSource.traffic, 'sources.traffic.source.traffic');
   const sourceId = requiredString(original.sourceId || original.id, 'original traffic source ID');
   const originalNotes = Array.isArray(original.qualityNotes) ? original.qualityNotes : [];
-  const originalNotice = original.changeNotice == null ? '' : String(original.changeNotice).trim();
   return {
     id: PROVIDER_ID,
     publisher: requiredString(original.publisher, 'publisher'),
@@ -132,15 +136,12 @@ function sourceDescriptor(loaded) {
     retrievedAt: requiredString(original.retrievedAt, 'retrievedAt'),
     contentHash: loaded.sha256,
     changedOrDerived: true,
-    changeNotice: [
-      originalNotice,
-      `Quelle ${sourceId}: gerichtete amtliche Linien wurden mit ` +
-        `${loaded.artifact.matcher.algorithm} auf OSM-Ways abgebildet; nur eindeutige Matches ` +
-        'werden als Messwert-Provider veröffentlicht.',
-    ].filter(Boolean).join(' '),
+    changeNotice: `Richtungsbezogene amtliche Zählwerte aus ${sourceId} wurden mit ` +
+      `${loaded.artifact.matcher.algorithm} auf OSM-Ways abgebildet. ` +
+      'Eindeutig zugeordnete Zählwerte werden veröffentlicht.',
     permissions: plainObject(original.permissions, 'permissions'),
     qualityNotes: [
-      ...originalNotes.map(String),
+      ...originalNotes.map(String).filter(note => note !== CSV_STAGE_NOTE),
       `Abgeleitetes Matcher-Artefakt SHA-256 ${loaded.sha256}.`,
       'Mehrdeutige und nicht gematchte Beobachtungen werden nicht als OSM-Way-Messwerte veröffentlicht.',
     ],
@@ -194,6 +195,7 @@ function matchedObservation(value, index) {
   }
   const sourceWayId = requiredString(String(observation.wayId), `observations[${index}].wayId`);
   const originalDirection = observation.direction == null ? null : String(observation.direction).trim();
+  const originalNotes = Array.isArray(observation.qualityNotes) ? observation.qualityNotes : [];
   return Object.freeze({
     observationId: requiredString(observation.observationId, `observations[${index}].observationId`),
     measurementType: 'count',
@@ -211,7 +213,7 @@ function matchedObservation(value, index) {
     match: Object.freeze({ ...Object.fromEntries(numericFields.map(field => [field, osmMatch[field]])),
       matchQuality, directionRelation, sourceWayId, matchMethod: 'pinned-direction-aware-osm-match' }),
     qualityNotes: Object.freeze([
-      ...(Array.isArray(observation.qualityNotes) ? observation.qualityNotes.map(String) : []),
+      ...originalNotes.map(String).filter(note => !PRE_MATCH_OBSERVATION_NOTES.has(note)),
       `Quellsegment ${sourceWayId}; OSM-Match ${matchQuality}; ` +
         `Mittel ${rounded(osmMatch.meanDistanceMeters)} m, ` +
         `P95 ${rounded(osmMatch.p95DistanceMeters)} m, ` +
