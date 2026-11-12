@@ -1,26 +1,50 @@
 'use strict';
 
+const { readFileSync } = require('node:fs');
+const { gzipSync } = require('node:zlib');
 const { test, expect } = require('@playwright/test');
+const {
+  VIDEO_EXPORT_CONTEXT_PARAMS,
+  createVideoExportContextFixture,
+} = require('../fixtures/videoExportContextFixture');
 
-// Keep this URL aligned with the canonical defaults from
-// ua.video-export-contract.js plus the context-overlay fixture used by the
-// Testcontainers video-export integration test. That makes a document failure
-// observable in the much faster browser suite instead of only after five
-// 90-second download timeouts in the animation pipeline.
+// Use the same state and accident data as the video-export container test.
+// Live accident totals would change the number of PDF evidence maps.
 const CONTEXT_URL =
-  '/werkbank_v2.html?city=Bonn' +
+  '/werkbank_v2.html?' + new URLSearchParams(VIDEO_EXPORT_CONTEXT_PARAMS).toString() +
   '&severity=all' +
   '&includeCyclist=1&includePedestrian=1&includeCar=1' +
   '&includeMotorcycle=0&includeGkfz=0&includeSonstig=0' +
   '&involvementMode=or&hourFrom=0&hourTo=23' +
   '&dayType=all&roadCondition=all' +
   '&maxPoints=100000&viewportPaddingPct=20&heatRadius=25' +
-  '&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0' +
-  '&ctxSlope=steep%2Cvery_steep' +
-  '&ctxTraffic=high%2Cvery_high' +
-  '&ctxOnlyMatched=1' +
-  '&mapLayer=slope%2Ctraffic' +
-  '&centerLat=50.731500&centerLon=7.102500&zoom=15';
+  '&showCluster=1&showHeatmap=0&showOnlyAboveAverage=0';
+
+async function routeVideoExportInputs(page) {
+  const { geojson, ways, meta } = createVideoExportContextFixture();
+  const resources = {
+    'output_all_years_bonn.geojson': geojson,
+    'ways_bonn.json': ways,
+    'output_all_years_bonn.enrichment.meta.json': meta,
+  };
+  // Match the container fixture, which removes Bonn's published tile indexes.
+  await page.route(/\/out\/(?:accidenttiles|ctxtiles)\/bonn\//, route =>
+    route.fulfill({ status: 404, body: '' }));
+  for (const [name, json] of Object.entries(resources)) {
+    const body = gzipSync(JSON.stringify(json));
+    await page.route(`**/out/${name}.gz`, route =>
+      route.fulfill({ contentType: 'application/gzip', body }));
+    await page.route(`**/out/${name}`, route => route.fulfill({ json }));
+  }
+  const headers = { 'access-control-allow-origin': '*' };
+  await page.route(/^https:\/\/(?:[a-z]+\.)?tile\.openstreetmap\.org\//i, route => route.fulfill({
+    path: require.resolve('./fixtures/map-tiles/standard.svg'), contentType: 'image/svg+xml', headers,
+  }));
+  await page.route('https://nominatim.openstreetmap.org/**', route => route.fulfill({
+    path: require.resolve('./fixtures/network/nominatim-reverse-bonn.json'), contentType: 'application/json', headers,
+  }));
+  await page.route('https://overpass-api.de/**', route => route.abort('blockedbyclient'));
+}
 
 async function waitForWorkbench(page) {
   await page.waitForFunction(() => {
@@ -87,6 +111,7 @@ test.describe('document provenance with context-filtered state', () => {
       await dialog.dismiss();
     });
 
+    await routeVideoExportInputs(page);
     await page.goto(CONTEXT_URL, { waitUntil: 'domcontentloaded' });
     await waitForWorkbench(page);
 
@@ -94,6 +119,7 @@ test.describe('document provenance with context-filtered state', () => {
       const ctx = window.UA.getRuntimeContext();
       const query = new URL(window.location.href).searchParams;
       return {
+        loadedAccidents: ctx.allPts.length,
         contextSlopeClasses: Array.from(ctx.contextFilters?.slopeClasses || []).sort(),
         contextTrafficClasses: Array.from(ctx.contextFilters?.trafficClasses || []).sort(),
         onlyMatchedWays: ctx.contextFilters?.onlyMatchedWays === true,
@@ -106,6 +132,7 @@ test.describe('document provenance with context-filtered state', () => {
       };
     });
     expect(runtime).toEqual({
+      loadedAccidents: 12,
       contextSlopeClasses: ['steep', 'very_steep'],
       contextTrafficClasses: ['high', 'very_high'],
       onlyMatchedWays: true,
@@ -142,6 +169,7 @@ test.describe('document provenance with context-filtered state', () => {
       return text === 'Fertig.' || /^Fehler/i.test(text);
     }, null, { timeout: 60_000 });
     expect(await page.locator('#exportProgress').innerText()).toBe('Fertig.');
+    await expect(page.locator('#cbIncludeMap')).toBeChecked();
 
     await scrollPreviewLikeVideoExporter(page);
     const download = await waitForDownloadOrVisibleFailure(
@@ -152,6 +180,7 @@ test.describe('document provenance with context-filtered state', () => {
     expect(download.suggestedFilename()).toMatch(/\.pdf$/i);
     const filePath = await download.path();
     expect(filePath).toBeTruthy();
+    expect(readFileSync(filePath).subarray(0, 5).toString('ascii')).toBe('%PDF-');
     expect(dialogMessages).toEqual([]);
   });
 });
