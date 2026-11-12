@@ -38,6 +38,10 @@ function coordinate(value, minimum, maximum) {
   return result;
 }
 
+function laneCount(value) {
+  return /^[1-9]\d?$/.test(value) ? Number(value) : null;
+}
+
 function parseAnnualCsv(bytes) {
   if (!Buffer.isBuffer(bytes) || bytes.length > 2000000) fail('invalid_distribution', 'Expected bounded ISO-8859-15 CSV bytes');
   let parsed;
@@ -76,7 +80,9 @@ function parseAnnualCsv(bytes) {
       // road. Carriageways and BASt suffixes need separately reviewed evidence.
       if (suffix === 'Q' && fields.Str_Kl === 'B' && /^[1-9]\d{0,2}$/.test(fields.Str_Nr) && !fields.Str_Zus) {
         crossSectionRoutes[observationId] = Object.freeze({ref: `B ${fields.Str_Nr}`,
-          laneCount: /^[1-9]\d?$/.test(fields.Anz_Fs_Q) ? Number(fields.Anz_Fs_Q) : null});
+          laneCount: laneCount(fields.Anz_Fs_Q),
+          directionLaneCounts: Object.freeze({Ri1: laneCount(fields.Anz_Fs_Ri1), Ri2: laneCount(fields.Anz_Fs_Ri2)}),
+        });
       }
       const directionText = typeof direction === 'string' ? direction : [
         `Ri. ${direction}`,

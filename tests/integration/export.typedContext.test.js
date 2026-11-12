@@ -135,6 +135,74 @@ test('original hourly bicycle value and source survive actual CSV, GeoJSON and K
   expect(JSON.parse(xml.querySelector('Data[name="traffic_evidence"] value').textContent)).toMatchObject({distanceMeters:null,observation:{mode:'bicycle',value:1}});
 });
 
+test('Kollaustraße directions survive the accident popup and export projections alongside the official cross-section', async () => {
+  const {UA, ctx} = setup();
+  const os = require('node:os');
+  const {gunzipSync} = require('node:zlib');
+  const {buildOsmDataset, parseOverpassResponse} = require('../../scripts/producers/osm_producer');
+  const {applyBastAnnualDtv} = require('../../scripts/providers/bast_traffic_application');
+  const fixture = require('../fixtures/traffic/bast/hamburg-kollaustrasse-gold.json');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bast-export-'));
+  const osmFile = path.join(root, 'osm_hamburg.json');
+  const geojsonFile = path.join(root, 'output_all_years_hamburg.geojson');
+  try {
+    const {osm, accident} = fixture;
+    fs.writeFileSync(osmFile, JSON.stringify(buildOsmDataset(null, parseOverpassResponse(osm), {
+      includeTrafficRouteTags: true, routeDistributionUrl: osm.distributionUrl, extractDate: osm.retrievedAt.slice(0, 10),
+    })));
+    // The matching fixture omits the real accident's hour, which the export filter requires.
+    const feature = {...accident.feature, properties: {...accident.feature.properties, ustunde: '14'}};
+    fs.writeFileSync(geojsonFile, JSON.stringify({type: 'FeatureCollection', features: [feature]}));
+    fs.writeFileSync(path.join(root, 'output_all_years_hamburg.enrichment.meta.json'), '{}');
+    const original = gunzipSync(fs.readFileSync(path.join(__dirname, '../fixtures/traffic/bast/jawe2023-original.csv.gz')));
+    await applyBastAnnualDtv({slug: 'hamburg', workDir: root, outputDir: root, osmFile, referenceYear: 2026,
+      request: async () => ({status: 200, ok: true, body: [original]})});
+    const {geometry, properties} = JSON.parse(fs.readFileSync(geojsonFile)).features[0];
+    const [lon, lat] = geometry.coordinates;
+    ctx.CITY_RAW = 'Hamburg';
+    ctx.allPts = [{lat, lon, props: properties}];
+    ctx.selectionBounds = {getSouth: () => 53, getWest: () => 9, getNorth: () => 54, getEast: () => 10};
+    ctx.contextCapabilities = {hasAny: true, hasTrafficEvidence: true};
+    require('../../js/ua.popup_context');
+    const popup = UA.popupContext.render(properties, ctx.contextCapabilities);
+    expect(popup).toMatch(/Fahrtrichtung beim Unfall<\/div><div>unbekannt/);
+    const note = JSON.stringify(UA._pickEnrichmentSourcesNote(ctx));
+    for (const text of [popup, note]) {
+      expect(text).toContain('45.865 Kfz/24 h');
+      expect(text).toMatch(/22\.784 Kfz\/24 h[^<"]*Hamburg-Niendorf/);
+      expect(text).toMatch(/23\.080 Kfz\/24 h[^<"]*Hamburg-Lokstedt/);
+      expect(text).not.toContain('45.864 Kfz/24 h');
+    }
+    const mixed = {...properties, traffic_observations: properties.traffic_observations.map(observation =>
+      observation.stationWayDirection === 'forward'
+        ? {...observation, source: {...observation.source, contentHash: '0'.repeat(64)}}
+        : observation)};
+    const mixedPopup = UA.popupContext.render(mixed, ctx.contextCapabilities);
+    expect(mixedPopup).toContain('45.865 Kfz/24 h');
+    expect(mixedPopup).not.toContain('Zählrichtung am Querschnitt');
+
+    const directions = observations => observations.filter(item => item.stationWayDirection)
+      .map(({observationId, value, wayId, stationWayDirection}) => [observationId, value, wayId, stationWayDirection]).sort();
+    const expected = [
+      ['bast-dz2201-2023-Ri1', 22784, '1561698173', 'backward'],
+      ['bast-dz2201-2023-Ri2', 23080, '1561698173', 'forward'],
+    ];
+    const csv = await UA.exportToCSV(ctx);
+    const [header, row] = parseCsv(csv.packageEntries.entries.find(entry => entry.name.endsWith('.csv')).content).rows;
+    expect(row[header.indexOf('traffic_volume_value')]).toBe('45865');
+    expect(directions(JSON.parse(row[header.indexOf('traffic_observations')]))).toEqual(expected);
+    const geo = await UA.exportToGeoJSON(ctx);
+    expect(directions(geo.geojson.features[0].properties.traffic_observations)).toEqual(expected);
+    const context = geo.manifest.transformations.find(item => item.transformationId === 'context-evidence');
+    expect(directions(context.parameters.observations)).toEqual(expected);
+    const kml = require('../../js/ua.kml_export_provenance').buildBaseKml(UA, ctx);
+    const xml = new DOMParser().parseFromString(kml.kml, 'text/xml');
+    expect(directions(JSON.parse(xml.querySelector('Data[name="traffic_observations"] value').textContent))).toEqual(expected);
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+});
+
 test.each(['involvement','severity'])('bound note retains the original active population across async %s changes while preview stays live',async change=>{
   const {UA,ctx}=setup();jest.useFakeTimers();
   try {

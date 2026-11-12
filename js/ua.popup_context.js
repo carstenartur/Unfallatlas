@@ -419,6 +419,11 @@
       let rows = rowHtml('Verkehrsangabe', traffic.formatTrafficStatement(evidence), { field: 'traffic_volume_value' });
       if (observation.direction) rows += rowHtml('Richtungsbezug', observation.direction, { field: 'traffic_direction' });
       if (evidence.matchQuality) rows += rowHtml('Zuordnung', evidence.matchQuality, { field: 'traffic_match_quality' });
+      const directions = traffic.stationDirectionalObservations(p, observation);
+      for (const direction of directions) {
+        rows += rowHtml('Zählrichtung am Querschnitt', traffic.formatStationDirectionalCount(direction), { field: 'traffic_station_direction' });
+      }
+      if (directions.length) rows += rowHtml('Fahrtrichtung beim Unfall', 'unbekannt', { field: 'traffic_accident_direction' });
       return `<section data-ua-context-section="traffic" style="margin-top:8px;"><div style="font-weight:800;">Verkehrsexposition${badge}</div>${rows}</section>`;
     }
     if (!caps.hasTrafficProxy) return null;

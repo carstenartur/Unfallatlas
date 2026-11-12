@@ -97,6 +97,9 @@ test('the real pinned factory only participates after the explicit Germany query
     const rows = await registry.collect({country: 'DE', failOnProviderError: true});
     expect(rows).toHaveLength(4671);
     expect(provider.coverage).toEqual({stationCount: 2116, stationsWithoutCount: 559, observationCount: 4671});
+    expect(provider.crossSectionRoutes['bast-dz2201-2023-Q']).toEqual({
+      ref: 'B 447', laneCount: 7, directionLaneCounts: {Ri1: 4, Ri2: 3},
+    });
     expect(rows.every(row => row.mode === 'motor_vehicle' && row.unit === 'Kfz/24 h' && row.wayId === null && !row.match)).toBe(true);
     expect(rows[0].source).toMatchObject({contentHash: receipt.sha256, retrievedAt: receipt.retrievedAt, licenseId: 'CC-BY-4.0'});
   } finally { fs.rmSync(root, {recursive: true, force: true}); }

@@ -221,7 +221,10 @@
     const reference = observation => Object.fromEntries([
       ['sourceId', observation.sourceId], ['sourceContentHash', observation.source?.contentHash || null],
       ...['observationId', 'measurementType', 'mode', 'year', 'period', 'value', 'unit', 'direction']
-        .map(key => [key, observation[key]])
+        .map(key => [key, observation[key]]),
+      ...(observation.stationWayDirection ? [
+        ['wayId', observation.wayId], ['stationWayDirection', observation.stationWayDirection],
+      ] : []),
     ].filter(([, value]) => value !== undefined));
     if (context.traffic_evidence?.observation) {
       const evidence = context.traffic_evidence;
@@ -324,6 +327,10 @@
         for (const note of observation.qualityNotes || []) group.observationNotes.add(note);
         if (Number.isFinite(selected.distanceMeters)) group.distances.push(selected.distanceMeters);
         else group.unknownDistance = true;
+        for (const reading of traffic.stationDirectionalObservations(p, observation)) {
+          add(`Messwert der Zählrichtung am Querschnitt · ${traffic.formatStationDirectionalCount(reading)}. ${reading.period}.`,
+            source.distributionUrl || source.datasetUrl);
+        }
       } else if (['high','medium','low','very_high'].includes(p.traffic_proxy_class) && (!p.traffic_measurement_type || p.traffic_measurement_type === 'proxy')) {
         add('Verkehrsproxy aus OSM-Straßenklasse; qualitative Expositionsklasse, keine Verkehrszählung und kein numerischer Verkehrswert. © OpenStreetMap-Mitwirkende, ODbL.', 'https://www.openstreetmap.org/copyright');
       }

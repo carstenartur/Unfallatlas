@@ -58,12 +58,41 @@ async function apply(options = {}) {
 
 test('applies station 2201 to the real nearby 2023 Hamburg accident on the B 447 cross-section', async () => {
   const feature = structuredClone(hamburg.accident.feature);
-  const {result, features} = await apply({slug: 'hamburg', osm: osmDataset(hamburg.osm.elements, hamburg.osm), features: [feature]});
-  expect(result).toMatchObject({appliedFeatures: 1, matchedStations: 1});
+  const {result, features, meta} = await apply({slug: 'hamburg', osm: osmDataset(hamburg.osm.elements, hamburg.osm), features: [feature]});
+  expect(result).toMatchObject({appliedFeatures: 1, matchedStations: 1, matchedDirectionalStations: 1, directionalContextFeatures: 1});
+  expect(meta.sources.trafficMatched.coverage).toMatchObject({matchedDirectionalStations: 1, directionalContextFeatures: 1});
   expect(features[0].properties).toMatchObject({id: '9757', matched_way_id: '1561698173', traffic_measurement_type: 'count',
     traffic_volume_value: 45865, traffic_volume_year: 2023, traffic_evidence: {distanceMeters: 3.7, observation: {
       observationId: 'bast-dz2201-2023-Q', wayId: '1561698173', direction: 'Querschnitt – beide Fahrtrichtungen',
     }}});
+  const observations = features[0].properties.traffic_observations;
+  expect(observations.map(({observationId, value, stationWayDirection}) => [observationId, value, stationWayDirection])).toEqual([
+    ['bast-dz2201-2023-Q', 45865, undefined],
+    ['bast-dz2201-2023-Ri1', 22784, 'backward'],
+    ['bast-dz2201-2023-Ri2', 23080, 'forward'],
+  ]);
+  expect(observations[1].direction).toContain('Nahziel: Hamburg-Niendorf');
+  expect(observations[2].direction).toContain('Nahziel: Hamburg-Lokstedt');
+  for (const observation of observations) {
+    expect(observation).toMatchObject({wayId: '1561698173', year: 2023, unit: 'Kfz/24 h',
+      geometry: {type: 'Point', coordinates: [9.95261601, 53.61323388]},
+      source: {contentHash: receipt.sha256, licenseId: 'CC-BY-4.0'}});
+  }
+});
+
+test.each([
+  ['ordered geometry', way => way.geometry.reverse()],
+  ['geometry coordinates', way => { way.geometry[1].lon += 0.000001; }],
+  ['lane split', way => Object.assign(way.tags, {'lanes:forward': '4', 'lanes:backward': '3'})],
+  ['centre lane', way => Object.assign(way.tags, {oneway: 'no', 'lanes:both_ways': '1'})],
+  ['route reference', way => { way.tags.ref = 'B 447;B 4'; }],
+])('keeps the original cross-section alone when the reviewed %s changes', async (_, change) => {
+  const elements = structuredClone(hamburg.osm.elements);
+  change(elements.find(way => way.id === 1561698173));
+  const {result, features} = await apply({slug: 'hamburg', osm: osmDataset(elements, hamburg.osm), features: [hamburg.accident.feature]});
+  expect(result).toMatchObject({appliedFeatures: 1, matchedDirectionalStations: 0, directionalContextFeatures: 0});
+  expect(features[0].properties.traffic_observations.map(observation => observation.observationId)).toEqual(['bast-dz2201-2023-Q']);
+  expect(features[0].properties.traffic_volume_value).toBe(45865);
 });
 
 test('reports per-accident distance separately from the common station-to-road fit', async () => {
@@ -164,8 +193,13 @@ test('keeps a real local measurement distinct from stale context', async () => {
   expect(features[0].properties.traffic_evidence).toMatchObject({evidenceType: 'stale-measured', ageYears: 7});
 });
 
-test('fails closed for modified official bytes and a cache missing route metadata', async () => {
-  await expect(apply({sourceBytes: Buffer.alloc(original.length)})).rejects.toThrow(/SHA-256/);
+test('fails closed for a changed official Kollaustraße Ri1 value and a cache missing route metadata', async () => {
+  const changed = original.toString('latin1').replace(/(;2201;Kollaustraße;[^\n]*;)22\.784;/,
+    (_, prefix) => `${prefix}22.785;`);
+  expect(changed).toContain('22.785;');
+  const sourceBytes = Buffer.from(changed, 'latin1');
+  expect(sourceBytes.equals(original)).toBe(false);
+  await expect(apply({sourceBytes})).rejects.toThrow(/SHA-256/);
   const osm = osmDataset();
   delete osm.trafficRouteTags;
   await expect(apply({osm})).rejects.toThrow(/route tags/);
