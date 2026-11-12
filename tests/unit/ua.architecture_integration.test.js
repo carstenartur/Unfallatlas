@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('node:vm');
 
 function makeWindow(extra) {
   return Object.assign({
@@ -23,6 +24,18 @@ function loadModule(win, relativePath) {
     eval(fs.readFileSync(path.resolve(__dirname, relativePath), 'utf8')); // eslint-disable-line no-eval
   })(win);
 }
+
+test('the shared statistics module preserves existing browser and CommonJS properties on reload', () => {
+  const win = makeWindow({ UA: { priorBrowserField: true } });
+  const host = { window: win, module: { exports: Object.freeze({ priorModuleField: true }) } };
+  const source = fs.readFileSync(path.resolve(__dirname, '../../js/ua.stats.js'), 'utf8');
+  for (let load = 0; load < 2; load++) {
+    vm.runInNewContext(source, host);
+    expect(win.UA.priorBrowserField).toBe(true);
+    expect(host.module.exports.priorModuleField).toBe(true);
+    expect(win.UA.wilsonScoreInterval).toBe(host.module.exports.wilsonScoreInterval);
+  }
+});
 
 function installJsonTransport(win) {
   const fetchResponse = async (url, options) => {

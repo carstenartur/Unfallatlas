@@ -7,6 +7,7 @@ describe('Werkbank deployment asset versions', () => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
   const bootstrap = fs.readFileSync(path.resolve(__dirname, '../../js/ua.bootstrap.js'), 'utf8');
   const version = '2026-07-19';
+  const patternComparisonVersion = '2026-11-12-stadtvergleich';
 
   test.each([
     'js/ua.utils.js',
@@ -64,13 +65,14 @@ describe('Werkbank deployment asset versions', () => {
 
   test('loads the documented cost model and the source-checked renderers', () => {
     expect(html).toContain('js/ua.costs.js?v=2026-11-11-kostenmodell"');
-    expect(html).toContain('js/ua.export_v2.js?v=2026-11-11-oertliche-arbeitshypothese"');
-    expect(html).toContain('js/ua.report_v2.js?v=2026-11-11-kartenlesbarkeit"');
+    for (const asset of ['ua.stats', 'ua.export_v2', 'ua.report_v2']) {
+      expect(html).toContain(`js/${asset}.js?v=${patternComparisonVersion}"`);
+    }
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
     expect(html).toContain('js/ua.state.js?v=2026-11-11-evidence-links"');
-    expect(html).toContain('js/ua.data_paths.js?v=2026-11-11-kartenlesbarkeit"');
+    expect(html).toContain(`js/ua.data_paths.js?v=${patternComparisonVersion}"`);
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-kartenlesbarkeit');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
@@ -122,12 +124,12 @@ describe('Werkbank deployment asset versions', () => {
 
   test('lazy analysis and capture use the current display and readiness contract', () => {
     const dataPaths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
-    expect(dataPaths).toContain('js/ua.analysis_scope.js?v=2026-11-10-ris-map');
+    expect(dataPaths).toContain(`js/ua.analysis_scope.js?v=${patternComparisonVersion}'`);
     expect(dataPaths).toContain('js/ua.visible_tile_readiness.js?v=2026-11-10-ris-map');
   });
 
   test('the canonical template asset loads the current defaults', () => {
-    expect(html).toContain('js/ua.export_template_defaults.js?v=2026-11-11-beteiligungsvergleich"');
+    expect(html).toContain(`js/ua.export_template_defaults.js?v=${patternComparisonVersion}"`);
   });
 
   test.each(['js/ua.area_name_control.js'])('%s refreshes confirmed research scope', asset => {
@@ -137,7 +139,7 @@ describe('Werkbank deployment asset versions', () => {
   test('lazy AI political evidence refreshes the confirmed research context', () => {
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.ai_political_evidence.js?v=2026-11-08-area-research');
-    expect(paths).toContain('js/ua.ai_political_reference_bridge.js?v=2026-11-10-site-evidence');
+    expect(paths).toContain(`js/ua.ai_political_reference_bridge.js?v=${patternComparisonVersion}'`);
   });
 
   test('loads the RIS URL and document views with the traffic-situation contract', () => {

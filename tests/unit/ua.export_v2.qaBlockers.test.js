@@ -7,8 +7,7 @@
  *      body font. We now mirror the existing `replaceEmojisForPDF` helper.
  *
  *   2) `templates/pattern_rad_solo.txt` references `{{RAD_SOLO_CITY}}`
- *      which was never bound, producing the literal "stadtweit  Fällen"
- *      gap in the antrag.
+ *      which was never bound, leaving the reference count blank in the report.
  *
  *   3) `templates/outro_internal_note.txt` starts with the marker line
  *      `[Interner Hinweis – vor Versand entfernen]`, which leaked verbatim
@@ -36,6 +35,7 @@ describe('Export QA blocker fixes', () => {
     load('ua.utils.js');
     load('ua.filters.js');
     load('ua.accident_views.js');
+    load('ua.stats.js');
     load('ua.trend.js');
     load('ua.heatmap.js');
     load('ua.osm_context.js');
@@ -44,6 +44,7 @@ describe('Export QA blocker fixes', () => {
     mockWindow.fetch = async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => '' });
     global.fetch = mockWindow.fetch;
     mockWindow.L = { latLngBounds: () => {} };
+    load('ua.export_template_defaults.js');
     load('ua.export_v2.js');
     // ua.report_v2.js exposes the DOCX helper. We don't need pdfMake/docx
     // for the unit-level helper test — only the closure must initialise.
@@ -150,29 +151,34 @@ describe('Export QA blocker fixes', () => {
       const path = require('path');
       const tpl = fs.readFileSync(path.resolve(__dirname, '../../templates/pattern_rad_solo.txt'), 'utf8');
       expect(tpl).toMatch(/\{\{RAD_SOLO_CITY\}\}/);
-      expect(tpl).toMatch(/stadtweit \{\{RAD_SOLO_CITY\}\} Fällen/);
+      expect(tpl).toMatch(/gegenüber \{\{RAD_SOLO_CITY\}\} Fällen in der Referenzgruppe/);
     });
 
-    test('PATTERN_MAP[1].vars binds RAD_SOLO_CITY from r.baseCnt so the rendered text has no gap', () => {
-      // The PATTERN_MAP itself is private to the IIFE; we exercise it through
-      // the public render path by reading the template and applying the same
-      // tpl substitution. This catches the "lokal 21 Fälle gegenüber stadtweit
-      //  Fällen" regression without needing the full computeExportReport
-      // pipeline (which is covered separately).
-      const fs = require('fs');
-      const path = require('path');
-      const raw = fs.readFileSync(path.resolve(__dirname, '../../templates/pattern_rad_solo.txt'), 'utf8');
-      // Same minimal `tpl` semantics as ua.export_v2.js (missing key → "").
-      const tpl = (s, vars) => s.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_, k) => String(vars[k] ?? ''));
-      // Shape of the focus-row that PATTERN_MAP receives:
-      const r = { mask: 1, locCnt: 21, baseCnt: 137, factor: 3.06 };
-      // Re-derive what PATTERN_MAP[1].vars should now produce (the fix).
-      const vars = { RAD_SOLO_FACTOR: r.factor.toFixed(2), RAD_SOLO_LOCAL: String(r.locCnt), RAD_SOLO_CITY: String(r.baseCnt) };
-      const rendered = tpl(raw, vars);
-      expect(rendered).toMatch(/lokal 21 Fälle gegenüber stadtweit 137 Fällen/);
-      // Hard guard against the bug pattern: never emit "stadtweit  Fällen"
-      // (two spaces because the variable disappeared).
-      expect(rendered).not.toMatch(/stadtweit\s{2,}Fällen/);
+    test('renders the disjoint reference count in the actual offline Rad solo template', async () => {
+      const points = (count, lat, flag) => Array.from({ length: count }, () => ({
+        lat, lon: 9.8, props: { [flag]: '1', year: '2023', ukategorie: '3',
+          ustunde: '10', uwochentag: '2', strzustand: '0' }
+      }));
+      const allPts = [
+        ...points(21, 52.1, 'istrad'), ...points(137, 52.6, 'istrad'), ...points(300, 52.6, 'istpkw')
+      ];
+      UA.reverseGeocode = async () => null;
+      const report = await UA.computeExportReport({
+        CITY_RAW: 'Hannover',
+        allPts,
+        accidentDataCoverage: { mode: 'full-city', city: 'Hannover', complete: true, loadedFeatureCount: allPts.length },
+        selectionBounds: {
+          getSouthWest: () => ({ lat: 52, lng: 9.7 }),
+          getNorthEast: () => ({ lat: 52.5, lng: 9.9 }),
+          contains: ([lat]) => lat >= 52 && lat <= 52.5,
+        },
+        ui: { severityEl: { value: 'all' }, roadConditionEl: { value: 'all' }, dayTypeEl: { value: 'all' },
+          hFromEl: { value: '0' }, hToEl: { value: '23' } },
+        exportOptions: { includeOsmContext: false, includeCosts: false, includeMeasures: false }
+      });
+      expect(report.structured.deviations.focus[0]).toMatchObject({ mask: 1, locCnt: 21, baseCnt: 137 });
+      expect(report.text).toMatch(/lokal 21 Fälle gegenüber 137 Fällen in der Referenzgruppe/);
+      expect(report.text).not.toMatch(/gegenüber\s{2,}Fällen/);
     });
   });
 });

@@ -20,6 +20,7 @@
 const { SYSTEM_PROMPT, buildUserPrompt } = require('./prompts/exportAssessmentPrompt.js');
 const { callGemini }                     = require('./providers/geminiProvider.js');
 const schema                             = require('./schema/exportAssessment.schema.json');
+const { patternReferenceMethodology }     = require('../../js/ua.stats.js');
 
 // ── Schema-Validierung (ohne externe Abhängigkeit) ─────────────────────────────
 
@@ -79,6 +80,7 @@ function buildAiInput(structured, contextHints) {
   const meta    = structured.meta    || {};
   const sev     = structured.severity || {};
   const dev     = structured.deviations || {};
+  const reference = patternReferenceMethodology(dev);
   const yr      = structured.yearTable || [];
   const patterns = structured.patterns || [];
   const poi     = structured.poi || null;
@@ -94,13 +96,18 @@ function buildAiInput(structured, contextHints) {
   };
 
   // Top deviations (max 10 for token budget)
-  const deviations = (Array.isArray(dev.focus) ? dev.focus : (dev.rows || []))
+  const focus = Array.isArray(dev.focus) ? dev.focus : null;
+  const comparisonRows = reference?.referenceStatus === 'available' && !focus?.length ? (dev.rows || [])
+    : (focus || dev.rows || []);
+  const deviations = comparisonRows
     .slice(0, 10)
     .map(d => ({
-      label:        d.label || String(d.mask || ''),
-      localCount:   d.localCount  ?? d.localCnt  ?? 0,
-      baselineCount: d.baselineCount ?? d.baselineCnt ?? 0,
-      relativeDiff: d.relativeDiff ?? d.relDiff ?? null
+      label:        d.textLabel || d.label || String(d.mask || ''),
+      localCount:   d.locCnt ?? d.localCount ?? d.localCnt ?? 0,
+      baselineCount: d.baseCnt ?? d.baselineCount ?? d.baselineCnt ?? (reference ? null : 0),
+      relativeDiff: d.relativeDiff ?? d.relDiff ?? null,
+      ...(reference ? { localShare: d.locR, referenceShare: d.baseR,
+        differenceCiLow: d.differenceCiLow, differenceCiHigh: d.differenceCiHigh } : {})
     }));
 
   // Year table (at most 10 years)
@@ -146,6 +153,7 @@ function buildAiInput(structured, contextHints) {
       totalAccidents: sev.total ?? 0,
       severitySummary,
       deviations,
+      ...(reference ? { patternComparison: { ...reference, localSampleSize: dev.local?.total, referenceSampleSize: dev.baseline?.total } } : {}),
       yearTable,
       patterns: patterns.slice(0, 10)
     },

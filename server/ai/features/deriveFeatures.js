@@ -26,6 +26,7 @@ const BIT_TRUCK = 16;
 // const BIT_OTHER = 32; // not used directly
 
 const { detectConflictPatterns } = require('./conflictPatterns.js');
+const { patternReferenceMethodology } = require('../../../js/ua.stats.js');
 const PATTERN_COMPARISON_LIMITATIONS = Object.freeze({"inference": "exploratory", "multiplicityAdjustment": "none", "referenceIncludesLocal": true, "localIntervalOnly": true, "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."});
 
 /**
@@ -201,7 +202,10 @@ function pickDominantPatterns(dev, cross) {
 
   // From deviations.focus (positive share ratio = local overrepresentation).
   const focus = Array.isArray(dev?.focus) ? dev.focus : [];
-  const sorted = focus
+  const reference = patternReferenceMethodology(dev);
+  const sources = !focus.length && reference?.referenceStatus === 'available' && Array.isArray(dev?.rows)
+    ? dev.rows : focus;
+  const sorted = sources
     .map(d => {
       const localCount = finiteNumber(d?.locCnt, d?.localCount, d?.localCnt) ?? 0;
       const baselineCount = finiteNumber(d?.baseCnt, d?.baselineCount, d?.baseCount);
@@ -223,11 +227,13 @@ function pickDominantPatterns(dev, cross) {
         relativeDiff,
         ciLow: finiteNumber(d?.ciLow),
         ciHigh: finiteNumber(d?.ciHigh),
+        ...(reference ? { difference: finiteNumber(d?.difference),
+          differenceCiLow: finiteNumber(d?.differenceCiLow), differenceCiHigh: finiteNumber(d?.differenceCiHigh) } : {}),
         isSignificant: d?.isSignificant === true,
         localSampleSize,
         baselineSampleSize,
         comparisonAvailable: localShare !== null && baselineShare !== null,
-        source: 'deviations.focus'
+        source: sources === focus ? 'deviations.focus' : 'deviations.rows'
       };
     })
     .filter(d => d.localCount > 0)
@@ -278,6 +284,7 @@ function pickDominantPatterns(dev, cross) {
 }
 
 function buildAnalysisMethodology(dev, yearlyTrend) {
+  const reference = patternReferenceMethodology(dev);
   const localTotal = finiteNumber(dev?.local?.total);
   const baselineTotal = finiteNumber(dev?.baseline?.total);
   const totals = Array.isArray(yearlyTrend?.counts?.total)
@@ -294,7 +301,9 @@ function buildAnalysisMethodology(dev, yearlyTrend) {
   return {
     schemaVersion: 'unfallwerkbank.analysisMethodology.v1',
     patternComparison: {
-      question: 'Ist eine Beteiligungskombination innerhalb der gefilterten lokalen Unfälle anteilig häufiger als in der stadtweiten Referenzpopulation?',
+      question: reference
+        ? 'Ist eine Beteiligungskombination innerhalb der gefilterten lokalen Unfälle anteilig häufiger als im übrigen Stadtgebiet?'
+        : 'Ist eine Beteiligungskombination innerhalb der gefilterten lokalen Unfälle anteilig häufiger als in der stadtweiten Referenzpopulation?',
       comparisonType: 'composition-share-ratio',
       limitations: PATTERN_COMPARISON_LIMITATIONS,
       localPopulation: 'Unfälle innerhalb der Auswahlgeometrie nach denselben Nicht-Beteiligungsfiltern',
@@ -310,7 +319,8 @@ function buildAnalysisMethodology(dev, yearlyTrend) {
       },
       interpretation: 'Eine Überrepräsentation beschreibt die Zusammensetzung des dokumentierten Unfallgeschehens, nicht eine absolute Unfallrate unterschiedlich großer Räume.',
       exposureRequirement: 'Für diesen Anteilsvergleich ist keine Normierung nach Fläche, Straßenlänge oder Verkehrsleistung erforderlich. Expositionsdaten sind erst für Aussagen über absolutes Unfallrisiko beziehungsweise Unfallraten je Verkehrsleistung erforderlich.',
-      precisionNote: 'Die statistische Präzision hängt von den lokalen und stadtweiten Stichprobenumfängen ab.'
+      precisionNote: 'Die statistische Präzision hängt von beiden Stichprobenumfängen ab.',
+      ...(reference || {})
     },
     yearlyTrend: {
       question: 'Wie entwickeln sich die dokumentierten jährlichen Unfallzahlen innerhalb desselben gefilterten Auswahlbereichs?',

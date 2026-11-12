@@ -41,12 +41,19 @@ describe('kommunalpolitische Antragstemplates – Evidenzsprache', () => {
 
   test('Mustervergleich und Mehrjahrestrend werden entsprechend der implementierten Statistik beschrieben', () => {
     const facts = readTemplate('sachverhalt.txt');
+    const methodTemplate = readTemplate('base_method.txt');
+    const { patternReferenceMethodology } = require('../../js/ua.stats.js');
+    const comparison = patternReferenceMethodology({ reference: { method: 'newcombe-wilson-95', status: 'available' } });
 
     expect(facts).toMatch(/amtlich dokumentierte Unfälle mit Personenschaden/i);
-    expect(facts).toMatch(/nicht die absoluten Fallzahlen.*als Unfallrate/is);
-    expect(facts).toMatch(/Anteile der Beteiligungskombinationen.*stadtweiten Referenzpopulation/is);
-    expect(facts).toMatch(/lokaler Anteil.*Referenzanteil.*Verhältnis.*statistische Unsicherheit/is);
-    expect(facts).toMatch(/Überrepräsentation.*Musterzusammensetzung/is);
+    expect(facts).toContain('{{reference_description}}');
+    expect(facts).toMatch(/Zusammensetzung der dokumentierten Unfälle.*lokalen und der Referenzanteile/i);
+    expect(facts).not.toMatch(/stadtweite Referenzpopulation/i);
+    expect(comparison.referencePopulation).toMatch(/übrigen Stadtgebiet.*denselben aktiven Filtern/i);
+    expect(comparison.formulas.factor).toContain('locR / baseR');
+    expect(comparison.formulas.uncertainty).toMatch(/Anteilsdifferenz.*Wilson-Intervallen beider Anteile/i);
+    expect(methodTemplate).toMatch(/Mustersuche bleibt explorativ/i);
+    expect(methodTemplate).toMatch(/Unfallraten bleiben ohne geeignete Verkehrsleistungsdaten unbestimmt/i);
     expect(facts).toMatch(/absoluten Unfallrisiko je Verkehrsleistung.*Expositionsdaten/is);
     expect(facts).toMatch(/Mehrjahrestrend.*desselben Auswahlbereichs/is);
     expect(facts).toMatch(/relative Steigung.*Mittelwert.*Güte der linearen Anpassung/is);

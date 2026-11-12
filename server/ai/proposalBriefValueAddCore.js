@@ -10,6 +10,7 @@
  */
 
 const { PATTERN_COMPARISON_LIMITATIONS } = require('./features/deriveFeatures.js');
+const { patternReferenceMethodology } = require('../../js/ua.stats.js');
 
 const VALUE_ADD_CONTRACT_VERSION = 'unfallwerkbank.proposalBriefValueAdd.v1';
 const DETERMINISTIC_DIGEST_VERSION = 'unfallwerkbank.deterministicAnalysisDigest.v1';
@@ -167,7 +168,7 @@ function snapshotAwarePoliticalResearch(structured, features, existing) {
   };
 }
 
-function patternRow(row, localTotal, baselineTotal) {
+function patternRow(row, localTotal, baselineTotal, reference) {
   const significant = row?.isSignificant === true;
   return {
     mask: finite(row?.mask),
@@ -181,20 +182,26 @@ function patternRow(row, localTotal, baselineTotal) {
     factor: finite(row?.factor),
     ciLow: finite(row?.ciLow),
     ciHigh: finite(row?.ciHigh),
+    ...(reference ? { difference: finite(row?.difference), differenceCiLow: finite(row?.differenceCiLow),
+      differenceCiHigh: finite(row?.differenceCiHigh) } : {}),
     isSignificant: significant,
     interpretation: significant
-      ? 'statistically-supported-pattern-overrepresentation'
+      ? (reference ? 'unadjusted-exploratory-overrepresentation' : 'statistically-supported-pattern-overrepresentation')
       : 'exploratory-pattern-difference',
   };
 }
 
 function buildDeterministicDigest(structured, features) {
   const selectedSiteMotion = structured?.motion?.discoveryEvidence || structured?.motion?.priorWork?.length ? structured.motion : null;
+  const deviations = object(structured?.deviations);
+  const reference = patternReferenceMethodology(deviations);
   let existing = object(
     structured?.deterministicAnalysisDigest
     || structured?.aiResearchHandoff?.deterministicAnalysisDigest
   );
-  if (existing.schemaVersion === DETERMINISTIC_DIGEST_VERSION) {
+  if (existing.schemaVersion === DETERMINISTIC_DIGEST_VERSION && (!reference ||
+      (existing.patternCompositionComparison?.reference?.method === deviations.reference.method &&
+       existing.patternCompositionComparison.reference.status === deviations.reference.status))) {
     if (selectedSiteMotion && existing.selectedSiteMotion !== selectedSiteMotion) existing = { ...existing, selectedSiteMotion };
     const research = object(structured?.politicalContextResearch);
     if (!snapshotSearchDetails(research)
@@ -206,7 +213,6 @@ function buildDeterministicDigest(structured, features) {
   const meta = object(structured?.meta);
   const severity = object(structured?.severity);
   const bySeverity = object(severity.bySev);
-  const deviations = object(structured?.deviations);
   const localTotal = deviations?.local?.total;
   const baselineTotal = deviations?.baseline?.total;
   const counts = object(features?.counts);
@@ -232,12 +238,15 @@ function buildDeterministicDigest(structured, features) {
       other: finite(bySeverity.other ?? counts.other),
     },
     patternCompositionComparison: {
-      method: 'locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR',
+      method: reference ? Object.values(reference.formulas).join('; ')
+        : 'locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR',
+      ...(reference ? { reference: deviations.reference } : {}),
       localSampleSize: finite(localTotal),
       baselineSampleSize: finite(baselineTotal),
-      focus: list(deviations.focus).map(row => patternRow(row, localTotal, baselineTotal)),
-      allRows: list(deviations.rows).map(row => patternRow(row, localTotal, baselineTotal)),
-      scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. ' + PATTERN_COMPARISON_LIMITATIONS.note,
+      focus: list(deviations.focus).map(row => patternRow(row, localTotal, baselineTotal, reference)),
+      allRows: list(deviations.rows).map(row => patternRow(row, localTotal, baselineTotal, reference)),
+      scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. '
+        + (reference?.limitations.note || PATTERN_COMPARISON_LIMITATIONS.note),
     },
     yearlyTrend,
     spatialEvidence: {
@@ -389,7 +398,7 @@ function defaultComparisonRows(aiInput) {
       aiAddedValue: 'Kein zusätzlicher Entscheidungswert erzeugt.',
       evidenceRefs: [`deviations.focus[${index}]`],
       uncertaintyOrCheck: row.isSignificant
-        ? 'Keine Mehrfachtestkorrektur; Stadtbaseline enthält lokalen Bereich. Räumliche Lage und Konfliktmechanismus gesondert prüfen.'
+        ? 'Die Mustersuche ist explorativ und ohne Mehrfachtestkorrektur. Räumliche Lage und Konfliktmechanismus gesondert prüfen.'
         : 'Nicht als statistisch gesicherten oder räumlichen Schwerpunkt formulieren.',
     });
   });

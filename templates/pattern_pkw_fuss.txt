@@ -1,5 +1,5 @@
 Vergleich der Beteiligung – Pkw- und Fußverkehr
 
-Im ausgewerteten Ausschnitt sind {{PKW_FUSS_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{PKW_FUSS_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
+Im ausgewerteten Ausschnitt sind {{PKW_FUSS_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{PKW_FUSS_FACTOR}}-Fache des Referenzanteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
 Aus den Unfallskizzen ermitteln, wo Menschen zu Fuß gingen und aus welcher Richtung die Pkw kamen. Sicht, Querungswege und die tatsächlich gefahrenen Geschwindigkeiten vor Ort prüfen.

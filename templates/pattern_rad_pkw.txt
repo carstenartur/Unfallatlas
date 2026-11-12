@@ -1,5 +1,5 @@
 Vergleich der Beteiligung – Rad- und Pkw-Verkehr
 
-Im ausgewerteten Ausschnitt sind {{RAD_PKW_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{RAD_PKW_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
+Im ausgewerteten Ausschnitt sind {{RAD_PKW_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{RAD_PKW_FACTOR}}-Fache des Referenzanteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
 Für welche Fahrwege zeigen die Unfallskizzen wiederkehrende Konflikte? Die Sicht zwischen Rad- und Pkw-Verkehr vor Ort aus beiden Fahrtrichtungen prüfen. An einer Ampel auch die Freigabezeiten für die betroffenen Fahrwege vergleichen.

@@ -1,5 +1,5 @@
 Vergleich der Beteiligung – Rad- und Fußverkehr
 
-Im ausgewerteten Ausschnitt sind {{RAD_FUSS_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{RAD_FUSS_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
+Im ausgewerteten Ausschnitt sind {{RAD_FUSS_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{RAD_FUSS_FACTOR}}-Fache des Referenzanteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
 Die Unfallskizzen daraufhin prüfen, wo sich Wege zu Fuß und mit dem Rad kreuzten. Vor Ort beobachten, welche Flächen beide Gruppen nutzen und ob sie einander an Querungen oder Haltestellen rechtzeitig sehen können.

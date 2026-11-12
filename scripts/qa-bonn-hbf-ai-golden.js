@@ -174,7 +174,7 @@ function snapshotFromRuntime(raw) {
       mapViews:views,mapImageEvidence:{status:'not-captured',imageSha256:null,reason:'Hermetic generation blocks external tiles. Scene/input fingerprints are not live image verification.'}},
     facts:{totalAccidents:s.totalAccidents,severity:s.severity,yearTable:s.yearTable,yearlyTrend:s.yearlyTrend,deviations:s.deviations,scopeCounts:s.scopeCounts,heatmap:s.heatmap,poi:s.poi,
       discoveryRows:rows,completeAreaCount:s.evidenceCohorts.completeEvidenceCohort.count,digest:d,methodology:s.analysisMethodology,
-      methodLimits:{referencePopulation:s.meta.baselineScope,multiplePatternSearch:'exploratory; individual isSignificant values are unadjusted, not family-wise significance',exposureRates:'unavailable without suitable traffic-performance denominators',statisticalMethodChanged:false}},
+      methodLimits:{referencePopulation:s.meta.baselineScope,multiplePatternSearch:'exploratory; individual isSignificant values are unadjusted, not family-wise significance',exposureRates:'unavailable without suitable traffic-performance denominators',comparisonMethod:s.deviations.reference?.method || 'legacy-local-wilson'}},
     politicalResearch:{status:s.politicalContextResearch.status,executed:false,attempts:[],searchTerms:raw.searchTerms,
       officialPortalUrl:s.politicalContextResearch.officialPortalUrl,plannedQueries:raw.plannedQueries,
       verifiedDirectProceedings:[],positiveCaseEvidence:'blocked: real motions, resolutions, administrative answers, trials and plans have not been verified'},

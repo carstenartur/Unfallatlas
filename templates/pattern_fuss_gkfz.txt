@@ -1,5 +1,5 @@
 Vergleich der Beteiligung – Fuß- und Güterkraftverkehr
 
-Im ausgewerteten Ausschnitt sind {{FUSS_GKFZ_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{FUSS_GKFZ_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
+Im ausgewerteten Ausschnitt sind {{FUSS_GKFZ_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{FUSS_GKFZ_FACTOR}}-Fache des Referenzanteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
 Die Unfallskizzen auf Querungen sowie Abbiege- und Rangiervorgänge prüfen. Vor Ort klären, ob Menschen zu Fuß und die Fahrenden einander rechtzeitig sehen und wo Warteflächen im Verhältnis zu den Fahrwegen liegen.

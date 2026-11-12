@@ -167,7 +167,9 @@
       visibleViewportPts: visible,
       selectionPts: selected,
       baselineCounts: computeMaskCounts(active),
-      __analysisScopeOriginalCtx: ctx,
+      // A report can pass through multiple scope wrappers. Retain the context
+      // that still carries the complete city record stream.
+      __analysisScopeOriginalCtx: ctx.__analysisScopeOriginalCtx || ctx,
     });
   }
 
@@ -219,7 +221,8 @@
         activeInArea, areaBeforeInvolvementFilter: contextInArea,
         includesInvolvementFilter: true,
       };
-      if (meta.baselineScope && typeof meta.baselineScope === 'object') {
+      const reference = UA.patternReferenceMethodology?.(report.structured.deviations);
+      if (!reference && meta.baselineScope && typeof meta.baselineScope === 'object') {
         meta.baselineScope.basis = 'Stadtweite Population mit identischen aktiven Filtern einschließlich Beteiligungsfilter';
         meta.baselineScope.filters = meta.filters || meta.baselineScope.filters || {};
       }
@@ -231,8 +234,12 @@
           `Aktive Auswertung: ${accidentPhrase(activeInArea)} im ${label}; berücksichtigt werden alle aktiven Filter einschließlich des Beteiligungsmodus.`,
           `Gebietsbestand vor Beteiligungsfilter: ${accidentPhrase(contextInArea)} im selben Gebiet unter den übrigen Filtern. Dieser Wert dient nur als Kontext und ist nicht die Fallzahl des gefilterten Antrags.`,
           'Sichtbar- und Markierungszahlen werden aus derselben ungekappte Filterpopulation und den exakten geometrischen Grenzen berechnet; Renderlimit und technischer Ladepuffer verändern diese Fallzahlen nicht.',
-          'Der stadtweite Vergleich verwendet dieselben aktiven Filter einschließlich Beteiligungsfilter.',
+          reference
+            ? 'Der Vergleich verwendet die Unfälle im übrigen Stadtgebiet unter denselben aktiven Filtern einschließlich Beteiligungsfilter.'
+            : 'Der stadtweite Vergleich verwendet dieselben aktiven Filter einschließlich Beteiligungsfilter.',
           ...(limitations?.note ? [limitations.note] : []),
+          ...(reference ? ['Expositionsbezogene Unfallraten bleiben ohne geeignete Verkehrsleistungsdaten unbestimmt.'] : []),
+          ...(reference?.referenceStatusNote ? [reference.referenceStatusNote] : []),
         ],
       };
     }

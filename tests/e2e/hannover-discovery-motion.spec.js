@@ -197,7 +197,8 @@ test('a Hannover network search carries its actual bicycle/car turning crashes a
       expect(normalized).toContain('Für welche Fahrwege zeigen die Unfallskizzen wiederkehrende Konflikte?');
       // External map services are intentionally unavailable in this CI case.
       expect(text).toContain('kein amtliches Luftbild verfügbar');
-      expect(text).toMatch(/umfasst\s+20\.379\s+Unfälle/);
+      // The reference excludes the 48 accidents in the selected rectangle.
+      expect(normalized).toContain('Das übrige Stadtgebiet umfasst unter denselben aktiven Filtern 20.331 Unfälle');
       expect(text).toContain('17 Unfälle an 12 veröffentlichten Unfallorten');
       const sheets = result.drawings.filter(image => /^Veröffentlichte Unfallorte auf K\d+$/.test(image.title));
       const refs = ['K1', 'K2', 'K3', 'K4'];

@@ -30,14 +30,14 @@
     "deviations": {
       "baseline": {
         "byMask": {
-          "5": 1912,
+          "5": 1875,
           "7": 13,
           "13": 1,
           "21": 2,
           "37": 34,
           "39": 1
         },
-        "total": 1963
+        "total": 1926
       },
       "focus": [],
       "local": {
@@ -46,13 +46,20 @@
         },
         "total": 37
       },
+      "reference": {
+        "method": "newcombe-wilson-95",
+        "status": "available"
+      },
       "rows": [
         {
-          "baseCnt": 1912,
-          "baseR": 0.9740193581253184,
+          "baseCnt": 1875,
+          "baseR": 0.9735202492211839,
           "ciHigh": 1,
           "ciLow": 0.9059390425448564,
-          "factor": 1.026673640167364,
+          "difference": 0.026479750778816147,
+          "differenceCiHigh": 0.0346475944126019,
+          "differenceCiLow": -0.0677907920285495,
+          "factor": 1.0272,
           "isSignificant": false,
           "label": "Beteiligungskategorien: Rad + Pkw",
           "locCnt": 37,
@@ -309,12 +316,15 @@
       "patternCompositionComparison": {
         "allRows": [
           {
-            "baseCnt": 1912,
-            "baseR": 0.9740193581253184,
-            "baselineTotal": 1963,
+            "baseCnt": 1875,
+            "baseR": 0.9735202492211839,
+            "baselineTotal": 1926,
             "ciHigh": 1,
             "ciLow": 0.9059390425448564,
-            "factor": 1.026673640167364,
+            "difference": 0.026479750778816147,
+            "differenceCiHigh": 0.0346475944126019,
+            "differenceCiLow": -0.0677907920285495,
+            "factor": 1.0272,
             "interpretation": "exploratory-pattern-difference",
             "isSignificant": false,
             "label": "[Rad]+[PKW]",
@@ -324,11 +334,15 @@
             "mask": 5
           }
         ],
-        "baselineSampleSize": 1963,
+        "baselineSampleSize": 1926,
         "focus": [],
         "localSampleSize": 37,
-        "method": "locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR",
-        "scopeNote": "Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben."
+        "method": "locR = locCnt / local.total; baseR = baseCnt / baseline.total; factor = locR / baseR (nur bei positivem Referenzanteil); difference = locR − baseR; Newcombe-95-%-Konfidenzintervall der Anteilsdifferenz aus den Wilson-Intervallen beider Anteile (differenceCiLow/differenceCiHigh); ciLow/ciHigh beschreiben den lokalen Anteil; isSignificant = true, wenn differenceCiLow > 0 (unbereinigter explorativer Einzelhinweis)",
+        "reference": {
+          "method": "newcombe-wilson-95",
+          "status": "available"
+        },
+        "scopeNote": "Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. Die parallele Mustersuche bleibt explorativ. Die Newcombe-95-%-Intervalle berücksichtigen die Unsicherheit beider Gruppen und sind unbereinigt. Es gibt keine Mehrfachtestkorrektur. Räumliche und zeitliche Abhängigkeiten werden nicht modelliert."
       },
       "politicalResearch": {
         "references": [],
@@ -1567,10 +1581,11 @@
       "total": 37
     },
     "methodLimits": {
+      "comparisonMethod": "newcombe-wilson-95",
       "exposureRates": "unavailable without suitable traffic-performance denominators",
       "multiplePatternSearch": "exploratory; individual isSignificant values are unadjusted, not family-wise significance",
       "referencePopulation": {
-        "basis": "Stadtweite Population mit identischen aktiven Filtern einschließlich Beteiligungsfilter",
+        "basis": "Übriges Stadtgebiet mit identischen aktiven Filtern",
         "city": "Bonn",
         "filters": {
           "dayType": "all",
@@ -1585,14 +1600,15 @@
           "involvementMode": "and",
           "roadCondition": "all",
           "severity": "all"
-        }
-      },
-      "statisticalMethodChanged": false
+        },
+        "population": "rest-of-city",
+        "status": "available"
+      }
     },
     "methodology": {
       "forbiddenMisinterpretation": "Die Stichprobenumfänge dürfen nicht als direkter Vergleich absoluter Unfallraten, Flächen-, Straßenlängen- oder Verkehrsleistungsrisiken ausgegeben werden.",
       "mandatoryInterpretationBeforeQa": [
-        "Mustervergleich = lokale gegen stadtweite Anteile von Beteiligungskombinationen.",
+        "Mustervergleich = Anteile von Beteiligungskombinationen im Ausschnitt und im übrigen Stadtgebiet.",
         "local.total und baseline.total sind Stichprobenumfänge, keine direkt verglichenen Unfallraten.",
         "Exposition ist erst für absolute Risiko-/Unfallratenaussagen erforderlich.",
         "Mehrjahrestrend = relative Entwicklung im selben Bereich über slope/mean und R²."
@@ -1601,21 +1617,26 @@
         "comparisonType": "composition-share-ratio",
         "exposureRequirement": "Keine Exposition für den Anteilvergleich; nur für absolute Unfallraten.",
         "formulas": {
-          "factor": "factor = locR / baseR",
+          "difference": "difference = locR − baseR",
+          "factor": "factor = locR / baseR (nur bei positivem Referenzanteil)",
           "localShare": "locR = locCnt / local.total",
           "referenceShare": "baseR = baseCnt / baseline.total",
-          "significance": "isSignificant = true, wenn ciLow > baseR",
-          "uncertainty": "Wilson-Score-Konfidenzintervall (95 %)"
+          "significance": "isSignificant = true, wenn differenceCiLow > 0 (unbereinigter explorativer Einzelhinweis)",
+          "uncertainty": "Newcombe-95-%-Konfidenzintervall der Anteilsdifferenz aus den Wilson-Intervallen beider Anteile (differenceCiLow/differenceCiHigh); ciLow/ciHigh beschreiben den lokalen Anteil"
         },
         "limitations": {
           "inference": "exploratory",
-          "localIntervalOnly": true,
+          "localIntervalOnly": false,
           "multiplicityAdjustment": "none",
-          "note": "Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben.",
-          "referenceIncludesLocal": true
+          "note": "Die parallele Mustersuche bleibt explorativ. Die Newcombe-95-%-Intervalle berücksichtigen die Unsicherheit beider Gruppen und sind unbereinigt. Es gibt keine Mehrfachtestkorrektur. Räumliche und zeitliche Abhängigkeiten werden nicht modelliert.",
+          "referenceIncludesLocal": false
         },
+        "localPopulation": "Unfälle innerhalb der Auswahlgeometrie unter den aktiven Filtern",
         "localSampleSize": 37,
-        "referenceSampleSize": 1963
+        "referencePopulation": "Unfälle im übrigen Stadtgebiet unter denselben aktiven Filtern",
+        "referenceSampleSize": 1926,
+        "referenceStatus": "available",
+        "referenceStatusNote": ""
       },
       "schemaVersion": "unfallwerkbank.analysisMethodology.v1",
       "yearlyTrend": {
@@ -2061,16 +2082,16 @@
     ],
     "runtimeFiles": {
       "js/ua.ai_political_evidence.js": "96a34bb01ef8374268b1fda2b9ea9dfc60783b818258f47c35b40465f04edfb6",
-      "js/ua.ai_political_reference_bridge.js": "5a4f3de427865a54e7b94e76b89ef1bfe9279c6a3e54aa87079192bb934dbf77",
-      "js/ua.analysis_scope.js": "43d456e3711a77f9188770865697ed74bf50f93b082553b92a9288f3aa31cf1d",
+      "js/ua.ai_political_reference_bridge.js": "f925df71b4d9510766a33f26b136cf5d72ac6e384a5cf198bc728afe6f1f1d62",
+      "js/ua.analysis_scope.js": "9dc3ea351a33fbd03be25b3cc354ae315c02ba7679f271d6047ade77ca310c79",
       "js/ua.area_name_control.js": "879b4582ef15e8ee335c78b6431f21109bf0150e3c9226ac0bbaa2d2966bbdb1",
       "js/ua.evidence_safe_semantics.js": "3220b5e872621a2ea4daeaedaf97bee48f870b041914498ccdba3b4fa1e43411",
       "js/ua.evidence_safe_semantics_hardening.js": "f0dc5155752e32444b38a138f8e5a6270ef881b93ca834ef82da715e48ddc98e",
-      "js/ua.export_template_defaults.js": "7ea7362abaaf8ca0d4ad373cb9c3b170fadab563e78d7d451bfb066d7fb147f9",
-      "js/ua.export_v2.js": "41757006aae95a9c16a0c696e18c014c92f1b196d28ebe7e767de3c7527248d5",
+      "js/ua.export_template_defaults.js": "c1685d1465965067aece1626f48d52a359f2850b650e2ea1af822444cb65f9be",
+      "js/ua.export_v2.js": "fff73668bfe3a06506bff77fdb9eb14fe3afca28be2aca6357f9deb97e435167",
       "js/ua.filters.js": "6201ff418e290414164459ce7541148bf44a6248830794b73d7e7c680418dfe1",
       "js/ua.heatmap.js": "d65c22f2a07d871fb38b1c18b88877e14f2d461357458d1e4e5330cb161a86c5",
-      "js/ua.stats.js": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",
+      "js/ua.stats.js": "9f9582556e60e7ff61b77b9880d1343786d1f3f12371f2bf7d96e12e32c76133",
       "js/ua.trend.js": "2bbb47165228ad8f564bb6ca18e34ce430b13ae236562108043b5a6815ff0012"
     },
     "sourceDataFingerprint": "0a0e43f535d3625493fee9f8b27b14a8752f0069c31d80bfb691115ecbee2b42",

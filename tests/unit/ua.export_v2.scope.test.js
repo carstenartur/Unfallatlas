@@ -148,6 +148,66 @@ describe('UA.computeExportReport – scope fields (PR 2)', () => {
     expect(report.html).toContain(UA.patternComparisonLimitations.note);
   });
 
+  test('uses the same AND filter for the selected area and disjoint city reference', async () => {
+    load('ua.stats.js');
+    load('ua.analysis_scope.js');
+    UA.reverseGeocode = async () => null;
+    const ui = makeUI();
+    for (const name of ['incPedEl', 'incMotoEl', 'incGkfzEl', 'incSonEl']) ui[name].checked = false;
+    const point = (lat, bike, car) => ({ lat, lon: 9.8, props: {
+      istrad: bike, istpkw: car, year: '2023', ukategorie: '3', ustunde: '10', uwochentag: '2', strzustand: '0'
+    } });
+    const ctx = makeCtx({
+      allPts: [point(52.1, '1', '1'), point(52.1, '1', '0'), point(52.6, '1', '1'), point(52.6, '0', '1')],
+      accidentDataCoverage: { mode: 'full-city', complete: true, city: 'Hannover', loadedFeatureCount: 4 }, involvementMode: 'and', ui
+    });
+    const report = await UA.computeExportReport(ctx);
+    expect(report.structured.scopeCounts).toMatchObject({ activeInArea: 1, areaBeforeInvolvementFilter: 2 });
+    expect(report.structured.deviations.baseline).toEqual({ total: 1, byMask: { 5: 1 } });
+    expect(report.structured.meta.baselineScope).toMatchObject({ population: 'rest-of-city', status: 'available', filters: { involvementMode: 'and' } });
+    expect(report.structured.methodikScope.limitations.referenceIncludesLocal).toBe(false);
+    expect(report.html).toContain('95%-KI der Anteilsdifferenz in Prozentpunkten');
+    expect(report.text).toContain('95%-KI der Anteilsdifferenz');
+    expect(report.html).not.toContain('stadtweite Baseline enthält den ausgewählten Bereich');
+    const scopedAgain = await UA.computeExportReport(UA.AnalysisScope.createScopedContext(ctx));
+    expect(scopedAgain.structured.deviations.reference.status).toBe('available');
+    expect(scopedAgain.structured.deviations.baseline).toEqual(report.structured.deviations.baseline);
+  });
+
+  test('describes an unavailable reference separately from a comparison without a finding', async () => {
+    load('ua.stats.js');
+    UA.reverseGeocode = async () => null;
+    const report = await UA.computeExportReport(makeCtx({
+      allPts: [{ lat: 52.1, lon: 9.8, props: { istrad: '1', year: '2023', ukategorie: '3',
+        ustunde: '10', uwochentag: '2', strzustand: '0' } }],
+      accidentDataCoverage: { mode: 'full-city', complete: true, city: 'Hannover', loadedFeatureCount: 2 }
+    }));
+    expect(report.structured.deviations.reference.status).toBe('unavailable');
+    expect(report.text).toContain('Ein Mustervergleich mit dem übrigen Stadtgebiet ist nicht verfügbar.');
+    expect(report.text).not.toContain('keine klar überrepräsentierten');
+  });
+
+  test('reports positive zero-reference patterns alongside ratio-ranked focus rows', async () => {
+    load('ua.stats.js');
+    UA.reverseGeocode = async () => null;
+    const makePoints = (count, lat, flag) => Array.from({ length: count }, () => ({
+      lat, lon: 9.8, props: { [flag]: '1', year: '2023', ukategorie: '3',
+        ustunde: '10', uwochentag: '2', strzustand: '0' }
+    }));
+    const allPts = [
+      ...makePoints(5, 52.1, 'istrad'), ...makePoints(5, 52.1, 'istpkw'), ...makePoints(1, 52.1, 'istfuss'),
+      ...makePoints(5, 52.6, 'istpkw'), ...makePoints(95, 52.6, 'istfuss')
+    ];
+    const report = await UA.computeExportReport(makeCtx({
+      allPts, accidentDataCoverage: { mode: 'full-city', complete: true, city: 'Hannover', loadedFeatureCount: allPts.length }
+    }));
+    const deviations = report.structured.deviations;
+    expect(deviations.focus.map(row => row.mask)).toEqual([4]);
+    expect(deviations.rows.find(row => row.mask === 1)).toMatchObject({ baseR: 0, factor: null, isSignificant: true });
+    expect(report.text).toMatch(/übriges Stadtgebiet 0,0 % \(Faktor nicht definiert/);
+    expect(report.html).toContain('nicht definiert');
+  });
+
   test('an unconfirmed reverse-geocoded midpoint does not name the investigation area', async () => {
     UA.reverseGeocode = async () => ({ label: 'Linden-Limmer' });
     const r = await UA.computeExportReport(makeCtx());

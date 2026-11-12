@@ -164,6 +164,16 @@ describe('semantic filing preflight', () => {
     expect(gate.semanticAnalysisClassification.officialAccidentHotspot).toBe('not-established');
   });
 
+  test('keeps a positive unadjusted disjoint-reference interval exploratory', () => {
+    const UA = loadGate();
+    const candidate = facts({ focus: [{ mask: 5, label: 'Rad + Pkw', factor: 2.1, isSignificant: true }],
+      bullets: ['Schwerpunktmuster Rad + Pkw: lokal 2,1× so häufig.'] });
+    candidate.structured.deviations.reference = { method: 'newcombe-wilson-95', status: 'available' };
+    const gate = UA.filingReadiness.evaluate({ facts: candidate, result: { candidateMeasures: [] } });
+    expect(gate.semanticAnalysisClassification.patternComposition).toBe('exploratory');
+    expect(codes(gate.errors)).toContain('semantic-pattern-composition-overclaim');
+  });
+
   test('separated pattern-composition language passes for a significant focus row', () => {
     const UA = loadGate();
     const gate = UA.filingReadiness.evaluate({

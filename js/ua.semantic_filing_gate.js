@@ -337,8 +337,9 @@
     const facts = object(options.facts);
     const result = object(options.result);
     const rows = focusRows(facts);
+    const disjointReference = structuredFacts(facts).deviations?.reference?.method === 'newcombe-wilson-95';
     const significantRows = rows.filter(rowIsSignificant);
-    const exploratoryRows = rows.filter(row => !rowIsSignificant(row));
+    const exploratoryRows = disjointReference ? rows : rows.filter(row => !rowIsSignificant(row));
     const nearOneRows = rows.filter(row => {
       const factor = rowFactor(row);
       return factor !== null && factor >= 0.9 && factor <= 1.1;
@@ -388,7 +389,7 @@
     };
 
     const classification = {
-      patternComposition: significantRows.length
+      patternComposition: significantRows.length && !disjointReference
         ? 'supported-anomaly'
         : (rows.length ? 'exploratory' : 'not-established'),
       spatialCluster: spatialEvidence ? 'supported' : 'not-established',
@@ -410,7 +411,9 @@
     } else if (significantRows.length) {
       pass(
         'semantic-pattern-composition-supported',
-        significantRows.length + ' signifikante Abweichung(en) der Musterzusammensetzung sind belegt.'
+        disjointReference
+          ? 'Die Einzelintervalle liefern explorative Hinweise auf Überrepräsentation.'
+          : significantRows.length + ' signifikante Abweichung(en) der Musterzusammensetzung sind belegt.'
       );
     } else {
       pass('semantic-no-pattern-focus', 'Es wird keine lokale Musterabweichung als Fokus geführt.');
@@ -448,10 +451,12 @@
         'Der Bericht behauptet ein Korridorproblem, ohne einen eigenständigen streckenbezogenen Nachweis zu belegen.'
       );
     }
-    if (patternClaim && !significantRows.length) {
+    if (patternClaim && (!significantRows.length || disjointReference)) {
       fail(
         'semantic-pattern-composition-overclaim',
-        'Der Bericht bezeichnet ein Beteiligungsmuster als statistisch oder als Schwerpunktmuster, obwohl keine signifikante Fokuszeile vorliegt.'
+        disjointReference
+          ? 'Der Bericht stuft einen explorativen Einzelhinweis als statistisch abgesichertes Muster ein.'
+          : 'Der Bericht bezeichnet ein Beteiligungsmuster als statistisch oder als Schwerpunktmuster, obwohl keine signifikante Fokuszeile vorliegt.'
       );
     }
     if (nearOneRows.length && (patternClaim || spatialClaim || corridorClaim || officialClaim)) {
