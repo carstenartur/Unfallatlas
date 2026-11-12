@@ -13,7 +13,7 @@
 # Start:  docker run -p 8000:8000 unfallatlas
 # Image:  ghcr.io/carstenartur/unfallatlas
 
-FROM node:26.13.0-bookworm-slim AS node-toolchain
+FROM node:26.13.1-bookworm-slim AS node-toolchain
 WORKDIR /toolchain
 COPY package.json ./
 RUN npm install --global --no-audit --no-fund "$(node -p 'require("./package.json").packageManager')"
