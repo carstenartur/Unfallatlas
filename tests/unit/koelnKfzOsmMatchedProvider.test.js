@@ -33,9 +33,12 @@ function descriptor() {
     retrievedAt: '2026-07-30T12:00:00.000Z',
     contentHash: '1'.repeat(64),
     changedOrDerived: true,
-    changeNotice: 'Amtliche CSV-Werte wurden richtungsbezogen normalisiert.',
+    changeNotice: 'Richtungsbezogene Streckenwerte werden zeilengetreu in typisierte DTVw-Beobachtungen überführt; die Kölner Segmentkennung bleibt bis zum gesonderten OSM-Matching ausdrücklich synthetisch.',
     permissions: { permitsRedistribution: true, permitsDerivatives: true, commercialUseAllowed: true },
-    qualityNotes: ['Kommunale Werktagszählung; Datenstand 2016–2019.'],
+    qualityNotes: [
+      'Kommunale Werktagszählung; Datenstand 2016–2019.',
+      'Noch kein OSM-Segmentmatching in diesem Parser-Slice.',
+    ],
   };
 }
 
@@ -59,7 +62,11 @@ function observation(id, segment, north, value) {
       fromNode: 'A',
       toNode: 'B',
     },
-    qualityNotes: ['Amtliche Kölner Liniengeometrie verbunden.'],
+    qualityNotes: [
+      'Kölner Segmentkennung ist noch nicht auf eine OpenStreetMap-Way-ID gematcht.',
+      'Amtliche Kölner Liniengeometrie verbunden.',
+      'Noch keine OpenStreetMap-Zuordnung; wayId bleibt die synthetische Kölner Segmentkennung.',
+    ],
   };
 }
 
@@ -211,6 +218,26 @@ describe('Cologne OSM-matched traffic provider', () => {
       licenseId: 'DL-DE-Zero-2.0',
       contentHash: written.sha256,
     }));
+  });
+
+  test('describes the completed OSM match and retains the raw artifact notes', async () => {
+    const written = writeArtifact(makeRoot());
+    const provider = providerModule.createKoelnKfzOsmMatchedProvider({
+      artifactFile: written.file,
+      expectedArtifactSha256: written.sha256,
+    });
+    const [value] = await provider.loadObservations({ city: 'Köln' });
+    const [sourceNote, parserNote] = descriptor().qualityNotes;
+    const [rawIdNote, geometryNote, joinNote] = observation('matched-2019', 'S1', 0, 18504).qualityNotes;
+
+    expect(value.source.changeNotice).toContain('auf OSM-Ways abgebildet');
+    expect(value.source.changeNotice).not.toContain('bis zum gesonderten OSM-Matching');
+    expect(value.source.qualityNotes).toContain(sourceNote);
+    expect(value.source.qualityNotes).not.toContain(parserNote);
+    expect(value.qualityNotes).toContain(geometryNote);
+    expect(value.qualityNotes).not.toContain(rawIdNote);
+    expect(value.qualityNotes).not.toContain(joinNote);
+    expect(provider.matchedArtifact.sources.traffic.source.traffic.qualityNotes).toContain(parserNote);
   });
 
   test('uses the existing age, road-match and fallback hierarchy', async () => {
