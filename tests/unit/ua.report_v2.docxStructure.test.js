@@ -142,6 +142,31 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
   /** Read entry as utf-8 text. */
   const readText = (zip, name) => zip.file(name).async('string');
 
+  test.each([false, true])('actual DOCX labels the disjoint reference and the difference interval with a ranked focus %s', async withFocus => {
+    const data = makeFixtureReportData();
+    data.structured.deviations = {
+      reference: { method: 'newcombe-wilson-95', status: 'available' }, local: { total: 12 }, focus: [],
+      rows: [{ locCnt: 6, locR: 0.5, baseR: 0.4, factor: 1.25, textLabel: 'Rad + Pkw',
+        ciLow: 0.25, ciHigh: 0.75, differenceCiLow: -0.16, differenceCiHigh: 0.31, isSignificant: false }]
+    };
+    if (withFocus) {
+      const { deviations } = data.structured;
+      deviations.focus = [deviations.rows[0]];
+      deviations.rows.push({ locCnt: 5, locR: 0.42, baseR: 0, factor: null, textLabel: 'Rad allein',
+        differenceCiLow: 0.14, differenceCiHigh: 0.7, isSignificant: true });
+    }
+    const zip = await exportAndUnzip(makeFixtureCtx(), data, { includeMap: false });
+    const xml = await readText(zip, 'word/document.xml');
+    expect(xml).toContain('Übriges Stadtgebiet %');
+    expect(xml).toContain('95%-KI Differenz (Prozentpunkte)');
+    expect(xml).toContain('[-16,0 bis 31,0]');
+    expect(xml).not.toContain('[25,0 % – 75,0 %]');
+    if (withFocus) {
+      expect(xml).toContain('Rad allein');
+      expect(xml).toContain('nicht definiert');
+    }
+  });
+
   test('actual DOCX XML retains the exploratory method qualification', async () => {
     const limitations = require('../../server/ai/features/deriveFeatures').PATTERN_COMPARISON_LIMITATIONS;
     const data = makeFixtureReportData();

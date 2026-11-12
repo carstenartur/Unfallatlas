@@ -31,7 +31,8 @@ canonical offline defaults and configured Bonn recipient through the actual
 report path.
 
 `tests/fixtures/bonn-hbf-ai-golden.v1.json` pins actual production statistics,
-all seven yearly values, deviations including Wilson bounds and isSignificant,
+all seven yearly values, deviations including local Wilson bounds, Newcombe
+difference bounds and isSignificant,
 filters/bounds, exact discovery rows, full area count, heatmap/POIs, source and
 runtime hashes, four production view URLs, declarative map scene/input hashes
 and the planned political trace. It excludes generation clocks by construction.
@@ -45,19 +46,44 @@ automatic approval of drift.
 
 The published current source reproduces 37 Rad+Pkw AND cases in 2019–2025:
 0 fatal, 1 serious and 36 slight; annual totals 6, 8, 5, 2, 2, 9, 5. The complete
-area before the involvement filter contains 312 cases. Current production uses
-the same active filters for its 1,963-case city reference, including the local
-subset: mask5 is 37/37 locally versus 1,912/1,963 citywide, factor
-1.026673640167364, Wilson interval [0.9059390425448564, 1], isSignificant=false,
-focus=[]. The seven-year OLS slope is −0.14285714285714288, R² is
-0.013157894736846809 and classification is stagnierend. These are composition
-comparisons, not exposure-based risks, and do not support a hotspot claim.
+area before the involvement filter contains 312 cases. An independent check of
+the city data splits the 1,963 cases after active filters into 37 local and
+1,926 reference cases. Mask 5 is 37/37 locally and 1,875/1,926 in the rest of
+Bonn. The ratio is 1.0272 and the difference is 2.65 percentage points. The
+Newcombe 95% interval is [−6.78, 3.46] percentage points, with
+`isSignificant=false` and `focus=[]`. The seven-year OLS slope is
+−0.14285714285714288, R² is 0.013157894736846809 and the classification is
+stagnierend.
 
-No statistical formula changed. Decisions about city-minus-local references,
-two-sample/subset uncertainty and multiplicity correction remain open. The
-canonical method text now explicitly calls parallel pattern search exploratory
-and the individual significance flags unadjusted. Suitable exposure data remain
-necessary for absolute rates per traffic performance.
+### Reference and uncertainty decision
+
+Partition the fully loaded city records by the exact report geometry after
+applying identical active filters to both groups. A record on the inclusive
+boundary is local. Membership comes from each record's coordinates. Aggregate
+counts, the viewport render cap and the load buffer play no role. The
+comparison requires a complete city source for the selected city, agreement
+between its reported feature count and the original point count, partitionable
+coordinates, and at least one record in each group. Reports without the
+`deviations.reference` method marker retain their
+original city-wide interpretation and local Wilson interval.
+
+Use Newcombe's method 10, combining uncorrected Wilson bounds from both groups
+for `difference = locR − baseR`. For local bounds `[lL, uL]` and reference bounds
+`[lR, uR]`, subtract `hypot(locR − lL, uR − baseR)` from the difference for the
+lower bound and add `hypot(uL − locR, baseR − lR)` for the upper bound. The
+existing `ciLow` and `ciHigh` describe the local proportion. A zero observed
+reference share leaves the ratio undefined. The difference and its interval
+remain available when both groups contain records. An interval above zero
+keeps that row visible even when other patterns qualify for the ratio ranking.
+[Newcombe (1998), method 10](https://pubmed.ncbi.nlm.nih.gov/9595617/)
+
+`isSignificant=true` means that the lower bound for this individual difference
+exceeds zero. The approximate intervals assume an independent binomial model.
+Disjoint groups prevent overlap of records. Correlation among crashes in space
+or time can still affect coverage. The parallel search is exploratory and
+the intervals are unadjusted for multiplicity. A spatial cluster or an
+official hotspot designation requires separate evidence. Absolute accident
+rates require suitable exposure data.
 
 ## Review artifacts and real blockers
 

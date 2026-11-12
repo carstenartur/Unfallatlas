@@ -64,7 +64,7 @@ function aiInput() {
 
 describe('server-side AI prompt preserves official Unfallatlas evidence', () => {
   test('keeps the existing cache-version contract while adding official sources', () => {
-    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.6');
+    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.7');
     expect(OFFICIAL_UNFALLATLAS_URL).toBe('https://www.statistikportal.de/de/karten/unfallatlas');
     expect(OFFICIAL_DESTATIS_URL).toMatch(/destatis\.de/);
   });

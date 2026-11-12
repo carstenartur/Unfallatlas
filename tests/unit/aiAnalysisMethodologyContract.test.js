@@ -10,6 +10,9 @@ const {
   buildAnalysisMethodology
 } = require('../../server/ai/features/deriveFeatures.js');
 const { buildPrompt } = require('../../server/ai/prompts/exportAssessmentPrompt.v2.js');
+const { buildDeterministicDigest } = require('../../server/ai/proposalBriefValueAddCore.js');
+const { buildAiInput } = require('../../server/ai/aiAssessmentService.js');
+const { buildUserPrompt } = require('../../server/ai/prompts/exportAssessmentPrompt.js');
 
 const STRUCTURED_PRODUCTION_SHAPE = {
   meta: {
@@ -209,6 +212,7 @@ describe('frontend AI handoff methodology bridge', () => {
     };
     root.window = root;
     const context = vm.createContext(root);
+    vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../../js/ua.stats.js'), 'utf8'), context);
     vm.runInContext(source, context, { filename: 'ua.ai_political_reference_bridge.js' });
     return { root, structured };
   }
@@ -233,5 +237,40 @@ describe('frontend AI handoff methodology bridge', () => {
     expect(facts.analysisMethodology.patternComparison.formulas.factor).toBe('factor = locR / baseR');
     expect(facts.methodologyQaGate.required).toMatch(/vor jeder statistischen Kritik/i);
     expect(facts.methodologyQaGate.rejectIf).toMatch(/direkten Vergleich absoluter Unfallraten/i);
+  });
+
+  test('carries disjoint-reference uncertainty into each AI path, including a non-focus row', () => {
+    const { root, structured } = loadBridge();
+    const interval = { differenceCiLow: -0.0677907920285495, differenceCiHigh: 0.0346475944126019 };
+    structured.deviations = {
+      reference: { method: 'newcombe-wilson-95', status: 'available' },
+      local: { total: 37 }, baseline: { total: 1926 }, focus: [], rows: [{
+        mask: 5, label: 'Rad + Pkw', locCnt: 37, baseCnt: 1875, locR: 1, baseR: 1875 / 1926,
+        factor: 1926 / 1875, ciLow: 0.9059390425448564, ciHigh: 1, difference: 0.026479750778816147,
+        ...interval, isSignificant: false
+      }]
+    };
+    const features = deriveFeatures(structured);
+    const facts = root.UA.aiProposal._internal.buildExternalAiFactsPackage({ structured });
+    const contract = features.analysisMethodology.patternComparison;
+    expect(contract.limitations).toMatchObject({ referenceIncludesLocal: false, localIntervalOnly: false, inference: 'exploratory' });
+    expect(facts.analysisMethodology.patternComparison).toMatchObject({
+      limitations: contract.limitations, referencePopulation: contract.referencePopulation, formulas: contract.formulas
+    });
+    const digest = buildDeterministicDigest(structured).patternCompositionComparison;
+    expect(digest.allRows[0]).toMatchObject(interval);
+    expect(facts.deterministicAnalysisDigest.patternCompositionComparison.allRows[0]).toMatchObject(digest.allRows[0]);
+    const legacyEndpointPrompt = buildUserPrompt(buildAiInput(structured));
+    expect(legacyEndpointPrompt).toContain('übrigen Stadtgebiet');
+    expect(legacyEndpointPrompt).toContain('37/37');
+    expect(legacyEndpointPrompt).toContain('1875/1926');
+    expect(legacyEndpointPrompt).toContain('Newcombe');
+    for (const mode of ['assessment', 'proposal-brief']) {
+      const prompt = buildPrompt({ features, meta: structured.meta }, mode);
+      expect(prompt.user).toContain('übrigen Stadtgebiet');
+      expect(prompt.user).toContain('Newcombe');
+      expect(prompt.user).toMatch(/Rad \+ Pkw: lokal .*1926.*Anteilsdifferenz/is);
+      expect(prompt.user + prompt.system).not.toContain('Stadtbaseline enthält den lokalen Bereich');
+    }
   });
 });

@@ -1,5 +1,5 @@
 Vergleich der Beteiligung – Rad- und Güterkraftverkehr
 
-Im ausgewerteten Ausschnitt sind {{RAD_GKFZ_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{RAD_GKFZ_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
+Im ausgewerteten Ausschnitt sind {{RAD_GKFZ_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{RAD_GKFZ_FACTOR}}-Fache des Referenzanteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
 Die Fahrwege von Fahrrädern und Güterkraftfahrzeugen anhand der Unfallskizzen nachvollziehen. Vor Ort prüfen, ob sich beim Abbiegen die Fahrwege überschneiden, ob Personen auf dem Rad sichtbar sind und ob Warteflächen in den Fahrweg eines abbiegenden Fahrzeugs ragen.

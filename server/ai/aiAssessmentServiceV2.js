@@ -492,11 +492,14 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
       source: 'severity.bySev',
     });
   }
-  if (Array.isArray(features.dominantPatterns) && features.dominantPatterns.length) {
-    const top = features.dominantPatterns[0];
+  const top = Array.isArray(features.dominantPatterns) ? features.dominantPatterns[0] : null;
+  const patternSource = top?.source === 'crossTable-fallback' ? 'crossTable.rows' : top?.source;
+  if (top && patternSource) {
+    const description = top.comparisonAvailable
+      ? 'Ranghöchstes Beteiligungsmuster im lokalen Vergleich' : 'Lokal dokumentiertes Beteiligungsmuster';
     evidenceLines.push({
-      statement: `Ranghöchstes Beteiligungsmuster im lokalen Vergleich: ${top.label} (${top.localCount} lokal).`,
-      source: 'deviations.focus',
+      statement: `${description}: ${top.label} (${top.localCount} lokal).`,
+      source: patternSource,
     });
   }
   if (features.trend?.direction && features.trend.direction !== 'unknown') {
@@ -529,7 +532,7 @@ function buildDeterministicFallback({ aiInput, mode, reason }) {
   };
   const provenance = {
     derivedFromDeterministicFeatures: [
-      'counts', 'severity.bySev', 'crossTable', 'deviations.focus',
+      'counts', 'severity.bySev', 'crossTable', ...(patternSource ? [patternSource] : []),
       'yearTable', 'spatialDensity', 'poiSummary', 'features.tags',
       'features.conflictPatterns',
     ],

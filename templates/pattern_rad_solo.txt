@@ -1,6 +1,6 @@
 Vergleich der Beteiligung – Nur Radverkehr als Beteiligung erfasst
 
-Der Vergleich umfasst lokal {{RAD_SOLO_LOCAL}} Fälle gegenüber stadtweit {{RAD_SOLO_CITY}} Fällen. Der Anteil dieser Fälle am Unfallbestand im Ausschnitt beträgt das {{RAD_SOLO_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen. Ob tatsächlich ein Alleinunfall vorlag, geht aus dem Merkmal allein nicht hervor.
+Der Vergleich umfasst lokal {{RAD_SOLO_LOCAL}} Fälle gegenüber {{RAD_SOLO_CITY}} Fällen in der Referenzgruppe. Der Anteil dieser Fälle am Unfallbestand im Ausschnitt beträgt das {{RAD_SOLO_FACTOR}}-Fache des Referenzanteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen. Ob tatsächlich ein Alleinunfall vorlag, geht aus dem Merkmal allein nicht hervor.
 
 Die Unfallskizzen daraufhin prüfen, ob ein Sturz, ein Ausweichmanöver oder eine andere Situation dokumentiert ist. An den betreffenden Stellen vor Ort Fahrbahnoberfläche, Kanten und gegebenenfalls Schienenquerungen untersuchen.
 

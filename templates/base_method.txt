@@ -1,12 +1,12 @@
 Methodik (Kurzbeschreibung):
 - Für den markierten Bereich bzw. den aktuellen Kartenausschnitt werden Häufigkeiten von Unfallmustern ermittelt.
-- Parallel wird für dieselben Grunddaten ein Stadtvergleich gebildet (Baseline), um zu prüfen, ob bestimmte Muster im Ausschnitt überrepräsentiert sind.
+- Unter denselben Filtern wird eine Referenzgruppe gebildet, um zu prüfen, ob bestimmte Muster im Ausschnitt überrepräsentiert sind.
 - Als „auffällig“ werden Muster betrachtet, die
   (a) eine Mindestfallzahl erreichen (zur Stabilität der Aussage) und
-  (b) deren Anteil im Ausschnitt im Vergleich zur Stadt deutlich erhöht ist (Faktor {{THRESH_FACTOR}} oder höher).
+  (b) deren Anteil im Ausschnitt im Vergleich zur Referenzgruppe deutlich erhöht ist (Faktor {{THRESH_FACTOR}} oder höher).
 
 Wichtiger Hinweis:
 Diese Auswertung ist eine heuristische Voranalyse und ersetzt nicht die formale Bewertung durch Unfallkommission oder Fachverwaltung. Sie dient der Priorisierung und der Ableitung prüffähiger Maßnahmen.
 
 Grenzen des Mustervergleichs:
-Verglichen werden Anteile von Beteiligungsmustern, keine absoluten Unfallraten. Die parallele Mustersuche bleibt explorativ: Die einzelnen Wilson-95-%-Intervalle und isSignificant sind unbereinigt, eine Mehrfachtestkorrektur wird nicht behauptet. Die stadtweite Baseline enthält den ausgewählten Bereich; dies ist kein Vergleich zweier unabhängiger Stichproben. Expositionsbezogene Unfallraten bleiben ohne geeignete Verkehrsleistungsdaten unbestimmt.
+Verglichen werden Anteile von Beteiligungsmustern. Die parallele Mustersuche bleibt explorativ. Expositionsbezogene Unfallraten bleiben ohne geeignete Verkehrsleistungsdaten unbestimmt.

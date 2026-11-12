@@ -95,10 +95,22 @@ function buildUserPrompt(input) {
       lines.push(`  ${y.year}: ${y.total} Unfälle`);
     }
   }
+  const reference = statistics.patternComparison;
+  if (reference) {
+    lines.push('Explorativer Vergleich der Beteiligungsanteile im Ausschnitt und im übrigen Stadtgebiet unter denselben aktiven Filtern.');
+    lines.push(reference.limitations.note);
+    lines.push('Absolute Unfallraten je Verkehrsleistung erfordern geeignete Expositionsdaten.');
+    if (reference.referenceStatusNote) lines.push(reference.referenceStatusNote);
+  }
   if (Array.isArray(statistics.deviations) && statistics.deviations.length) {
-    lines.push('Auffällige Abweichungen (Beteiligungsmuster):');
+    lines.push(reference ? 'Beteiligungsanteile und 95-%-Intervalle der Anteilsdifferenz:' : 'Auffällige Abweichungen (Beteiligungsmuster):');
+    const points = value => Number.isFinite(value) ? (value * 100).toFixed(1).replace('.', ',') : '–';
     for (const d of statistics.deviations) {
-      lines.push(`  ${d.label || d.mask}: ${d.localCount || 0} lokal vs. Referenz ${d.baselineCount || 0} (${d.relativeDiff ? (d.relativeDiff > 0 ? '+' : '') + d.relativeDiff.toFixed(0) + '%' : ''})`);
+      if (reference) {
+        lines.push(`  ${d.label}: lokal ${points(d.localShare)} % (${d.localCount}/${reference.localSampleSize}), Referenz ${points(d.referenceShare)} % (${d.baselineCount}/${reference.referenceSampleSize}), 95-%-Intervall ${points(d.differenceCiLow)} bis ${points(d.differenceCiHigh)} Prozentpunkte.`);
+      } else {
+        lines.push(`  ${d.label || d.mask}: ${d.localCount || 0} lokal vs. Referenz ${d.baselineCount || 0} (${d.relativeDiff ? (d.relativeDiff > 0 ? '+' : '') + d.relativeDiff.toFixed(0) + '%' : ''})`);
+      }
     }
   }
   if (Array.isArray(statistics.patterns) && statistics.patterns.length) {

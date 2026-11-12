@@ -1,5 +1,38 @@
 (() => {
-  const UA = (window.UA = window.UA || {});
+  const REFERENCE_METHOD = 'newcombe-wilson-95';
+  const REFERENCE_LIMITATIONS = Object.freeze({
+    inference: 'exploratory', multiplicityAdjustment: 'none',
+    referenceIncludesLocal: false, localIntervalOnly: false,
+    note: 'Die parallele Mustersuche bleibt explorativ. Die Newcombe-95-%-Intervalle berücksichtigen die Unsicherheit beider Gruppen und sind unbereinigt. Es gibt keine Mehrfachtestkorrektur. Räumliche und zeitliche Abhängigkeiten werden nicht modelliert.'
+  });
+
+  function patternReferenceStatus(status) {
+    switch (status) {
+      case 'empty-local': return 'Im Ausschnitt liegen unter den aktiven Filtern keine auswertbaren Fälle vor.';
+      case 'empty-reference': return 'Im übrigen Stadtgebiet liegen unter denselben Filtern keine auswertbaren Fälle vor.';
+      case 'unavailable': return 'Für den Vergleich fehlt ein nachweislich vollständiger Stadtbestand oder die Berechnung ist nicht verfügbar.';
+      default: return '';
+    }
+  }
+
+  function patternReferenceMethodology(deviations) {
+    if (deviations?.reference?.method !== REFERENCE_METHOD) return null;
+    return {
+      referenceStatus: deviations.reference.status,
+      referenceStatusNote: patternReferenceStatus(deviations.reference.status),
+      limitations: REFERENCE_LIMITATIONS,
+      localPopulation: 'Unfälle innerhalb der Auswahlgeometrie unter den aktiven Filtern',
+      referencePopulation: 'Unfälle im übrigen Stadtgebiet unter denselben aktiven Filtern',
+      formulas: {
+        localShare: 'locR = locCnt / local.total',
+        referenceShare: 'baseR = baseCnt / baseline.total',
+        factor: 'factor = locR / baseR (nur bei positivem Referenzanteil)',
+        difference: 'difference = locR − baseR',
+        uncertainty: 'Newcombe-95-%-Konfidenzintervall der Anteilsdifferenz aus den Wilson-Intervallen beider Anteile (differenceCiLow/differenceCiHigh); ciLow/ciHigh beschreiben den lokalen Anteil',
+        significance: 'isSignificant = true, wenn differenceCiLow > 0 (unbereinigter explorativer Einzelhinweis)'
+      }
+    };
+  }
 
   /**
    * Wilson-Score-Konfidenzintervall (zweiseitig) für einen beobachteten Anteil.
@@ -28,5 +61,22 @@
     };
   }
 
-  UA.wilsonScoreInterval = wilsonScoreInterval;
+  // Newcombe (1998), method 10, combining uncorrected Wilson bounds.
+  function newcombeDifferenceInterval(localCount, localTotal, referenceCount, referenceTotal) {
+    if (localTotal <= 0 || referenceTotal <= 0) return null;
+    const local = localCount / localTotal;
+    const reference = referenceCount / referenceTotal;
+    const localWilson = wilsonScoreInterval(localCount, localTotal);
+    const referenceWilson = wilsonScoreInterval(referenceCount, referenceTotal);
+    const difference = local - reference;
+    return {
+      difference,
+      low: Math.max(-1, difference - Math.hypot(local - localWilson.low, referenceWilson.high - reference)),
+      high: Math.min(1, difference + Math.hypot(localWilson.high - local, reference - referenceWilson.low))
+    };
+  }
+
+  const api = { wilsonScoreInterval, newcombeDifferenceInterval, patternReferenceMethod: REFERENCE_METHOD, patternReferenceMethodology };
+  if (typeof module === 'object' && module.exports) Object.assign(module.exports, api);
+  if (typeof window === 'object') Object.assign(window.UA = window.UA || {}, api);
 })();

@@ -217,4 +217,83 @@ describe('topDeviations – CI integration', () => {
     expect(radRow.ciLow).toBeGreaterThan(0);
     expect(radRow.isSignificant).toBe(true);
   });
+
+  function fullCity(localRad, localCar, otherRad, otherCar) {
+    const records = (count, makePoint, latitude) => Array.from({ length: count }, () => makePoint(latitude, 9.7));
+    return {
+      CITY_RAW: 'TestCity',
+      allPts: [
+        ...records(localRad, radPt, 52), ...records(localCar, pkwPt, 52),
+        ...records(otherRad, radPt, 52.11), ...records(otherCar, pkwPt, 52.11),
+      ],
+      selectionBounds: fakeBounds,
+      ui: acceptAllUi,
+      accidentDataCoverage: { mode: 'full-city', complete: true, city: 'TestCity',
+        loadedFeatureCount: localRad + localCar + otherRad + otherCar },
+      baselineCounts: { total: 999, byMask: { [MASK_RAD]: 999 } },
+    };
+  }
+
+  test('partitions identically filtered records including the selection boundary', () => {
+    const ctx = fullCity(8, 2, 2, 8);
+    ctx.ui = { ...acceptAllUi, severityEl: { value: '3' } };
+    const excluded = radPt(52.11, 9.7);
+    excluded.props.ukategorie = '2';
+    ctx.allPts.push(excluded);
+    ctx.accidentDataCoverage.loadedFeatureCount++;
+    const result = UA.topDeviations(ctx, fakeBounds);
+    expect(result.reference).toEqual({ method: 'newcombe-wilson-95', status: 'available' });
+    expect(result.local).toEqual({ total: 10, byMask: { [MASK_RAD]: 8, [MASK_PKW]: 2 } });
+    expect(result.baseline).toEqual({ total: 10, byMask: { [MASK_RAD]: 2, [MASK_PKW]: 8 } });
+    const rad = result.rows.find(row => row.mask === MASK_RAD);
+    expect(rad).toMatchObject({ locCnt: 8, baseCnt: 2, locR: 0.8, baseR: 0.2, factor: 4, isSignificant: true });
+    expect(rad.difference).toBeCloseTo(0.6, 12);
+    expect(rad.differenceCiLow).toBeCloseTo(0.161815610424, 10);
+    expect(rad.differenceCiHigh).toBeCloseTo(0.802683747112, 10);
+    expect(result.rows.find(row => row.mask === MASK_PKW).isSignificant).toBe(false);
+  });
+
+  test('includes reference uncertainty at a zero pattern count', () => {
+    const small = UA.topDeviations(fullCity(1, 0, 0, 1), fakeBounds).rows[0];
+    expect(small).toMatchObject({ baseR: 0, factor: null, difference: 1, isSignificant: false });
+    expect(small.differenceCiLow).toBeLessThan(0);
+    expect(small.differenceCiHigh).toBe(1);
+    const large = UA.topDeviations(fullCity(5, 0, 0, 10), fakeBounds).rows[0];
+    expect(large).toMatchObject({ baseR: 0, factor: null, difference: 1, isSignificant: true });
+    expect(large.differenceCiLow).toBeGreaterThan(0);
+  });
+
+  test('distinguishes an empty reference from a zero observed pattern share', () => {
+    const result = UA.topDeviations(fullCity(5, 0, 0, 0), fakeBounds);
+    expect(result.reference.status).toBe('empty-reference');
+    expect(result.baseline.total).toBe(0);
+    expect(result.rows[0]).toMatchObject({ baseR: null, factor: null, difference: null,
+      differenceCiLow: null, differenceCiHigh: null, isSignificant: false });
+    expect(result.focus).toEqual([]);
+  });
+
+  test('keeps an incomplete city source out of the reference comparison', () => {
+    const ctx = fullCity(3, 0, 0, 4);
+    ctx.accidentDataCoverage.complete = false;
+    const result = UA.topDeviations(ctx, fakeBounds);
+    expect(result.reference.status).toBe('unavailable');
+    expect(result.baseline.total).toBe(0);
+    expect(result.rows[0]).toMatchObject({ baseCnt: null, baseR: null, isSignificant: false });
+  });
+
+  test.each([
+    ['wrong city', ctx => { ctx.accidentDataCoverage.city = 'Elsewhere'; }],
+    ['viewport mode', ctx => { ctx.accidentDataCoverage.mode = 'viewport-partial'; }],
+    ['point count mismatch', ctx => { ctx.accidentDataCoverage.loadedFeatureCount++; }],
+    ['source count mismatch', ctx => { ctx.accidentDataCoverage.sourceTotalCount = 30; }],
+    ['unpartitionable point', ctx => { ctx.allPts[4].lat = NaN; }],
+    ['position outside Earth bounds', ctx => { ctx.allPts[4].lon = 190; }],
+  ])('withholds the reference for %s', (_reason, change) => {
+    const ctx = fullCity(3, 0, 0, 4);
+    change(ctx);
+    const result = UA.topDeviations(ctx, fakeBounds);
+    expect(result.reference.status).toBe('unavailable');
+    expect(result.baseline.total).toBe(0);
+    expect(result.rows[0]).toMatchObject({ baseCnt: null, baseR: null, differenceCiLow: null, isSignificant: false });
+  });
 });

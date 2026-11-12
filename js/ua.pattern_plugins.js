@@ -255,6 +255,7 @@
   }
 
   function involvementFindings(structured) {
+    const disjointReference = structured?.deviations?.reference?.method === 'newcombe-wilson-95';
     const focus = new Map();
     for (const row of array(structured?.deviations?.focus)) {
       const mask = finite(row?.mask);
@@ -278,9 +279,14 @@
       const localCount = finite(comparison?.locCnt ?? comparison?.localCount ?? row?.total) || 0;
       if (!localCount) continue;
       const significant = comparison?.isSignificant === true;
+      const exploratoryInterval = disjointReference && comparison ? {
+        difference: round(comparison.difference), differenceCiLow: round(comparison.differenceCiLow),
+        differenceCiHigh: round(comparison.differenceCiHigh), reference: 'rest-of-city',
+      } : {};
       const info = maskInfo(mask);
       const limitations = ['Beteiligungsmuster beschreibt die Zusammensetzung dokumentierter Unfälle, nicht die absolute Unfallrate je Verkehrsleistung.'];
-      if (comparison && !significant) limitations.push('Die lokale Abweichung ist explorativ und statistisch nicht als Überrepräsentation abgesichert.');
+      if (comparison && disjointReference) limitations.push('Der Vergleich mit dem übrigen Stadtgebiet ist explorativ. Die Intervalle der Anteilsdifferenz sind unbereinigt.');
+      else if (comparison && !significant) limitations.push('Die lokale Abweichung ist explorativ und statistisch nicht als Überrepräsentation abgesichert.');
       if (mask === 1) limitations.push('Die Rad-only-Maske belegt nicht zwingend genau eine einzelne radfahrende Person und keine konkrete Sturzursache.');
       findings.push(createFinding({
         id: `${info.key}-involvement-pattern`, detectorId: DETECTOR_IDS.INVOLVEMENT, family: 'involvement',
@@ -295,15 +301,17 @@
           baselineShare: round(comparison?.baseR ?? comparison?.baselineShare),
           factor: round(comparison?.factor), ciLow: round(comparison?.ciLow), ciHigh: round(comparison?.ciHigh),
           isSignificant: significant,
+          ...exploratoryInterval,
         },
         evidence: [
           evidence(`crossTable.rows[mask=${mask}].total`, localCount),
           ...(comparison ? [evidence(`deviations.focus[mask=${mask}]`, {
             factor: round(comparison.factor), ciLow: round(comparison.ciLow), ciHigh: round(comparison.ciHigh), isSignificant: significant,
+            ...exploratoryInterval,
           })] : []),
         ],
         rationale: comparison
-          ? `${info.label} ist lokal ${significant ? 'statistisch abgesichert' : 'explorativ'} auffällig.`
+          ? `${info.label} ist lokal ${significant && !disjointReference ? 'statistisch abgesichert' : 'explorativ'} auffällig.`
           : `${info.label} gehört lokal zu den häufigeren dokumentierten Konstellationen.`,
         tags: info.tags, limitations,
         requiredVerification: mask === 1

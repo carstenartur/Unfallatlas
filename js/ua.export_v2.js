@@ -39,7 +39,13 @@
   }
 
   function fmtPct(x) {
-    return (x * 100).toFixed(1).replace(".", ",") + " %";
+    return Number.isFinite(x) ? (x * 100).toFixed(1).replace(".", ",") + " %" : "—";
+  }
+
+  function formatDifferenceInterval(row) {
+    if (!Number.isFinite(row.differenceCiLow) || !Number.isFinite(row.differenceCiHigh)) return "—";
+    const points = value => (value * 100).toFixed(1).replace(".", ",");
+    return `[${points(row.differenceCiLow)} bis ${points(row.differenceCiHigh)}]`;
   }
 
   // --------------------
@@ -215,10 +221,12 @@
       // PR-QA „Textqualität": deutsches Komma (2,18 statt 2.18).
       return `Faktor ${factor.toFixed(2).replace(".", ",")}`;
     }
-    if (factor >= 2.0) return "mehr als doppelt so häufig wie im Stadtmittel";
-    if (factor >= 1.5) return "rund 1,5-mal so häufig wie im Stadtmittel";
-    if (factor >= 1.35) return "deutlich häufiger als im Stadtmittel";
-    return "leicht erhöht gegenüber dem Stadtmittel";
+    const reference = opts?.disjointReference ? "übrigen Stadtgebiet" : "Stadtmittel";
+    if (factor >= 2.0) return `mehr als doppelt so häufig wie im ${reference}`;
+    if (factor >= 1.5) return `rund 1,5-mal so häufig wie im ${reference}`;
+    if (factor >= 1.35) return `deutlich häufiger als im ${reference}`;
+    if (opts?.disjointReference && factor <= 1) return factor === 1 ? "gleicher Anteil" : `niedrigerer Anteil als im ${reference}`;
+    return `leicht erhöht gegenüber dem ${reference}`;
   }
   UA.formatFactorPolitical = formatFactorPolitical;
 
@@ -244,6 +252,7 @@
     const top = focus[0] || null;
     const total = sev.total || 0;
     const selection = structured?.motion?.discoveryEvidence;
+    const disjointReference = !!structured?.deviations?.reference;
 
     // 1) Klassifikation: Unfallschwerpunkt? Wir definieren hier:
     //    - "auffälliger Unfallschwerpunkt" wenn ein Fokus-Muster mit
@@ -256,7 +265,9 @@
     const hasStrongFocus = focus.some(r => r.factor >= 1.5 && r.isSignificant);
     const hasFocus = focus.length > 0;
     let classification;
-    if (hasStrongFocus || heavyShare >= 0.30) {
+    if (disjointReference && hasFocus) {
+      classification = "Explorativ auffällige Musterzusammensetzung – örtliche Prüfung empfohlen.";
+    } else if (!disjointReference && (hasStrongFocus || heavyShare >= 0.30)) {
       classification = "Auffälliger Unfallschwerpunkt – verkehrssicherheitsfachliches Handeln erforderlich.";
     } else if (hasFocus) {
       classification = "Lokaler Häufungspunkt mit erhöhtem Risikoprofil – Prüfung empfohlen.";
@@ -275,10 +286,11 @@
     bullets.push(selection ? `Unter den Auswertungsfiltern sind im markierten Gebiet insgesamt ${total} Unfälle mit Personenschaden erfasst.`
       : `Insgesamt ${total} polizeilich erfasste Unfälle mit Personenschaden im markierten Bereich.`);
     if (top && Number.isFinite(top.factor)) {
-      const factorPhrase = formatFactorPolitical(top.factor, { mode });
+      const factorPhrase = formatFactorPolitical(top.factor, { mode, disjointReference });
       const lbl = top.textLabel || top.label || "auffälliges Muster";
-      const strength = top.isSignificant === true ? "Signifikante" : "Explorative";
-      bullets.push(`${strength} Abweichung der Musterzusammensetzung ${lbl}: ${factorPhrase}. Verglichen werden die Anteile im Gebiet und in der Stadt.`);
+      const strength = !disjointReference && top.isSignificant === true ? "Signifikante" : "Explorative";
+      const reference = disjointReference ? "im übrigen Stadtgebiet" : "in der Stadt";
+      bullets.push(`${strength} Abweichung der Musterzusammensetzung ${lbl}: ${factorPhrase}. Verglichen werden die Anteile im Gebiet und ${reference}.`);
     }
     if (yt && yt.classification) {
       const tq = trendQualifierText(yt.classification);
@@ -295,7 +307,7 @@
     // 3) Urgency: Klassifikation + Trend.
     let urgency;
     const trend = yt && yt.classification;
-    if (hasStrongFocus && (trend === "steigend" || trend === "stagnierend")) {
+    if (!disjointReference && hasStrongFocus && (trend === "steigend" || trend === "stagnierend")) {
       urgency = "Dringliche Befassung geboten – die Häufung ist signifikant und nicht rückläufig.";
     } else if (hasStrongFocus) {
       urgency = "Zeitnahe Befassung geboten.";
@@ -1190,7 +1202,25 @@
   }
 
   function inBounds(p, b) {
-    return b.contains([p.lat, p.lon]);
+    return hasPartitionablePosition(p) && b.contains([p.lat, p.lon]);
+  }
+
+  function hasPartitionablePosition(point) {
+    return Number.isFinite(point?.lat) && Math.abs(point.lat) <= 90
+      && Number.isFinite(point.lon) && Math.abs(point.lon) <= 180;
+  }
+
+  function hasCompleteCityPoints(ctx, coverage) {
+    const original = ctx.__analysisScopeOriginalCtx || ctx;
+    const points = original.allPts;
+    if (coverage?.complete !== true || coverage.mode !== "full-city"
+        || !ctx.CITY_RAW || coverage.city !== ctx.CITY_RAW || original.CITY_RAW !== ctx.CITY_RAW
+        || !Array.isArray(points) || !Array.isArray(ctx.allPts) || coverage.loadedFeatureCount !== points.length
+        || (coverage.sourceTotalCount != null && coverage.sourceTotalCount !== points.length)) return false;
+    for (const point of points) {
+      if (!hasPartitionablePosition(point)) return false;
+    }
+    return true;
   }
 
   function yearsRange(points) {
@@ -1217,7 +1247,7 @@
         if (!UA.matchesNonInvolvementFilters(ctx, p.props)) continue;
       }
 
-      if (!b.contains([p.lat, p.lon])) continue;
+      if (!inBounds(p, b)) continue;
       res.total++;
 
       const k = String(p.props.ukategorie ?? "");
@@ -1281,54 +1311,49 @@
   }
 
   function topDeviations(ctx, bounds) {
-    // Baseline: entweder ctx.baselineCounts (ideal) oder wir bauen eine einfache Baseline aus allPts nach Non-Involvement-Filtern
-    let baseline = ctx.baselineCounts;
-
-    if (!baseline || !baseline.total) {
-      const bc = { total: 0, byMask: {} };
-      for (const p of ctx.allPts || []) {
-        const pr = p.props || {};
-        if (typeof UA.matchesNonInvolvementFilters === "function") {
-          if (!UA.matchesNonInvolvementFilters(ctx, pr)) continue;
-        }
-        const m = maskFromProps(pr);
-        if (m === 0) continue;
-        bc.total++;
-        bc.byMask[m] = (bc.byMask[m] || 0) + 1;
-      }
-      baseline = bc;
-    }
-
     const local = { total: 0, byMask: {} };
-    for (const p of ctx.allPts || []) {
-      const pr = p.props || {};
-      if (typeof UA.matchesNonInvolvementFilters === "function") {
-        if (!UA.matchesNonInvolvementFilters(ctx, pr)) continue;
-      }
-      if (!inBounds(p, bounds)) continue;
-      const m = maskFromProps(pr);
-      if (m === 0) continue;
-      local.total++;
-      local.byMask[m] = (local.byMask[m] || 0) + 1;
+    const referenceCounts = { total: 0, byMask: {} };
+    const coverage = ctx.accidentDataCoverage;
+    const useDisjointReference = coverage != null;
+    const canPartition = hasCompleteCityPoints(ctx, coverage);
+    const filterInvolvement = useDisjointReference && !ctx.__analysisScopeOriginalCtx &&
+      typeof UA.matchesInvolvementFilter === "function" &&
+      ["incBikeEl", "incPedEl", "incCarEl", "incMotoEl"].every(key => ctx.ui?.[key]);
+    function countMask(counts, mask) {
+      counts.total++;
+      counts.byMask[mask] = (counts.byMask[mask] || 0) + 1;
     }
+    for (const p of ctx.allPts || []) {
+      const pr = p?.props || {};
+      if (typeof UA.matchesNonInvolvementFilters === "function" && !UA.matchesNonInvolvementFilters(ctx, pr)) continue;
+      const mask = maskFromProps(pr);
+      if (!mask || (filterInvolvement && !UA.matchesInvolvementFilter(ctx, mask))) continue;
+      const inside = inBounds(p, bounds);
+      if (inside) countMask(local, mask);
+      // Compare records from one verified city stream, partitioned by location.
+      if (canPartition ? !inside : !useDisjointReference) countMask(referenceCounts, mask);
+    }
+    const baseline = !useDisjointReference && ctx.baselineCounts?.total ? ctx.baselineCounts : referenceCounts;
+    const reference = useDisjointReference ? {
+      method: UA.patternReferenceMethod || "newcombe-wilson-95",
+      status: !canPartition || typeof UA.newcombeDifferenceInterval !== "function" ? "unavailable"
+        : !local.total ? "empty-local" : !baseline.total ? "empty-reference" : "available"
+    } : null;
+    const comparisonAvailable = !reference || reference.status === "available";
 
     const rows = [];
     for (const [mStr, locCnt] of Object.entries(local.byMask)) {
       const m = Number(mStr);
-      const baseCnt = baseline.byMask[m] || 0;
-      const locR = local.total ? (locCnt / local.total) : 0;
-      const baseR = baseline.total ? (baseCnt / baseline.total) : 0;
-      const factor = (baseR > 0) ? (locR / baseR) : Infinity;
+      const baseCnt = comparisonAvailable ? baseline.byMask[m] || 0 : null;
+      const locR = locCnt / local.total;
+      const baseR = comparisonAvailable ? (baseline.total ? baseCnt / baseline.total : 0) : null;
+      const factor = baseR > 0 ? locR / baseR : reference ? null : Infinity;
 
-      // Wilson-Score-Konfidenzintervall (95 %) für den lokalen Anteil
-      const ci = (typeof UA.wilsonScoreInterval === "function")
-        ? UA.wilsonScoreInterval(locCnt, local.total)
-        : { low: 0, high: 1 };
-      // Signifikant überrepräsentiert: untere CI-Grenze liegt über baseR.
-      // Auch korrekt wenn baseR === 0: jeder lokale Treffer (locCnt > 0) führt
-      // dann zu ci.low > 0 = baseR und damit zu Signifikanz, was fachlich
-      // gewollt ist (Stadt-Baseline kennt das Muster nicht, lokal tritt es auf).
-      const isSignificant = local.total > 0 && ci.low > baseR;
+      const ci = typeof UA.wilsonScoreInterval === "function"
+        ? UA.wilsonScoreInterval(locCnt, local.total) : { low: 0, high: 1 };
+      const difference = reference?.status === "available"
+        ? UA.newcombeDifferenceInterval(locCnt, local.total, baseCnt, baseline.total) : null;
+      const isSignificant = reference ? (difference?.low ?? 0) > 0 : ci.low > baseR;
 
       rows.push({
         mask: m,
@@ -1337,10 +1362,12 @@
         label: COMBO_LABEL[m] || formatInvolvementCombo(m, { format: "emoji" }),
         textLabel: formatInvolvementCombo(m, { format: "text" }),
         locCnt, baseCnt, locR, baseR, factor,
-        ciLow: ci.low, ciHigh: ci.high, isSignificant
+        ciLow: ci.low, ciHigh: ci.high, isSignificant,
+        ...(reference ? { difference: difference?.difference ?? null,
+          differenceCiLow: difference?.low ?? null, differenceCiHigh: difference?.high ?? null } : {})
       });
     }
-    rows.sort((a, b) => (b.factor - a.factor));
+    rows.sort((a, b) => (b.factor ?? -Infinity) - (a.factor ?? -Infinity));
 
     const focus = rows
       .filter(r => Number.isFinite(r.factor))
@@ -1349,7 +1376,7 @@
       .filter(r => r.factor >= 1.35)
       .slice(0, 6);
 
-    return { local, baseline, rows, focus };
+    return { local, baseline, rows, focus, ...(reference ? { reference } : {}) };
   }
 
   // --------------------
@@ -1807,6 +1834,17 @@
     const bStr = `${sw.lat.toFixed(5)},${sw.lng.toFixed(5)} – ${ne.lat.toFixed(5)},${ne.lng.toFixed(5)}`;
 
     const dev = topDeviations(ctx, bounds);
+    const referenceMethod = UA.patternReferenceMethodology?.(dev);
+    const limitations = referenceMethod?.limitations || PATTERN_COMPARISON_LIMITATIONS;
+    const disjointReference = !!dev.reference;
+    const referenceLabel = disjointReference ? "übriges Stadtgebiet" : "Stadt";
+    const noOverrepresentation = disjointReference
+      ? "Keine Überrepräsentation nach dem unbereinigten Newcombe-Intervall" : NO_OVERREPRESENTATION_NOTE;
+    const rankedRows = dev.focus.length ? dev.focus : dev.rows.slice(0, 5);
+    const additionalRows = disjointReference && dev.reference.status === "available"
+      ? dev.rows.filter(row => row.baseR === 0 && row.isSignificant && !rankedRows.includes(row)) : [];
+    const comparisonRows = [...rankedRows, ...additionalRows];
+    const referenceStatusNote = referenceMethod?.referenceStatusNote || "";
     const yr = yearTable(ctx, bounds);
     const sev = severityStats(ctx, bounds);
     const range = yearsRange(ctx.allPts || []);
@@ -2121,6 +2159,9 @@
       BOUNDS: bStr,
       local_total: dev.local.total.toLocaleString("de-DE"),
       baseline_total: dev.baseline.total.toLocaleString("de-DE"),
+      reference_description: referenceStatusNote || (disjointReference
+        ? `Das übrige Stadtgebiet umfasst unter denselben aktiven Filtern ${dev.baseline.total.toLocaleString("de-DE")} Unfälle als Referenz für die Zusammensetzung der Unfallmuster.`
+        : `Der stadtweite Bestand unter denselben Filtern umfasst ${dev.baseline.total.toLocaleString("de-DE")} Unfälle als Referenz für die Zusammensetzung der Unfallmuster.`),
       severity_summary: `Die Unfallzahlen nach Schwere lauten ${sev.bySev["1"] || 0} mit Getöteten, ${sev.bySev["2"] || 0} mit Schwerverletzten und ${sev.bySev["3"] || 0} mit Leichtverletzten.`,
       date: new Date().toLocaleDateString("de-DE"),
       DATE: new Date().toLocaleDateString("de-DE"),
@@ -2249,25 +2290,30 @@
     lines.push(tpl(tSach, vars).trim());
     lines.push("");
 
-    if (dev.focus.length) {
-      lines.push("Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):");
-      for (const r of dev.focus) {
+    const textComparisonRows = disjointReference && dev.reference.status === "available" ? comparisonRows : dev.focus;
+    if (textComparisonRows.length) {
+      lines.push(disjointReference ? `Musteranteile (Ausschnitt und ${referenceLabel}):`
+        : "Auffälligkeiten (Top-Abweichungen, Anteil im Ausschnitt vs. Stadt):");
+      for (const r of textComparisonRows) {
+        const undefinedRatio = disjointReference && r.baseR === 0;
         // Task 9/10: Politischer Modus → Faktor in Worten, kein 95%-KI.
         if (exportMode === "political") {
-          const phrase = formatFactorPolitical(r.factor, { mode: "political" });
+          const phrase = undefinedRatio ? "Faktor nicht definiert"
+            : formatFactorPolitical(r.factor, { mode: "political", disjointReference });
           const lbl = r.textLabel || r.label;
-          lines.push(`- ${lbl}: ${phrase} (lokal ${r.locCnt} Fälle, stadtweit ${r.baseCnt}).`);
+          lines.push(`- ${lbl}: ${phrase} (lokal ${r.locCnt} Fälle, ${disjointReference ? "Referenz" : "stadtweit"} ${r.baseCnt}).`);
         } else {
-          const ciStr = `95%-KI: ${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}`;
-          const sigStr = r.isSignificant ? "signifikant" : NO_OVERREPRESENTATION_NOTE;
-          lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs Stadt ${fmtPct(r.baseR)} (Faktor ${_fmtFactorDe(r.factor)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / stadtweit ${r.baseCnt}`);
+          const ciStr = disjointReference ? `95%-KI der Anteilsdifferenz: ${formatDifferenceInterval(r)} Prozentpunkte`
+            : `95%-KI: ${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}`;
+          const sigStr = r.isSignificant ? (disjointReference ? "explorativer Einzelhinweis" : "signifikant") : noOverrepresentation;
+          lines.push(`- ${r.label}: lokal ${fmtPct(r.locR)} vs ${referenceLabel} ${fmtPct(r.baseR)} (Faktor ${undefinedRatio ? "nicht definiert" : _fmtFactorDe(r.factor)}, ${ciStr}; ${sigStr}); lokal ${r.locCnt} / ${disjointReference ? "Referenz" : "stadtweit"} ${r.baseCnt}`);
         }
       }
       // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
       if (exportMode !== "political") {
-        const allNonSignificant = dev.focus.every(r => !r.isSignificant);
+        const allNonSignificant = textComparisonRows.every(r => !r.isSignificant);
         if (allNonSignificant) {
-          lines.push(`Hinweis: ${NO_OVERREPRESENTATION_NOTE}. Die Faktor-Werte sollten mit Vorsicht interpretiert werden.`);
+          lines.push(`Hinweis: ${noOverrepresentation}. Die Faktor-Werte sollten mit Vorsicht interpretiert werden.`);
         }
       }
       lines.push("");
@@ -2303,7 +2349,8 @@
         lines.push("");
       }
     } else {
-      lines.push("Auffälligkeiten: In diesem Ausschnitt zeigen sich unter den gewählten Filtern keine klar überrepräsentierten Beteiligungskombinationen (Schwelle: min. 3 Fälle, Faktor ≥ 1,35).");
+      lines.push(disjointReference ? "Ein Mustervergleich mit dem übrigen Stadtgebiet ist nicht verfügbar."
+        : "Auffälligkeiten: In diesem Ausschnitt zeigen sich unter den gewählten Filtern keine klar überrepräsentierten Beteiligungskombinationen (Schwelle: min. 3 Fälle, Faktor ≥ 1,35).");
       lines.push("");
     }
 
@@ -2313,9 +2360,8 @@
       lines.push("");
     }
 
-    if (!String(tMethod || "").includes(PATTERN_COMPARISON_LIMITATIONS.note)) {
-      lines.push(PATTERN_COMPARISON_LIMITATIONS.note, "");
-    }
+    if (!String(tMethod || "").includes(limitations.note)) lines.push(limitations.note, "");
+    if (referenceStatusNote && !String(tSach || "").includes("{{reference_description}}")) lines.push(referenceStatusNote, "");
 
     // Mehrjahres-Trend (#C2): kompakte Tabelle + Klassifikation.
     if (yearlyTrend && yearlyTrend.years && yearlyTrend.years.length > 0) {
@@ -2695,14 +2741,16 @@
     }
 
     // ---- HTML (Modal) ----
-    const focusRows = dev.focus.length ? dev.focus : dev.rows.slice(0, 5);
+    const focusRows = disjointReference && dev.reference.status !== "available" ? [] : comparisonRows;
 
-    const fmtCI = (r) => `[${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}]`;
+    const fmtCI = (r) => disjointReference ? formatDifferenceInterval(r) : `[${fmtPct(r.ciLow)} – ${fmtPct(r.ciHigh)}]`;
     const mkDevRow = (r) => {
       const sigStyle = r.isSignificant ? "" : " color:#999;";
-      const sigTooltip = r.isSignificant ? "" : ` title="${NO_OVERREPRESENTATION_NOTE}"`;
+      const sigTooltip = r.isSignificant ? "" : ` title="${noOverrepresentation}"`;
       const nsBadge = r.isSignificant ? "" : ` <span style="font-size:10px; color:#bbb;">n.s.</span>`;
-      const factorCell = `${_fmtFactorDe(r.factor)}× <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${nsBadge}`;
+      const factor = disjointReference && r.baseR === 0 ? "nicht definiert"
+        : Number.isFinite(r.factor) ? `${_fmtFactorDe(r.factor)}×` : "—";
+      const factorCell = `${factor} <span style="font-weight:normal; font-size:11px; color:#777;">${fmtCI(r)}</span>${nsBadge}`;
       return `
       <tr>
         <td><span class="pill">${UA.escHtml(r.label)}</span></td>
@@ -3007,7 +3055,7 @@
         <div style="font-weight:950; font-size:16px;">Report – Auffälligkeiten im markierten Bereich</div>
         <div style="color:#444; margin-top:4px;">
           <div><strong>Stadt:</strong> ${UA.escHtml(CITY_RAW)} | <strong>Bounds:</strong> <code>${UA.escHtml(bStr)}</code></div>
-          <div><strong>Auswertung:</strong> lokal ${dev.local.total.toLocaleString()} Unfälle | Baseline ${dev.baseline.total.toLocaleString()} Unfälle</div>
+          <div><strong>Auswertung:</strong> lokal ${dev.local.total.toLocaleString()} Unfälle${referenceStatusNote ? "" : ` | ${disjointReference ? referenceLabel : "Baseline"} ${dev.baseline.total.toLocaleString()} Unfälle`}</div>
           <div><strong>Datenzeitraum:</strong> ${range ? (range.minY + "–" + range.maxY) : "—"}</div>
           
           ${loc ? `
@@ -3033,7 +3081,7 @@
         <div style="margin-top:12px; font-weight:900;">Top-Abweichungen</div>
         <table class="report">
           <thead>
-            <tr><th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">Stadt %</th><th style="text-align:right;">Faktor [95%-KI]</th></tr>
+            <tr><th>Muster</th><th style="text-align:right;">lokal</th><th style="text-align:right;">lokal %</th><th style="text-align:right;">${referenceLabel} %</th><th style="text-align:right;">${disjointReference ? "Faktor [95%-KI der Anteilsdifferenz in Prozentpunkten]" : "Faktor [95%-KI]"}</th></tr>
           </thead>
           <tbody>
             ${(() => {
@@ -3041,7 +3089,7 @@
               const rowsHtml = visibleRows.map(mkDevRow).join("");
               const allNonSig = visibleRows.length > 0 && visibleRows.every(r => !r.isSignificant);
               const nonSigBanner = allNonSig
-                ? `<tr><td colspan="5" style="color:#888; font-size:12px; font-style:italic;">Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.</td></tr>`
+                ? `<tr><td colspan="5" style="color:#888; font-size:12px; font-style:italic;">Hinweis: ${noOverrepresentation}. Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.</td></tr>`
                 : "";
               return rowsHtml ? (rowsHtml + nonSigBanner) : "<tr><td colspan=\"5\" style=\"color:#777;\">—</td></tr>";
             })()}
@@ -3210,8 +3258,8 @@
         ` : ``}
 
         <div style="margin-top:10px; color:#555; font-size:12px;">
-          <div><strong>Methodik:</strong> Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).</div>
-          <div><strong>Grenzen des Mustervergleichs:</strong> ${UA.escHtml(PATTERN_COMPARISON_LIMITATIONS.note)}</div>
+          <div><strong>Methodik:</strong> ${disjointReference ? "Die Musteranteile im Ausschnitt und im übrigen Stadtgebiet werden unter denselben aktiven Filtern berechnet." : "Verglichen wird die Verteilung exakter Beteiligungskombinationen im Ausschnitt vs. stadtweit – jeweils unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag)."}</div>
+          <div><strong>Grenzen des Mustervergleichs:</strong> ${UA.escHtml([limitations.note, referenceStatusNote, "Expositionsbezogene Unfallraten bleiben ohne geeignete Verkehrsleistungsdaten unbestimmt."].filter(Boolean).join(" "))}</div>
           <div><strong>Hinweis:</strong> Heuristisch – ersetzt keine Unfallkommission/Ortsbegehung.</div>
         </div>
       </div>
@@ -3265,9 +3313,10 @@
       involvementMode: ctx.involvementMode || "or"
     };
     const baselineScope = {
-      basis: "Stadtweite Population mit identischen Nicht-Beteiligungsfiltern",
+      basis: disjointReference ? "Übriges Stadtgebiet mit identischen aktiven Filtern" : "Stadtweite Population mit identischen Nicht-Beteiligungsfiltern",
+      ...(disjointReference ? { population: "rest-of-city", status: dev.reference.status } : {}),
       city: CITY_RAW,
-      filters: {
+      filters: disjointReference ? filters : {
         // Nur die nicht-beteiligungsbezogenen Filter sind in der Baseline
         // wirksam – dieselben, die topDeviations() für den Stadtbezug nutzt.
         severity: filters.severity,
@@ -3372,14 +3421,17 @@
     // bereits über das Methodik-HTML-Snippet abdeckt).
     structured.methodikScope = {
       title: "Methodik – Auswertungsbereich",
-      limitations: PATTERN_COMPARISON_LIMITATIONS,
+      limitations,
       lines: [
         `Auswertungsbereich: Auswertung umfasst Unfälle innerhalb des markierten Bereichs (${bStr})${
           areaName ? ` – „${areaName}"` : ""
         } unter den oben aufgeführten Filtern.`,
         "Analyse auffälliger Unfallmuster: Auffälligkeiten und Top-Abweichungen werden auf der gefilterten Population im Ausschnitt (Unfälle mit erfasster Beteiligung) berechnet.",
-        `Vergleich mit dem Stadtgebiet: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`,
-        PATTERN_COMPARISON_LIMITATIONS.note
+        disjointReference ? `Vergleich mit dem übrigen Stadtgebiet in ${CITY_RAW} unter denselben aktiven Filtern.`
+          : `Vergleich mit dem Stadtgebiet: Die in den Top-Abweichungen genannten Faktoren beziehen sich auf die stadtweite Population in ${CITY_RAW} unter denselben Nicht-Beteiligungsfiltern (Schwere/Zeit/Zustand/Wochentag).`,
+        limitations.note,
+        ...(disjointReference ? ["Expositionsbezogene Unfallraten bleiben ohne geeignete Verkehrsleistungsdaten unbestimmt."] : []),
+        ...(referenceStatusNote ? [referenceStatusNote] : [])
       ]
     };
 

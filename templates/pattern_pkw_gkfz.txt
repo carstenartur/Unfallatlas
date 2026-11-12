@@ -1,5 +1,5 @@
 Vergleich der Beteiligung – Pkw- und Güterkraftverkehr
 
-Im ausgewerteten Ausschnitt sind {{PKW_GKFZ_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{PKW_GKFZ_FACTOR}}-Fache des stadtweiten Anteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
+Im ausgewerteten Ausschnitt sind {{PKW_GKFZ_LOCAL}} Unfälle mit dieser Beteiligung erfasst. Ihr Anteil am Unfallbestand beträgt das {{PKW_GKFZ_FACTOR}}-Fache des Referenzanteils. Der Vergleich umfasst alle Unfalltypen mit diesen veröffentlichten Beteiligungsmerkmalen.
 
 Anhand der Unfallskizzen klären, bei welchen Fahrmanövern Pkw und Güterkraftfahrzeuge beteiligt waren. Abbiegewege, Sicht und Platzverhältnisse an den so ermittelten Stellen vor Ort prüfen.

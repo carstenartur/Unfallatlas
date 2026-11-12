@@ -271,7 +271,7 @@
   const semanticFilingGatePromise = filingReadinessPromise.then(loaded => {
     if (!loaded) return false;
     return injectOptionalModuleAfterDomReady(
-      'js/ua.semantic_filing_gate.js?v=2026-11-10-site-evidence',
+      'js/ua.semantic_filing_gate.js?v=2026-11-12-stadtvergleich',
       'data-ua-semantic-filing-gate'
     );
   });
@@ -287,7 +287,7 @@
     // after parser-executed modules avoids replacing their pre-definition hooks
     // and composes deterministically with the partial-coverage export guard.
     analysisScope: injectOptionalModuleAfterDomReady(
-      'js/ua.analysis_scope.js?v=2026-11-10-ris-map',
+      'js/ua.analysis_scope.js?v=2026-11-12-stadtvergleich',
       'data-ua-analysis-scope'
     ),
     accidentViewportController: injectOptionalModule(
@@ -318,7 +318,7 @@
       'data-ua-ai-political-evidence'
     ),
     aiPoliticalReferenceBridge: injectOptionalModuleAfterDomReady(
-      'js/ua.ai_political_reference_bridge.js?v=2026-11-10-site-evidence',
+      'js/ua.ai_political_reference_bridge.js?v=2026-11-12-stadtvergleich',
       'data-ua-ai-political-reference-bridge'
     ),
     // Load last so it can extend the completed evidence chain. This adapter

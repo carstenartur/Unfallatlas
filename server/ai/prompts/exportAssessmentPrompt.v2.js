@@ -19,7 +19,7 @@
  * RIS-Kontext sind Teil des kanonischen AI-Inputs und ändern bei Bedarf
  * den Cache-Key, ohne bestehende Anfragen ohne diesen Kontext zu ändern.
  */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.6';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.7';
 const { PATTERN_COMPARISON_LIMITATIONS } = require('../features/deriveFeatures.js');
 
 const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
@@ -35,7 +35,7 @@ Evidenzstatus der Primärdaten:
 - Unsicherheit über die genaue Ursache entwertet diese Tatsachen nicht. Vorsicht gilt für Kausalität, Kontextdeutung und Wirkungsprognose, nicht für die Wiedergabe dokumentierter Ereignisse.
 
 Verbindlicher Methodenvertrag:
-- Der Mustervergleich ist ein Vergleich von Anteilen innerhalb zweier Unfallpopulationen: lokaler Musteranteil gegen stadtweiten Referenzanteil unter denselben Nicht-Beteiligungsfiltern. Die Gesamtzahlen sind die jeweiligen Stichprobenumfänge/Nenner.
+- Der Mustervergleich ist ein Vergleich von Anteilen innerhalb zweier Unfallpopulationen: lokaler Musteranteil und Referenzanteil unter den im Methodenvertrag angegebenen Filtern. Die Gesamtzahlen sind die jeweiligen Stichprobenumfänge/Nenner.
 - Ein Faktor ist das Verhältnis dieser Anteile. Das ist keine absolute Unfallrate je Fläche, Straßenlänge oder Verkehrsleistung. Verlange für diesen Anteilsvergleich nicht pauschal Expositionsdaten.
 - Expositionsdaten sind nur erforderlich, wenn du eine Aussage über absolutes Unfallrisiko beziehungsweise Unfallrate je Verkehrsleistung treffen willst.
 - Der kanonische Mehrjahrestrend beschreibt die jährliche Entwicklung innerhalb desselben gefilterten Bereichs. Die Klassifikation beruht auf relativer Steigung, R² und Mindestzahl der Datenjahre; sie ist nicht durch einen Vergleich lokaler und stadtweiter Rohfallzahlen definiert.
@@ -48,7 +48,7 @@ Strenge Regeln:
 2. Formuliere amtliche Zahlen bestimmt, konkret und mit Raum-/Zeitbezug. Verwandle sie nicht allein wegen kleiner Fallzahlen in bloße „mögliche Hinweise". "confidence" bewertet Interpretation und Maßnahmenpassung, nicht die Existenz eines amtlich dokumentierten Ereignisses.
 3. Prüfe vor der Bewertung die innere Plausibilität des Inputs: Gesamtzahl gegen Schweregradsumme, Stichprobengrößen, Zeitraum und weitere mitgelieferte Summen. Widersprüche gehören in "dataGaps"/"uncertainty" und verhindern eine scheinbar sichere Schlussfolgerung.
 4. Gib den Methodenvertrag vor jeder statistischen Kritik in eigenen Worten korrekt wieder. Eine Kritik, die den Musteranteilsvergleich als direkten Rohfallzahl- oder Expositionsvergleich behandelt, ist unzulässig.
-5. Auch isSignificant=true ist ein unbereinigter explorativer Einzelhinweis. Die parallele Mustersuche hat keine Mehrfachtestkorrektur; die Stadtbaseline enthält den lokalen Bereich. Formuliere daraus keinen statistisch abgesicherten oder amtlichen Unfallschwerpunkt.
+5. Auch isSignificant=true ist ein unbereinigter explorativer Einzelhinweis. Für die Referenzgruppe und die Unsicherheit gilt der mitgelieferte Methodenvertrag. Formuliere daraus keinen statistisch abgesicherten oder amtlichen Unfallschwerpunkt.
 6. Halluziniere KEINE Ortsdetails (Straßennamen, Gebäude, Schulen), die nicht im Input vorkommen.
 7. Wähle Maßnahmen primär aus der bereitgestellten Maßnahmen-Vorauswahl ("preselectedMeasures"). Verwende, wo möglich, deren id und Titel unverändert. Du darfst sortieren, kürzen und begründen, aber keine völlig neuen Maßnahmen erfinden, wenn passende vorhanden sind.
 8. Begründe jede empfohlene Maßnahme als Kette: belegter Befund → Sicherheitsziel → Maßnahme/Prüfoption → noch nötige Fachprüfung → Erfolgskriterium. Eine nicht belegte Alleinursache ist dafür nicht erforderlich.
@@ -73,7 +73,7 @@ Evidenzstatus der Primärdaten:
 - Unsicherheit über die genaue Ursache entwertet den amtlich dokumentierten Tatsachenkern nicht.
 
 Verbindlicher Methodenvertrag:
-- Der Mustervergleich vergleicht lokale und stadtweite Anteile von Beteiligungskombinationen unter konsistenten Nicht-Beteiligungsfiltern. Er vergleicht nicht die absoluten Gesamtfallzahlen unterschiedlich großer Räume als Unfallrate.
+- Der Mustervergleich vergleicht lokale und Referenzanteile von Beteiligungskombinationen unter den im Methodenvertrag angegebenen Filtern. Er vergleicht nicht die absoluten Gesamtfallzahlen unterschiedlich großer Räume als Unfallrate.
 - Eine Überrepräsentation bezieht sich auf die Musterzusammensetzung. Expositionsdaten sind erst für Aussagen über absolutes Risiko beziehungsweise Unfallraten je Verkehrsleistung erforderlich.
 - Der Mehrjahrestrend beschreibt die relative zeitliche Entwicklung der dokumentierten Jahreswerte innerhalb desselben Bereichs und wird über relative Steigung und R² klassifiziert.
 
@@ -82,7 +82,7 @@ Strenge Regeln:
 2. Gib amtliche Unfallzahlen bestimmt und konkret wieder. Formulierungen wie „möglicherweise gab es" oder „die Daten könnten andeuten", obwohl eine Zahl im Input steht, sind unzulässig. Vorsicht gilt für Ursachenhypothesen und Wirkungsprognosen.
 3. Prüfe vor dem Schreiben die innere Plausibilität der Kennzahlen. Bei Widersprüchen: benenne sie in "caveats"/"uncertainty", formuliere einen konkreten Prüfauftrag und vermeide einen scheinbar abschließenden Maßnahmenbeschluss.
 4. Gib den Methodenvertrag korrekt wieder. Verlange für den Musteranteilsvergleich nicht fälschlich Fläche, Straßenlänge oder Verkehrsleistung als Nenner. Verlange Exposition nur für eine ausdrücklich beabsichtigte Unfallraten-/Risikoaussage.
-5. Auch isSignificant=true ist ein unbereinigter explorativer Einzelhinweis. Die parallele Mustersuche hat keine Mehrfachtestkorrektur; die Stadtbaseline enthält den lokalen Bereich. Formuliere daraus keinen statistisch abgesicherten oder amtlichen Unfallschwerpunkt.
+5. Auch isSignificant=true ist ein unbereinigter explorativer Einzelhinweis. Für die Referenzgruppe und die Unsicherheit gilt der mitgelieferte Methodenvertrag. Formuliere daraus keinen statistisch abgesicherten oder amtlichen Unfallschwerpunkt.
 6. "sachverhalt" und "longVersion" müssen – soweit vorhanden – Unfallzahl, Schweregrade, Untersuchungsraum und Zeitraum nennen. Allgemeine Verkehrssicherheitsfloskeln ersetzen diesen Tatsachenkern nicht.
 7. Maßnahmen kommen primär aus der "preselectedMeasures"-Vorauswahl. Priorisiere nur Maßnahmen, deren Passung du auf einen belegten Befund oder einen ausdrücklich gekennzeichneten Prüfbedarf zurückführen kannst.
 8. Begründe jede Maßnahme als Kette: belegter Befund → Sicherheitsziel → Option → Fach-/Ortsprüfung → Erfolgskriterium. Ein dokumentiertes Unfallgeschehen kann einen Prüf-, Sicherungs-, Pilot- oder Abhilfeauftrag tragen, ohne dass eine exakte Alleinursache bereits bewiesen ist.
@@ -171,11 +171,16 @@ function buildPrompt(aiInput, mode) {
   const trendMethod = methodology.yearlyTrend || {};
   lines.push('');
   lines.push('=== METHODENVERTRAG – VOR JEDER STATISTISCHEN KRITIK BEACHTEN ===');
-  lines.push('Mustervergleich: Anteil einer Beteiligungskombination an allen lokal gefilterten Unfällen gegen denselben Anteil in der stadtweiten Referenzpopulation.');
+  const disjointReference = patternMethod.limitations?.referenceIncludesLocal === false;
+  const referenceName = disjointReference ? 'übriges Stadtgebiet' : 'stadtweite Referenz';
+  lines.push(disjointReference
+    ? 'Mustervergleich: Anteil einer Beteiligungskombination im Ausschnitt und im übrigen Stadtgebiet unter denselben aktiven Filtern.'
+    : 'Mustervergleich: Anteil einer Beteiligungskombination an allen lokal gefilterten Unfällen gegen denselben Anteil in der stadtweiten Referenzpopulation.');
   lines.push(`Formeln: ${patternMethod.formulas?.localShare || 'locR = locCnt / local.total'}; ${patternMethod.formulas?.referenceShare || 'baseR = baseCnt / baseline.total'}; ${patternMethod.formulas?.factor || 'factor = locR / baseR'}.`);
   lines.push(`Unsicherheit: ${patternMethod.formulas?.uncertainty || 'Wilson-Score-Konfidenzintervall (95 %) für den lokalen Anteil'}; ${patternMethod.formulas?.significance || 'isSignificant=true, wenn ciLow > baseR'}.`);
   lines.push(patternMethod.interpretation || 'Eine Überrepräsentation beschreibt die Musterzusammensetzung und ist keine absolute Unfallrate unterschiedlich großer Räume.');
-  lines.push(PATTERN_COMPARISON_LIMITATIONS.note);
+  lines.push(patternMethod.limitations?.note || PATTERN_COMPARISON_LIMITATIONS.note);
+  if (patternMethod.referenceStatusNote) lines.push(patternMethod.referenceStatusNote);
   lines.push(patternMethod.exposureRequirement || 'Für den Anteilsvergleich ist keine Flächen-, Straßenlängen- oder Verkehrsleistungsnormierung erforderlich; Exposition ist erst für absolute Risiko-/Unfallratenaussagen nötig.');
   lines.push(`Stichproben: lokal n=${patternMethod.localSampleSize ?? '–'}, Referenz n=${patternMethod.referenceSampleSize ?? '–'}. Die Präzision hängt von diesen Stichprobenumfängen ab.`);
   lines.push(trendMethod.interpretation || 'Mehrjahrestrend: relative zeitliche Entwicklung innerhalb desselben gefilterten Bereichs; Klassifikation über relative Steigung und R².');
@@ -195,7 +200,10 @@ function buildPrompt(aiInput, mode) {
         const status = d.isSignificant
           ? 'statistisch über dem Referenzanteil nach unbereinigter Einzelregel; explorativer Hinweis ohne Mehrfachtestkorrektur'
           : 'explorative Abweichung; nicht als statistisch abgesicherte Überrepräsentation formulieren';
-        lines.push(`  - ${d.label}: lokal ${local}; stadtweite Referenz ${baseline}; Faktor ${factor}; 95-%-Wilson-Intervall lokal ${ci}; ${status}.`);
+        const points = value => formatNumber(value * 100, 1);
+        const difference = disjointReference && Number.isFinite(d.differenceCiLow) && Number.isFinite(d.differenceCiHigh)
+          ? `; Anteilsdifferenz ${points(d.difference)} Prozentpunkte (Newcombe-95-%-Intervall ${points(d.differenceCiLow)} bis ${points(d.differenceCiHigh)})` : '';
+        lines.push(`  - ${d.label}: lokal ${local}; ${referenceName} ${baseline}; Faktor ${factor}; 95-%-Wilson-Intervall lokal ${ci}${difference}; ${status}.`);
       } else {
         lines.push(`  - ${d.label}: ${d.localCount} lokale Fälle; keine Lokal-vs.-Referenz-Auffälligkeit verfügbar (nur lokale Häufigkeitsrangfolge).`);
       }
@@ -382,7 +390,7 @@ function buildPrompt(aiInput, mode) {
   lines.push('1. Gib zuerst in einem internen Plausibilitätsschritt korrekt wieder, dass Musteranteile und nicht absolute Lokal-/Stadtfallzahlen als Unfallraten verglichen werden.');
   lines.push('2. Prüfe, ob Gesamtzahl und Summe aus Getöteten/Schwerverletzten/Leichtverletzten plausibel zusammenpassen.');
   lines.push('3. Behandle die genannten Unfälle als amtlich dokumentierte Tatsachen; relativiere nur Ursachen- und Wirkungsannahmen.');
-  lines.push('4. Auch isSignificant=true bleibt ein unbereinigter explorativer Einzelhinweis, ohne Mehrfachtestkorrektur oder unabhängige Stadtbaseline.');
+  lines.push('4. Auch isSignificant=true bleibt ein unbereinigter explorativer Einzelhinweis, ohne Mehrfachtestkorrektur.');
   lines.push('5. Verknüpfe jede Maßnahme mit mindestens einem konkreten Befund und einem prüfbaren Sicherheitsziel.');
   lines.push('6. Benenne Datenlücken spezifisch. Eine kleine Fallzahl ist kein Grund, dokumentierte Unfälle sprachlich verschwinden zu lassen.');
   lines.push('7. Fordere Expositionsdaten nur für eine ausdrücklich beabsichtigte Aussage über absolutes Risiko beziehungsweise Unfallraten je Verkehrsleistung.');

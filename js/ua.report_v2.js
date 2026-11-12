@@ -285,8 +285,60 @@
     if (count !== null && sd.discoveryFocus.label) {
       sentences.push(`Für das ausgewählte Muster „${sd.discoveryFocus.label}“ weist die Stellensuche ${count.toLocaleString("de-DE")} ${count === 1 ? "Fall" : "Fälle"} aus.`);
     }
-    if (!isPolitical) sentences.push(FACTOR_READING);
+    if (!isPolitical) {
+      sentences.push(sd.deviations.reference?.method === "newcombe-wilson-95"
+        ? "Der Faktor setzt den lokalen Anteil ins Verhältnis zum Anteil im übrigen Stadtgebiet. Das Newcombe-Intervall beschreibt die Unsicherheit der Anteilsdifferenz in Prozentpunkten. „n. s.“ bedeutet, dass die Untergrenze nicht über null liegt."
+        : FACTOR_READING);
+    }
     return sentences.join(" ");
+  }
+
+  function patternComparisonTable(sd) {
+    const deviations = sd.deviations;
+    const disjointReference = deviations?.reference?.method === "newcombe-wilson-95";
+    if (disjointReference && deviations.reference.status !== "available") return null;
+    const focus = deviations?.focus || [];
+    const candidates = deviations?.rows || [];
+    const ranked = focus.length || !disjointReference ? focus : candidates.slice(0, 5);
+    const selected = disjointReference
+      ? [...ranked, ...candidates.filter(row => row.baseR === 0 && row.isSignificant && !ranked.includes(row))]
+      : ranked;
+    if (!selected.length) return null;
+
+    const isPolitical = sd.meta?.mode === "political";
+    const referenceHeader = disjointReference ? "Übriges Stadtgebiet %" : "Stadt %";
+    const intervalHeader = disjointReference ? "95%-KI Differenz (Prozentpunkte)" : "95%-KI (lokaler Anteil)";
+    const headers = isPolitical
+      ? ["Muster", "Lokal", "Lokal %", referenceHeader, "Einordnung"]
+      : ["Muster", "Lokal", "Lokal %", referenceHeader, "Faktor", intervalHeader];
+    const decimalPct = value => Number.isFinite(value) ? (value * 100).toFixed(1).replace(".", ",") : null;
+    const share = value => Number.isFinite(value) ? decimalPct(value) + " %" : "—";
+    const rows = selected.map(row => {
+      const label = row.textLabel || UA.formatParticipantCombinationForExport?.(row.mask)
+        || UA.formatInvolvementCombo?.(row.mask, { format: "text" }) || row.label;
+      const cells = [label, String(row.locCnt), share(row.locR), share(row.baseR)];
+      const undefinedRatio = disjointReference && row.baseR === 0;
+      if (isPolitical) {
+        if (undefinedRatio) return [...cells, "Faktor nicht definiert"];
+        return [...cells, UA.formatFactorPolitical?.(row.factor, { mode: "political", disjointReference })
+          || (Number.isFinite(row.factor) ? "Faktor " + formatFactorDe(row.factor) : "—")];
+      }
+      const factor = (undefinedRatio ? "nicht definiert" : Number.isFinite(row.factor) ? formatFactorDe(row.factor) + "×" : "—")
+        + (row.isSignificant === false ? " (n. s.)" : "");
+      const low = decimalPct(row.differenceCiLow);
+      const high = decimalPct(row.differenceCiHigh);
+      const interval = disjointReference ? (low !== null && high !== null ? `[${low} bis ${high}]` : "—")
+        : `[${share(row.ciLow)} – ${share(row.ciHigh)}]`;
+      return [...cells, factor, interval];
+    });
+    return {
+      isPolitical, headers, rows,
+      title: disjointReference ? "Musteranteile (Ausschnitt und übriges Stadtgebiet):" : "Top-Abweichungen (Ausschnitt vs. Stadt):",
+      allNonSignificant: selected.every(row => row.isSignificant === false),
+      noOverrepresentation: disjointReference
+        ? "Keine Überrepräsentation nach dem unbereinigten Newcombe-Intervall."
+        : "Keine statistisch abgesicherte Überrepräsentation nach dem lokalen Wilson-Kriterium."
+    };
   }
 
   function evidenceCountText(evidence) {
@@ -2486,29 +2538,11 @@
       ));
       children.push(new Paragraph({ text: "", spacing: { after: 200 } }));
 
-      // Deviations table
-      if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
-        const isPolitical = sd.meta && sd.meta.mode === "political";
-        children.push(new Paragraph({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", keepNext: true, spacing: { after: 100 } }));
-        const fmtCombo = (UA.formatInvolvementCombo || ((s) => s));
-        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2).replace(".", ",")}`);
-        const devRows = sd.deviations.focus.map(r => {
-          const locPct = sd.deviations.local.total ? ((r.locR) * 100).toFixed(1).replace(".", ",") + " %" : "0,0 %";
-          const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
-          const muster = r.textLabel || fmtCombo(r.mask, { format: "text" });
-          if (isPolitical) {
-            // Task 9/10: politisches Wording; 95%-KI weggelassen.
-            return [muster, String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
-          }
-          const ciLowPct = r.ciLow != null ? (r.ciLow * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const factorStr = formatFactorDe(r.factor) + "×" + (r.isSignificant === false ? " (n. s.)" : "");
-          return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
-        });
-        const headers = isPolitical
-          ? ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"]
-          : ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"];
-        children.push(makeDocxTable(headers, devRows, undefined, {
+      const patternTable = patternComparisonTable(sd);
+      if (patternTable) {
+        const { title, headers, rows, isPolitical } = patternTable;
+        children.push(new Paragraph({ text: title, keepNext: true, spacing: { after: 100 } }));
+        children.push(makeDocxTable(headers, rows, undefined, {
           // Spaltengewichte (relative Anteile, werden in `_twipsForCols`
           // normiert). Reihenfolge entspricht den Headern oben:
           //   technisch:  Muster | Lokal | Lokal % | Stadt % | Faktor | 95%-KI
@@ -2528,10 +2562,9 @@
           spacing: { after: 100 }
         }));
         if (!isPolitical) {
-          const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
-          if (allNonSig) {
+          if (patternTable.allNonSignificant) {
             children.push(new Paragraph({
-              text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+              text: `Hinweis: ${patternTable.noOverrepresentation} Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.`,
               spacing: { after: 100 }
             }));
           }
@@ -4730,45 +4763,13 @@
         ]
       });
 
-      // Deviations table — parity with DOCX/HTML: 95%-KI + n.s.-Hinweis (or political simplification).
-      if (sd.deviations && sd.deviations.focus && sd.deviations.focus.length > 0) {
-        const isPolitical = sd.meta && sd.meta.mode === "political";
-        const fmtFactor = UA.formatFactorPolitical || ((f) => `Faktor ${f.toFixed(2).replace(".", ",")}`);
-        docDefinition.content.push({ text: "Top-Abweichungen (Ausschnitt vs. Stadt):", style: "normal", headlineLevel: 2 });
-        const devRows = sd.deviations.focus.map(r => {
-          const locPct = ((r.locR) * 100).toFixed(1).replace(".", ",") + " %";
-          const basePct = ((r.baseR) * 100).toFixed(1).replace(".", ",") + " %";
-          // QA-PR „Export-Semantik": Prosa-Label statt SVG-Icons.
-          const muster = r.textLabel || (typeof UA.formatParticipantCombinationForExport === "function"
-            ? UA.formatParticipantCombinationForExport(r.mask)
-            : r.label);
-          if (isPolitical) {
-            // Task 9/10: politisches Wording, kein 95%-KI.
-            return [muster, String(r.locCnt), locPct, basePct, fmtFactor(r.factor, { mode: "political" })];
-          }
-          const ciLowPct  = r.ciLow  != null ? (r.ciLow  * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const ciHighPct = r.ciHigh != null ? (r.ciHigh * 100).toFixed(1).replace(".", ",") + " %" : "—";
-          const factorStr = formatFactorDe(r.factor) + "×" + (r.isSignificant === false ? " (n. s.)" : "");
-          return [muster, String(r.locCnt), locPct, basePct, factorStr, `[${ciLowPct} – ${ciHighPct}]`];
-        });
-        if (isPolitical) {
-          docDefinition.content.push(makePdfTable(
-            ["Muster", "Lokal", "Lokal %", "Stadt %", "Einordnung"],
-            devRows,
-            undefined,
-            { widths: ["*", "auto", "auto", "auto", "*"] }
-          ));
-        } else {
-          // Explicit widths: pattern column gets the slack (*), narrow numeric
-          // columns are sized to their content so the table stops overflowing
-          // on narrower viewports/pageSizes.
-          docDefinition.content.push(makePdfTable(
-            ["Muster", "Lokal", "Lokal %", "Stadt %", "Faktor", "95%-KI (lokaler Anteil)"],
-            devRows,
-            undefined,
-            { widths: ["*", "auto", "auto", "auto", "auto", "auto"] }
-          ));
-        }
+      const patternTable = patternComparisonTable(sd);
+      if (patternTable) {
+        const { title, headers, rows, isPolitical } = patternTable;
+        docDefinition.content.push({ text: title, style: "normal", headlineLevel: 2 });
+        docDefinition.content.push(makePdfTable(headers, rows, undefined, {
+          widths: isPolitical ? ["*", "auto", "auto", "auto", "*"] : ["*", "auto", "auto", "auto", "auto", "auto"]
+        }));
         docDefinition.content.push({
           text: [
             { text: "Lesart: ", bold: true },
@@ -4779,10 +4780,9 @@
         });
         // Task 10: 95%-KI/n.s.-Hinweis nur im technischen Modus.
         if (!isPolitical) {
-          const allNonSig = sd.deviations.focus.every(r => r.isSignificant === false);
-          if (allNonSig) {
+          if (patternTable.allNonSignificant) {
             docDefinition.content.push({
-              text: "Hinweis: Alle aufgeführten Abweichungen sind statistisch nicht signifikant (95%-KI schließt Stadtwert ein). Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.",
+              text: `Hinweis: ${patternTable.noOverrepresentation} Faktor-Werte bei kleinen Fallzahlen mit Vorsicht interpretieren.`,
               style: "normal",
               italics: true,
               margin: [0, 4, 0, 8]

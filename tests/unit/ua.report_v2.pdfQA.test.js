@@ -322,6 +322,30 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     }
   });
 
+  test.each([false, true])('PDF labels the disjoint reference and the difference interval with a ranked focus %s', async withFocus => {
+    const data = makeFixtureReportData();
+    data.structured.deviations = {
+      reference: { method: 'newcombe-wilson-95', status: 'available' }, local: { total: 12 }, focus: [],
+      rows: [{ locCnt: 6, locR: 0.5, baseR: 0.4, factor: 1.25, textLabel: 'Rad + Pkw',
+        ciLow: 0.25, ciHigh: 0.75, differenceCiLow: -0.16, differenceCiHigh: 0.31, isSignificant: false }]
+    };
+    if (withFocus) {
+      const { deviations } = data.structured;
+      deviations.focus = [deviations.rows[0]];
+      deviations.rows.push({ locCnt: 5, locR: 0.42, baseR: 0, factor: null, textLabel: 'Rad allein',
+        differenceCiLow: 0.14, differenceCiHigh: 0.7, isSignificant: true });
+    }
+    const { definition } = await runPdfExport(makeFixtureCtx(), data, { includeMap: false });
+    const texts = collectTexts(definition.content);
+    expect(texts).toContain('95%-KI Differenz (Prozentpunkte)');
+    expect(texts).toContain('[-16,0 bis 31,0]');
+    expect(texts).not.toContain('[25,0 % – 75,0 %]');
+    if (withFocus) {
+      expect(texts).toContain('Rad allein');
+      expect(texts).toContain('nicht definiert');
+    }
+  });
+
   test('PDF retains scope prose and the exploratory limitation in its rendered method block', async () => {
     // QA-PR „Export-Semantik vor Layout": Methodik-Block verwendet
     // verwaltungstaugliche Begriffe statt Entwicklerjargon —

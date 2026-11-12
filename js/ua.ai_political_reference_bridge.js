@@ -130,7 +130,7 @@
     return report;
   }
 
-  function patternRow(row, localTotal, baselineTotal) {
+  function patternRow(row, localTotal, baselineTotal, reference) {
     const significant = row?.isSignificant === true;
     return {
       mask: finite(row?.mask), label: clean(row?.textLabel || row?.label) || null,
@@ -139,14 +139,17 @@
       localTotal: finite(localTotal), baselineTotal: finite(baselineTotal),
       locR: finite(row?.locR ?? row?.localShare), baseR: finite(row?.baseR ?? row?.baselineShare),
       factor: finite(row?.factor), ciLow: finite(row?.ciLow), ciHigh: finite(row?.ciHigh),
+      ...(reference ? { difference: finite(row?.difference), differenceCiLow: finite(row?.differenceCiLow),
+        differenceCiHigh: finite(row?.differenceCiHigh) } : {}),
       isSignificant: significant,
-      interpretation: significant ? 'statistically-supported-pattern-overrepresentation' : 'exploratory-pattern-difference',
+      interpretation: significant ? (reference ? 'unadjusted-exploratory-overrepresentation' : 'statistically-supported-pattern-overrepresentation') : 'exploratory-pattern-difference',
     };
   }
   function buildDeterministicAnalysisDigest(structured) {
     const sev = structured?.severity || {}, by = sev.bySev || {};
     const dev = structured?.deviations || {}, trend = structured?.yearlyTrend || null;
     const localN = dev?.local?.total, baseN = dev?.baseline?.total;
+    const reference = UA.patternReferenceMethodology?.(dev);
     const totals = Array.isArray(trend?.counts?.total) ? trend.counts.total.map(Number) : [];
     const mean = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : null;
     return {
@@ -159,11 +162,14 @@
       officialAccidentFacts: { total: finite(sev.total), fatal: finite(by['1']),
         serious: finite(by['2']), slight: finite(by['3']), other: finite(by.other) },
       patternCompositionComparison: {
-        method: 'locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR',
+        method: reference ? Object.values(reference.formulas).join('; ')
+          : 'locR=locCnt/local.total; baseR=baseCnt/baseline.total; factor=locR/baseR; isSignificant iff Wilson-95%-CI lower bound exceeds baseR',
+        ...(reference ? { reference: dev.reference } : {}),
         localSampleSize: finite(localN), baselineSampleSize: finite(baseN),
-        focus: (dev.focus || []).map(r => patternRow(r, localN, baseN)),
-        allRows: (dev.rows || []).map(r => patternRow(r, localN, baseN)),
-        scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. ' + PATTERN_COMPARISON_LIMITATIONS.note
+        focus: (dev.focus || []).map(r => patternRow(r, localN, baseN, reference)),
+        allRows: (dev.rows || []).map(r => patternRow(r, localN, baseN, reference)),
+        scopeNote: 'Compares accident-pattern composition, not an absolute accident rate per area, road length or traffic exposure. '
+          + (reference?.limitations.note || PATTERN_COMPARISON_LIMITATIONS.note)
       },
       yearlyTrend: trend ? { years: trend.years || [], totals, slopePerYear: finite(trend.slope),
         meanPerYear: mean, relativeSlope: mean > 0 && finite(trend.slope) !== null ? finite(trend.slope) / mean : null,
@@ -186,10 +192,12 @@
   }
   function buildAnalysisMethodology(structured) {
     const d = buildDeterministicAnalysisDigest(structured), p = d.patternCompositionComparison;
+    const reference = UA.patternReferenceMethodology?.(structured?.deviations);
     return {
       schemaVersion: 'unfallwerkbank.analysisMethodology.v1',
       mandatoryInterpretationBeforeQa: [
-        'Mustervergleich = lokale gegen stadtweite Anteile von Beteiligungskombinationen.',
+        reference ? 'Mustervergleich = Anteile von Beteiligungskombinationen im Ausschnitt und im übrigen Stadtgebiet.'
+          : 'Mustervergleich = lokale gegen stadtweite Anteile von Beteiligungskombinationen.',
         'local.total und baseline.total sind Stichprobenumfänge, keine direkt verglichenen Unfallraten.',
         'Exposition ist erst für absolute Risiko-/Unfallratenaussagen erforderlich.',
         'Mehrjahrestrend = relative Entwicklung im selben Bereich über slope/mean und R².'
@@ -202,7 +210,8 @@
           referenceShare: 'baseR = baseCnt / baseline.total', factor: 'factor = locR / baseR',
           uncertainty: 'Wilson-Score-Konfidenzintervall (95 %)',
           significance: 'isSignificant = true, wenn ciLow > baseR' },
-        exposureRequirement: 'Keine Exposition für den Anteilvergleich; nur für absolute Unfallraten.' },
+        exposureRequirement: 'Keine Exposition für den Anteilvergleich; nur für absolute Unfallraten.',
+        ...(reference || {}) },
       yearlyTrend: d.yearlyTrend ? { comparisonType: 'within-area-relative-linear-trend',
         formula: 'relativeSlope = slope / mean(yearly totals)', slope: d.yearlyTrend.slopePerYear,
         meanAnnualCount: d.yearlyTrend.meanPerYear, relativeSlope: d.yearlyTrend.relativeSlope,
@@ -248,7 +257,8 @@
   function enrichFactsPackage(facts) {
     if (!facts || typeof facts !== 'object') return facts;
     const structured = facts.structured || {};
-    const methodology = structured.analysisMethodology || buildAnalysisMethodology(structured);
+    const reference = UA.patternReferenceMethodology?.(structured.deviations);
+    const methodology = (!reference && structured.analysisMethodology) || buildAnalysisMethodology(structured);
     const contract = buildAiValueAddContract(structured);
     const instruction = [
       '', 'VERBINDLICHER VERGLEICHS- UND MEHRWERTAUFTRAG:',

@@ -351,7 +351,7 @@ describe('exportAssessmentPrompt.v2 buildPrompt', () => {
   }
 
   test('PROMPT_VERSION is stable identifier', () => {
-    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.6');
+    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.7');
   });
 
   test('assessment mode returns system+user strings', () => {
@@ -635,6 +635,19 @@ describe('runAssessmentV2', () => {
 // ── deterministic fallback alone ──────────────────────────────────────────────
 
 describe('buildDeterministicFallback', () => {
+  test.each([
+    ['deviations.rows', true, 'deviations.rows', 'im lokalen Vergleich'],
+    ['crossTable-fallback', false, 'crossTable.rows', 'Lokal dokumentiertes Beteiligungsmuster']
+  ])('cites the actual pattern source %s', (source, comparisonAvailable, expectedSource, description) => {
+    const features = { dominantPatterns: [{ label: 'Rad und Pkw', localCount: 37, source, comparisonAvailable }] };
+    const output = v2.buildDeterministicFallback({ aiInput: { features }, mode: 'assessment' });
+    expect(output.evidence).toContainEqual({
+      statement: expect.stringContaining(description), source: expectedSource
+    });
+    expect(output.provenance.derivedFromDeterministicFeatures).toContain(expectedSource);
+    expect(output.provenance.derivedFromDeterministicFeatures).not.toContain('deviations.focus');
+  });
+
   test('produces valid v2 assessment', () => {
     const features = deriveFeatures(STRUCTURED_FIXTURE);
     const preselected = preselectMeasures(features.tags);
