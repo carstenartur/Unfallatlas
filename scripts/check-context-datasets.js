@@ -140,8 +140,46 @@ function validateAll(repoRoot) {
   return { cities, summary };
 }
 
+const HANNOVER_DGM1 = 'hannover.dgm1';
+
+function countDgm1Rows(stats, payload) {
+  if (!stats || !payload.ways || typeof payload.ways !== 'object') return;
+  for (const [id, row] of Object.entries(payload.ways)) {
+    stats.rows++;
+    stats.wayIds.add(id);
+    if (row?.road_slope_source_id !== HANNOVER_DGM1 || row.road_slope_resolution_m !== 1) {
+      stats.invalid++;
+    } else if (row.road_slope_reliable_for_road === true && Number.isFinite(row.road_slope_percent)) {
+      stats.usable++;
+    } else if (row.road_slope_reliable_for_road !== false || Object.hasOwn(row, 'road_slope_percent')
+        || typeof row.road_slope_missing_reason !== 'string' || !row.road_slope_missing_reason.trim()) {
+      stats.invalid++;
+    }
+  }
+}
+
+function checkDgm1Evidence(meta, stats, problems) {
+  const source = meta.sources?.roadSlope;
+  const roadSlope = meta.roadSlope;
+  const sha256 = /^[0-9a-f]{64}$/i;
+  if (source?.sourceId !== HANNOVER_DGM1 || source.resolutionM !== 1 || source.modelType !== 'DTM'
+      || source.horizontalCrs !== 'EPSG:25832' || source.licenseId !== 'CC-BY-4.0'
+      || typeof source.requiredAttribution !== 'string' || !source.requiredAttribution.trim()
+      || !sha256.test(source.manifestSha256) || !sha256.test(source.distributionSha256)
+      || roadSlope?.sourceId !== HANNOVER_DGM1) {
+    problems.push('Hannover DGM1 provenance is missing or invalid');
+  }
+  if (stats.invalid > 0 || stats.usable === 0 || stats.rows !== roadSlope?.runtimeWayRows
+      || stats.usable !== roadSlope?.runtimeWayRowsWithUsableGradient
+      || stats.usable !== meta.counts?.withDgm1RoadSlope || stats.wayIds.size !== roadSlope?.uniqueWaysObserved) {
+    problems.push('Hannover DGM1 runtime way rows do not match the published profile summary');
+  }
+}
+
 function _validateV3City(repoRoot, slug, meta) {
   const problems = [];
+  const dgm1 = slug === 'hannover' && Boolean(meta.roadSlope || meta.sources?.roadSlope);
+  const dgm1Stats = dgm1 ? { rows: 0, usable: 0, invalid: 0, wayIds: new Set() } : null;
   const outDir = path.join(repoRoot, 'out');
   // `_toLocalPath` always returns a repo-root-relative path (with the
   // `out/` prefix re-added when the input — like meta.tileIndexPath —
@@ -201,6 +239,7 @@ function _validateV3City(repoRoot, slug, meta) {
           if (!firstEmpty) firstEmpty = `${x}/${y}.json`;
           emptyCount++;
         }
+        countDgm1Rows(dgm1Stats, payload);
       }
       if (missingCount > 0) {
         problems.push(`${missingCount} referenced tile file(s) missing on disk (first: ${firstMissing})`);
@@ -220,6 +259,7 @@ function _validateV3City(repoRoot, slug, meta) {
   if (!ways || typeof ways !== 'object') {
     problems.push(`companion ${path.relative(repoRoot, waysFile)} missing or invalid JSON`);
   } else {
+    countDgm1Rows(dgm1Stats, ways);
     if (Number(ways.schemaVersion) !== 3) {
       problems.push(`companion ways file schemaVersion is ${ways.schemaVersion}, expected 3`);
     }
@@ -273,7 +313,9 @@ function _validateV3City(repoRoot, slug, meta) {
     }
   }
 
-  return { slug, ok: problems.length === 0, problems };
+  if (dgm1) checkDgm1Evidence(meta, dgm1Stats, problems);
+  const ok = problems.length === 0;
+  return dgm1 && ok ? { slug, ok, problems, roadSlopeSource: HANNOVER_DGM1 } : { slug, ok, problems };
 }
 
 function _readJson(file) {

@@ -79,6 +79,42 @@ describe('check-context-datasets', () => {
     expect(r.cities[0]).toEqual({ slug: 'goodcity', ok: true, problems: [] });
   });
 
+  test.each([['matching rows', true], ['SRTM replacement tile', false]])(
+    'validates the Hannover DGM1 sidecar against actual gzip tiles with %s', (_name, dgm1) => {
+      writeGoodCity(tmpRoot, 'hannover');
+      const output = path.join(tmpRoot, 'out');
+      const metaPath = path.join(output, 'output_all_years_hannover.enrichment.meta.json');
+      const meta = JSON.parse(fs.readFileSync(metaPath));
+      meta.sources.roadSlope = {
+        sourceId: 'hannover.dgm1', resolutionM: 1, modelType: 'DTM', horizontalCrs: 'EPSG:25832',
+        licenseId: 'CC-BY-4.0', requiredAttribution: 'LH Hannover',
+        manifestSha256: 'a'.repeat(64), distributionSha256: 'b'.repeat(64),
+      };
+      meta.roadSlope = { sourceId: 'hannover.dgm1', runtimeWayRows: 2,
+        runtimeWayRowsWithUsableGradient: 1, uniqueWaysObserved: 2 };
+      meta.counts.withDgm1RoadSlope = 1;
+      fs.unlinkSync(metaPath);
+      fs.writeFileSync(metaPath + '.gz', zlib.gzipSync(JSON.stringify(meta)));
+
+      const tiles = path.join(output, 'ctxtiles', 'hannover');
+      const official = { highway: 0, road_slope_source_id: 'hannover.dgm1', road_slope_resolution_m: 1 };
+      const bridge = { ...official, road_slope_reliable_for_road: false,
+        road_slope_missing_reason: 'bridge_surface_not_represented_by_dtm' };
+      const road = { ...official, road_slope_percent: 2.8, road_slope_reliable_for_road: true };
+      const replacement = { highway: 0, road_slope_percent: 2.8 };
+      for (const [x, way, row] of [[100, 'W1', dgm1 ? road : replacement], [101, 'W2', bridge]]) {
+        const tilePath = path.join(tiles, String(x), '200.json');
+        fs.unlinkSync(tilePath);
+        fs.writeFileSync(tilePath + '.gz', zlib.gzipSync(JSON.stringify({ ways: { [way]: row } })));
+      }
+
+      const city = validateAll(tmpRoot).cities[0];
+      expect(city.ok).toBe(dgm1);
+      expect(city.roadSlopeSource).toBe(dgm1 ? 'hannover.dgm1' : undefined);
+      if (!dgm1) expect(city.problems.join('\n')).toMatch(/DGM1 runtime/);
+    },
+  );
+
   test('skips non-v3 cities (legacy v1/v2 ways files have no tileIndexPath)', () => {
     writeJson(path.join(tmpRoot, 'out', 'output_all_years_legacy.enrichment.meta.json'), {
       schemaVersion: 2,

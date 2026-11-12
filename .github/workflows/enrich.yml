@@ -21,7 +21,7 @@ on:
         description: 'Für Hannover amtliches DGM1 erzwingen; ohne vollständig gepinnte Quelle fehlschlagen'
         required: true
         type: boolean
-        default: false
+        default: true
   push:
     branches: [main]
     paths:
@@ -62,6 +62,8 @@ jobs:
   enrich:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ github.event_name != 'workflow_dispatch' || inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
     if: >-
       github.event_name != 'workflow_run' ||
       (
@@ -96,11 +98,22 @@ jobs:
             context-${{ runner.os }}-${{ hashFiles('scripts/providers/**', 'scripts/producers/**', 'scripts/generate-context-city.js', 'scripts/apply-*-profiles.js', 'scripts/check-enrichment-inputs.js') }}-
             context-${{ runner.os }}-
 
+      - name: Select the Hannover raster for the requested city
+        id: hannover-city
+        if: env.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true'
+        env:
+          REQUESTED_CITY: ${{ inputs.city }}
+        run: |
+          node -e '
+            const { slugify } = require("./scripts/lib/static-data-validation");
+            const city = (process.env.REQUESTED_CITY || "").trim();
+            console.log("selected=" + (!city || slugify(city) === "hannover"));
+          ' >> "$GITHUB_OUTPUT"
+
       - name: Restore the pinned Hannover raster
         id: raster-cache
         if: >-
-          (inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true') &&
-          (inputs.city == '' || inputs.city == 'Hannover') &&
+          steps.hannover-city.outputs.selected == 'true' &&
           vars.HANNOVER_DGM1_ROOT == '' && vars.HANNOVER_DGM1_MANIFEST == '' &&
           vars.HANNOVER_DGM1_MANIFEST_SHA256 == '' && vars.HANNOVER_DGM1_PRECOMPUTED_PROFILES == ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -111,8 +124,7 @@ jobs:
       - name: Prepare the verified Hannover city raster when requested
         id: hannover-raster
         if: >-
-          (inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true') &&
-          (inputs.city == '' || inputs.city == 'Hannover') &&
+          steps.hannover-city.outputs.selected == 'true' &&
           vars.HANNOVER_DGM1_ROOT == '' && vars.HANNOVER_DGM1_MANIFEST == '' &&
           vars.HANNOVER_DGM1_MANIFEST_SHA256 == '' && vars.HANNOVER_DGM1_PRECOMPUTED_PROFILES == ''
         env:
@@ -140,7 +152,6 @@ jobs:
           REQUESTED_CITY: ${{ inputs.city }}
           FORCE_CONTEXT: ${{ inputs.force == true || github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
           CONTEXT_ALLOW_STALE_ON_TRANSIENT: ${{ inputs.allow_stale_on_transient == true || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}
-          CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
           CONTEXT_REVIEW_GIT_DELTA: 'true'
           CONTEXT_KOELN_MEASURED_COUNTS: 'true'
           HANNOVER_DGM1_ROOT: ${{ steps.hannover-raster.outputs.root || vars.HANNOVER_DGM1_ROOT }}
@@ -151,6 +162,7 @@ jobs:
           mvn -B -ntp verify -Pcontext-data-e2e
           -Dcontext.city="${REQUESTED_CITY:-}"
           -Dcontext.force="${FORCE_CONTEXT:-false}"
+          -Dcontext.allowStaleOnTransient="${CONTEXT_ALLOW_STALE_ON_TRANSIENT:-false}"
 
       - name: Upload context QA evidence
         if: always()

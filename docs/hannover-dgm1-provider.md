@@ -120,13 +120,11 @@ Damit wird der bereits vorhandene gemeinsame Algorithmus genutzt:
 - verständliche Root-Fehler, punktweises `null` außerhalb UTM32 und sicheres
   Schließen des Datenstreams auch nach einem Parserfehler.
 
-Diese synthetischen Fälle sichern Mathematik und Datenvertrag. Für den
-vollständigen Abschluss von #412 fehlen weiterhin manuell gegen reale
-Hannover-DGM1-Höhen und bekannte Straßenprofile geprüfte Referenzfälle sowie
-die Übernahme des Providers in den standardmäßigen Stadtproduktionslauf. Bis
-dahin bleibt SRTM der automatische Fallback; ein DGM1-Ergebnis wird nur erzeugt,
-wenn ein ausdrücklich registrierter und vollständig verifizierter Snapshot
-vorliegt.
+Diese synthetischen Fälle sichern Mathematik und Datenvertrag. Der
+[unabhängige QGIS-Vergleich](qa/hannover-dgm1-qgis-city.md) ergänzt sie mit
+Profilen aus den Originaldaten. Die fachliche Abnahme für heutige Fahrbahnen
+steht aus. Ein DGM1-Ergebnis erfordert einen vollständig verifizierten
+Snapshot.
 
 ## Reale, begrenzte Quellenauszüge (November 2026)
 
@@ -144,9 +142,8 @@ verbleibenden fachlichen Grenzen beschreibt [die Quellenprüfung](qa/hannover-dg
 
 Diese automatisierten Realdatenfälle ersetzen keine manuell geprüften
 QGIS-/Fahrbahnprofile. Die DGM-Metadaten nennen die Laserscannerbefliegung 2010
-und die Veröffentlichung 2024; das Höhendatum ist dort nicht belegt. Eine
-stadtweite Aktivierung oder Aussage über heutige Fahrbahnhöhen folgt daraus
-nicht.
+und die Veröffentlichung 2024. Ein vertikales Bezugssystem ist dort nicht
+angegeben. Die heutige Fahrbahnoberfläche benötigt einen separaten Nachweis.
 
 ## Stadtweiter Originalbestand
 
@@ -169,10 +166,14 @@ Die letzte Ausgabezeile ist der externe SHA-256 für `manifest.json`. Python ab
 Manifest bezeichnet die erste dokumentierte Beschaffung dieser identischen
 Archivbytes am 11. November 2026. Ein neuer Workflowlauf oder Cachetreffer
 aktualisiert dieses Datum nicht. Der Höhenbezug der kommunalen Befliegung
-von 2010 bleibt unbekannt. Der Kontextworkflow bereitet das Stadtraster beim
-bestehenden Schalter `require_hannover_dgm1` automatisch vor und kann die
-hashgebundene Ableitung aus dem Actions-Cache laden. Ein vom Betreiber
-vorgegebener vollständiger Quellensatz bleibt verwendbar.
+von 2010 bleibt unbekannt. Bei automatischen Kontextläufen für Hannover ist
+DGM1 Pflicht. Der Workflow erstellt das Stadtraster aus den fünf gepinnten
+Archiven oder lädt die hashgebundene Ableitung aus dem Actions-Cache. Ein
+vollständiger, vom Betreiber konfigurierter Snapshot kann verwendet werden.
+Bei einem temporären OSM-Ausfall darf der Workflow für Hannover ausschließlich
+einen bereits validierten DGM1-Stand übernehmen. Für einen ausdrücklich
+gewünschten Vergleichslauf kann `require_hannover_dgm1` beim manuellen Start
+deaktiviert werden, sofern der Betreiber DGM1 nicht erzwungen hat.
 
 Auf dem vollständigen Raster lagen 21.495 der 21.539 geprüften Hannoveraner
 Unfallkoordinaten innerhalb interpolierbarer Zellen, 44 außerhalb. Diese
