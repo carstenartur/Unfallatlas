@@ -1,9 +1,10 @@
-# Optionaler BASt-Jahres-DTV-Provider
+# BASt-Jahres-DTV und lokaler Straßenbezug
 
 Der lokale Provider `scripts/providers/bast_annual_dtv_provider.js` importiert
-den tatsächlich geprüften amtlichen Jahresexport **2023**. Er aktiviert keine
-Produktionsdaten und nimmt kein Straßenmatching vor. Die gemeinsame Traffic-SPI,
-SourceManifest-Validierung und Fallback-Auswahl bleiben unverändert.
+den tatsächlich geprüften amtlichen Jahresexport **2023**. Der Stadtgenerator
+kann daraus nach ausdrücklicher Konfiguration gemessenen Kfz-Kontext an
+geeignete Unfallpunkte anbinden. Die Ausgabe verwendet die gemeinsame
+Traffic-SPI und SourceManifest-Validierung.
 
 ## Amtliche Quellen und Lizenz
 
@@ -111,16 +112,65 @@ JSON-Snapshot-Katalog wird nicht erweitert oder aufgeweicht. Originalhash,
 Bytezahl, Spaltenlayout, Pfadgrenze und symlinkfreie Datei werden streng geprüft;
 andere Jahrgänge benötigen eine neue ausdrückliche Prüfung.
 
+## Anwendung im Stadtgenerator
+
+`CONTEXT_BAST_ANNUAL_COUNTS_CITY=Hamburg npm run generate:context-city -- --city Hamburg`
+aktiviert den Pfad für eine Stadt aus `cities.txt`. Der gehostete Kontextlauf
+liest dieselbe Konfiguration aus der gleichnamigen Repository-Variable. Die
+Kölner Konfiguration bleibt unabhängig. Der Generator lädt das amtliche CSV
+in sein Staging-Verzeichnis, prüft Bytezahl und SHA-256 und installiert die
+erzeugten Dateien erst nach der bestehenden Validierung. Bei aktivierter
+Quelle wird ein älterer OSM-Cache ohne Straßennummern und Richtungsattribute
+neu erzeugt. Bei HTTP 429 und Serverfehlern der BASt kann ein geplanter Lauf
+mit aktiviertem Fallback den letzten validierten Stadtstand behalten.
+Fehler bei Lizenz, Dateigröße oder Prüfsumme brechen den Lauf ab.
+
+Für die Verknüpfung wird nur der originale Kfz-Querschnitt `Q` einer
+nummerierten Bundesstraße ohne amtlichen Straßenzusatz verwendet. Der amtliche
+Stationspunkt muss höchstens 12 m vom OSM-Way mit derselben Straßennummer
+liegen. Mehrere Ways derselben Bundesstraße innerhalb von 25 m oder mehrere
+Stationen auf demselben Way bleiben mehrdeutig. Der passende Way braucht eine
+geeignete Hauptstraßenklasse und entweder `oneway=no` oder ausdrücklich
+gekennzeichnete Fahrstreifen in beiden Richtungen mit derselben Gesamtzahl wie
+der BASt-Querschnitt. Abweichende Richtungs- oder Zugangstags, Tunnel, Brücken
+und Kreisverkehre schließen eine Zuordnung aus.
+
+Der Jahreswert kommt als lokaler Kontext an Kfz-Unfallpunkte aus **2023** auf
+demselben eindeutig zugeordneten Way innerhalb von 150 m der Zählstelle. Der
+Unfallpunkt muss zusätzlich bis auf 10 m an diesem Way und mehr als 10 m von
+jedem anderen Kfz-Way liegen. Rad-, Fuß- und sonstige Beteiligung müssen
+ausdrücklich ausgeschlossen sein. Die übrigen Fälle behalten den qualitativen
+OSM-Proxy. Die Straßenkarte behält den Proxy auf dem gesamten
+Straßennetz, da ein punktueller Querschnitt keine Belastung über die Länge
+eines OSM-Ways belegt. Der Unfallkontext bewahrt den amtlichen Stationspunkt,
+Querschnitt, Messperiode und vollständigen Quellenbezug. Die Anzeige nennt
+die Entfernung vom Unfallpunkt zur Zählstelle. Der Abstand der Zählstelle zum
+OSM-Way steht separat in den Qualitätshinweisen. Der Wert beschreibt den
+Jahresmittelwert am Zählquerschnitt. Die bestehende Altersgrenze
+kennzeichnet historische Werte weiterhin im späteren Bezugsjahr.
+
+Die OSM-Geometrie und Straßentags stammen von **© OpenStreetMap contributors**
+unter [ODbL 1.0](https://www.openstreetmap.org/copyright). Die Metadaten
+speichern getrennt vom amtlichen CSV den OSM-Eingabehash und die gemeldete
+Abdeckung, einschließlich eindeutiger und mehrdeutiger Stationsbezüge und
+der Anzahl angewandter Werte.
+
+Der Hamburger Referenzfall verbindet den amtlichen Querschnitt der Station
+2201 (Kollaustraße, B 447) mit dem Unfallpunkt 9757 aus 2023. Der originale
+Wert beträgt **45.865 Kfz/24 h**. Der [OSM-Way 1561698173](https://www.openstreetmap.org/way/1561698173)
+weist drei Fahrstreifen in der einen und vier in der anderen Richtung aus.
+Der Unfallpunkt 62075 bei St. Mauritz (B 481) behält den Proxy, weil am Punkt
+zusätzlich eine Zufahrt liegt. Die beiden Fixtures enthalten die relevanten
+Unfallfelder aus dem veröffentlichten Bestand sowie Straßenattribute und
+geordnete Geometrien aus dokumentierten OSM-API-Ausschnitten.
+
 ## Verbleibende Grenzen von #413
 
-Dieser Pilot ergänzt die kommunalen Zählquellen um den geprüften
-überregionalen Quellenbaustein. Er ist noch keine bundesweit gematchte
-Straßenaktivierung oder vollständige Drei-Quellen-Abnahme. Für einen Einsatz an
-Straßen fehlen ein begrenzter, fachlich geprüfter Stations-/Querschnittsbezug,
-die Auswahl genau des passenden Gesamt- oder Richtungswerts, Abdeckung und
-Qualitätsbewertung sowie reale Export-/Golden-Nachweise für den gewählten Einsatz.
-Der optionale [Düsseldorfer Stundenwert-Pilot](duesseldorf-bicycle-hourly-provider.md)
-liefert neben Köln eine zweite gegen Originaldaten geprüfte kommunale Quelle;
-eine fachlich geprüfte Straßenaktivierung folgt daraus nicht. Modellwerte,
-Jahres-DTV, werktäglicher Köln-Verkehr und stündliche Radwerte dürfen nicht ohne
-belegte fachliche Umrechnung als austauschbare Messgrößen verglichen werden.
+Die BASt-Richtungswerte `Ri1` und `Ri2` bleiben getrennt im Stationsimport.
+Ihre Himmelsrichtungen und Ziele beschreiben die amtliche Route; für die
+Anwendung auf einzelne Fahrbahnen fehlt ein entsprechend geprüfter Bezug.
+Für den [Düsseldorfer Stundenwert-Piloten](duesseldorf-bicycle-hourly-provider.md)
+braucht die zeitliche Anwendung eindeutige Quellzeitlabels und Richtungen.
+Modellwerte, BASt-Jahres-DTV, werktäglicher Kölner Verkehr und stündliche
+Radwerte sind unterschiedliche Messgrößen. Die fachliche Abnahme und die
+Kontrolle einer aktivierten Veröffentlichung bleiben gesonderte Schritte.

@@ -46,6 +46,7 @@ function parseAnnualCsv(bytes) {
   const [header, ...rows] = parsed.rows;
   if (parsed.delimiter !== ';' || sha256(header.join(';')) !== HEADER_SHA256) fail('invalid_header', 'Official 2023 column layout changed');
   const observations = [];
+  const crossSectionRoutes = {};
   const ids = new Set();
   let stationsWithoutCount = 0;
   for (const row of rows) {
@@ -60,7 +61,7 @@ function parseAnnualCsv(bytes) {
     if (days !== null && days > 365) fail('invalid_count', 'Counted days exceed 2023');
     const qualityNotes = [
       `BASt-Zählstelle ${id}: ${fields.DZ_Name}; Straße ${fields.Str_Kl}${fields.Str_Nr}${fields.Str_Zus}; TK ${fields.TK_Nr}.`,
-      'Amtlicher Stationspunkt in WGS84/EPSG:4326; keine OSM-Straßenzuordnung, Fahrstreifengeometrie oder belegte Lagegenauigkeit.',
+      'Amtlicher Stationspunkt in WGS84/EPSG:4326; die Quelldatei liefert keine OSM-Straßenzuordnung, Fahrstreifengeometrie oder belegte Lagegenauigkeit.',
       'Jahres-DTV 2023 aus Dauerzählungen; Q, Ri. 1 und Ri. 2 sind getrennte Originalwerte und dürfen nicht zusammenaddiert werden.',
       days === null ? 'Anzahl vollständig gezählter Tage unbekannt.' : `Vollständig gezählte Tage 2023: ${days} von 365.`,
       ...(fields.Anmerkungen ? [`Amtliche Anmerkungen: ${fields.Anmerkungen}`] : []),
@@ -70,19 +71,26 @@ function parseAnnualCsv(bytes) {
       const value = count(fields[`DTV_Kfz_MobisSo_${suffix}`]);
       if (value === null) continue;
       available += 1;
+      const observationId = `bast-dz${id}-2023-${suffix}`;
+      // A whole cross-section can be linked to a single bidirectional federal
+      // road. Carriageways and BASt suffixes need separately reviewed evidence.
+      if (suffix === 'Q' && fields.Str_Kl === 'B' && /^[1-9]\d{0,2}$/.test(fields.Str_Nr) && !fields.Str_Zus) {
+        crossSectionRoutes[observationId] = Object.freeze({ref: `B ${fields.Str_Nr}`,
+          laneCount: /^[1-9]\d?$/.test(fields.Anz_Fs_Q) ? Number(fields.Anz_Fs_Q) : null});
+      }
       const directionText = typeof direction === 'string' ? direction : [
         `Ri. ${direction}`,
         ...(fields[`Hi_Ri${direction}`] ? [`Himmelsrichtung: ${fields[`Hi_Ri${direction}`]}`] : []),
         ...(fields[`Fernziel_Ri${direction}`] ? [`Fernziel: ${fields[`Fernziel_Ri${direction}`]}`] : []),
         ...(fields[`Nahziel_Ri${direction}`] ? [`Nahziel: ${fields[`Nahziel_Ri${direction}`]}`] : []),
       ].join('; ');
-      observations.push({observationId: `bast-dz${id}-2023-${suffix}`, measurementType: 'count', mode: 'motor_vehicle',
+      observations.push({observationId, measurementType: 'count', mode: 'motor_vehicle',
         year: 2023, period: 'Jahres-DTV 2023, alle Tage (Mo–So)', value, unit: 'Kfz/24 h', geometry,
         direction: directionText, qualityNotes: [...qualityNotes]});
     }
     if (!available) stationsWithoutCount += 1;
   }
-  return {stationCount: ids.size, stationsWithoutCount, observations};
+  return {stationCount: ids.size, stationsWithoutCount, observations, crossSectionRoutes: Object.freeze(crossSectionRoutes)};
 }
 
 function createDescriptor(retrievedAt) {
@@ -127,7 +135,7 @@ function createBastAnnualDtvProvider(options) {
   const loaded = parseAnnualCsv(bytes);
   const provider = traffic.createProvider({descriptor: createDescriptor(opts.retrievedAt),
     canProvide: context => context.country === 'DE', loadObservations: async () => loaded.observations});
-  return Object.freeze({...provider, coverage: Object.freeze({stationCount: loaded.stationCount,
+  return Object.freeze({...provider, crossSectionRoutes: loaded.crossSectionRoutes, coverage: Object.freeze({stationCount: loaded.stationCount,
     stationsWithoutCount: loaded.stationsWithoutCount, observationCount: loaded.observations.length})});
 }
 

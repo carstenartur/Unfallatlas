@@ -60,6 +60,13 @@ const { readJsonMaybeGz } = require('../lib/read-json-maybe-gz');
 //         the entire visible road network. Cache key bumps so the first
 //         CI run after the bump re-fetches every city.
 const PRODUCER_VERSION = '1.2.0';
+const TRAFFIC_ROUTE_TAGS_VERSION = 1;
+const TRAFFIC_ROUTE_KEYS = ['ref', 'oneway', 'oneway:conditional', 'oneway:vehicle', 'oneway:vehicle:conditional',
+  'oneway:motor_vehicle', 'oneway:motor_vehicle:conditional', 'oneway:motorcar', 'oneway:motorcar:conditional',
+  'junction', 'access', 'access:conditional', 'vehicle', 'vehicle:conditional', 'motor_vehicle',
+  'motor_vehicle:conditional', 'motorcar', 'motorcar:conditional', 'bridge', 'tunnel', 'layer', 'area',
+  'lanes', 'lanes:forward', 'lanes:backward', 'lanes:both_ways', 'lanes:conditional',
+  'lanes:forward:conditional', 'lanes:backward:conditional', 'lanes:both_ways:conditional'];
 
 // Highway tag values the producer ships into the on-disk OSM dataset.
 // Mirrors HIGHWAY_DTV_PROXY in scripts/producers/traffic_producer.js
@@ -425,6 +432,7 @@ function nearestWayIndexed(lat, lon, index, opts) {
       const bucket = index.grid.get(`${la},${lo}`);
       if (!bucket) continue;
       for (const seg of bucket) {
+        if (opts && seg.id === opts.excludeWayId) continue;
         const dSq = pointToSegmentDistSqM(lat, lon, seg.a, seg.b);
         if (dSq < bestDSq) {
           bestDSq = dSq;
@@ -545,8 +553,14 @@ function buildOsmDataset(fc, ways, opts) {
   // independently of accident locations — this is the architectural
   // fix the "matched-only context layer is confusing" issue describes.
   const wayGeometries = {};
+  const trafficRouteTags = o.includeTrafficRouteTags ? { version: TRAFFIC_ROUTE_TAGS_VERSION,
+    distributionUrl: o.routeDistributionUrl || DEFAULT_OVERPASS_ENDPOINT, ways: {} } : null;
   for (const w of ways) {
     wayTable[w.id] = normalizeWay(w);
+    if (trafficRouteTags && typeof w.tags?.ref === 'string') {
+      trafficRouteTags.ways[w.id] = Object.fromEntries(TRAFFIC_ROUTE_KEYS
+        .filter(key => typeof w.tags[key] === 'string').map(key => [key, w.tags[key]]));
+    }
     // Keep the full polyline so the enrichment step can ship a
     // generalised geometry per way in the per-tile context payloads.
     // The DEM producer's `readOsmWaySpans` only inspects `g[0]` and
@@ -572,6 +586,7 @@ function buildOsmDataset(fc, ways, opts) {
     ways:            wayTable,
     wayGeometries,
     index:           indexEntries,
+    ...(trafficRouteTags ? { trafficRouteTags } : {}),
   };
 }
 
@@ -786,9 +801,18 @@ async function produceCity(repoRoot, citySlug, opts) {
 
   const ways = Array.from(wayMap.values());
 
+  let routeDistributionUrl;
+  if (o.includeTrafficRouteTags) {
+    const endpoint = new URL(o.endpoint || process.env.OVERPASS_ENDPOINT || DEFAULT_OVERPASS_ENDPOINT);
+    // Report the actual public endpoint without including endpoint credentials.
+    routeDistributionUrl = `${endpoint.origin}${endpoint.pathname}`;
+  }
+
   const dataset = buildOsmDataset(fc, ways, {
     maxDistanceM: o.maxDistanceM,
     extractDate:  o.extractDate,
+    includeTrafficRouteTags: o.includeTrafficRouteTags,
+    routeDistributionUrl,
   });
 
   const outDir = o.outDir;
@@ -930,6 +954,7 @@ if (require.main === module) {
 
 module.exports = {
   PRODUCER_VERSION,
+  TRAFFIC_ROUTE_TAGS_VERSION,
   OVERPASS_HIGHWAY_REGEX,
   DEFAULT_MAX_SNAP_DISTANCE_M,
   MIN_TILE_DEG,

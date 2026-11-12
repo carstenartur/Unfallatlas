@@ -18,6 +18,8 @@ const demTileProducer = require('./producers/dem_tile_producer');
 const demProducer = require('./producers/dem_producer');
 const trafficProducer = require('./producers/traffic_producer');
 const { shouldStageKoelnTraffic, stageKoelnTraffic } = require('./providers/koeln_traffic_delivery');
+const { applyBastAnnualDtv, hasTrafficRouteTags, shouldStageBastTraffic } = require('./providers/bast_traffic_application');
+const { applyQualitativeTrafficProxy } = require('./apply-qualitative-traffic-proxy');
 const enricher = require('./enrich_geojson');
 const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 const { validateAll: validateContextDatasets } = require('./check-context-datasets');
@@ -272,6 +274,7 @@ async function generateContextCity(options) {
   const resolved = resolveCanonicalCity(args.root, args.city);
   const city = resolved.city;
   const slug = resolved.slug;
+  const stageBast = shouldStageBastTraffic(slug);
   const runId = `${slug}-${Date.now()}-${process.pid}`;
   const runRoot = path.join(args.workDir, runId);
   const producerRoot = path.join(runRoot, 'producer-root');
@@ -301,11 +304,16 @@ async function generateContextCity(options) {
     const trafficFile = path.join(dirs.trafficDir, `traffic_${slug}.json`);
 
     console.log(`[context-generation] ${city}: OSM road network`);
-    const forceOsm = args.force || !producerDatasetIsCurrent(osmFile, validateOsm, inputFingerprint);
+    const validateOsmForCity = (data, opts) => [
+      ...validateOsm(data, opts),
+      ...(stageBast && !hasTrafficRouteTags(data) ? ['missing BASt route tags'] : []),
+    ];
+    const forceOsm = args.force || !producerDatasetIsCurrent(osmFile, validateOsmForCity, inputFingerprint);
     const osmResult = await osmProducer.produceCity(producerRoot, slug, {
       outDir: dirs.osmDir,
       force: forceOsm,
       interTileDelayMs: 1000,
+      includeTrafficRouteTags: stageBast,
     });
     assertProducerResult('OSM', osmResult, osmFile);
     stampProducerDataset(osmFile, inputFingerprint);
@@ -352,11 +360,18 @@ async function generateContextCity(options) {
     if (enrichment.skipped || !enrichment.wroteCompanions) {
       throw new Error(`Enrichment produced no context data: ${enrichment.reason || 'no companions'}`);
     }
+    let counts = enrichment.meta && enrichment.meta.counts;
 
     if (shouldStageKoelnTraffic(slug)) {
       const measured = await stageKoelnTraffic({workDir: path.join(runRoot, 'counts'),
         outputDir: stagedOut, osmFile, trafficDir: dirs.trafficDir});
       console.log('[context-generation] Köln measured traffic:', JSON.stringify(measured));
+    }
+    if (stageBast) {
+      applyQualitativeTrafficProxy({city, outputDir: stagedOut, trafficDir: dirs.trafficDir});
+      const measured = await applyBastAnnualDtv({slug, workDir: path.join(runRoot, 'counts'), outputDir: stagedOut, osmFile});
+      counts = measured.counts;
+      console.log(`[context-generation] ${city} BASt measured traffic:`, JSON.stringify(measured));
     }
 
     const validation = validateContextDatasets(runRoot);
@@ -375,7 +390,7 @@ async function generateContextCity(options) {
       featureCount: inputValidation.featureCount,
       inputFingerprint,
       generatedAt: enrichment.meta && enrichment.meta.generatedAt,
-      counts: enrichment.meta && enrichment.meta.counts,
+      counts,
       cacheDir: args.cacheDir,
       outputDir: args.outputDir,
     };

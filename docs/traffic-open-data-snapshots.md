@@ -174,8 +174,10 @@ Ein weiterer optionaler, tatsächlich gegen Originalbytes geprüfter Provider
 importiert die überregionalen BASt-Jahres-DTV 2023 einschließlich amtlicher
 WGS84-Stationspunkte. Er erhält 4.671 getrennte Querschnitts-/Richtungsbeobachtungen
 aus 1.557 Stationen; weitere 559 Stationen besitzen keine Kfz-Jahreswerte.
-Er führt kein Straßenmatching und keine Produktionsaktivierung aus. Siehe
-[BASt-Jahres-DTV-Provider](bast-annual-dtv-provider.md).
+Der Stadtgenerator kann auf ausdrückliche Konfiguration den passenden
+Querschnitt an lokale Kfz-Unfallpunkte des Messjahrs anbinden, wenn die
+OSM-Bundesstraße und beide Fahrtrichtungen eindeutig belegt sind.
+[BASt-Jahres-DTV und lokaler Straßenbezug](bast-annual-dtv-provider.md).
 
 Der ebenfalls optionale [Düsseldorfer Stundenwert-Pilot](duesseldorf-bicycle-hourly-provider.md)
 erhält 17.566 richtungsgetrennte Fahrrad-Stundenwerte der Station Mannesmannufer
