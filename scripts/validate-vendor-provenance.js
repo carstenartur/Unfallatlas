@@ -86,7 +86,7 @@ function validateVendorProvenance(manifestPath, options = {}) {
       !Array.isArray(sbom.compositions)) {
     throw new Error('[validate-vendor-provenance] Invalid CycloneDX 1.6 diagnostic SBOM');
   }
-  validateDiagnosticSbom(manifest, sbom);
+  validateDiagnosticSbom(manifest, sbom, trustedPolicy);
   if (manifest.complete === true) {
     validateCompletenessClaims(manifest);
     validateCompleteSbom(manifest, sbom);
@@ -132,26 +132,29 @@ function assertExactStringSet(actual, expected, label) {
   }
 }
 
-function validateDiagnosticSbom(manifest, sbom) {
+function validateDiagnosticSbom(manifest, sbom, policy) {
   const sbomComponents = toUniqueMap(sbom.components, 'bom-ref', 'SBOM component ref');
   if (sbom.components.some(component => component.components?.length)) {
     throw new Error('[validate-vendor-provenance] Undeclared nested SBOM component');
   }
   const expectedRefs = new Set();
+  const exactLicensePurls = new Set(Object.values(policy?.verifiedBundleInventories || {})
+    .flatMap(inventory => (inventory.browserifyModules || []).map(module => module.purl)));
 
   for (const component of manifest.components) {
     expectedRefs.add(component.purl);
     const sbomComponent = sbomComponents.get(component.purl);
     const properties = sbomComponent ? propertiesMap(sbomComponent, `component ${component.purl}`) : new Map();
-    const expressions = (sbomComponent && sbomComponent.licenses || [])
-      .map(license => license && license.expression)
-      .filter(Boolean);
+    const licenses = sbomComponent?.licenses || [];
+    const expressions = licenses.map(license => license && license.expression).filter(Boolean);
+    const licensesMatch = exactLicensePurls.has(component.purl)
+      ? JSON.stringify(licenses) === JSON.stringify([{ expression: component.licenseExpression }])
+      : !component.licenseExpression || expressions.includes(component.licenseExpression);
     if (!sbomComponent || sbomComponent.type !== 'library' || sbomComponent.name !== component.name ||
         sbomComponent.version !== component.version || sbomComponent.purl !== component.purl ||
         hashValue(sbomComponent, 'SHA-512') !== sriSha512Hex(component.integrity) ||
         properties.get('unfallatlas:license-text-count')?.value !== String(component.licenseTexts.length) ||
-        properties.get('unfallatlas:lock-integrity')?.value !== component.integrity ||
-        (component.licenseExpression && !expressions.includes(component.licenseExpression))) {
+        properties.get('unfallatlas:lock-integrity')?.value !== component.integrity || !licensesMatch) {
       throw new Error(`[validate-vendor-provenance] SBOM component evidence mismatch: ${component.purl}`);
     }
   }
