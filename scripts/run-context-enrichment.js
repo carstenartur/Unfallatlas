@@ -20,6 +20,7 @@ const DGM1_PROFILE_FILE = path.resolve(
 const TRANSIENT_PROVIDER_PATTERNS = Object.freeze([
   { id: 'overpass-rate-limit', pattern: /Overpass HTTP 429\b/i },
   { id: 'overpass-server-error', pattern: /Overpass HTTP 5\d\d\b/i },
+  { id: 'overpass-incomplete-timeout', pattern: /Incomplete Overpass road geometry or structure tags:.*\b(?:timed out|timeout)\b/i },
   { id: 'bast-rate-limit', pattern: /BASt annual DTV download failed: 429\b/i },
   { id: 'bast-server-error', pattern: /BASt annual DTV download failed: 5\d\d\b/i },
   { id: 'network-reset', pattern: /\b(?:ECONNRESET|ECONNREFUSED|EPIPE|socket hang up)\b/i },
@@ -155,7 +156,7 @@ function applyHannoverDgm1(city, options = currentOptions()) {
       '--dgm-manifest-sha256', configuration.manifestSha256,
       '--output', DGM1_PROFILE_FILE,
     ];
-    if (options.force) producerArgs.push('--force-context');
+    // The city refresh captured the structure tags with the road geometries.
     run('scripts/producers/hannover_dgm1_road_profile_producer.js', producerArgs);
     run('scripts/apply-hannover-dgm1-road-profiles.js', [
       '--city', city,

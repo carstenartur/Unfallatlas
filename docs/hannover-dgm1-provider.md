@@ -170,6 +170,9 @@ von 2010 bleibt unbekannt. Bei automatischen Kontextläufen für Hannover ist
 DGM1 Pflicht. Der Workflow erstellt das Stadtraster aus den fünf gepinnten
 Archiven oder lädt die hashgebundene Ableitung aus dem Actions-Cache. Ein
 vollständiger, vom Betreiber konfigurierter Snapshot kann verwendet werden.
+Bei einem DGM1-Lauf übernimmt der Stadtgenerator die Bauwerksmerkmale aus derselben Overpass-Antwort
+wie die Straßengeometrien. Die Profilrechnung prüft und verwendet diesen
+gemeinsamen OSM-Datenstand.
 Bei einem temporären OSM-Ausfall darf der Workflow für Hannover ausschließlich
 einen bereits validierten DGM1-Stand übernehmen. Für einen ausdrücklich
 gewünschten Vergleichslauf kann `require_hannover_dgm1` beim manuellen Start

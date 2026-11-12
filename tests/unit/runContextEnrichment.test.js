@@ -6,6 +6,7 @@ describe('context enrichment transient-provider fallback policy', () => {
   test.each([
     ['Overpass HTTP 429', 'overpass-rate-limit'],
     ['Overpass HTTP 504', 'overpass-server-error'],
+    ['Incomplete Overpass road geometry or structure tags: runtime error: Query timed out', 'overpass-incomplete-timeout'],
     ['[context-generation] FAILED: BASt annual DTV download failed: 429', 'bast-rate-limit'],
     ['[context-generation] FAILED: BASt annual DTV download failed: 503', 'bast-server-error'],
     ['request failed with ECONNRESET', 'network-reset'],

@@ -14,7 +14,6 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const osmProducer = require('./osm_producer');
 
 const PRODUCER_VERSION = '1.0.0';
 const DEFAULT_BATCH_SIZE = 500;
@@ -129,6 +128,16 @@ function normalizeTagValue(value) {
   return text || null;
 }
 
+function structureRecord(tagsValue, wayId) {
+  const tags = tagsValue == null ? {} : plainObject(tagsValue, `way ${wayId} tags`);
+  const record = {};
+  for (const field of STRUCTURE_FIELDS) {
+    const value = normalizeTagValue(tags[field]);
+    if (value != null) record[field] = value;
+  }
+  return Object.freeze(record);
+}
+
 function parseStructureResponse(response, requestedIds) {
   const requested = new Set(
     requestedIds.map((id, index) => normalizeWayId(id, `requestedIds[${index}]`)),
@@ -150,13 +159,7 @@ function parseStructureResponse(response, requestedIds) {
     if (records.has(id)) {
       fail('duplicate_way_id', 'Structure query returned a way more than once', { id });
     }
-    const tags = element.tags == null ? {} : plainObject(element.tags, `way ${id} tags`);
-    const record = {};
-    for (const field of STRUCTURE_FIELDS) {
-      const value = normalizeTagValue(tags[field]);
-      if (value != null) record[field] = value;
-    }
-    records.set(id, Object.freeze(record));
+    records.set(id, structureRecord(element.tags, id));
   }
   const missing = [...requested].filter((id) => !records.has(id));
   if (missing.length) {
@@ -277,7 +280,7 @@ async function enrichOsmStructureFile(options = {}) {
   }
   const wayIds = normalizeWayIds(osm);
   const groups = batches(wayIds, options.batchSize || DEFAULT_BATCH_SIZE);
-  const fetchFn = options.fetchOverpass || ((query) => osmProducer.fetchOverpass(query, {
+  const fetchFn = options.fetchOverpass || ((query) => require('./osm_producer').fetchOverpass(query, {
     endpoint: options.endpoint,
     retries: options.retries,
     backoffMs: options.backoffMs,
@@ -387,6 +390,7 @@ module.exports = Object.freeze({
   batches,
   buildOverpassQuery,
   normalizeTagValue,
+  structureRecord,
   parseStructureResponse,
   mergeRecordMaps,
   applyStructureTags,
