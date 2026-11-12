@@ -6,6 +6,7 @@ const { spawnSync } = require('child_process');
 const { validateAll: validateContextDatasets } = require('./check-context-datasets');
 const { slugify } = require('./lib/static-data-validation');
 const { shouldStageKoelnTraffic } = require('./providers/koeln_traffic_delivery');
+const { shouldStageBastTraffic } = require('./providers/bast_traffic_application');
 
 const ROOT = path.resolve(__dirname, '..');
 const SELECTED_FILE = path.join(ROOT, '.build', 'context-selected-cities.txt');
@@ -19,6 +20,8 @@ const DGM1_PROFILE_FILE = path.resolve(
 const TRANSIENT_PROVIDER_PATTERNS = Object.freeze([
   { id: 'overpass-rate-limit', pattern: /Overpass HTTP 429\b/i },
   { id: 'overpass-server-error', pattern: /Overpass HTTP 5\d\d\b/i },
+  { id: 'bast-rate-limit', pattern: /BASt annual DTV download failed: 429\b/i },
+  { id: 'bast-server-error', pattern: /BASt annual DTV download failed: 5\d\d\b/i },
   { id: 'network-reset', pattern: /\b(?:ECONNRESET|ECONNREFUSED|EPIPE|socket hang up)\b/i },
   { id: 'network-timeout', pattern: /\b(?:ETIMEDOUT|ESOCKETTIMEDOUT|UND_ERR_CONNECT_TIMEOUT)\b/i },
   { id: 'dns-temporary', pattern: /\b(?:EAI_AGAIN|temporary failure in name resolution)\b/i },
@@ -31,6 +34,9 @@ const NON_TRANSIENT_FAILURE_PATTERNS = Object.freeze([
   { id: 'producer-contract', pattern: /Producer preflight failed|producer did not create|producer skipped/i },
   { id: 'staged-validation', pattern: /Staged context validation failed|Enrichment produced no context data/i },
   { id: 'configuration', pattern: /Incomplete Hannover DGM1 configuration|DGM1 is required|Unknown city/i },
+  { id: 'bast-download-rejected', pattern: /BASt annual DTV download failed: (?!(?:429|5\d\d)\b)\d{3}\b/i },
+  { id: 'bast-distribution', pattern: /BASt annual DTV distribution (?:SHA-256 mismatch|size mismatch|exceeds reviewed size)\b/i },
+  { id: 'source-license', pattern: /\b(?:unsupported_license|license_name_mismatch):/i },
   { id: 'integrity', pattern: /(?:hash|fingerprint|integrity|schemaVersion).*mismatch|invalid JSON/i },
   { id: 'local-resource', pattern: /\b(?:ENOSPC|ENOMEM|EACCES|EPERM)\b/i },
   { id: 'programming-error', pattern: /\b(?:SyntaxError|ReferenceError|TypeError)\b/i },
@@ -256,7 +262,8 @@ function refreshCity(city, options, state) {
   }
 
   const dgm1Applied = applyHannoverDgm1(city, options);
-  const stagedCounts = shouldStageKoelnTraffic(citySlug(city));
+  const slug = citySlug(city);
+  const stagedCounts = shouldStageKoelnTraffic(slug) || shouldStageBastTraffic(slug);
   if (!stagedCounts) run('scripts/apply-qualitative-traffic-proxy.js', ['--city', city]);
   const matchedTrafficApplied = stagedCounts || applyMatchedTrafficForCity(city);
   state.cities.push({

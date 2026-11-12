@@ -6,6 +6,8 @@ describe('context enrichment transient-provider fallback policy', () => {
   test.each([
     ['Overpass HTTP 429', 'overpass-rate-limit'],
     ['Overpass HTTP 504', 'overpass-server-error'],
+    ['[context-generation] FAILED: BASt annual DTV download failed: 429', 'bast-rate-limit'],
+    ['[context-generation] FAILED: BASt annual DTV download failed: 503', 'bast-server-error'],
     ['request failed with ECONNRESET', 'network-reset'],
     ['UND_ERR_CONNECT_TIMEOUT while fetching provider', 'network-timeout'],
     ['getaddrinfo EAI_AGAIN overpass.example', 'dns-temporary'],
@@ -23,6 +25,12 @@ describe('context enrichment transient-provider fallback policy', () => {
     ['Staged context validation failed: tile index missing', 'staged-validation'],
     ['ReferenceError: producer bug', 'programming-error'],
     ['ENOSPC while writing staging output', 'local-resource'],
+    ['BASt annual DTV distribution SHA-256 mismatch; Overpass HTTP 503', 'bast-distribution'],
+    ['BASt annual DTV distribution size mismatch; Overpass HTTP 503', 'bast-distribution'],
+    ['BASt annual DTV distribution exceeds reviewed size; Overpass HTTP 503', 'bast-distribution'],
+    ['unsupported_license: sources[0].licenseId is not in the open-licence allowlist; Overpass HTTP 503', 'source-license'],
+    ['BASt annual DTV download failed: 403; Overpass HTTP 503', 'bast-download-rejected'],
+    ['Köln traffic download failed: 503', 'unclassified'],
   ])('fails closed for non-transient evidence even when a provider code is present: %s', (message, id) => {
     expect(enrichment.classifyProviderFailure(message)).toEqual(expect.objectContaining({
       transient: false,
@@ -40,6 +48,14 @@ describe('context enrichment transient-provider fallback policy', () => {
       allowed: true,
       reason: 'verified-stale-context',
     }));
+  });
+
+  test('retains the last validated Hamburg context after a BASt server failure on a tolerant run', () => {
+    expect(enrichment.fallbackDecision({
+      allowStaleOnTransient: true,
+      failureText: '[context-generation] FAILED: BASt annual DTV download failed: 503',
+      existingCity: { slug: 'hamburg', ok: true },
+    })).toEqual(expect.objectContaining({ allowed: true, reason: 'verified-stale-context' }));
   });
 
   test('denies fallback when scheduled tolerance is disabled', () => {

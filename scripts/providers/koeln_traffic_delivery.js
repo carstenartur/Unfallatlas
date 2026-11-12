@@ -33,18 +33,19 @@ async function requestDistribution(url, request, delay) {
 }
 
 async function fetchDistribution(root, source, request = fetch, delay = wait) {
+  const label = source.label || 'Köln traffic';
   const response = await requestDistribution(source.url, request, delay);
-  if (!response.ok || !response.body) throw new Error('Köln traffic download failed: ' + response.status);
+  if (!response.ok || !response.body) throw new Error(`${label} download failed: ${response.status}`);
   const chunks = [];
   let size = 0;
   for await (const chunk of response.body) {
     size += chunk.length;
-    if (size > source.bytes) throw new Error('Köln traffic distribution exceeds reviewed size');
+    if (size > source.bytes) throw new Error(`${label} distribution exceeds reviewed size`);
     chunks.push(chunk);
   }
   const bytes = Buffer.concat(chunks);
-  if (bytes.length !== source.bytes) throw new Error('Köln traffic distribution size mismatch');
-  if (matcher.sha256(bytes) !== source.sha256) throw new Error('Köln traffic distribution SHA-256 mismatch');
+  if (bytes.length !== source.bytes) throw new Error(`${label} distribution size mismatch`);
+  if (matcher.sha256(bytes) !== source.sha256) throw new Error(`${label} distribution SHA-256 mismatch`);
   const target = path.join(root, source.name);
   const temporary = target + '.' + crypto.randomUUID() + '.tmp';
   try {
