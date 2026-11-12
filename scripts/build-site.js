@@ -418,7 +418,7 @@ function copyVendorLicenses(
       sha256: sha256File(source),
     };
   });
-  const diagnostic = buildDiagnosticProvenance(repoRoot, outputRoot, materializedAssets);
+  const diagnostic = buildDiagnosticProvenance(repoRoot, outputRoot, materializedAssets, dependencies);
   const noticePath = 'vendor/third-party-notices.json';
   const destination = path.join(outputRoot, noticePath);
   fs.mkdirSync(path.dirname(destination), { recursive: true });

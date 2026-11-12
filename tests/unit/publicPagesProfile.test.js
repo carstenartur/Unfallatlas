@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('node:crypto');
 
 const { buildSite } = require('../../scripts/build-site');
 const {
@@ -15,6 +16,8 @@ const { validatePublicPagesProfile } = require('../../scripts/validate-public-pa
 
 const ROOT = path.resolve(__dirname, '../..');
 const HEAT_ASSET = 'vendor/leaflet.heat/leaflet-heat.js';
+const PDF_ASSET = 'vendor/export/pdfmake.js';
+const SVG_REF = 'urn:unfallatlas:vendor-source:pdfmake:svg-to-pdfkit';
 const OUTPUT_RELATIVE = path.join(
   '.build',
   `public-pages-profile-test-${process.pid}-${process.env.JEST_WORKER_ID || '0'}`
@@ -136,8 +139,18 @@ describe('public Pages distribution profile', () => {
     const license = notice.supplementalLicenses.find(item => item.component === 'svg-to-pdfkit');
     expect(license).toMatchObject({ spdx: 'MIT', asset: 'vendor/export/pdfmake.js' });
     expect(fs.readFileSync(path.join(OUTPUT, license.path))).toEqual(fs.readFileSync(path.join(source, 'LICENSE')));
-    const digest = require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(source, 'source.js'))).digest('hex');
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(path.join(source, 'source.js'))).digest('hex');
     expect(license.sourceSha256).toBe(digest);
+    expect(license.ref).toBe(SVG_REF);
+    expect(notice.assetAssessments.find(asset => asset.path === PDF_ASSET).containsFiles).toEqual([SVG_REF]);
+    const sbom = readJson('vendor/sbom.cdx.json');
+    expect(sbom.components.find(component => component['bom-ref'] === SVG_REF)).toMatchObject({
+      name: license.sourcePath,
+      hashes: [{ alg: 'SHA-256', content: digest }],
+      licenses: [{ expression: 'MIT' }],
+    });
+    expect(sbom.dependencies.find(item => item.ref === `urn:unfallatlas:vendor-asset:${PDF_ASSET}`).dependsOn)
+      .toContain(SVG_REF);
   });
 
   test('links PDF source-map modules to the exact upstream build packages and archives their licenses', () => {

@@ -106,6 +106,10 @@ Sie fixiert auch die Versionen von fflate (0.8.3),
 nanoid (6.0.2), Vite (8.3.5) und Rolldown (1.2.15). Gebautes und vom
 Site-Build kopiertes IIFE haben jeweils 1.061.595 Bytes und denselben SHA-256
 `262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e`.
+Der Seitenbuild prüft die drei npm-Quellpfade im IIFE, den Hash des
+entpackten Hersteller-Locks und die unveränderten MIT-Texte. Notice und
+CycloneDX binden `fflate@0.8.3` und `nanoid@6.0.2` als enthaltene Komponenten
+an `vendor/export/docx.js`.
 
 Nach `npm ci` im Repository reproduziert der folgende Befehl den Vergleich.
 Als optionales Argument akzeptiert er ein bereits heruntergeladenes
@@ -146,7 +150,25 @@ Der Vergleich prüft das minifizierte Bundle, seine Source Map mit 170
 Quelldateien und den aus den Original-TTFs neu erzeugten VFS-Schriftcontainer
 jeweils byteweise gegen das mit `npm ci` installierte pdfmake-Archiv.
 
-Die veröffentlichte PDF-Komponentenliste ordnet die 26 direkt erkennbaren npm-Paketpfade der Source Map einschließlich verschachtelter Kopien dem Herstellerbuild-Lock zu. So enthält das Bundle beide tatsächlich verwendeten Versionen von base64-js (0.0.8 und 1.5.1), sax 1.6.1 und core-js 3.51.0. Fünf Lizenzdateien zu abweichend oder ausschließlich im Herstellerbuild installierten Versionen sind archiviert und werden beim Neuaufbau mit den installierten Originalen verglichen. Der umgeschriebene Quellpfad zu xmldoc sowie intern gebündelte Bestandteile bleiben im Vollständigkeitsnachweis offen.
+Die veröffentlichte PDF-Komponentenliste ordnet 26 direkte npm-Paketpfade
+der Source Map und den umgeschriebenen `xmldoc`-Pfad dem Herstellerbuild-Lock
+zu. Das Bundle enthält beide Versionen von base64-js (0.0.8 und 1.5.1),
+sax 1.6.1 und core-js 3.51.0. Der Seitenbuild vergleicht die Source Map und
+den Lock mit den Hashes des reproduzierten Builds. Die Policy bindet die
+exakte Paketmenge sowie den SHA-256 über Paketname, Version, `purl`,
+`integrity`, `resolved`, den SPDX-Ausdruck, die Lock-Referenzen und die nach
+Pfad sortierten Lizenzdatensätze. Dieselbe Prüfung bindet für DOCX und PDF
+auch den direkten Paket- und Lizenznachweis. Notice und CycloneDX führen den
+Hersteller-Lock je Bundle und Paket auf. Für `fflate@0.8.3` erscheinen daher
+der DOCX- und der PDF-Lock jeweils an ihrem Bundle.
+
+Fünf Lizenzdateien zu abweichend oder ausschließlich im Herstellerbuild
+installierten Versionen sind archiviert und werden beim Neuaufbau mit den
+installierten Originalen verglichen. Der exakte SVG-to-PDFKit-Fork besitzt
+eine eigene CycloneDX-Dateireferenz mit Quell- und Lizenzhash. Offene Punkte
+sind die vollständigen Nachweise für intern gebündelte Komponenten und
+Daten, die fehlenden Volltexte für brotli, dfa und fontkit sowie die
+unabhängigen, von der Policy anerkannten Build-Signaturen.
 
 Der Nachbau vergleicht die vier als Generator-Eingaben verwendeten TTF-Dateien
 mit den Originaldateien unter `web/static/` im Roboto-3.016-Release von
