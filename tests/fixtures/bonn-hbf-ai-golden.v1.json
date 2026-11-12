@@ -2073,9 +2073,9 @@
       "js/ua.stats.js": "54c6bc0684776b1129aef377c5dcbafb7be4f11e167bbee36d4b4f912764baa4",
       "js/ua.trend.js": "2bbb47165228ad8f564bb6ca18e34ce430b13ae236562108043b5a6815ff0012"
     },
-    "sourceDataFingerprint": "dbceb2c695cec6083a8365357691271c23e925a6e879d013d4550b4cecd57902",
+    "sourceDataFingerprint": "0a0e43f535d3625493fee9f8b27b14a8752f0069c31d80bfb691115ecbee2b42",
     "sourceFiles": {
-      "out/output_all_years_bonn.enrichment.meta.json.gz": "363b985798a2d55d19247258d02749d8f80bd9ccf18775656253e4af76bffdb3",
+      "out/output_all_years_bonn.enrichment.meta.json.gz": "e29708be6a18c92e4cbec5e1f59b0cb25b728757ab7369fbe5dbd0826bd572e3",
       "out/output_all_years_bonn.geojson.gz": "4727e48f62c124c819733271e42eb6985cdd21a48f0f8b78069a0f46ccb58f5e",
       "out/poi_bonn.geojson.gz": "8bfd444ddb74494a0ef99c9dc745e7935d0a2f740660884338ca1fdd4d52ad12",
       "templates/gremien_bonn.json": "10285c9fcb7762b76f3b52f9df6c7bb523fdcfdbbf6ac5964c64734dbef25419"
