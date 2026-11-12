@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { version: proj4Version } = require('proj4/package.json');
 
 const provider = require('../../scripts/providers/koeln_kfz_geometry_record_join_provider');
 
@@ -217,7 +218,7 @@ test('transforms real segment2071 endpoints against independent pyproj/PROJ refe
   const joined = provider.joinObservations(observations, geometry, s);
   expect(joined.map(row => row.value)).toEqual([18504, 22153]);
   expect(joined[0].geometry.coordinates).toEqual([...joined[1].geometry.coordinates].reverse());
-  expect(joined[0].officialGeometry.transform).toMatch(/proj4-2.22.0/);
+  expect(joined[0].officialGeometry.transform).toBe(`proj4-${proj4Version}-koeln-gk2-literal-towgs84-v1`);
 });
 
 test('verified custom source CRS must match the schema pin and cannot be relabeled UTM', () => {
