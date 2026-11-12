@@ -304,6 +304,30 @@ describe('Cologne OSM-matched traffic provider', () => {
       sources: expect.objectContaining({ osm: expect.objectContaining({ sha256: osmSha256() }) }) }));
   });
 
+  test('refreshes the selected observation when the same pinned artifact is reapplied', async () => {
+    const written = writeArtifact(makeRoot());
+    const provider = providerModule.createKoelnKfzOsmMatchedProvider({
+      artifactFile: written.file,
+      expectedArtifactSha256: written.sha256,
+    });
+    const { applyRow, selectByWay } = require('../../scripts/apply-matched-traffic');
+    const selection = selectByWay(await provider.loadObservations({ city: 'Köln' }), 2026).get('10');
+    const row = {};
+    applyRow(row, selection);
+    const current = row.traffic_evidence.observation;
+    row.traffic_evidence = {
+      ...row.traffic_evidence,
+      observation: {
+        ...current,
+        source: { ...current.source, changeNotice: descriptor().changeNotice },
+      },
+    };
+
+    expect(applyRow(row, selection)).toBe(true);
+    expect(row.traffic_evidence.observation).toEqual(current);
+    expect(row.traffic_observations).toEqual([current]);
+  });
+
   test('indexes measured tile sizes and unique ways when the public v3 way sidecar is a pointer', async () => {
     const root = makeRoot();
     const written = writeArtifact(root);
