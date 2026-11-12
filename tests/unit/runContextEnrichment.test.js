@@ -66,6 +66,20 @@ describe('context enrichment transient-provider fallback policy', () => {
     }
   });
 
+  test('retains only an existing DGM1 dataset when Hannover requires DGM1', () => {
+    const options = {
+      allowStaleOnTransient: true,
+      failureText: 'Overpass HTTP 504',
+      requiredRoadSlopeSource: 'hannover.dgm1',
+    };
+    expect(enrichment.fallbackDecision({
+      ...options, existingCity: { slug: 'hannover', ok: true },
+    })).toEqual(expect.objectContaining({ allowed: false, reason: 'required-road-slope-source-missing' }));
+    expect(enrichment.fallbackDecision({
+      ...options, existingCity: { slug: 'hannover', ok: true, roadSlopeSource: 'hannover.dgm1' },
+    })).toEqual(expect.objectContaining({ allowed: true, reason: 'verified-stale-context' }));
+  });
+
   test('denies fallback for an unclassified process failure', () => {
     expect(enrichment.fallbackDecision({
       allowStaleOnTransient: true,

@@ -10,6 +10,7 @@ const { shouldStageKoelnTraffic } = require('./providers/koeln_traffic_delivery'
 const ROOT = path.resolve(__dirname, '..');
 const SELECTED_FILE = path.join(ROOT, '.build', 'context-selected-cities.txt');
 const SUMMARY_FILE = path.join(ROOT, '.build', 'context-provider', 'context-enrichment-summary.json');
+const HANNOVER_DGM1_SOURCE = 'hannover.dgm1';
 const DGM1_PROFILE_FILE = path.resolve(
   ROOT,
   String(process.env.HANNOVER_DGM1_PROFILE_FILE || '.build/context-provider/hannover-dgm1-road-profiles.json'),
@@ -191,7 +192,7 @@ function classifyProviderFailure(value) {
   return Object.freeze({ transient: false, id: 'unclassified', evidence: null });
 }
 
-function fallbackDecision({ allowStaleOnTransient, failureText, existingCity }) {
+function fallbackDecision({ allowStaleOnTransient, failureText, existingCity, requiredRoadSlopeSource }) {
   const classification = classifyProviderFailure(failureText);
   if (!allowStaleOnTransient) {
     return Object.freeze({ allowed: false, reason: 'fallback-disabled', classification });
@@ -202,14 +203,15 @@ function fallbackDecision({ allowStaleOnTransient, failureText, existingCity }) 
   if (!existingCity || existingCity.ok !== true) {
     return Object.freeze({ allowed: false, reason: 'existing-context-invalid', classification });
   }
+  if (requiredRoadSlopeSource && existingCity.roadSlopeSource !== requiredRoadSlopeSource) {
+    return Object.freeze({ allowed: false, reason: 'required-road-slope-source-missing', classification });
+  }
   return Object.freeze({ allowed: true, reason: 'verified-stale-context', classification });
 }
 
 function existingContextCity(city, validator = validateContextDatasets) {
   const slug = citySlug(city);
-  const result = validator(ROOT);
-  const cityResult = result.cities.find(entry => entry.slug === slug) || null;
-  return cityResult && cityResult.ok === true ? cityResult : cityResult || null;
+  return validator(ROOT).cities.find(entry => entry.slug === slug) || null;
 }
 
 function writeSummary(summary) {
@@ -231,6 +233,8 @@ function refreshCity(city, options, state) {
       allowStaleOnTransient: options.allowStaleOnTransient,
       failureText: processFailureText(result),
       existingCity: existing,
+      requiredRoadSlopeSource: options.requireHannoverDgm1 && citySlug(city) === 'hannover'
+        ? HANNOVER_DGM1_SOURCE : null,
     });
     if (!decision.allowed) {
       const error = result.error || new Error(`scripts/generate-context-city.js exited with status ${result.status}`);

@@ -27,6 +27,20 @@ describe('enrich workflow checkout pinning and resilience', () => {
     );
   });
 
+  test('passes the selected stale policy through the Maven profile', () => {
+    expect(workflow).toContain('-Dcontext.allowStaleOnTransient="${CONTEXT_ALLOW_STALE_ON_TRANSIENT:-false}"');
+  });
+
+  test('requires the pinned Hannover DGM1 by default in automated and manual refreshes', () => {
+    expect(workflow).toMatch(/require_hannover_dgm1:\n(?:[^\n]*\n){3} *default: true/);
+    expect(workflow).toContain(
+      "CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ github.event_name != 'workflow_dispatch' || inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}",
+    );
+    expect(workflow).toContain("if: env.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true'");
+    expect(workflow).toContain('slugify(city) === "hannover"');
+    expect(workflow.match(/steps\.hannover-city\.outputs\.selected == 'true'/g)).toHaveLength(2);
+  });
+
   test('restores and saves the expensive provider cache without deprecated save-always behavior', () => {
     expect(workflow).toContain('uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9');
     expect(workflow).toContain('uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9');
