@@ -26,6 +26,7 @@ describe('context enrichment transient-provider fallback policy', () => {
     ['Staged context validation failed: tile index missing', 'staged-validation'],
     ['ReferenceError: producer bug', 'programming-error'],
     ['ENOSPC while writing staging output', 'local-resource'],
+    ['[osm-producer] Overpass retry 1/3 (Overpass HTTP 502)\n[context-generation] FAILED: Overpass HTTP 400', 'overpass-download-rejected'],
     ['BASt annual DTV distribution SHA-256 mismatch; Overpass HTTP 503', 'bast-distribution'],
     ['BASt annual DTV distribution size mismatch; Overpass HTTP 503', 'bast-distribution'],
     ['BASt annual DTV distribution exceeds reviewed size; Overpass HTTP 503', 'bast-distribution'],

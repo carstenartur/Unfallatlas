@@ -35,6 +35,7 @@ const NON_TRANSIENT_FAILURE_PATTERNS = Object.freeze([
   { id: 'producer-contract', pattern: /Producer preflight failed|producer did not create|producer skipped/i },
   { id: 'staged-validation', pattern: /Staged context validation failed|Enrichment produced no context data/i },
   { id: 'configuration', pattern: /Incomplete Hannover DGM1 configuration|DGM1 is required|Unknown city/i },
+  { id: 'overpass-download-rejected', pattern: /Overpass HTTP (?!429\b)4\d\d\b/i },
   { id: 'bast-download-rejected', pattern: /BASt annual DTV download failed: (?!(?:429|5\d\d)\b)\d{3}\b/i },
   { id: 'bast-distribution', pattern: /BASt annual DTV distribution (?:SHA-256 mismatch|size mismatch|exceeds reviewed size)\b/i },
   { id: 'source-license', pattern: /\b(?:unsupported_license|license_name_mismatch):/i },
