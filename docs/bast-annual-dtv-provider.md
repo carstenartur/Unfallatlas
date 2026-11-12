@@ -116,9 +116,11 @@ andere Jahrgänge benötigen eine neue ausdrückliche Prüfung.
 
 `CONTEXT_BAST_ANNUAL_COUNTS_CITY=Hamburg npm run generate:context-city -- --city Hamburg`
 aktiviert den Pfad für eine Stadt aus `cities.txt`. Der gehostete Kontextlauf
-liest dieselbe Konfiguration aus der gleichnamigen Repository-Variable. Die
-Kölner Konfiguration bleibt unabhängig. Der Generator lädt das amtliche CSV
-in sein Staging-Verzeichnis, prüft Bytezahl und SHA-256 und installiert die
+verwendet Hamburg als Pilotstadt. Die gleichnamige Repository-Variable kann
+eine andere Stadt festlegen oder mit `off` den BASt-Pfad deaktivieren. Die
+Kölner Zählungen folgen ihrer eigenen Quellenkonfiguration. Der Generator lädt
+das amtliche CSV in sein Staging-Verzeichnis, prüft Bytezahl und SHA-256 und
+installiert die
 erzeugten Dateien erst nach der bestehenden Validierung. Bei aktivierter
 Quelle wird ein älterer OSM-Cache ohne Straßennummern und Richtungsattribute
 neu erzeugt. Bei HTTP 429 und Serverfehlern der BASt kann ein geplanter Lauf

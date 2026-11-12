@@ -100,6 +100,11 @@ test('requires agreeing lane totals when the two OSM direction tags establish bi
   expect(features[0].properties.traffic_evidence).toBeUndefined();
 });
 
+test('the hosted refresh uses the verified Hamburg pilot unless a city is configured', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '../../.github/workflows/enrich.yml'), 'utf8');
+  expect(workflow).toContain("CONTEXT_BAST_ANNUAL_COUNTS_CITY: ${{ vars.CONTEXT_BAST_ANNUAL_COUNTS_CITY || 'Hamburg' }}");
+});
+
 test('applies the pinned St. Mauritz 2023 cross-section to a technical motor-vehicle point on the genuine B 481', async () => {
   const {result, features, meta} = await apply();
   const row = features[0].properties;

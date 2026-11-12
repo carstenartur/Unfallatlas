@@ -143,7 +143,7 @@ jobs:
           CONTEXT_REQUIRE_HANNOVER_DGM1: ${{ inputs.require_hannover_dgm1 == true || vars.CONTEXT_REQUIRE_HANNOVER_DGM1 == 'true' }}
           CONTEXT_REVIEW_GIT_DELTA: 'true'
           CONTEXT_KOELN_MEASURED_COUNTS: 'true'
-          CONTEXT_BAST_ANNUAL_COUNTS_CITY: ${{ vars.CONTEXT_BAST_ANNUAL_COUNTS_CITY }}
+          CONTEXT_BAST_ANNUAL_COUNTS_CITY: ${{ vars.CONTEXT_BAST_ANNUAL_COUNTS_CITY || 'Hamburg' }}
           HANNOVER_DGM1_ROOT: ${{ steps.hannover-raster.outputs.root || vars.HANNOVER_DGM1_ROOT }}
           HANNOVER_DGM1_MANIFEST: ${{ steps.hannover-raster.outputs.manifest || vars.HANNOVER_DGM1_MANIFEST }}
           HANNOVER_DGM1_MANIFEST_SHA256: ${{ steps.hannover-raster.outputs.sha256 || vars.HANNOVER_DGM1_MANIFEST_SHA256 }}
