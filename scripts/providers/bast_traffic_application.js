@@ -23,6 +23,26 @@ const MOTOR_DIRECTIONS = ['oneway', 'oneway:vehicle', 'oneway:motor_vehicle', 'o
 const distribution = {name: 'Jawe2023.csv', label: 'BASt annual DTV', url: source.DISTRIBUTION_URL,
   sha256: source.REVIEWED_DISTRIBUTION_SHA256, bytes: source.REVIEWED_DISTRIBUTION_BYTES};
 
+// Station 2201 and ordered OSM geometry from the reviewed Kollaustraße case.
+// The BASt compass direction describes the route and is not a local bearing.
+const KOLLAUSTRASSE = {
+  observationId: 'bast-dz2201-2023-Q',
+  sourceSha256: '5108764655cc3d75878a887d4631f787d8216c54bb3fc3b63460c1a7b0fcb550',
+  value: 45865,
+  lon: 9.95261601,
+  lat: 53.61323388,
+  wayId: '1561698173',
+  ref: 'B 447',
+  lanes: 7,
+  geometrySha256: 'ae12e36003cfa8e8c5b38bcefe73bc583bae7eb8137753c6f4a704459507b98b',
+  directions: [
+    {suffix: 'Ri1', observationId: 'bast-dz2201-2023-Ri1', value: 22784, lanes: 4, wayDirection: 'backward',
+      label: 'Ri. 1; Himmelsrichtung: N; Fernziel: Neumünster; Nahziel: Hamburg-Niendorf'},
+    {suffix: 'Ri2', observationId: 'bast-dz2201-2023-Ri2', value: 23080, lanes: 3, wayDirection: 'forward',
+      label: 'Ri. 2; Himmelsrichtung: S; Fernziel: Hamburg-Zentrum; Nahziel: Hamburg-Lokstedt'},
+  ],
+};
+
 function hasTrafficRouteTags(osm) {
   const tags = osm?.trafficRouteTags;
   return tags?.version === TRAFFIC_ROUTE_TAGS_VERSION && typeof tags.distributionUrl === 'string' && tags.ways &&
@@ -64,8 +84,43 @@ function roadsByReference(osm) {
   return roads;
 }
 
+function bindKollaustrasseDirections(crossSection, station, road, observations, descriptor, stationDistanceMeters) {
+  const reviewed = KOLLAUSTRASSE;
+  if (crossSection.observationId !== reviewed.observationId || road.wayId !== reviewed.wayId ||
+      station.ref !== reviewed.ref || road.tags.ref !== reviewed.ref || station.laneCount !== reviewed.lanes ||
+      road.tags.lanes !== String(reviewed.lanes) || (road.tags['lanes:both_ways'] && road.tags['lanes:both_ways'] !== '0') ||
+      crossSection.sourceId !== source.SOURCE_ID || crossSection.source.contentHash !== reviewed.sourceSha256 ||
+      crossSection.value !== reviewed.value || crossSection.direction !== 'Querschnitt – beide Fahrtrichtungen' ||
+      crossSection.coordinate?.lon !== reviewed.lon || crossSection.coordinate?.lat !== reviewed.lat ||
+      crypto.createHash('sha256').update(JSON.stringify(road.coordinates)).digest('hex') !== reviewed.geometrySha256) return [];
+
+  const readings = reviewed.directions.map(direction => observations.get(direction.observationId));
+  if (!reviewed.directions.every((direction, index) => {
+    const reading = readings[index];
+    return reading && reading.value === direction.value && reading.direction === direction.label &&
+      reading.source.contentHash === reviewed.sourceSha256 &&
+      ['sourceId', 'measurementType', 'mode', 'year', 'period', 'unit'].every(field => reading[field] === crossSection[field]) &&
+      reading.coordinate?.lon === reviewed.lon && reading.coordinate?.lat === reviewed.lat &&
+      station.directionLaneCounts?.[direction.suffix] === direction.lanes &&
+      road.tags[`lanes:${direction.wayDirection}`] === String(direction.lanes);
+  })) return [];
+
+  const distanceLabel = stationDistanceMeters.toFixed(1).replace('.', ',');
+  return readings.map((reading, index) => {
+    const {wayDirection, lanes} = reviewed.directions[index];
+    const order = wayDirection === 'forward' ? 'in Reihenfolge' : 'entgegen der Reihenfolge';
+    return traffic.normalizeObservation({...reading, wayId: road.wayId, stationWayDirection: wayDirection,
+      qualityNotes: [...reading.qualityNotes,
+        `Geprüfter Richtungsbezug am Zählquerschnitt Kollaustraße (B 447, OSM-Way ${road.wayId}): ${lanes} Fahrstreifen ${order} der OSM-Way-Punkte (© OpenStreetMap contributors, ODbL 1.0).`,
+        `Abstand zwischen Zählstelle und OSM-Way: ${distanceLabel} m.`,
+      ],
+    }, descriptor, 0);
+  });
+}
+
 function matchSections(provider, observations, osm, descriptor) {
   const roads = roadsByReference(osm);
+  const observationsById = new Map(observations.map(observation => [observation.observationId, observation]));
   const matched = new Map();
   const ambiguousWays = new Set();
   let ambiguousStations = 0;
@@ -85,7 +140,8 @@ function matchSections(provider, observations, osm, descriptor) {
       `Abstand zwischen Zählstelle und OSM-Way: ${stationToWayDistanceMeters.toFixed(1).replace('.', ',')} m.`,
       'Historischer Jahresmittelwert am Zählquerschnitt. Lokaler Straßenkontext im Unfalljahr, keine Messung am Unfallpunkt oder zur Unfallstunde.',
     ]}, descriptor, 0);
-    matched.set(wayId, {observation: scoped, wayId, matchQuality: 'medium', matchMethod: 'bast-station-federal-road-cross-section'});
+    const directions = bindKollaustrasseDirections(observation, station, road, observationsById, descriptor, stationToWayDistanceMeters);
+    matched.set(wayId, {observation: scoped, directions, wayId, matchQuality: 'medium', matchMethod: 'bast-station-federal-road-cross-section'});
   }
   for (const wayId of ambiguousWays) matched.delete(wayId);
   return {matched, ambiguousStations, ambiguousWays: ambiguousWays.size};
@@ -99,10 +155,10 @@ function motorOnly(properties) {
 }
 
 function applyToFeatures(features, matched, osm, referenceYear) {
-  if (matched.size === 0) return 0;
+  const coverage = {appliedFeatures: 0, directionalContextFeatures: 0};
+  if (matched.size === 0) return coverage;
   const roadIndex = buildWayIndex(Object.entries(osm.wayGeometries)
     .filter(([id]) => MOTOR_ROADS.has(osm.ways[id]?.highway)).map(([id, geometry]) => ({id, geometry})));
-  let applied = 0;
   for (const feature of features) {
     const row = feature?.properties;
     const match = matched.get(String(row?.matched_way_id));
@@ -122,9 +178,12 @@ function applyToFeatures(features, matched, osm, referenceYear) {
       {maxDistanceM: MAX_ACCIDENT_ROAD_DISTANCE_M, excludeWayId: observation.wayId})) continue;
     const evidence = traffic.selectTrafficEvidence([{...match, distanceMeters: Math.round(stationDistanceMeters * 10) / 10}],
       {referenceYear, mode: 'motor_vehicle'});
-    if (applyRow(row, {evidence, observations: [observation], referenceYear})) applied++;
+    if (applyRow(row, {evidence, observations: [observation, ...match.directions], referenceYear})) {
+      coverage.appliedFeatures++;
+      if (match.directions.length) coverage.directionalContextFeatures++;
+    }
   }
-  return applied;
+  return coverage;
 }
 
 async function applyBastAnnualDtv({slug, outputDir, workDir, osmFile, referenceYear = new Date().getUTCFullYear(), request}) {
@@ -140,20 +199,21 @@ async function applyBastAnnualDtv({slug, outputDir, workDir, osmFile, referenceY
   registry.register(provider);
   const observations = await registry.collect({country: 'DE', failOnProviderError: true});
   const descriptor = traffic.normalizeDescriptor({...provider.descriptor,
-    changeNotice: 'Originale BASt-Jahres-DTV des Zählquerschnitts anhand der Bundesstraßennummer mit OSM-Straße und lokalen Kfz-Unfällen des Messjahrs verknüpft; keine Richtungssumme oder zeitliche Umrechnung.',
+    changeNotice: 'Originale BASt-Jahres-DTV anhand der Bundesstraßennummer mit der OSM-Straße und lokalen Kfz-Unfällen des Messjahrs verknüpft. Geprüfte Richtungswerte ergänzen den amtlichen Querschnitt als getrennte Messwerte der Zählstelle.',
     qualityNotes: ['Amtlicher WGS84-Stationspunkt, plausibilisiert durch OSM-Straßenreferenz und räumliche Nähe. Die absolute Lagegenauigkeit ist unbekannt.'],
   });
   const {matched, ambiguousStations, ambiguousWays} = matchSections(provider, observations, osm, descriptor);
   const geojson = readJsonArtifact(path.join(outputDir, `output_all_years_${slug}.geojson`));
   const meta = readJsonArtifact(path.join(outputDir, `output_all_years_${slug}.enrichment.meta.json`));
-  const appliedFeatures = applyToFeatures(geojson.value.features, matched, osm, referenceYear);
+  const applicationCoverage = applyToFeatures(geojson.value.features, matched, osm, referenceYear);
   const featureTypes = {};
   for (const feature of geojson.value.features) {
     const type = feature?.properties?.traffic_measurement_type;
     if (type) featureTypes[type] = (featureTypes[type] || 0) + 1;
   }
+  const matchedDirectionalStations = [...matched.values()].filter(match => match.directions.length).length;
   const coverage = {...provider.coverage, eligibleFederalCrossSections: Object.keys(provider.crossSectionRoutes).length,
-    matchedStations: matched.size, ambiguousStations, ambiguousWays, appliedFeatures};
+    matchedStations: matched.size, matchedDirectionalStations, ambiguousStations, ambiguousWays, ...applicationCoverage};
   meta.value.sources = {...meta.value.sources, trafficMatched: {source: descriptor, coverage, referenceYear, mode: 'motor_vehicle',
     semantics: 'annual-cross-section-local-same-year-motor-accident-context',
     matchLimitsMeters: {stationToWay: MAX_STATION_DISTANCE_M, competingWaysAtStation: AMBIGUOUS_ROUTE_DISTANCE_M,
@@ -168,7 +228,7 @@ async function applyBastAnnualDtv({slug, outputDir, workDir, osmFile, referenceY
   meta.value.counts = {...meta.value.counts, withTrafficProxy: classifiedFeatures, withTypedTraffic: typedFeatures};
   meta.value.traffic = {...meta.value.traffic, measurementType: typedFeatures ? 'mixed' : 'proxy',
     numericValuesPresent: typedFeatures > 0, typedFeatures, classifiedFeatures, featureTypes};
-  if (appliedFeatures) writeJsonArtifact(geojson);
+  if (coverage.appliedFeatures) writeJsonArtifact(geojson);
   writeJsonArtifact(meta);
   return {...coverage, counts: meta.value.counts};
 }
