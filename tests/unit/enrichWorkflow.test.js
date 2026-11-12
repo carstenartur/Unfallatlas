@@ -19,11 +19,10 @@ describe('enrich workflow checkout pinning and resilience', () => {
     expect(workflow).not.toContain("ref: ${{ github.event_name == 'workflow_run' && github.event.repository.default_branch || github.ref }}");
   });
 
-  test('keeps manual and push runs strict while tolerating verified stale data for scheduled/provider-chained runs', () => {
-    expect(workflow).toContain('allow_stale_on_transient:');
-    expect(workflow).toContain('default: false');
+  test('allows verified stale data on all automatic runs and keeps manual runs strict by default', () => {
+    expect(workflow).toMatch(/allow_stale_on_transient:\n(?:[^\n]*\n){3} +default: false/);
     expect(workflow).toContain(
-      "CONTEXT_ALLOW_STALE_ON_TRANSIENT: ${{ inputs.allow_stale_on_transient == true || github.event_name == 'workflow_run' || github.event_name == 'schedule' }}",
+      "CONTEXT_ALLOW_STALE_ON_TRANSIENT: ${{ github.event_name != 'workflow_dispatch' || inputs.allow_stale_on_transient == true }}",
     );
   });
 
