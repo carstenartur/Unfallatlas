@@ -324,6 +324,8 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
 
   test.each([false, true])('PDF labels the disjoint reference and the difference interval with a ranked focus %s', async withFocus => {
     const data = makeFixtureReportData();
+    data.text = data.text.replace('Beschlussvorschlag:',
+      'Musteranteile (Ausschnitt und übriges Stadtgebiet):\n- Rad: lokal 50,0 % vs übriges Stadtgebiet 40,0 %.\n\nBeschlussvorschlag:');
     data.structured.deviations = {
       reference: { method: 'newcombe-wilson-95', status: 'available' }, local: { total: 12 }, focus: [],
       rows: [{ locCnt: 6, locR: 0.5, baseR: 0.4, factor: 1.25, textLabel: 'Rad + Pkw',
@@ -340,6 +342,7 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     expect(texts).toContain('95%-KI Differenz (Prozentpunkte)');
     expect(texts).toContain('[-16,0 bis 31,0]');
     expect(texts).not.toContain('[25,0 % – 75,0 %]');
+    expect(texts.some(text => text.includes('Rad: lokal 50,0 % vs übriges Stadtgebiet 40,0 %.'))).toBe(false);
     if (withFocus) {
       expect(texts).toContain('Rad allein');
       expect(texts).toContain('nicht definiert');

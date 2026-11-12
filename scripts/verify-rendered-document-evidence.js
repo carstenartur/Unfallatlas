@@ -64,7 +64,7 @@ const expectedRows = {
   'severity.serious': ['Unfälle mit Schwerverletzten', '6', '25,0%'],
   'severity.light': ['Unfälle mit Leichtverletzten', '17', '70,8%'],
   'deviations.header': ['Muster', 'Lokal', 'Lokal%', 'Stadt%', 'Faktor', '95%-KI (lokaler Anteil)'],
-  'deviations.rad-car': ['5', '11', '45,8%', '14,6%', '3,13×', '[– – –]'],
+  'deviations.rad-car': ['Radverkehr + PKW', '11', '45,8%', '14,6%', '3,13×', '[– – –]'],
   'yearly-accidents.header': ['Jahr', 'Summe', 'Kombinationen'],
   'yearly-accidents.2022': ['2022', '7', 'Radverkehr + PKW=3, Radverkehr=2, PKW=2'],
   'yearly-accidents.2023': ['2023', '8', 'Radverkehr + PKW=4, Radverkehr=2, PKW=2'],
@@ -98,7 +98,7 @@ for (const [pageNumber, text] of pageText.entries()) {
 }
 requirePagePattern(2, /Top-Abweichungen \(Ausschnitt vs\. Stadt\):/u, 'deviation-table subsection heading');
 requirePagePattern(2, /Muster\s+Lokal\s+Lokal\s+%\s+Stadt\s+%\s+Faktor\s+95%-KI/u, 'deviation-table header');
-requirePagePattern(2, /5\s+11\s+45,8\s*%\s+14,6\s*%\s+3,13×/u, 'deviation-table first row');
+requirePagePattern(2, /Radverkehr\s+\+\s+PKW\s+11\s+45,8\s*%\s+14,6\s*%\s+3,13×/u, 'deviation-table first row');
 requirePagePattern(2, /Unfälle im selben Gebiet vor Beteiligungsfilter\s*\(n\s*=\s*24\)/u, 'overview-map count n=24 before involvement filter');
 requirePagePattern(3, /Punkte entsprechen exakt[^.]*\(n\s*=\s*24\)/u, 'selection-map count n=24');
 requirePagePattern(4, /Abbildung 3:\s+Cluster-Karte/u, 'cluster-map caption');

@@ -104,7 +104,7 @@
         {
           "rowId": "deviations.rad-car",
           "cellPatterns": [
-            "^5$",
+            "^Radverkehr \\+ PKW$",
             "^11$",
             "^45,8%$",
             "^14,6%$",

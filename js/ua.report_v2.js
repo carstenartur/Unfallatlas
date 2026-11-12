@@ -34,7 +34,7 @@
   // gelesen werden.
   const HINWEIS_ZAEHLWEISE_LINES = [
     "Hinweis zur Zählweise:",
-    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Auswertungsbereich (Kartenausschnitt + aktive Filter). Stadtweite Vergleichswerte (z. B. in den Top-Abweichungen) werden als \"Vergleich mit dem Stadtgebiet\" gekennzeichnet."
+    "Alle in diesem Dokument genannten Fallzahlen beziehen sich – sofern nicht anders ausgewiesen – ausschließlich auf den oben markierten Auswertungsbereich (Kartenausschnitt + aktive Filter). Vergleichswerte nennen das jeweilige Bezugsgebiet."
   ];
 
   // ---------------------------------------------------------------------
@@ -85,6 +85,7 @@
     "Sachverhalt:",
     "Auffälligkeiten:",
     "Auffälligkeiten (",
+    "Musteranteile (Ausschnitt und übriges Stadtgebiet):",
     "URSACHEN UND MASSNAHMEN",
     "Bewertung / Interpretation",
     "Methodik",

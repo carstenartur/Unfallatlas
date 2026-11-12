@@ -144,6 +144,7 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
 
   test.each([false, true])('actual DOCX labels the disjoint reference and the difference interval with a ranked focus %s', async withFocus => {
     const data = makeFixtureReportData();
+    data.text += '\nMusteranteile (Ausschnitt und übriges Stadtgebiet):\n- Rad: lokal 50,0 % vs übriges Stadtgebiet 40,0 %.';
     data.structured.deviations = {
       reference: { method: 'newcombe-wilson-95', status: 'available' }, local: { total: 12 }, focus: [],
       rows: [{ locCnt: 6, locR: 0.5, baseR: 0.4, factor: 1.25, textLabel: 'Rad + Pkw',
@@ -161,6 +162,7 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
     expect(xml).toContain('95%-KI Differenz (Prozentpunkte)');
     expect(xml).toContain('[-16,0 bis 31,0]');
     expect(xml).not.toContain('[25,0 % – 75,0 %]');
+    expect(xml).not.toContain('Rad: lokal 50,0 % vs übriges Stadtgebiet 40,0 %.');
     if (withFocus) {
       expect(xml).toContain('Rad allein');
       expect(xml).toContain('nicht definiert');
