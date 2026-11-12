@@ -148,6 +148,7 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
       'readme-demo-candidate',
       'location-brief-golden',
       'document-render',
+      'word-compatibility-release',
       'context-data-e2e',
       'documentation-live',
       'release-site',
@@ -181,7 +182,10 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
     expect(firstRemoteMutation).toBeGreaterThan(acceptance);
     expect(acceptanceStep).toContain("PLAYWRIGHT_INSTALL_SYSTEM_DEPS: '1'");
     expect(acceptanceStep).toContain(
-      '-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render'
+      "WORD_COMPATIBILITY_PROFILE: ${{ !inputs.dry_run && ',word-compatibility-release' || '' }}"
+    );
+    expect(acceptanceStep).toContain(
+      '"-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render${WORD_COMPATIBILITY_PROFILE}"'
     );
     expect(acceptanceStep).toContain("'-Dfailsafe.includes=**/*IT.java'");
     expect(acceptanceStep).toContain('| tee out/qa/maven-release-acceptance.log');

@@ -15,8 +15,9 @@ Before starting a release:
   `X.Y.Z-SNAPSHOT`. The workflow derives the release version by removing the
   `-SNAPSHOT` suffix and rejects inconsistent Maven, npm, citation, or archive
   metadata.
-- The current candidate must have a recent, fingerprint-matching Microsoft Word
-  compatibility receipt. See
+- Before publishing, commit the Microsoft Word compatibility receipts for the
+  standard report and the numbered appendix to `main`. The dry-run evidence
+  contains both DOCX candidates for review. See
   [`word-compatibility-release-check.md`](word-compatibility-release-check.md).
 - Known provenance limitations must be resolved far enough for the
   `release-site` gate to pass. In particular, issue
@@ -65,6 +66,11 @@ The explicit Failsafe override is required because the
 `location-brief-golden` profile otherwise narrows the integration-test include
 pattern to its own Golden test. The release command restores the complete
 `**/*IT.java` matrix.
+
+The publication run adds `word-compatibility-release` to this command. The
+profile validates both committed receipts against the fingerprint of the locally
+versioned release commit and saves the Word reports under `out/qa/`. A missing,
+expired or invalid receipt fails the acceptance command before any remote mutation.
 
 The profiles cover:
 
@@ -205,7 +211,7 @@ After a successful release `X.Y.Z`:
 | Git tag | `vX.Y.Z` |
 | Maintenance branch | `maintenance/X.Y.x` |
 | Automated acceptance evidence | `release-acceptance-evidence` Actions artefact |
-| Word compatibility report | Artefact of the matching Microsoft Word compatibility run |
+| Word compatibility reports | `release-acceptance-evidence` Actions artefact |
 
 ---
 

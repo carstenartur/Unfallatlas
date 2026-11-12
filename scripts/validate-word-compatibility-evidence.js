@@ -11,6 +11,8 @@ const REPORT_SCHEMA = 'unfallwerkbank.word-compatibility-report/v1';
 const DEFAULT_CONFIG = 'config/word-compatibility-inputs.json';
 const DEFAULT_MAX_AGE_DAYS = 30;
 const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
+const SAMPLE_DOCUMENT_ID = 'ci-docx-sample';
+const APPENDIX_DOCUMENT_ID = 'release-numbered-docx';
 const REQUIRED_CHECKS = Object.freeze([
   'openedWithoutRepairWarning',
   'savedAndReopenedWithoutRepairWarning',
@@ -21,6 +23,16 @@ const REQUIRED_CHECKS = Object.freeze([
   'hyperlinksClickable',
   'noMissingGlyphs',
 ]);
+const APPENDIX_CHECKS = Object.freeze([
+  ...REQUIRED_CHECKS.filter((key) => key !== 'topDeviationsHeadingKeptWithTable'),
+  'numberedMapLabelsReadable',
+  'landscapePagesPreserved',
+  'repeatedTableHeadersAndPageBreaksCorrect',
+]);
+
+function checksFor(documentId) {
+  return documentId === APPENDIX_DOCUMENT_ID ? APPENDIX_CHECKS : REQUIRED_CHECKS;
+}
 
 class WordCompatibilityEvidenceError extends Error {
   constructor(code, message, details) {
@@ -40,6 +52,7 @@ function parseArgs(argv) {
     root: path.resolve(__dirname, '..'),
     config: DEFAULT_CONFIG,
     evidence: null,
+    documentId: null,
     report: null,
     writeTemplate: null,
     printFingerprint: false,
@@ -50,6 +63,7 @@ function parseArgs(argv) {
     if (arg === '--root') options.root = path.resolve(argv[++index] || '');
     else if (arg === '--config') options.config = argv[++index];
     else if (arg === '--evidence') options.evidence = argv[++index];
+    else if (arg === '--document-id') options.documentId = nonEmptyString(argv[++index], '--document-id');
     else if (arg === '--report') options.report = argv[++index];
     else if (arg === '--write-template') options.writeTemplate = argv[++index];
     else if (arg === '--print-fingerprint') options.printFingerprint = true;
@@ -324,6 +338,12 @@ function validateReceipt(value, inputEvidence, options = {}) {
   }
   const artifactSha256 = sha256String(receipt.artifact.sha256, 'artifact.sha256');
   const documentId = nonEmptyString(receipt.artifact.documentId, 'artifact.documentId');
+  if (options.documentId && documentId !== options.documentId) {
+    fail('document_id_mismatch', 'Word evidence describes a different document', {
+      expected: options.documentId,
+      actual: documentId,
+    });
+  }
   const generator = nonEmptyString(receipt.artifact.generator, 'artifact.generator');
 
   exactKeys(receipt.environment, ['product', 'version', 'platform'], 'environment');
@@ -348,8 +368,9 @@ function validateReceipt(value, inputEvidence, options = {}) {
     });
   }
 
-  exactKeys(receipt.checks, REQUIRED_CHECKS, 'checks');
-  const failedChecks = REQUIRED_CHECKS.filter((key) => receipt.checks[key] !== true);
+  const requiredChecks = checksFor(documentId);
+  exactKeys(receipt.checks, requiredChecks, 'checks');
+  const failedChecks = requiredChecks.filter((key) => receipt.checks[key] !== true);
   if (failedChecks.length) {
     fail('word_checks_failed', 'Every Microsoft Word compatibility check must be true', {
       failedChecks,
@@ -376,23 +397,24 @@ function validateReceipt(value, inputEvidence, options = {}) {
     environment: Object.freeze({ product: 'Microsoft Word', version, platform }),
     reviewer: Object.freeze({ githubLogin }),
     observedPageCount,
-    checks: Object.freeze(Object.fromEntries(REQUIRED_CHECKS.map((key) => [key, true]))),
+    checks: Object.freeze(Object.fromEntries(requiredChecks.map((key) => [key, true]))),
     notes: receipt.notes,
   });
 }
 
-function templateFor(inputEvidence, now = Date.now()) {
+function templateFor(inputEvidence, now = Date.now(), documentId = SAMPLE_DOCUMENT_ID) {
+  const appendix = documentId === APPENDIX_DOCUMENT_ID;
   return {
     schemaVersion: EVIDENCE_SCHEMA,
     inputFingerprint: inputEvidence.fingerprint,
     testedAt: new Date(now).toISOString(),
     sourceCommit: '<40-character-git-commit-sha>',
     artifact: {
-      filename: 'source.docx',
+      filename: appendix ? 'appendix.docx' : 'source.docx',
       bytes: 0,
       sha256: '<sha256-of-the-exact-docx-opened-in-word>',
-      documentId: 'ci-docx-sample',
-      generator: 'npm run generate:sample-docx',
+      documentId,
+      generator: appendix ? 'node scripts/qa-numbered-appendix-rendered.js' : 'npm run generate:sample-docx',
     },
     environment: {
       product: 'Microsoft Word',
@@ -403,7 +425,7 @@ function templateFor(inputEvidence, now = Date.now()) {
       githubLogin: '<reviewer-github-login>',
     },
     observedPageCount: 0,
-    checks: Object.fromEntries(REQUIRED_CHECKS.map((key) => [key, false])),
+    checks: Object.fromEntries(checksFor(documentId).map((key) => [key, false])),
     notes: '',
   };
 }
@@ -442,7 +464,7 @@ function main(argv) {
     inputEvidence = computeInputEvidence(absoluteRoot, options.config);
     if (options.printFingerprint) process.stdout.write(`${inputEvidence.fingerprint}\n`);
     if (templatePath) {
-      writeJson(templatePath, templateFor(inputEvidence));
+      writeJson(templatePath, templateFor(inputEvidence, Date.now(), options.documentId ?? undefined));
       process.stdout.write(`[word-compatibility] wrote template ${templatePath}\n`);
       return { inputEvidence, template: templatePath };
     }
@@ -454,7 +476,7 @@ function main(argv) {
     const validated = validateReceipt(
       readJson(evidencePath, 'Microsoft Word compatibility evidence'),
       inputEvidence,
-      { maxAgeDays: options.maxAgeDays },
+      { maxAgeDays: options.maxAgeDays, documentId: options.documentId },
     );
     const report = {
       schemaVersion: REPORT_SCHEMA,

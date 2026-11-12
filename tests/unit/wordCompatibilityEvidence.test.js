@@ -3,6 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { gunzipSync, gzipSync } = require('zlib');
 const validator = require('../../scripts/validate-word-compatibility-evidence');
 
 function tempRepo() {
@@ -95,6 +96,43 @@ describe('Microsoft Word compatibility evidence', () => {
     lock.packages['node_modules/docx'].version = '9.8.0';
     fs.writeFileSync(lockPath, JSON.stringify(lock));
     expect(validator.computeInputEvidence(root).fingerprint).not.toBe(afterRenderer);
+  });
+
+  test.each([
+    ['scripts/document-golden-scenarios.js', (bytes) => bytes.toString().replace(
+      'Innerstädtischer Knoten Bonn-Zentrum', 'Knoten Bonn-Zentrum mit längerer Berichtsüberschrift',
+    )],
+    ['scripts/deterministic-map-fixture.js', (bytes) => bytes.toString().replace('level: 9', 'level: 6')],
+    ['js/ua.map_v2.js', (bytes) => bytes.toString().replace('#e31a1c', '#b91c1c')],
+    ['js/ua.utils.js', (bytes) => bytes.toString().replace('replaceAll("ä","ae")', 'replaceAll("ä","a")')],
+    ['out/output_all_years_bonn.geojson.gz', (bytes) => {
+      const collection = JSON.parse(gunzipSync(bytes));
+      const accident = collection.features.find(({ geometry: { coordinates: [lon, lat] } }) =>
+        lat >= 50.730 && lat <= 50.732 && lon >= 7.091 && lon <= 7.101);
+      accident.properties.ukategorie = String(accident.properties.ukategorie) === '1' ? '2' : '1';
+      return gzipSync(JSON.stringify(collection));
+    }],
+  ])('invalidates a reviewed receipt when production input %s changes', (inputPath, edit) => {
+    const repo = path.resolve(__dirname, '../..');
+    const original = validator.computeInputEvidence(repo);
+    const paths = new Set([
+      validator.DEFAULT_CONFIG, 'package-lock.json', inputPath, ...original.files.map((file) => file.path),
+    ]);
+    for (const file of paths) {
+      const destination = path.join(root, file);
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(path.join(repo, file), destination);
+    }
+    expect(validator.computeInputEvidence(root).fingerprint).toBe(original.fingerprint);
+
+    const target = path.join(root, inputPath);
+    const oldBytes = fs.readFileSync(target);
+    const changedBytes = Buffer.from(edit(oldBytes));
+    expect(changedBytes.equals(oldBytes)).toBe(false);
+    fs.writeFileSync(target, changedBytes);
+
+    expect(() => validator.validateReceipt(validReceipt(original, now), validator.computeInputEvidence(root), { now }))
+      .toThrow(/input_fingerprint_mismatch/);
   });
 
   test('accepts recent evidence with every required manual Word check', () => {
@@ -218,5 +256,47 @@ describe('Microsoft Word compatibility evidence', () => {
     expect(result.validation.passed).toBe(true);
     expect(JSON.parse(fs.readFileSync(path.join(root, 'out/word-report.json'), 'utf8')))
       .toMatchObject({ validation: { passed: true } });
+  });
+
+  test('an ordinary sample receipt cannot satisfy the numbered appendix gate', () => {
+    const input = validator.computeInputEvidence(root);
+    fs.writeFileSync(path.join(root, 'sample.json'), JSON.stringify(validReceipt(input, Date.now())));
+
+    expect(() => validator.main([
+      '--root', root, '--evidence', 'sample.json', '--document-id', 'release-numbered-docx',
+    ])).toThrow(/document_id_mismatch/);
+  });
+
+  test('the appendix template requires layout checks specific to the numbered appendix', () => {
+    validator.main([
+      '--root', root, '--write-template', 'appendix.json', '--document-id', 'release-numbered-docx',
+    ]);
+    const template = JSON.parse(fs.readFileSync(path.join(root, 'appendix.json'), 'utf8'));
+    expect(template.artifact).toMatchObject({ filename: 'appendix.docx', documentId: 'release-numbered-docx' });
+    expect(template.checks).toMatchObject({
+      numberedMapLabelsReadable: false,
+      landscapePagesPreserved: false,
+      repeatedTableHeadersAndPageBreaksCorrect: false,
+    });
+    expect(template.checks).not.toHaveProperty('topDeviationsHeadingKeptWithTable');
+
+    const input = validator.computeInputEvidence(root);
+    const receipt = validReceipt(input, now);
+    receipt.artifact = { ...receipt.artifact, filename: 'appendix.docx', documentId: 'release-numbered-docx' };
+    receipt.checks = {
+      openedWithoutRepairWarning: true,
+      savedAndReopenedWithoutRepairWarning: true,
+      pageCountMatchesGolden: true,
+      mapsUndistorted: true,
+      tablesReadableAndNotClipped: true,
+      numberedMapLabelsReadable: true,
+      landscapePagesPreserved: true,
+      repeatedTableHeadersAndPageBreaksCorrect: false,
+      hyperlinksClickable: true,
+      noMissingGlyphs: true,
+    };
+    expect(() => validator.validateReceipt(receipt, input, { now })).toThrow(/word_checks_failed/);
+    receipt.checks.repeatedTableHeadersAndPageBreaksCorrect = true;
+    expect(validator.validateReceipt(receipt, input, { now })).toMatchObject({ passed: true });
   });
 });
