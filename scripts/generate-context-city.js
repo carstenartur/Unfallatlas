@@ -14,6 +14,8 @@ const path = require('path');
 const zlib = require('zlib');
 
 const osmProducer = require('./producers/osm_producer');
+const { validateStructureCoverage } = require('./producers/osm_elevation_risk_producer');
+const { PRODUCER_VERSION: STRUCTURE_PRODUCER_VERSION } = require('./producers/osm_structure_producer');
 const demTileProducer = require('./producers/dem_tile_producer');
 const demProducer = require('./producers/dem_producer');
 const trafficProducer = require('./producers/traffic_producer');
@@ -275,6 +277,9 @@ async function generateContextCity(options) {
   const city = resolved.city;
   const slug = resolved.slug;
   const stageBast = shouldStageBastTraffic(slug);
+  const includeElevationStructureTags = slug === 'hannover' &&
+    Boolean(process.env.HANNOVER_DGM1_ROOT?.trim()) &&
+    !process.env.HANNOVER_DGM1_PRECOMPUTED_PROFILES?.trim();
   const runId = `${slug}-${Date.now()}-${process.pid}`;
   const runRoot = path.join(args.workDir, runId);
   const producerRoot = path.join(runRoot, 'producer-root');
@@ -304,16 +309,28 @@ async function generateContextCity(options) {
     const trafficFile = path.join(dirs.trafficDir, `traffic_${slug}.json`);
 
     console.log(`[context-generation] ${city}: OSM road network`);
-    const validateOsmForCity = (data, opts) => [
-      ...validateOsm(data, opts),
-      ...(stageBast && !hasTrafficRouteTags(data) ? ['missing BASt route tags'] : []),
-    ];
+    const validateOsmForCity = (data, opts) => {
+      const problems = [...validateOsm(data, opts)];
+      if (stageBast && !hasTrafficRouteTags(data)) problems.push('missing BASt route tags');
+      if (includeElevationStructureTags) {
+        try {
+          const { metadata } = validateStructureCoverage(data);
+          if (metadata.fromGeometryResponse !== true || metadata.producerVersion !== STRUCTURE_PRODUCER_VERSION) {
+            problems.push('missing current structure tags from the OSM geometry response');
+          }
+        } catch (error) {
+          problems.push(error.message);
+        }
+      }
+      return problems;
+    };
     const forceOsm = args.force || !producerDatasetIsCurrent(osmFile, validateOsmForCity, inputFingerprint);
     const osmResult = await osmProducer.produceCity(producerRoot, slug, {
       outDir: dirs.osmDir,
       force: forceOsm,
       interTileDelayMs: 1000,
       includeTrafficRouteTags: stageBast,
+      includeElevationStructureTags,
     });
     assertProducerResult('OSM', osmResult, osmFile);
     stampProducerDataset(osmFile, inputFingerprint);

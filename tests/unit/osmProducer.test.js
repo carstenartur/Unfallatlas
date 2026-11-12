@@ -16,6 +16,7 @@ const path = require('path');
 const zlib = require('zlib');
 
 const osm = require('../../scripts/producers/osm_producer.js');
+const { prepareOsmElevationContext } = require('../../scripts/producers/osm_elevation_context_producer');
 
 function fc(features) { return { type: 'FeatureCollection', features }; }
 function pt(id, lon, lat) {
@@ -321,6 +322,51 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     });
     expect(r.skipped).toBe(true);
     expect(r.reason).toMatch(/no input geojson/);
+  });
+
+  test('prepares Hannover elevation risks from the same responses as the road geometries', async () => {
+    const city = 'hannover';
+    fs.writeFileSync(path.join(tmpRoot, 'out', `output_all_years_${city}.geojson`),
+      JSON.stringify(fc([pt(1, 9.7, 52.4)])));
+    const geometry = [{ lat: 52.4, lon: 9.7 }, { lat: 52.401, lon: 9.701 }];
+    const fetchOverpass = jest.fn(async () => ({ elements: [
+      { type: 'way', id: 100, tags: { highway: 'primary', bridge: ' yes ', layer: '1' }, geometry },
+      { type: 'way', id: 101, tags: { highway: 'secondary' }, geometry },
+    ] }));
+    const { outFile } = await osm.produceCity(tmpRoot, city, {
+      outDir: path.join(tmpRoot, 'cache'), fetchOverpass, includeElevationStructureTags: true,
+    });
+    expect(fetchOverpass.mock.calls.every(([query]) => query.includes('out tags geom;'))).toBe(true);
+    const fetchStructures = jest.fn(async () => { throw new Error('Overpass HTTP 502'); });
+    const result = await prepareOsmElevationContext({ inputFile: outFile, fetchOverpass: fetchStructures });
+    expect(fetchStructures).not.toHaveBeenCalled();
+    expect(result.structure.skipped).toBe(true);
+    const dataset = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+    expect(dataset.structureTags).toMatchObject({
+      coverage: 'full', wayCount: 2, licenseId: 'ODbL-1.0', fromGeometryResponse: true,
+    });
+    expect(dataset.ways['100']).toMatchObject({ bridge: 'yes', layer: '1', elevationRiskTags: { bridge: 'yes' } });
+    expect(dataset.ways['101'].elevationRiskTags.bridge).toBe('no');
+  });
+
+  test.each(['timeout remark', 'missing way tags', 'missing geometry', 'invalid point'])('does not record full structure coverage for an Overpass response with %s', async (caseName) => {
+    const city = 'hannover';
+    fs.writeFileSync(path.join(tmpRoot, 'out', `output_all_years_${city}.geojson`),
+      JSON.stringify(fc([pt(1, 9.7, 52.4)])));
+    const way = {
+      type: 'way', id: 100, tags: { highway: 'primary' },
+      geometry: [{ lat: 52.4, lon: 9.7 }, { lat: 52.401, lon: 9.701 }],
+    };
+    const response = { elements: [way, { ...way, id: 101 }] };
+    if (caseName === 'timeout remark') response.remark = 'runtime error: Query timed out';
+    if (caseName === 'missing way tags') delete way.tags;
+    if (caseName === 'missing geometry') delete way.geometry;
+    if (caseName === 'invalid point') way.geometry = [way.geometry[0], null, way.geometry[1]];
+    const outDir = path.join(tmpRoot, 'cache');
+    await expect(osm.produceCity(tmpRoot, city, {
+      outDir, fetchOverpass: async () => response, includeElevationStructureTags: true,
+    })).rejects.toThrow('Incomplete Overpass road geometry or structure tags');
+    expect(fs.existsSync(path.join(outDir, 'osm_hannover.json'))).toBe(false);
   });
 
   test('resume: skips when osm_<slug>.json already exists in outDir', async () => {

@@ -52,6 +52,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const { readJsonMaybeGz } = require('../lib/read-json-maybe-gz');
+const { applyStructureTags, structureRecord } = require('./osm_structure_producer');
 
 // 1.2.0: emit all ways inside the city bbox (no longer pruned to ways
 //         that an accident snapped to) and widen the Overpass filter to
@@ -284,6 +285,14 @@ function parseOverpassResponse(json) {
     });
   }
   return out;
+}
+
+function isCompleteOverpassWay(way) {
+  return way?.type === 'way' && Number.isSafeInteger(way.id) && way.id > 0 &&
+    typeof way.tags?.highway === 'string' && Boolean(way.tags.highway.trim()) &&
+    Array.isArray(way.geometry) && way.geometry.length >= 2 &&
+    way.geometry.every(point => Number.isFinite(point?.lat) && Math.abs(point.lat) <= 90 &&
+      Number.isFinite(point?.lon) && Math.abs(point.lon) <= 180);
 }
 
 /**
@@ -527,6 +536,7 @@ function isSplittableError(e) {
  * @param {number} [opts.maxDistanceM]   snap cap (m), default 50
  * @param {string} [opts.extractDate]    ISO date for provenance
  * @param {string} [opts.source]         provenance label
+ * @param {boolean} [opts.includeElevationStructureTags] keep the tags used for road gradient risk
  */
 function buildOsmDataset(fc, ways, opts) {
   const o = opts || {};
@@ -578,7 +588,7 @@ function buildOsmDataset(fc, ways, opts) {
     }
   }
 
-  return {
+  const dataset = {
     source:          o.source      || 'OpenStreetMap (Overpass)',
     producerVersion: o.producerVersion || PRODUCER_VERSION,
     extractDate:     o.extractDate || new Date().toISOString().slice(0, 10),
@@ -588,6 +598,11 @@ function buildOsmDataset(fc, ways, opts) {
     index:           indexEntries,
     ...(trafficRouteTags ? { trafficRouteTags } : {}),
   };
+  if (!o.includeElevationStructureTags) return dataset;
+  const records = new Map(ways.map(way => [String(way.id), structureRecord(way.tags, way.id)]));
+  const structured = applyStructureTags(dataset, records);
+  structured.structureTags.fromGeometryResponse = true;
+  return structured;
 }
 
 // ---------------------------------------------------------------------------
@@ -786,6 +801,12 @@ async function produceCity(repoRoot, citySlug, opts) {
   let totalElements = 0;
 
   async function ingestTile(resp) {
+    if (o.includeElevationStructureTags && (
+      !Array.isArray(resp?.elements) || resp.remark || !resp.elements.every(isCompleteOverpassWay)
+    )) {
+      const detail = resp?.remark ? `: ${resp.remark}` : '';
+      throw new Error(`Incomplete Overpass road geometry or structure tags${detail}`);
+    }
     if (!resp || !Array.isArray(resp.elements)) return;
     totalElements += resp.elements.length;
     const slim = parseOverpassResponse(resp);
@@ -812,6 +833,7 @@ async function produceCity(repoRoot, citySlug, opts) {
     maxDistanceM: o.maxDistanceM,
     extractDate:  o.extractDate,
     includeTrafficRouteTags: o.includeTrafficRouteTags,
+    includeElevationStructureTags: o.includeElevationStructureTags,
     routeDistributionUrl,
   });
 
