@@ -190,10 +190,12 @@ function processFailureText(result) {
 function classifyProviderFailure(value) {
   const text = typeof value === 'string' ? value : processFailureText(value);
   const blocker = NON_TRANSIENT_FAILURE_PATTERNS.find(entry => entry.pattern.test(text));
-  const transient = TRANSIENT_PROVIDER_PATTERNS.find(entry => entry.pattern.test(text));
   if (blocker) {
     return Object.freeze({ transient: false, id: blocker.id, evidence: blocker.pattern.source });
   }
+  // Overpass retry warnings describe earlier attempts and can precede a permanent failure.
+  const transientEvidence = text.replace(/^\[osm-producer\] Overpass retry .*$/gm, '');
+  const transient = TRANSIENT_PROVIDER_PATTERNS.find(entry => entry.pattern.test(transientEvidence));
   if (transient) {
     return Object.freeze({ transient: true, id: transient.id, evidence: transient.pattern.source });
   }

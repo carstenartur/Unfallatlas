@@ -6,6 +6,7 @@ describe('context enrichment transient-provider fallback policy', () => {
   test.each([
     ['Overpass HTTP 429', 'overpass-rate-limit'],
     ['Overpass HTTP 504', 'overpass-server-error'],
+    ['[osm-producer] Overpass retry 3/3 (Overpass HTTP 502)\n[context-generation] FAILED: Overpass HTTP 502', 'overpass-server-error'],
     ['Incomplete Overpass road geometry or structure tags: runtime error: Query timed out', 'overpass-incomplete-timeout'],
     ['[context-generation] FAILED: BASt annual DTV download failed: 429', 'bast-rate-limit'],
     ['[context-generation] FAILED: BASt annual DTV download failed: 503', 'bast-server-error'],
@@ -27,6 +28,7 @@ describe('context enrichment transient-provider fallback policy', () => {
     ['ReferenceError: producer bug', 'programming-error'],
     ['ENOSPC while writing staging output', 'local-resource'],
     ['[osm-producer] Overpass retry 1/3 (Overpass HTTP 502)\n[context-generation] FAILED: Overpass HTTP 400', 'overpass-download-rejected'],
+    ['[osm-producer] Overpass retry 1/3 (Overpass HTTP 502)\n[context-generation] FAILED: Unexpected token in response, not valid JSON', 'unclassified'],
     ['BASt annual DTV distribution SHA-256 mismatch; Overpass HTTP 503', 'bast-distribution'],
     ['BASt annual DTV distribution size mismatch; Overpass HTTP 503', 'bast-distribution'],
     ['BASt annual DTV distribution exceeds reviewed size; Overpass HTTP 503', 'bast-distribution'],
