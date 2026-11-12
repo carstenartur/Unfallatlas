@@ -77,6 +77,6 @@
   }
 
   const api = { wilsonScoreInterval, newcombeDifferenceInterval, patternReferenceMethod: REFERENCE_METHOD, patternReferenceMethodology };
-  if (typeof module === 'object' && module.exports) Object.assign(module.exports, api);
+  if (typeof module === 'object' && module.exports) module.exports = { ...module.exports, ...api };
   if (typeof window === 'object') Object.assign(window.UA = window.UA || {}, api);
 })();
