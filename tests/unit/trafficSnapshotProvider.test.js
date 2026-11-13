@@ -7,7 +7,7 @@ const traffic = require("../../js/ua.traffic_provider");
 const snapshots = require("../../scripts/providers/traffic_snapshot_provider");
 
 const DISTRIBUTION_HASH = "b".repeat(64);
-const BERLIN_MODEL_SOURCE = "traffic.model.berlin-dtvw-2023";
+const HAMBURG_MODEL_SOURCE = "traffic.model.hamburg-hvs-2019";
 const RETIRED_KOELN_SOURCE = "traffic.count.koeln-kfz-2010-2019";
 
 function source(sourceId) {
@@ -24,10 +24,10 @@ function observationFor(sourceId, overrides = {}) {
     period:
       sourceId === "traffic.count.berlin-bicycle-hourly-2012-2025"
         ? "Stundenwert 08:00–09:00"
-        : "DTVw",
+        : "DTV (Mo–So)",
     value: 18500,
     unit: entry.descriptor.unit,
-    geometry: { type: "Point", coordinates: [13.405, 52.52] },
+    geometry: { type: "Point", coordinates: entry.coverage.city === "Hamburg" ? [9.958, 53.61] : [13.405, 52.52] },
     direction: "Querschnitt, beide Richtungen",
     qualityNotes: ["Deterministische Testbeobachtung."],
     ...overrides,
@@ -35,6 +35,10 @@ function observationFor(sourceId, overrides = {}) {
 }
 
 function snapshotValue(sourceId, overrides = {}) {
+  if (sourceId === HAMBURG_MODEL_SOURCE) {
+    const file = path.resolve(__dirname, "../fixtures/traffic/hamburg-model/feature-1.snapshot.json");
+    return { ...JSON.parse(fs.readFileSync(file, "utf8")), ...overrides };
+  }
   const entry = source(sourceId);
   return {
     schemaVersion: 1,
@@ -113,7 +117,7 @@ describe("licensed traffic snapshot provider", () => {
       entries.map((entry) => entry.descriptor.measurementType).sort(),
     ).toEqual(["count", "model"]);
     for (const entry of entries) {
-      expect(entry.descriptor.licenseId).toBe("DL-DE-Zero-2.0");
+      expect(entry.descriptor.licenseUrl).toMatch(/^https:\/\//);
       expect(entry.descriptor.distributionUrl).toMatch(/^https:\/\//);
       expect(entry.descriptor.measurementType).not.toBe("proxy");
       expect(entry.descriptor.unit).toBeTruthy();
@@ -123,6 +127,12 @@ describe("licensed traffic snapshot provider", () => {
         commercialUseAllowed: true,
       });
     }
+  });
+
+  test("does not accept Berlin survey extrapolations as traffic-model output", () => {
+    expect(() => snapshots.normalizeRegistryManifest({ schemaVersion: 1, snapshots: [{
+      sourceId: "traffic.model.berlin-dtvw-2023", path: "old.json", sha256: DISTRIBUTION_HASH,
+    }] })).toThrow(/retired_source/);
   });
 
   test("retires the coordinate-only Cologne node CSV with an explicit replacement", () => {
@@ -146,7 +156,7 @@ describe("licensed traffic snapshot provider", () => {
   });
 
   test("creates a model provider only after snapshot and distribution pins validate", async () => {
-    const sourceId = BERLIN_MODEL_SOURCE;
+    const sourceId = HAMBURG_MODEL_SOURCE;
     const provider = snapshots.createSnapshotProvider(
       providerOptions(root, sourceId),
     );
@@ -155,29 +165,29 @@ describe("licensed traffic snapshot provider", () => {
     expect(provider.descriptor).toEqual(
       expect.objectContaining({
         measurementType: "model",
-        licenseId: "DL-DE-Zero-2.0",
-        contentHash: DISTRIBUTION_HASH,
-        retrievedAt: "2026-07-28T12:00:00Z",
+        licenseId: "DL-DE-BY-2.0",
+        contentHash: snapshotValue(sourceId).distribution.sha256,
+        retrievedAt: snapshotValue(sourceId).retrievedAt,
       }),
     );
     expect(provider.snapshot).toEqual(
       expect.objectContaining({
-        distributionSha256: DISTRIBUTION_HASH,
-        distributionBytes: 12345,
+        distributionSha256: snapshotValue(sourceId).distribution.sha256,
+        distributionBytes: 823,
       }),
     );
-    expect(await provider.canProvide({ city: "Berlin" })).toBe(true);
+    expect(await provider.canProvide({ city: "Hamburg" })).toBe(true);
     expect(await provider.canProvide({ city: "Bonn" })).toBe(false);
 
-    const observations = await provider.loadObservations({ city: "Berlin" });
+    const observations = await provider.loadObservations({ city: "Hamburg" });
     expect(observations).toHaveLength(1);
     expect(observations[0]).toEqual(
       expect.objectContaining({
         sourceId,
         measurementType: "model",
-        value: 18500,
+        value: 4000,
         unit: "Kfz/24 h",
-        year: 2023,
+        year: 2019,
       }),
     );
   });
@@ -213,8 +223,9 @@ describe("licensed traffic snapshot provider", () => {
     });
     expect(berlin.map((item) => item.sourceId).sort()).toEqual([
       "traffic.count.berlin-bicycle-hourly-2012-2025",
-      "traffic.model.berlin-dtvw-2023",
     ]);
+    const hamburg = await registry.collect({ city: "Hamburg", failOnProviderError: true });
+    expect(hamburg.map(item => item.sourceId)).toEqual([HAMBURG_MODEL_SOURCE]);
     const koeln = await registry.collect({
       city: "Köln",
       failOnProviderError: true,
@@ -223,15 +234,23 @@ describe("licensed traffic snapshot provider", () => {
   });
 
   test("fails closed when the normalized snapshot hash drifts", () => {
-    const options = providerOptions(root, BERLIN_MODEL_SOURCE);
+    const options = providerOptions(root, HAMBURG_MODEL_SOURCE);
     options.expectedSnapshotSha256 = "c".repeat(64);
     expect(() => snapshots.createSnapshotProvider(options)).toThrow(
       /snapshot_hash_mismatch/,
     );
   });
 
+  test("rejects an altered value even with a matching caller-supplied hash for the inspected model section", () => {
+    const real = snapshotValue(HAMBURG_MODEL_SOURCE);
+    const options = providerOptions(root, HAMBURG_MODEL_SOURCE, {
+      snapshot: { observations: [{ ...real.observations[0], value: 5000 }] },
+    });
+    expect(() => snapshots.createSnapshotProvider(options)).toThrow(/unreviewed_model_snapshot/);
+  });
+
   test("fails closed when a snapshot points at another distribution", () => {
-    const sourceId = BERLIN_MODEL_SOURCE;
+    const sourceId = HAMBURG_MODEL_SOURCE;
     const options = providerOptions(root, sourceId, {
       snapshot: {
         distribution: {
@@ -276,13 +295,13 @@ describe("licensed traffic snapshot provider", () => {
   });
 
   test("rejects source coverage expansion and unknown envelope fields", () => {
-    const sourceId = BERLIN_MODEL_SOURCE;
+    const sourceId = HAMBURG_MODEL_SOURCE;
     const expanded = providerOptions(root, sourceId, {
       snapshot: {
         coverage: {
-          city: "Berlin",
-          fromYear: 2022,
-          toYear: 2023,
+          city: "Hamburg",
+          fromYear: 2018,
+          toYear: 2019,
           modes: ["motor_vehicle"],
         },
       },
@@ -314,11 +333,11 @@ describe("licensed traffic snapshot provider", () => {
       const outside = writeJson(
         outsideRoot,
         "outside.json",
-        snapshotValue(BERLIN_MODEL_SOURCE),
+        snapshotValue(HAMBURG_MODEL_SOURCE),
       );
       expect(() =>
         snapshots.createSnapshotProvider({
-          sourceId: BERLIN_MODEL_SOURCE,
+          sourceId: HAMBURG_MODEL_SOURCE,
           allowedRoot: root,
           snapshotPath: outside.file,
           expectedSnapshotSha256: outside.sha256,
@@ -335,12 +354,12 @@ describe("licensed traffic snapshot provider", () => {
         schemaVersion: 1,
         snapshots: [
           {
-            sourceId: BERLIN_MODEL_SOURCE,
+            sourceId: HAMBURG_MODEL_SOURCE,
             path: "one.json",
             sha256: "a".repeat(64),
           },
           {
-            sourceId: BERLIN_MODEL_SOURCE,
+            sourceId: HAMBURG_MODEL_SOURCE,
             path: "two.json",
             sha256: "b".repeat(64),
           },

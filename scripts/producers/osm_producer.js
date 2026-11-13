@@ -60,7 +60,7 @@ const { applyStructureTags, structureRecord } = require('./osm_structure_produce
 //         the front-end full-network slope/traffic overlay has data for
 //         the entire visible road network. Cache key bumps so the first
 //         CI run after the bump re-fetches every city.
-const PRODUCER_VERSION = '1.2.0';
+const PRODUCER_VERSION = '1.3.0';
 const TRAFFIC_ROUTE_TAGS_VERSION = 1;
 const TRAFFIC_ROUTE_KEYS = ['ref', 'oneway', 'oneway:conditional', 'oneway:vehicle', 'oneway:vehicle:conditional',
   'oneway:motor_vehicle', 'oneway:motor_vehicle:conditional', 'oneway:motorcar', 'oneway:motorcar:conditional',
@@ -591,8 +591,10 @@ function buildOsmDataset(fc, ways, opts) {
   const dataset = {
     source:          o.source      || 'OpenStreetMap (Overpass)',
     producerVersion: o.producerVersion || PRODUCER_VERSION,
-    extractDate:     o.extractDate || new Date().toISOString().slice(0, 10),
+    ...(o.extractDate && { extractDate: o.extractDate }),
+    ...(o.osmBaseTimeRange && { osmBaseTimeRange: o.osmBaseTimeRange }),
     coverage:        'full',
+    ...(o.retrievedAt && { retrievedAt: o.retrievedAt, distributionUrl: o.routeDistributionUrl }),
     ways:            wayTable,
     wayGeometries,
     index:           indexEntries,
@@ -799,8 +801,23 @@ async function produceCity(repoRoot, citySlug, opts) {
   // instead of (all raw responses) + merged copy + parsed copy.
   const wayMap = new Map();   // wayId (string) → slim way object
   let totalElements = 0;
+  let allTilesHaveBaseTime = true;
+  let earliestBaseTime;
+  let latestBaseTime;
 
   async function ingestTile(resp) {
+    // A retried or subdivided parent is never ingested. Only successful leaf
+    // responses contribute, including empty tiles. A partial range is unknown.
+    const timestamp = resp?.osm3s?.timestamp_osm_base;
+    const instant = typeof timestamp === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(timestamp)
+      ? Date.parse(timestamp) : NaN;
+    const iso = Number.isFinite(instant) ? new Date(instant).toISOString() : null;
+    if (!iso || iso.slice(0, 19) !== timestamp.slice(0, 19)) {
+      allTilesHaveBaseTime = false;
+    } else {
+      if (!earliestBaseTime || iso < earliestBaseTime) earliestBaseTime = iso;
+      if (!latestBaseTime || iso > latestBaseTime) latestBaseTime = iso;
+    }
     if (o.includeElevationStructureTags && (
       !Array.isArray(resp?.elements) || resp.remark || !resp.elements.every(isCompleteOverpassWay)
     )) {
@@ -822,16 +839,21 @@ async function produceCity(repoRoot, citySlug, opts) {
 
   const ways = Array.from(wayMap.values());
 
-  let routeDistributionUrl;
-  if (o.includeTrafficRouteTags) {
-    const endpoint = new URL(o.endpoint || process.env.OVERPASS_ENDPOINT || DEFAULT_OVERPASS_ENDPOINT);
-    // Report the actual public endpoint without including endpoint credentials.
-    routeDistributionUrl = `${endpoint.origin}${endpoint.pathname}`;
-  }
+  // Record the completion of the successful tile requests and their public endpoint.
+  const retrievedAt = new Date().toISOString();
+  const endpoint = new URL(o.endpoint || process.env.OVERPASS_ENDPOINT || DEFAULT_OVERPASS_ENDPOINT);
+  const routeDistributionUrl = `${endpoint.origin}${endpoint.pathname}`;
+
+  const osmBaseTimeRange = allTilesHaveBaseTime && earliestBaseTime && {
+    from: earliestBaseTime, to: latestBaseTime,
+  };
+  const sameBaseDay = osmBaseTimeRange && earliestBaseTime.slice(0, 10) === latestBaseTime.slice(0, 10);
 
   const dataset = buildOsmDataset(fc, ways, {
     maxDistanceM: o.maxDistanceM,
-    extractDate:  o.extractDate,
+    osmBaseTimeRange,
+    extractDate: sameBaseDay ? earliestBaseTime.slice(0, 10) : undefined,
+    retrievedAt,
     includeTrafficRouteTags: o.includeTrafficRouteTags,
     includeElevationStructureTags: o.includeElevationStructureTags,
     routeDistributionUrl,

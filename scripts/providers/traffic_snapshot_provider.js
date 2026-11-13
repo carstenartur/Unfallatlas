@@ -21,6 +21,12 @@ const REGISTRY_SCHEMA_VERSION = 1;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 
 const RETIRED_SOURCE_CATALOG = Object.freeze({
+  "traffic.model.berlin-dtvw-2023": Object.freeze({
+    reasonCode: "survey_extrapolation_not_transport_model",
+    publisher: "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin",
+    retiredDistributionUrl: "https://gdi.berlin.de/services/wfs/verkehrsmengen_2023",
+    explanation: "Der amtliche Ergebnisbericht beschreibt auf DTVw 2023 hochgerechnete Verkehrszählungen. Diese Distribution belegt kein Ergebnis eines Verkehrsmodells.",
+  }),
   "traffic.count.koeln-kfz-2010-2019": Object.freeze({
     reasonCode: "coordinate_only_distribution",
     publisher: "Stadt Köln",
@@ -36,43 +42,33 @@ const RETIRED_SOURCE_CATALOG = Object.freeze({
 });
 
 const OPEN_DATA_SOURCE_CATALOG = Object.freeze({
-  "traffic.model.berlin-dtvw-2023": Object.freeze({
+  "traffic.model.hamburg-hvs-2019": Object.freeze({
+    reviewedSnapshotSha256: "6ad7ea7572ae2bcc90dcbf67dfa51808816614ec4447ddf93829b8a789aeb1fd",
     descriptor: Object.freeze({
-      id: "traffic.model.berlin-dtvw-2023",
-      publisher:
-        "Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin",
-      datasetTitle: "Verkehrsmengen DTVw 2023 - WFS",
-      datasetUrl:
-        "https://daten.berlin.de/datensaetze/verkehrsmengen-dtvw-2023-wfs-9fc4ea36",
-      distributionUrl: "https://gdi.berlin.de/services/wfs/verkehrsmengen_2023",
-      licenseId: "DL-DE-Zero-2.0",
-      licenseName: "Datenlizenz Deutschland – Zero – Version 2.0",
-      licenseUrl: "https://www.govdata.de/dl-de/zero-2-0",
-      temporalCoverage: "2023",
-      spatialCoverage: "Berlin",
-      versionOrPublicationDate: "2024-12-06",
+      id: "traffic.model.hamburg-hvs-2019",
+      publisher: "Freie und Hansestadt Hamburg, Behörde für Verkehr und Mobilitätswende (BVM)",
+      datasetTitle: "Verkehrsmengen DTV auf Hauptverkehrsstraßen 2019 – Abschnitt 1",
+      datasetUrl: "https://suche.transparenz.hamburg.de/dataset/verkehrsmengen-auf-hauptverkehrsstrassen-in-hamburg46",
+      distributionUrl: "https://api.hamburg.de/datasets/v1/verkehrsmengen/collections/verkehrsmengen_dtv_hvs_2019/items/1?f=json",
+      licenseId: "DL-DE-BY-2.0",
+      licenseName: "Datenlizenz Deutschland – Namensnennung – Version 2.0",
+      licenseUrl: "https://www.govdata.de/dl-de/by-2-0",
+      requiredAttribution: "Freie und Hansestadt Hamburg, Behörde für Verkehr und Mobilitätswende, (BVM)",
+      temporalCoverage: "2019",
+      spatialCoverage: "Hamburg – Hauptverkehrsstraßen, amtlicher Abschnitt 1",
+      versionOrPublicationDate: "2022-11-22",
       changedOrDerived: true,
-      changeNotice:
-        "WFS-Features werden auf das typisierte Verkehrsmodell-Schema abgebildet; Originalwerte, Einheit und Segmentgeometrie bleiben erhalten.",
-      permissions: Object.freeze({
-        permitsRedistribution: true,
-        permitsDerivatives: true,
-        commercialUseAllowed: true,
-      }),
-      qualityNotes: Object.freeze([
-        "Ausgeglichene durchschnittliche werktägliche Verkehrsstärke; als Modellwert und nicht als Einzelmessung gekennzeichnet.",
-      ]),
+      changeNotice: "DTV und Liniengeometrie des amtlichen GeoJSON-Abschnitts für die Verkehrsdatenschnittstelle übernommen.",
+      permissions: Object.freeze({ permitsRedistribution: true, permitsDerivatives: true, commercialUseAllowed: true }),
+      qualityNotes: Object.freeze(["Aus werktäglichen Kfz-Modellwerten auf DTV (Mo–So) umgerechnet und fachlich abgeglichen. Bezugsjahr 2019."]),
       measurementType: "model",
       modes: Object.freeze(["motor_vehicle"]),
       unit: "Kfz/24 h",
       priority: 2,
     }),
     coverage: Object.freeze({
-      city: "Berlin",
-      aliases: Object.freeze(["Berlin"]),
-      fromYear: 2023,
-      toYear: 2023,
-      modes: Object.freeze(["motor_vehicle"]),
+      city: "Hamburg", aliases: Object.freeze(["Hamburg"]),
+      fromYear: 2019, toYear: 2019, modes: Object.freeze(["motor_vehicle"]),
     }),
   }),
   "traffic.count.berlin-bicycle-hourly-2012-2025": Object.freeze({
@@ -412,10 +408,14 @@ function loadVerifiedSnapshot(options) {
       { expected: expectedSnapshotSha256, actual: actualSnapshotSha256 },
     );
   }
+  const value = parseSnapshot(buffer, entry, opts.sourceId);
+  if (entry.reviewedSnapshotSha256 && actualSnapshotSha256 !== entry.reviewedSnapshotSha256) {
+    fail("unreviewed_model_snapshot", "snapshot differs from the inspected municipal model section");
+  }
   return Object.freeze({
     file,
     snapshotSha256: actualSnapshotSha256,
-    value: parseSnapshot(buffer, entry, opts.sourceId),
+    value,
   });
 }
 
