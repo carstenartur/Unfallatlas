@@ -16,6 +16,13 @@
   ],
   "packageRules": [
     {
+      "description": "Keep the Roboto source rebuild on the Python 3.11 toolchain used with its hash-locked wheels.",
+      "matchManagers": ["github-actions"],
+      "matchFileNames": [".github/workflows/verify-export-upstream.yml"],
+      "matchPackageNames": ["actions/python-versions"],
+      "allowedVersions": "3.11.x"
+    },
+    {
       "description": "Keep Maven and Docker on the same Node.js release within the current major line.",
       "matchManagers": ["dockerfile", "custom.regex"],
       "matchFileNames": ["Dockerfile", "pom.xml"],
