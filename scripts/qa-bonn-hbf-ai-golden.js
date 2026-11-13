@@ -265,7 +265,13 @@ function prepareModelReview(raw,outDir,councilEvidence,mapHints) {
   ]} : undefined;
   const features=deriveFeatures(structured, contextHints),preselected=preselectMeasures(features,{citySlug:'bonn'});
   const input=service.buildAiInputV2(structured,features,preselected,contextHints);
+  // Only the reference harness uses localhost. The provider and reviewers need the public case URL.
+  input.meta.link = canonicalUrl(input.meta.link);
+  input.deterministicAnalysisDigest.meta = {...input.deterministicAnalysisDigest.meta, link:input.meta.link};
+  const comparisonDigest = input.aiAnalysisComparisonContract.deterministicDigest;
+  comparisonDigest.meta = {...comparisonDigest.meta, link:input.meta.link};
   const prompt = service.buildProviderPrompt(input, 'proposal-brief');
+  if (JSON.stringify([input, prompt]).includes('127.0.0.1')) throw new Error('The provider evidence contains a loopback URL.');
   const binding={inputSha256:hash(json(input)),promptSha256:hash(json(prompt))};
   const schema='server/ai/schema/proposalBrief.v1.schema.json',rubric='server/ai/proposalBriefValueAddCore.js';
   const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:service.activeProviderName(),requestedModel:configuredModel(),actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
