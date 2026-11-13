@@ -41,9 +41,12 @@ function canonicalUrl(raw) {
 }
 function reviewModelResponse(response, receipt, binding, councilEvidence) {
   const digestFields = ['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256'];
-  const verified = Boolean(receipt && ['provider', 'model', 'modelVersion', 'executedAt'].every(
+  const verified = Boolean(receipt && ['provider', 'model', 'modelVersion', 'promptVersion', 'executedAt'].every(
     key => typeof receipt[key] === 'string' && receipt[key].trim()
-  ) && Number.isFinite(Date.parse(receipt.executedAt))
+  ) && receipt.provider === binding.requestedProvider
+    && receipt.model === binding.requestedModel
+    && receipt.promptVersion === binding.promptVersion
+    && Number.isFinite(Date.parse(receipt.executedAt))
     && digestFields.every(key => /^[a-f0-9]{64}$/.test(receipt[key]) && receipt[key] === binding[key])
     && receipt.responseSha256 === hash(json(response)));
   const {evaluateProposalValueAdd}=require('../server/ai/proposalBriefValueAdd');
@@ -58,11 +61,23 @@ function reviewModelResponse(response, receipt, binding, councilEvidence) {
     const actualQueries = [...new Set((Array.isArray(log?.documentedQueries) ? log.documentedQueries : []).map(queryKey))].sort();
     const sourcesMatch = log?.status === 'complete' && log.sourceStatus === 'results-found'
       && json(actualUrls) === json(expectedUrls) && json(actualQueries) === json(expectedQueries);
-    const councilEvidenceCasePassed = verified && schemaValidation.valid && rubric.valid && sourcesMatch
-      && response?.filingReadinessVerdict?.status === 'blocked';
-    return {status:'blocked', providerReceiptVerified:verified, councilEvidenceCasePassed, sourcesMatch,
-      schemaValidation, rubric, independentReview:'pending',
-      blockingReasons:['The archived council evidence does not certify map inspection or independent assessment of the model answer.']};
+    const local = binding.localEvidenceGate;
+    const evidenceReady = local?.passed === true && local.analysisQaStatus === 'ready'
+      && local.politicalResearchStatus === 'complete' && local.filingReadinessStatus === 'ready';
+    const verdict = response?.filingReadinessVerdict;
+    const counts = binding.candidateCohorts;
+    const numbers = (response?.sachverhalt?.match(/\d+(?:[.\u00a0\u202f]\d{3})*/g) || [])
+      .map(value => Number(value.replace(/[^0-9]/g, '')));
+    const scopesReported = Boolean(counts && ['discovery','completeArea','reference'].every(role =>
+      Number.isSafeInteger(counts[role]) && response?.evidenceCohortCounts?.[role] === counts[role]
+      && numbers.includes(counts[role])));
+    const conforms = verified && schemaValidation.valid && rubric.valid && sourcesMatch;
+    const positiveDraftCandidate = Boolean(conforms && evidenceReady && scopesReported
+      && verdict?.status === 'ready' && verdict.analysisQaStatus === 'ready');
+    const councilEvidenceCasePassed = local ? positiveDraftCandidate : conforms && verdict?.status === 'blocked';
+    return {status:'blocked', providerReceiptVerified:verified, councilEvidenceCasePassed, positiveDraftCandidate,
+      sourcesMatch, scopesReported, schemaValidation, rubric, independentReview:'pending',
+      blockingReasons:['Independent review of the proposal, its claims and its cited evidence is pending.']};
   }
   // The captured Bonn baseline has neither executed searches nor verified proceedings.
   const politicalResearch = response?.politicalResearchLog;
@@ -180,7 +195,22 @@ async function captureRuntime(options={}) {
     const viewportRestored=await page.evaluate(()=>({name:window.UA.getRuntimeContext().areaNameOverride||null,
       selection:!!window.UA.getRuntimeContext().selectionBounds}));
     if(viewportRestored.name!==viewportName || viewportRestored.selection) throw new Error('Viewport-only name lost during hydration: '+JSON.stringify(viewportRestored));
-    return {...out,inputSourceFiles,sourceAcquisition,drawShareRegression,viewportReloadRegression:viewportRestored};
+    const raw = {...out,inputSourceFiles,sourceAcquisition,drawShareRegression,viewportReloadRegression:viewportRestored};
+    const snapshot = snapshotFromRuntime(raw);
+    const council = require('../tests/fixtures/bonn-hbf-political-research.json');
+    if (council.caseId !== snapshot.case.id) throw new Error('Council research belongs to a different case.');
+    const maps = reviewedMapHints(snapshot);
+    // Use the public counterpart of each exact URL in the local facts package.
+    const facts = {...out.facts, visualSceneAnalysisContract: {...out.facts.visualSceneAnalysisContract,
+      inspectionViews: out.facts.visualSceneAnalysisContract.inspectionViews.map(view => ({...view, url:canonicalUrl(view.url)}))}};
+    const result = {
+      accessedResources: maps.views.map(view => ({mapMode:view.mode, url:view.url, status:'opened'})),
+      politicalAdministrativeResearch: {status:'results-found', queries:council.queries, proceedings:council.references},
+    };
+    raw.councilGate = await page.evaluate(data => window.UA.filingReadiness.evaluate(data), {facts,result});
+    if (!raw.councilGate.filingReady) throw new Error('Local evidence does not support the researched case: '
+      + JSON.stringify(raw.councilGate.errors));
+    return raw;
   } finally {if(browser) await browser.close();await new Promise(r=>server.close(r));}
 }
 function snapshotFromRuntime(raw) {
@@ -229,18 +259,45 @@ function prepareModelReview(raw,outDir,councilEvidence,mapHints) {
     politicalReferences: councilEvidence.references,
     visualContextHints: mapHints,
   } : raw.structured;
-  const contextHints = councilEvidence ? {notes:councilEvidence.authorities} : undefined;
+  const contextHints = councilEvidence ? {notes:[...councilEvidence.authorities,
+    'Auftrag: Erstelle einen konkreten Prüf- und Berichtsauftrag mit Frist und überprüfbaren Kriterien. Ungeklärte Unfallursachen, Verkehrsmengen und Bauausführung bleiben Prüfgegenstand.',
+    'Die nummerierte Beweisanlage gehört zum Entwurf. Der Haupttext muss die geprüften Unfallgruppen auseinanderhalten. Eine unabhängige Fachprüfung der Antwort steht aus.',
+  ]} : undefined;
   const features=deriveFeatures(structured, contextHints),preselected=preselectMeasures(features,{citySlug:'bonn'});
   const input=service.buildAiInputV2(structured,features,preselected,contextHints);
+  // Only the reference harness uses localhost. The provider and reviewers need the public case URL.
+  input.meta.link = canonicalUrl(input.meta.link);
+  input.deterministicAnalysisDigest.meta = {...input.deterministicAnalysisDigest.meta, link:input.meta.link};
+  const comparisonDigest = input.aiAnalysisComparisonContract.deterministicDigest;
+  comparisonDigest.meta = {...comparisonDigest.meta, link:input.meta.link};
   const prompt = service.buildProviderPrompt(input, 'proposal-brief');
+  if (JSON.stringify([input, prompt]).includes('127.0.0.1')) throw new Error('The provider evidence contains a loopback URL.');
   const binding={inputSha256:hash(json(input)),promptSha256:hash(json(prompt))};
   const schema='server/ai/schema/proposalBrief.v1.schema.json',rubric='server/ai/proposalBriefValueAddCore.js';
   const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:service.activeProviderName(),requestedModel:configuredModel(),actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
     rubricDimensions:['Methodentreue','Erhalt amtlicher Fakten','Zusätzlicher Erkenntniswert','Politische Anschlussfähigkeit','Maßnahmenqualität','Quellenauflösbarkeit'],
-    requiredProviderReceiptFields:['provider','model','modelVersion','executedAt','inputSha256','promptSha256','schemaSha256','rubricSha256','responseSha256'],
+    requiredProviderReceiptFields:['provider','model','modelVersion','promptVersion','executedAt','inputSha256','promptSha256','schemaSha256','rubricSha256','responseSha256'],
     blockingReasons:['This input receipt precedes provider execution.', councilEvidence
-      ? 'The council-source comparison still requires model evaluation and independent map and subject review.'
+      ? 'The researched draft requires an actual provider response and independent subject review.'
       : 'No real positive political/map evidence exists for this generation.']};
+  if (councilEvidence) {
+    receipt.candidateCohorts = input.evidenceCohortCounts;
+    receipt.localEvidenceGate = raw.councilGate;
+    if (!receipt.localEvidenceGate?.filingReady || !receipt.candidateCohorts) {
+      throw new Error('The positive case requires the local readiness gate and the three cohort counts.');
+    }
+    const appendix = structured.evidenceCohorts.completeEvidenceCohort.rows.map(
+      ({displayId, year, severityLabel, involvementLabel, mapRef, mapDeepLink, discoveryMatch}) =>
+        ({displayId, year, severityLabel, involvementLabel, mapRef, mapDeepLink:canonicalUrl(mapDeepLink), discoveryMatch}));
+    if (appendix.length !== receipt.candidateCohorts.completeArea
+        || new Set(appendix.map(row => row.displayId)).size !== appendix.length
+        || appendix.filter(row => row.discoveryMatch).length !== receipt.candidateCohorts.discovery) {
+      throw new Error('Numbered appendix no longer matches the disjointly reported cohort roles.');
+    }
+    receipt.appendixSha256 = hash(json(appendix));
+    write(path.join(outDir,'numbered-evidence-appendix.json'), appendix);
+    write(path.join(outDir,'local-evidence-gate.json'), raw.councilGate);
+  }
   write(path.join(outDir,'production-model-input.json'),input);write(path.join(outDir,'production-model-prompt.json'),prompt);
   if (councilEvidence) write(path.join(outDir,'council-research.json'),councilEvidence);
   else {

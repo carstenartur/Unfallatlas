@@ -251,6 +251,7 @@ test.each([
   }, 2) + '\n';
   const binding = Object.fromEntries(['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256']
     .map(key => [key, 'a'.repeat(64)]));
+  Object.assign(binding, {requestedProvider:'gemini', requestedModel:'test-model', promptVersion:'test-prompt-v1'});
   const receipt = {
     ...binding,
     provider: 'gemini',
@@ -507,19 +508,33 @@ test('review of researched Hbf evidence requires the bound sources and search tr
   Object.assign(proposal.filingReadinessVerdict, { status: 'blocked', politicalResearchStatus: 'complete' });
   const binding = Object.fromEntries(['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256']
     .map(key => [key, 'a'.repeat(64)]));
-  const review = () => {
+  Object.assign(binding, {requestedProvider:'gemini', requestedModel:'unit-fixture', promptVersion:'test-prompt-v1'});
+  const review = (candidateBinding = binding) => {
     const canonical = JSON.stringify(proposal, (_key, value) => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
       return Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]));
     }, 2) + '\n';
     return reviewModelResponse(proposal, { ...binding, provider: 'gemini', model: 'unit-fixture',
       modelVersion: 'unit-fixture-v1', executedAt: '2026-11-13T08:00:00Z',
-      responseSha256: createHash('sha256').update(canonical).digest('hex') }, binding, evidence);
+      responseSha256: createHash('sha256').update(canonical).digest('hex') }, candidateBinding, evidence);
   };
   expect(review()).toMatchObject({ councilEvidenceCasePassed: true, status: 'blocked', rubric: { valid: true } });
   proposal.filingReadinessVerdict.status = 'ready';
   expect(review().councilEvidenceCasePassed).toBe(false);
+  const positiveBinding = { ...binding, localEvidenceGate: { passed: true, analysisQaStatus: 'ready',
+    politicalResearchStatus: 'complete', filingReadinessStatus: 'ready' },
+    candidateCohorts: { discovery: 37, completeArea: 312, reference: 1926 } };
+  expect(review(positiveBinding).positiveDraftCandidate).toBe(false);
+  proposal.sachverhalt = '37 ausgewählte Rad-Pkw-Unfälle unter 312 Gebietsunfällen, die Vergleichsgruppe umfasst 1.926 Fälle.';
+  proposal.evidenceCohortCounts = {discovery:312, completeArea:37, reference:1926};
+  expect(review(positiveBinding).positiveDraftCandidate).toBe(false);
+  proposal.evidenceCohortCounts = {discovery:37, completeArea:312, reference:1926};
+  expect(review(positiveBinding)).toMatchObject({councilEvidenceCasePassed: true, positiveDraftCandidate: true,
+    independentReview: 'pending', status: 'blocked'});
+  expect(review({...positiveBinding, localEvidenceGate: {...positiveBinding.localEvidenceGate, passed: false}})
+    .positiveDraftCandidate).toBe(false);
   proposal.filingReadinessVerdict.status = 'blocked';
+  expect(review(positiveBinding).positiveDraftCandidate).toBe(false);
   log.evidenceRefs = [...log.evidenceRefs, 'https://example.invalid/invented'];
   expect(review().councilEvidenceCasePassed).toBe(false);
   log.evidenceRefs = evidence.references.slice(1).map(ref => ref.url);

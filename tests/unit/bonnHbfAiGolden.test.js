@@ -14,13 +14,17 @@ test('model evaluation stays blocked without a bound actual provider receipt or 
 });
 
 test('matching receipt binding is distinguishable from missing evidence and cannot upgrade the blocked case', () => {
-  const binding={inputSha256:'a'.repeat(64),promptSha256:'b'.repeat(64),schemaSha256:'c'.repeat(64),rubricSha256:'d'.repeat(64)};
+  const binding={requestedProvider:'gemini',requestedModel:'unit-fixture',promptVersion:'test-prompt-v1',inputSha256:'a'.repeat(64),promptSha256:'b'.repeat(64),schemaSha256:'c'.repeat(64),rubricSha256:'d'.repeat(64)};
   const receipt={provider:'gemini',model:'unit-fixture',modelVersion:'unit-fixture-v1',executedAt:'2026-11-08T00:00:00Z',responseSha256:require('node:crypto').createHash('sha256').update('{}\n').digest('hex'),...binding};
   const result=qa.reviewModelResponse({},receipt,binding);
   expect(result.providerReceiptVerified).toBe(true);
   expect(result.schemaValidation.valid).toBe(false);
   expect(qa.reviewModelResponse({altered:true},receipt,binding).providerReceiptVerified).toBe(false);
   expect(qa.reviewModelResponse({}, {...receipt,schemaSha256:'0'.repeat(64)}, binding).providerReceiptVerified).toBe(false);
+  for (const mismatch of [{provider:'other-provider'}, {model:'different-model'}, {promptVersion:'obsolete-prompt'}]) {
+    expect(qa.reviewModelResponse({}, {...receipt, ...mismatch}, binding).providerReceiptVerified).toBe(false);
+  }
+  expect(qa.reviewModelResponse({}, {...receipt, promptVersion:undefined}, binding).providerReceiptVerified).toBe(false);
   expect(result.status).toBe('blocked');
 });
 
@@ -51,6 +55,7 @@ test('live QA saves the original provider response and rejects an unsupported re
     text: response, model: 'test', modelVersion: 'test-001'
   });
   const binding = Object.fromEntries(['inputSha256','promptSha256','schemaSha256','rubricSha256'].map(key => [key,'a'.repeat(64)]));
+  Object.assign(binding, {requestedProvider:'gemini', requestedModel:'test', promptVersion:'test-prompt-v1'});
   try {
     await expect(qa.runBoundModelReview({system:'s',user:'u'},binding,dir)).rejects.toThrow(/failed the blocked case/);
     expect(call).toHaveBeenCalledWith({ system:'s', user:'u', responseSchema: expect.any(Object) });
@@ -75,12 +80,16 @@ test('a documented council search reaches the model with its queries and differe
     politicalReferences: evidence.references,
     politicalContextResearch: { status: 'results-found', queries: evidence.queries },
   };
+  structured.evidenceCohorts = {
+    discoveryCohort: { count: 37 }, completeEvidenceCohort: { count: 312 }, referenceCohort: { count: 1926 }
+  };
   const input = service.buildAiInputV2(structured, {}, []);
   const research = input.deterministicAnalysisDigest.politicalResearch;
   expect(research.status).toBe('results-found');
   expect(research.queries).toEqual(evidence.queries);
   const { user } = service.buildProviderPrompt(input, 'proposal-brief');
   expect(user).toContain('Unfälle nach schwerster Folge: 0 mit Getöteten, 1 mit Schwerverletzten, 36 mit Leichtverletzten');
+  expect(user).toContain('37 ausgewählte Unfälle, 312 Unfälle im vollständigen Gebiet, 1926 Fälle in der Referenz');
   for (const ref of evidence.references) {
     expect(user).toContain(ref.url);
     expect(user).toContain(ref.snippet);
