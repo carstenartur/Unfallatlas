@@ -106,7 +106,7 @@ function sendError(res, args = {}) {
  * eine `fallback`-Beschreibung, ohne bestehende Felder zu verändern.
  *
  * @template T
- * @param {T & object}            payload    – ursprüngliche Erfolgs­antwort
+ * @param {T & object}            payload    – ursprüngliche Erfolgsantwort
  * @param {{code: string, message: string, details?: object}} info
  * @returns {T & {fallback: { code: string, message: string, category: string, details?: object }}}
  */

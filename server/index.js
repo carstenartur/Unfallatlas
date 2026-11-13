@@ -407,7 +407,7 @@ app.post('/api/ai/export-assessment/v2', aiAssessmentRateLimit, async (req, res)
       ...(out.error ? { fallbackReason: out.error } : {})
     };
     // Bei Fallback zusätzlich strukturierte Fehler-Info anhängen, ohne die
-    // bestehende Antwort­form zu verändern.
+    // bestehende Antwortform zu verändern.
     if (out.source === 'fallback') {
       return res.json(attachFallbackInfo(payload, {
         code:    'AI_FALLBACK_USED',

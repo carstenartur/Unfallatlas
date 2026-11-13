@@ -5,9 +5,9 @@ Unfallwerkbank, mit besonderem Fokus auf die seit den Features
 **„KI-Export-Bewertung"** und **„Politische Kontextrecherche"** vorhandene
 Server-Schicht.
 
-> Tiefergehende Entwickler­informationen (Tests, CI, Code-Stil): siehe
+> Tiefergehende Entwicklerinformationen (Tests, CI, Code-Stil): siehe
 > [`ARCHITECTURE.md`](../ARCHITECTURE.md).
-> Detaillierte API- und Konfigurations­referenz: siehe
+> Detaillierte API- und Konfigurationsreferenz: siehe
 > [`docs/server-features.md`](server-features.md).
 
 ---
@@ -173,7 +173,7 @@ und Größengarantien siehe [`docs/enrichment.md`](enrichment.md).
 Quelle: [`js/ua.accident_provider.js`](../js/ua.accident_provider.js).
 
 `UA.AccidentProvider` ist die Zugriffsschicht für Unfalldaten.  Sie entkoppelt
-alle Lade­aufrufe vom konkreten Dateipfad und ermöglicht sowohl vollständige
+alle Ladeaufrufe vom konkreten Dateipfad und ermöglicht sowohl vollständige
 GeoJSON-Dateien als auch kachelbasiertes Laden — ohne dass Renderer oder
 Analyse-Plugins den Unterschied kennen.
 
@@ -201,7 +201,7 @@ Jeder Provider muss drei Pflichtmethoden implementieren; `canProvideForCity` ist
 
 Lädt `out/output_all_years_<slug>.geojson` in einem Request — entspricht dem
 bisherigen `UA.loadCityData`-Verhalten.  `fetchForBbox` fällt auf den
-Volllade­pfad zurück; der Aufrufer muss selbst viewport-filtern.
+Vollladepfad zurück; der Aufrufer muss selbst viewport-filtern.
 
 ```javascript
 UA.AccidentProvider.createStaticProvider({
@@ -555,8 +555,8 @@ Quelle: [`js/ua.export_v2.js`](../js/ua.export_v2.js),
 ein Objekt `{ text, html, structured }`.  `structured` enthält u. a.:
 
 - `meta` – Stadt, Filter, Zeitraum, `activeFilterMask`, `involvementMode`,
-  Gremiums­treffer
-- Kennzahlen (Gesamtzahl, KSI-Anteile, Beteiligungs­anteile)
+  Gremiumstreffer
+- Kennzahlen (Gesamtzahl, KSI-Anteile, Beteiligungsanteile)
 - Kreuztabellen (Beteiligung × Schwere, Stunde × Wochentag …)
 - Hotspot- / Cluster-Daten
 - POI-Treffer in der Auswahl (Schulen, Kitas)
@@ -604,7 +604,7 @@ Wichtige Garantien:
   Server an; der Schlüssel verlässt den Server nie.
 - **KI verändert nie die Zahlen.**  Tabellen, KSI-Anteile usw. stammen
   weiterhin aus `structured`; die KI ergänzt nur Bewertung, Hypothesen,
-  Maßnahmenvorschläge und Formulierungs­bausteine.
+  Maßnahmenvorschläge und Formulierungsbausteine.
 
 ---
 
@@ -766,9 +766,9 @@ sie funktionsfähig.
 - **Was passiert?** Nutzer öffnen die Werkbank, wählen Stadt und
   Filter, zeichnen optional einen Bereich.  `computeExportReport()`
   erzeugt deterministisch das `structured`-Objekt, daraus entsteht der
-  PDF-/Word-Bezirksrats­antrag.  Optional liefert
+  PDF-/Word-Bezirksratsantrag.  Optional liefert
   `POST /api/location-brief` zusätzlich einen Maßnahmen-Steckbrief
-  (Konfliktmuster, Kandidaten­maßnahmen, Profil-Score) – ohne
+  (Konfliktmuster, Kandidatenmaßnahmen, Profil-Score) – ohne
   Persistenz, ohne Datenbank.
 - **Eigenschaften:** vollständig in der Session, gleiche Eingaben →
   gleiches Ergebnis, teilbar über deterministische URL.
@@ -815,7 +815,7 @@ sie funktionsfähig.
   Steps (`loadCandidatesStep` → `computeBriefsStep` →
   `scoreProfilesStep` → `persistResultsStep` → `buildRankingStep`),
   jeweils restartbar.  Identifying-Parameter (`city`, `profile`,
-  `recomputeExisting`, `runTimestamp`) verhindern Doppel­ausführungen
+  `recomputeExisting`, `runTimestamp`) verhindern Doppelausführungen
   derselben Instance.
 - **Aktueller Stand:** Erste produktive Spring-Batch-Anbindung für
   einen Job (`city-prioritization-job`) inkl. Anstoß-/Status-API.

@@ -53,7 +53,7 @@ function loadClient() {
 }
 
 /**
- * Startet einen Test-HTTP-Server, dessen Antwort­verhalten der Test
+ * Startet einen Test-HTTP-Server, dessen Antwortverhalten der Test
  * pro Request über den Handler steuert.  Liefert `{ url, server, calls }`.
  */
 function startTestServer(handler) {

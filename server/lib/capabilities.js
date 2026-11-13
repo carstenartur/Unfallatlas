@@ -15,7 +15,7 @@
  * `/api/political-context/supported`) verschwinden – die bleiben
  * abwärtskompatibel bestehen.
  *
- * **Reine Lese­operation, keine Seiteneffekte.**  Alle Werte werden bei
+ * **Reine Leseoperation, keine Seiteneffekte.**  Alle Werte werden bei
  * jedem Aufruf aus `process.env` und den jeweiligen Modulen frisch
  * abgeleitet, damit Tests Umgebungsvariablen mocken können.
  *

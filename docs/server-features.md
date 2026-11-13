@@ -2,7 +2,7 @@
 
 Dieses Dokument beschreibt die optional verfügbaren Server-Endpunkte der
 Unfallwerkbank (`server/index.js`) sowie deren Konfiguration über
-Umgebungs­variablen.
+Umgebungsvariablen.
 
 > Modulübersicht und Architektur: siehe
 > [`docs/architecture.md`](architecture.md),
@@ -72,7 +72,7 @@ Dünne Forwarder zum separaten Spring-Boot-Dienst.  Ohne
 
 **Gruppe „priorities" – Decision-Cards für Top-N und gespeicherte Briefs** (siehe §14)
 
-Verdichten gespeicherte Briefs zu kompakten Entscheidungs­karten.  Liefern
+Verdichten gespeicherte Briefs zu kompakten Entscheidungskarten.  Liefern
 einen einheitlichen Envelope mit stabilem `dataStatus` (`freshly_computed` /
 `loaded_from_store` / `persisted` / `fallback_result`); leere Resultate
 sind **kein 404**, sondern `{ items: [], empty: true, dataStatus: "loaded_from_store" }`.
@@ -99,14 +99,14 @@ Rate-Limits (per IP, 1-Minuten-Fenster):
 ### Zweck
 
 Liefert eine KI-gestützte Bewertung oder einen antragsfähigen
-Maßnahmen­steckbrief zu einem Export.  Eingabe ist immer das
+Maßnahmensteckbrief zu einem Export.  Eingabe ist immer das
 `structured`-Objekt aus `computeExportReport()` (siehe
 [`js/ua.export_v2.js`](../js/ua.export_v2.js)).
 
 Die Antwort wird strikt gegen das hinterlegte JSON-Schema validiert
 (`server/ai/schema/exportAssessment.v2.schema.json` bzw.
 `proposalBrief.v1.schema.json`).  Bei ungültigem Output erfolgt **ein**
-Reparatur­versuch; schlägt auch dieser fehl, greift der Fallback (siehe
+Reparaturversuch; schlägt auch dieser fehl, greift der Fallback (siehe
 unten).
 
 ### Request
@@ -162,7 +162,7 @@ Bei Fallback enthält die Antwort zusätzlich `fallbackReason: "<Klartext>"`.
 | `GEMINI_API_KEY` nicht gesetzt, `withFallback: false`           | `503 Service Unavailable`                                            |
 | Provider-Timeout (`AI_ASSESSMENT_TIMEOUT_MS`, Standard 30 s)    | Retry/Backoff bis `AI_ASSESSMENT_MAX_RETRIES`, dann Fallback bzw. `500` |
 | HTTP `429`/`5xx` vom Provider          | Retry/Backoff im Provider; danach Fallback bzw. `500`                |
-| Antwort verletzt Schema                | Genau ein Reparatur­versuch; bleibt sie ungültig → Fallback bzw. `500` |
+| Antwort verletzt Schema                | Genau ein Reparaturversuch; bleibt sie ungültig → Fallback bzw. `500` |
 | Identische Anfrage erneut              | `source: "cache"` (sha256-Cache, TTL 1 h)                            |
 
 ---
@@ -213,7 +213,7 @@ submittedAt, startedAt?, finishedAt?, result?, error? }`.
 
 ### Zweck
 
-Recherchiert in den Rats-/Bürgerinformations­portalen einer unterstützten
+Recherchiert in den Rats-/Bürgerinformationsportalen einer unterstützten
 Stadt nach politischen Vorgängen (Anträge, Anfragen, Beschlüsse,
 Verwaltungsantworten, Protokollnotizen) zu einer Liste von Suchbegriffen.
 
@@ -468,7 +468,7 @@ unverändert verfügbar.
 
 ## 8. Einheitliches Fehler-Envelope
 
-Alle optionalen Server-Features liefern Fehler­antworten in einem
+Alle optionalen Server-Features liefern Fehlerantworten in einem
 einheitlichen Schema.  Bestehende Aufrufer können wie bisher `body.error`
 auswerten; zusätzlich stehen jetzt zwei Felder zur Verfügung, mit denen
 das Frontend gezielter reagieren kann:
@@ -488,9 +488,9 @@ das Frontend gezielter reagieren kann:
 | `invalid_request`      |                     400 | Pflichtfelder fehlen oder sind ungültig          |
 | `rate_limited`         |                     429 | Rate-Limit pro IP überschritten                  |
 | `internal_error`       |                     500 | unerwarteter interner Fehler                     |
-| `fallback_returned`    |                     200 | Erfolgs­antwort, aber semantisch ein Fallback (siehe `body.fallback`) |
+| `fallback_returned`    |                     200 | Erfolgsantwort, aber semantisch ein Fallback (siehe `body.fallback`) |
 
-Erfolgs­antworten mit Fallback (KI v2 ohne Key) enthalten zusätzlich einen
+Erfolgsantworten mit Fallback (KI v2 ohne Key) enthalten zusätzlich einen
 `fallback`-Block, der die Originalantwort *nicht* verändert:
 
 ```jsonc
@@ -547,7 +547,7 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 
 ---
 
-## 11. Konfiguration – Umgebungs­variablen
+## 11. Konfiguration – Umgebungsvariablen
 
 | Variable | Standard | Beschreibung |
 |---|---|---|
@@ -572,7 +572,7 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 - Server läuft auf `:8000` und liefert `werkbank_v2.html` aus.
 - `/api/health`, `/api/video-export-available`, `/api/ai-assessment-available`,
   `/api/political-context/supported` antworten sofort.
-- KI-Bewertungs­endpunkte antworten:
+- KI-Bewertungsendpunkte antworten:
   - **v2** mit `source: "fallback"` (deterministischer, datengestützter
     Output ohne KI-Texte) – als wäre KI ein optionales Add-on.
   - **v1** mit `503` und Hinweis, dass `GEMINI_API_KEY` fehlt.
@@ -584,7 +584,7 @@ politischen Recherche und der KI v2 Fallback-Pfad.  Skript:
 
 - `GEMINI_API_KEY` darf **nicht** in das Repository, in Docker-Images oder in
   Frontend-Bundles gelangen. Übergabe ausschließlich über
-  Umgebungs­variablen (`-e GEMINI_API_KEY=...` bzw. Secret-Mechanismen).
+  Umgebungsvariablen (`-e GEMINI_API_KEY=...` bzw. Secret-Mechanismen).
 - Cache- und Job-Dateien (`AI_CACHE_PATH`, `AI_JOBS_PATH`) können
   Eingaben aus Exports enthalten – Pfad daher nur an vertrauenswürdige
   Stellen legen.
@@ -806,7 +806,7 @@ abgeschlossen) als `409` mit maschinenlesbarem `code` (siehe
 ## 14. Gruppe „priorities" – Decision-Cards für die Prioritätenansicht
 
 Die Endpunkte unter `/api/priorities/*` verdichten die Roh-Antworten des
-Analysis Service zu **kompakten Entscheidungs­karten** für die Werkbank.
+Analysis Service zu **kompakten Entscheidungskarten** für die Werkbank.
 Sie sind reine *Lese*-Endpunkte und beantworten die zentralen
 Produkt-Fragen:
 
