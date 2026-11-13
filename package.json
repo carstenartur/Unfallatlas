@@ -132,7 +132,7 @@
     "leaflet.heat": "1.0.0",
     "leaflet.markercluster": "1.5.3",
     "pdfmake": "0.3.14",
-    "proj4": "2.22.0"
+    "proj4": "2.23.0"
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.7",
