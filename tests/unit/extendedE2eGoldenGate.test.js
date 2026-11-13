@@ -27,11 +27,11 @@ function execute(goldenStatus = 0) {
   return { spawnSync, exit, failure };
 }
 
-test('captures and checks the actual Bonn golden before all browser suites using the prepared site', () => {
+test('checks the Bonn Golden and replays the model responses before all browser suites', () => {
   const result = execute();
   expect(result.failure).toBeUndefined();
   expect(result.spawnSync.mock.calls.map(call => call[1])).toEqual([
-    [golden, '--skip-build'],
+    [golden, '--skip-build', '--replay-model'],
     [realRequire.resolve('@playwright/test/cli'), 'test', '--project=chromium'],
     [realRequire.resolve('@playwright/test/cli'), 'test', '--project=firefox-smoke'],
     [realRequire.resolve('@playwright/test/cli'), 'test', '--project=webkit-smoke']
@@ -43,10 +43,10 @@ test('captures and checks the actual Bonn golden before all browser suites using
   });
 });
 
-test('a failing Bonn golden stops the browser suites and preserves its failing exit status', () => {
+test('a failing Bonn check stops the browser suites and preserves its exit status', () => {
   const result = execute(31);
   expect(result.spawnSync).toHaveBeenCalledTimes(1);
-  expect(result.spawnSync.mock.calls[0][1]).toEqual([golden, '--skip-build']);
+  expect(result.spawnSync.mock.calls[0][1]).toEqual([golden, '--skip-build', '--replay-model']);
   expect(result.exit).toHaveBeenCalledWith(31);
   expect(result.failure?.exitStatus).toBe(31);
 });
