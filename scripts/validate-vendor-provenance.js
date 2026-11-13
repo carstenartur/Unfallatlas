@@ -142,6 +142,7 @@ function validateDiagnosticSbom(manifest, sbom, policy) {
     .flatMap(inventory => [
       ...(inventory.browserifyModules || []).map(module => module.purl),
       ...(inventory.brotliDecoder ? [inventory.brotliDecoder.purl] : []),
+      ...(inventory.webpackRuntime ? [inventory.webpackRuntime.purl] : []),
     ]));
 
   for (const component of manifest.components) {
@@ -171,7 +172,8 @@ function validateDiagnosticSbom(manifest, sbom, policy) {
         JSON.stringify(sbomSource.licenses) !== JSON.stringify([{ expression: source.spdx }]) ||
         sbomSource.copyright !== source.copyright ||
         properties.get('unfallatlas:license-path')?.value !== source.path ||
-        properties.get('unfallatlas:license-sha256')?.value !== source.sha256) {
+        properties.get('unfallatlas:license-sha256')?.value !== source.sha256 ||
+        properties.get('unfallatlas:source-package')?.value !== source.sourcePurl) {
       throw new Error(`[validate-vendor-provenance] SBOM embedded source evidence mismatch: ${source.ref}`);
     }
   }

@@ -171,10 +171,17 @@ auch den direkten Paket- und Lizenznachweis. Notice und CycloneDX führen den
 Hersteller-Lock je Bundle und Paket auf. Für `fflate@0.8.3` erscheinen daher
 der DOCX- und der PDF-Lock jeweils an ihrem Bundle.
 
-Fünf Lizenzdateien zu abweichend oder ausschließlich im Herstellerbuild
-installierten Versionen sind archiviert und werden beim Neuaufbau mit den
-installierten Originalen verglichen. Der exakte SVG-to-PDFKit-Fork besitzt
-eine eigene CycloneDX-Dateireferenz mit Quell- und Lizenzhash.
+Die fünf archivierten Lizenzdateien werden beim Neuaufbau mit den Originalen
+aus sechs npm-Paketen verglichen. Webpack 5.112.2 und expose-loader 5.0.1
+liefern denselben MIT-Hinweis bytegleich aus. Der exakte SVG-to-PDFKit-Fork
+besitzt eine eigene CycloneDX-Dateireferenz mit Quell- und Lizenzhash.
+
+Der Seitenbuild prüft alle neun von Webpack erzeugten Abschnitte in der
+pdfmake-Source-Map gegen die Policy. Dazu zählen sechs Laufzeithelfer, der
+UMD-Wrapper, der Bootstrap und der Einstieg. Notice und CycloneDX binden
+den jeweiligen Quellhash an `webpack@5.112.2` aus dem PDF-Build-Lock und
+an dessen vollständigen MIT-Hinweis. Der Hersteller-Rebuild prüft die
+erzeugte Source-Map und das minifizierte Bundle byteweise.
 
 PDFKit 0.20.2 enthält in seiner eigenen Browser-Source-Map fünf Module
 von `@noble/hashes@1.8.0`. Für jedes Modul vergleicht der Seitenbuild

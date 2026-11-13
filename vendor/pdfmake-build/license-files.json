@@ -16,12 +16,17 @@
   },
   "node_modules/expose-loader": {
     "source": "LICENSE",
-    "file": "expose-loader-5.0.1.txt",
+    "file": "webpack-project-MIT.txt",
     "sha256": "9068a8782d2fb4c6e432cfa25334efa56f722822180570802bf86e71b6003b1e"
   },
   "node_modules/sax": {
     "source": "LICENSE.md",
     "file": "sax-1.6.1.txt",
     "sha256": "8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004"
+  },
+  "node_modules/webpack": {
+    "source": "LICENSE",
+    "file": "webpack-project-MIT.txt",
+    "sha256": "9068a8782d2fb4c6e432cfa25334efa56f722822180570802bf86e71b6003b1e"
   }
 }

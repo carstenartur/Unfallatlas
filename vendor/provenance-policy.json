@@ -120,7 +120,7 @@
       "lockFile": "vendor/pdfmake-build/npm-lock.json",
       "lockSha256": "03de6b450be5877a0036dae5f66115b1cfb06b70645c5c2ea5177707d3625ffe",
       "sourceMapSha256": "e93f2be331afd8c8849a8113f0d4e672156e45a9b1b972846db43dd0b933942e",
-      "componentEvidenceSha256": "3ff179120bfd873402f8439bc0bb3f41a2038297a4154ded09eb2b8458f29bba",
+      "componentEvidenceSha256": "512e7147bbbf7f42be4d59effe2a01f23b7fcee95e22c74e442fbd88f647430f",
       "sourceMapPurls": [
         "pkg:npm/%40noble/ciphers@1.3.0",
         "pkg:npm/%40noble/hashes@1.8.0",
@@ -159,8 +159,32 @@
           "spdx": "MIT",
           "licenseFile": "LICENSE",
           "licenseSha256": "bdb26a2ec815931ed6a38f3416362566204ee85ecdef96702b636402da4c75c3"
+        },
+        {
+          "purl": "pkg:npm/webpack@5.112.2",
+          "lockPath": "node_modules/webpack",
+          "resolved": "https://registry.npmjs.org/webpack/-/webpack-5.112.2.tgz",
+          "integrity": "sha512-B2tp1LI9D8GVpPDqprdt12ukTkXXahj9MzqSWJq4faSPgOUM7CdZaGAB6HrL/8E6UwbBpdj4vzWDbKoFnVoU6g==",
+          "spdx": "MIT",
+          "licenseFile": "LICENSE",
+          "licenseSha256": "9068a8782d2fb4c6e432cfa25334efa56f722822180570802bf86e71b6003b1e"
         }
       ],
+      "webpackRuntime": {
+        "purl": "pkg:npm/webpack@5.112.2",
+        "copyright": "Copyright JS Foundation and other contributors",
+        "sections": {
+          "bootstrap": "1fce9094b2a6710eb98d335ee57936701eb9e93c4660c9bf753ef1437e0668e7",
+          "runtime/compat get default export": "9cdc7962827a130ab54b253ed99113bee036fbbbe85f0f7d4b7b1efc5c122f3b",
+          "runtime/concatenation wrap": "b1267c4b73a2bdcd31ba3a254630b089f6df59b757b62a2ed930b4cd0a605ddc",
+          "runtime/define property getters": "86249dcbc1933637e47bd8638dc52489809a1d70c7ca850077d3c39cd6f9a848",
+          "runtime/global": "2bf5c426fb3aa1d4ea2653861966dcdb200036389a3aa0358db12dd8d0f7f702",
+          "runtime/hasOwnProperty shorthand": "f8f772e91ef01c31c24c1783cc3215e59aae137bfeb58eb444103b8452a02a21",
+          "runtime/node module decorator": "14c55cddc5b0fb8be93dc05eb629543c21337b7b0c30a7661221e86c25376881",
+          "startup": "388b03602b3ef774b89a6d66bc729348827629deb84ee5c72b474573de4c2391",
+          "universalModuleDefinition": "535202cb445717bb9000bfd97e1f6d1edebc2afc88ac6d88c1b781b97b6e583b"
+        }
+      },
       "embeddedSource": {
         "ref": "urn:unfallatlas:vendor-source:pdfmake:svg-to-pdfkit",
         "component": "svg-to-pdfkit",

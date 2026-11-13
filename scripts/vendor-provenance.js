@@ -14,6 +14,7 @@ const DOCX_ASSET = 'vendor/export/docx.js';
 const DOCX_BUILD_LOCK = 'vendor/docx-build/npm-lock.json.gz';
 const { collectUnicodeData, unicodeDataRecords } = require('./pdf-unicode-data');
 const PDF_ASSET = 'vendor/export/pdfmake.js';
+const PDF_WEBPACK_SOURCE_PREFIX = 'webpack://pdfmake/webpack/';
 const { collectPdfkitSources, pdfkitSourceRecords } = require('./pdfkit-nested-sources');
 const COMPLETE_INVENTORY_SCOPE = 'delivered-assets-component-level';
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
@@ -117,6 +118,27 @@ function loadLockComponents(repoRoot, lockFile = 'package-lock.json') {
   return { lock, byName };
 }
 
+function pdfmakeWebpackRecords(inventory) {
+  const runtime = inventory.webpackRuntime;
+  const component = inventory.components.find(item => item.purl === runtime?.purl && item.lockPath === 'node_modules/webpack');
+  if (!component || !Object.keys(runtime.sections || {}).length) {
+    throw new Error('[vendor-provenance] Missing PDF Webpack runtime inventory');
+  }
+  const version = component.purl.slice('pkg:npm/webpack@'.length);
+  const licensePath = componentLicensePath({ name: 'webpack', version }, component.licenseFile);
+  return Object.entries(runtime.sections).map(([section, sourceSha256]) => ({
+    ref: `urn:unfallatlas:vendor-source:pdfmake:webpack:${encodeURIComponent(section)}`,
+    component: `Webpack ${section}`,
+    sourcePath: PDF_WEBPACK_SOURCE_PREFIX + section,
+    sourceSha256,
+    sourcePurl: component.purl,
+    spdx: component.spdx,
+    copyright: runtime.copyright,
+    path: licensePath,
+    sha256: component.licenseSha256,
+  }));
+}
+
 // A source-map path selects a specific installed package, including nested copies.
 function pdfmakeSourcePackages(repoRoot, appLock, inventory) {
   const directory = 'vendor/pdfmake-build';
@@ -135,8 +157,18 @@ function pdfmakeSourcePackages(repoRoot, appLock, inventory) {
   const xml = JSON.parse(fs.readFileSync(path.join(repoRoot, directory, 'xmldoc/source.json'), 'utf8'));
   const components = new Map();
   const unresolved = new Set();
-  for (const source of sourceMap.sources) {
+  const webpackRecords = pdfmakeWebpackRecords(inventory);
+  const webpackSources = new Map(webpackRecords.map(record => [record.sourcePath, record.sourceSha256]));
+  for (const [index, source] of sourceMap.sources.entries()) {
     let relative = source.replace(/^webpack:\/\/pdfmake\/\.\//, '');
+    if (source.startsWith(PDF_WEBPACK_SOURCE_PREFIX)) {
+      const content = sourceMap.sourcesContent?.[index];
+      if (typeof content !== 'string' || sha256Buffer(content) !== webpackSources.get(source)) {
+        throw new Error('[vendor-provenance] Unexpected PDF Webpack source map section: ' + source);
+      }
+      webpackSources.delete(source);
+      relative = 'node_modules/webpack/';
+    }
     if (source === 'webpack://pdfmake/../xmldoc.ts') {
       const root = path.join(repoRoot, 'node_modules/xmldoc');
       const metadata = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -149,7 +181,7 @@ function pdfmakeSourcePackages(repoRoot, appLock, inventory) {
       relative = 'node_modules/xmldoc/dist/xmldoc.js';
     }
     if (!relative.startsWith('node_modules/')) {
-      if (!relative.startsWith('src/') && !source.startsWith('webpack://pdfmake/webpack/')) unresolved.add(source);
+      if (!relative.startsWith('src/')) unresolved.add(source);
       continue;
     }
     const dependency = relative.match(/^(.*node_modules\/((?:@[^/]+\/)?[^/]+))\//);
@@ -166,10 +198,13 @@ function pdfmakeSourcePackages(repoRoot, appLock, inventory) {
     components.set(component.lockPath, {
       ...component, lockFile, lockSha256, installedPath: installed?.lockPath,
       archivedLicense: licenseSource, upstreamLicenseName: license?.source,
-      ...(pinned ? pinnedLicense(repoRoot, component, pinned, installed?.lockPath) : {}),
+      ...(pinned ? pinnedLicense(repoRoot, component, pinned, installed?.lockPath, licenseSource) : {}),
     });
   }
-  return { components: [...components.values()], unresolved: [...unresolved].sort(), sourceMap };
+  if (webpackSources.size) {
+    throw new Error('[vendor-provenance] Missing PDF Webpack source map sections: ' + [...webpackSources.keys()].join(', '));
+  }
+  return { components: [...components.values()], unresolved: [...unresolved].sort(), sourceMap, webpackRecords };
 }
 
 function docxRuntimeRecords(runtimes) {
@@ -244,11 +279,12 @@ function docxSourcePackages(repoRoot, inventory) {
   });
 }
 
-function pinnedLicense(repoRoot, component, expected, installedPath) {
-  if (component.integrity !== expected.integrity || component.resolved !== expected.resolved || !installedPath) {
+function pinnedLicense(repoRoot, component, expected, installedPath, archivedLicense) {
+  if (component.integrity !== expected.integrity || component.resolved !== expected.resolved ||
+      (!installedPath && !archivedLicense)) {
     throw new Error(`[vendor-provenance] Upstream lock or installed archive differs for ${expected.purl}`);
   }
-  const license = path.join(repoRoot, installedPath, expected.licenseFile);
+  const license = archivedLicense || path.join(repoRoot, installedPath, expected.licenseFile);
   const bytes = fs.readFileSync(license);
   if (sha256Buffer(bytes) !== expected.licenseSha256) {
     throw new Error(`[vendor-provenance] Changed upstream license for ${expected.purl}`);
@@ -780,6 +816,7 @@ function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, polic
       properties: [
         { name: 'unfallatlas:license-path', value: source.path },
         { name: 'unfallatlas:license-sha256', value: source.sha256 },
+        ...(source.sourcePurl ? [{ name: 'unfallatlas:source-package', value: source.sourcePurl }] : []),
       ],
     });
   }
@@ -855,6 +892,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
     ...collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, pdfInventory.brotliDecoder),
     ...collectPdfkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.nestedPdfkitSources),
+    ...pdfmake.webpackRecords.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true })),
   ];
   const supplementalLicenses = [{
     component: `simpleheat@${simpleheat.version}`,
@@ -909,6 +947,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
       ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), expected.brotliDecoder.dictionary] : []),
       ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),
+      ...(expected.webpackRuntime ? pdfmakeWebpackRecords(expected) : []),
     ];
     const fileRefs = embeddedSources.map(source => source.ref).sort();
     const gaps = policy.unresolvedAssets.filter(gap => gap.paths.includes(assetPath)).map(gap => gap.id).sort();

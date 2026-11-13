@@ -15,6 +15,8 @@ const bundlePath = 'node_modules/docx/dist/index.iife.js';
 const lockPath = 'vendor/docx-build/npm-lock.json.gz';
 const pdfAsset = 'vendor/export/pdfmake.js';
 const svgRef = 'urn:unfallatlas:vendor-source:pdfmake:svg-to-pdfkit';
+const webpackPurl = 'pkg:npm/webpack@5.112.2';
+const webpackSourcePrefix = 'webpack://pdfmake/webpack/';
 const brotliRefPrefix = 'urn:unfallatlas:vendor-source:pdfmake:brotli-decoder:';
 const brotliPurl = 'pkg:npm/brotli@1.3.3';
 const leafletImageAsset = 'vendor/leaflet-image/leaflet-image.js';
@@ -134,6 +136,75 @@ test('rejects a DOCX notice with a missing embedded npm component', () => {
     docx.contains = docx.contains.filter(purl => purl !== 'pkg:npm/nanoid@6.0.2');
     expect(() => validatePolicyBinding(notice, policy)).toThrow(/verified component inventory.*docx\.js/i);
   });
+});
+
+test('publishes the upstream Webpack license and every generated PDF bundle section', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const pdf = notice.assetAssessments.find(asset => asset.path === pdfAsset);
+    const webpack = notice.components.find(component => component.purl === webpackPurl);
+    expect(webpack).toMatchObject({
+      licenseExpression: 'MIT',
+      attestation: { lockFile: 'vendor/pdfmake-build/npm-lock.json', lockPath: 'node_modules/webpack' },
+      licenseTexts: [{ sha256: '9068a8782d2fb4c6e432cfa25334efa56f722822180570802bf86e71b6003b1e' }],
+    });
+    const [license] = webpack.licenseTexts;
+    expect(fs.readFileSync(path.join(root, license.path), 'utf8')).toContain('Copyright JS Foundation and other contributors');
+    expect(pdf.contains).toContain(webpackPurl);
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const pdfEdges = sbom.dependencies.find(dependency => dependency.ref === `urn:unfallatlas:vendor-asset:${pdfAsset}`);
+    expect(pdfEdges.dependsOn).toContain(webpackPurl);
+    const map = JSON.parse(fs.readFileSync(path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.min.js.map'), 'utf8'));
+    const labels = [
+      'bootstrap', 'runtime/compat get default export', 'runtime/concatenation wrap',
+      'runtime/define property getters', 'runtime/global', 'runtime/hasOwnProperty shorthand',
+      'runtime/node module decorator', 'startup', 'universalModuleDefinition',
+    ];
+    const records = notice.supplementalLicenses.filter(record => record.sourcePurl === webpackPurl);
+    expect(records.map(record => record.sourcePath).sort()).toEqual(labels.map(label => webpackSourcePrefix + label));
+    for (const record of records) {
+      const original = map.sourcesContent[map.sources.indexOf(record.sourcePath)];
+      const sha256 = crypto.createHash('sha256').update(original).digest('hex');
+      expect(record).toMatchObject({ sourceSha256: sha256, path: license.path, sha256: license.sha256 });
+      expect(pdf.containsFiles).toContain(record.ref);
+      expect(pdfEdges.dependsOn).toContain(record.ref);
+      expect(sbom.components.find(component => component['bom-ref'] === record.ref)).toMatchObject({
+        hashes: [{ alg: 'SHA-256', content: sha256 }], licenses: [{ expression: 'MIT' }],
+        properties: expect.arrayContaining([{ name: 'unfallatlas:source-package', value: webpackPurl }]),
+      });
+    }
+  });
+});
+
+test('rejects an unlisted generated Webpack section even after updating the source-map hash', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-webpack-source-'));
+  try {
+    for (const entry of ['package-lock.json', 'licenses']) {
+      fs.symlinkSync(path.join(repoRoot, entry), path.join(root, entry));
+    }
+    fs.cpSync(path.join(repoRoot, 'vendor'), path.join(root, 'vendor'), { recursive: true });
+    const nodeModules = path.join(root, 'node_modules');
+    fs.mkdirSync(nodeModules);
+    for (const entry of fs.readdirSync(path.join(repoRoot, 'node_modules'))) {
+      const source = path.join(repoRoot, 'node_modules', entry);
+      const destination = path.join(nodeModules, entry);
+      if (entry === 'pdfmake') fs.cpSync(source, destination, { recursive: true });
+      else fs.symlinkSync(source, destination);
+    }
+    const mapPath = path.join(nodeModules, 'pdfmake/build/pdfmake.min.js.map');
+    const map = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+    map.sources.push(webpackSourcePrefix + 'runtime/unlisted');
+    map.sourcesContent.push('/* additional generated source */');
+    fs.writeFileSync(mapPath, JSON.stringify(map));
+    const policyPath = path.join(root, 'vendor/provenance-policy.json');
+    const edited = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
+    edited.verifiedBundleInventories[pdfAsset].sourceMapSha256 =
+      crypto.createHash('sha256').update(fs.readFileSync(mapPath)).digest('hex');
+    fs.writeFileSync(policyPath, JSON.stringify(edited));
+
+    expect(() => copyVendorLicenses(root, path.join(root, '_site'))).toThrow(/Webpack source map.*runtime\/unlisted/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('rejects coordinated omission of the SVG fork from the notice and SBOM', () => {
