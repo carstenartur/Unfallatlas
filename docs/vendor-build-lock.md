@@ -234,7 +234,8 @@ im installierten Paketmodul, in der pdfmake-Source-Map und im ausgelieferten
 minifizierten PDF-Bundle. Notice und SBOM binden für diese Daten die
 [Unicode-Lizenz](https://www.unicode.org/license.txt) ein. Die MIT-Lizenzen der
 JavaScript-Pakete gelten weiterhin für deren Software.
-Der optionale Reproduktionslauf baut außerdem die drei Tries und zwei
+Der Herstellerprüflauf im Maven-Profil `vendor-upstream-rebuild` ruft das
+Skript auf. Es baut außerdem die drei Tries und zwei
 Zustandsmaschinen aus `fontkit@2.0.4` nach und findet die gleichen Bytes im
 ausgelieferten PDF-Bundle. In diese Ressourcen gehen zusätzliche Shaper-Regeln
 ein. Ihre Lizenzherkunft ist weiterhin offen. Originaladressen und Prüfsummen stehen im

@@ -14,6 +14,8 @@ on:
       - 'vendor/provenance-policy.json'
       - 'vendor/build-lock.recipe.json'
       - 'scripts/verify-*-upstream.sh'
+      - 'scripts/reproduce-pdf-unicode.py'
+      - 'scripts/pdf-unicode-data.js'
   workflow_dispatch:
 
 permissions:
