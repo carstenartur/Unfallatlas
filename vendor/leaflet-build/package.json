@@ -1,0 +1,13 @@
+{
+  "name": "leaflet-image-browser-build",
+  "version": "0.4.0",
+  "private": true,
+  "dependencies": {
+    "browserify": "13.0.1",
+    "d3-queue": "2.0.3"
+  },
+  "overrides": {
+    "browser-pack": "6.0.2",
+    "umd": "3.0.1"
+  }
+}

@@ -7,6 +7,8 @@ on:
       - '.github/workflows/verify-export-upstream.yml'
       - 'vendor/docx-build/**'
       - 'vendor/pdfmake-build/**'
+      - 'vendor/leaflet-build/**'
+      - 'vendor/provenance-policy.json'
       - 'vendor/build-lock.recipe.json'
       - 'scripts/verify-*-upstream.sh'
   workflow_dispatch:
@@ -28,13 +30,15 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - name: Rebuild both export libraries with the checked upstream inputs
+      - name: Rebuild the export and map libraries from their source releases
         run: mvn -B -ntp -N process-resources -Pvendor-upstream-rebuild
       - name: Record the SHA-256 values for the matching release bytes
         run: |
           mkdir -p out/qa
           sha256sum node_modules/docx/dist/index.iife.js \
             node_modules/pdfmake/build/{pdfmake.min.js,pdfmake.min.js.map,vfs_fonts.js} \
+            node_modules/leaflet.heat/dist/leaflet-heat-global.js{,.map} \
+            node_modules/leaflet-image/leaflet-image.js \
             > out/qa/vendor-upstream-sha256.txt
       - name: Preserve the independently reproduced release hashes
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
