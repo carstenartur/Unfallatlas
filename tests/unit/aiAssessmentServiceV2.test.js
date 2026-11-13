@@ -351,7 +351,7 @@ describe('exportAssessmentPrompt.v2 buildPrompt', () => {
   }
 
   test('PROMPT_VERSION is stable identifier', () => {
-    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.9');
+    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.10');
   });
 
   test('assessment mode returns system+user strings', () => {
@@ -564,6 +564,19 @@ describe('runAssessmentV2', () => {
     });
     expect(out2.source).toBe('cache');
     expect(providerCall).toHaveBeenCalledTimes(1);
+  });
+
+  test('the prepared provider handoff validates a raw response without a configured Gemini key', async () => {
+    delete process.env.GEMINI_API_KEY;
+    const response = makeValidV2Output();
+    await expect(v2.requestAssessmentV2({
+      aiInput: { meta: { city: 'Hannover' } }, mode: 'assessment',
+      providerCall: async received => {
+        expect(received.user).toContain('Stadt: Hannover');
+        expect(received.responseSchema.required).toContain('recommendedMeasures');
+        return JSON.stringify(response);
+      },
+    })).resolves.toMatchObject({ source: 'ai', result: { schemaVersion: 'exportAssessment.v2' } });
   });
 
   test('repair attempt: invalid first response, valid second', async () => {

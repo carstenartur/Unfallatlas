@@ -11,6 +11,7 @@ const workflow = yaml.safeLoad(fs.readFileSync(path.join(__dirname,
   '../../.github/workflows/bonn-hbf-live-model.yml'), 'utf8'));
 
 test('the API exposes the model run as a separate job conditioned on the project provider', () => {
+  expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch']);
   const { provider, capture } = workflow.jobs;
   expect(provider).toBeDefined();
   expect(provider.if).toBe("github.ref == 'refs/heads/main'");
@@ -24,9 +25,8 @@ test('the API exposes the model run as a separate job conditioned on the project
 });
 
 test.each([
-  ['push', 'false', 0], ['workflow_dispatch', 'false', 1],
-  ['push', 'true', 0], ['workflow_dispatch', 'true', 0],
-])('reports access on %s with provider configured=%s', (event, configured, exitCode) => {
+  ['false', 1], ['true', 0],
+])('reports optional live access with provider configured=%s', (configured, exitCode) => {
   const step = workflow.jobs.provider?.steps.find(item => item.id === 'availability');
   expect(step).toBeDefined();
   expect(step.env.PROVIDER_CONFIGURED).toBe("${{ secrets.GEMINI_API_KEY != '' }}");
@@ -35,7 +35,7 @@ test.each([
   const summary = path.join(folder, 'summary');
   try {
     const probe = spawnSync('bash', ['-e', '-c', step.run], { encoding: 'utf8', env: {
-      PROVIDER_CONFIGURED: configured, GITHUB_EVENT_NAME: event, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary,
+      PROVIDER_CONFIGURED: configured, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary,
     } });
     expect(probe.status).toBe(exitCode);
     expect(fs.readFileSync(output, 'utf8').trim()).toBe('configured=' + configured);

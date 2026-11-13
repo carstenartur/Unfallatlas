@@ -1,10 +1,7 @@
-name: Bonn Hbf live model review
+name: Bonn Hbf optional live Gemini review
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/bonn-hbf-live-model.yml']
 
 permissions:
   contents: read
@@ -26,10 +23,8 @@ jobs:
           if [[ "$PROVIDER_CONFIGURED" != true ]]; then
             echo "### Modellprüfung übersprungen: kein Zugang" >> "$GITHUB_STEP_SUMMARY"
             echo "Für diesen Lauf ist kein Gemini-Projektzugang konfiguriert. Es wurde keine Modellanfrage gesendet." >> "$GITHUB_STEP_SUMMARY"
-            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-              echo "::error::Der manuell angeforderte Referenzlauf benötigt den Gemini-Projektzugang."
-              exit 1
-            fi
+            echo "::error::Der manuell angeforderte Live-Lauf benötigt den Gemini-Projektzugang."
+            exit 1
           fi
 
   capture:

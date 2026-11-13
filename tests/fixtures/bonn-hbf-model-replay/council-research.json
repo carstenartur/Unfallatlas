@@ -1,0 +1,273 @@
+{
+  "schemaVersion": "proposalBrief.v1",
+  "evidenceCohortCounts": {
+    "discovery": 37,
+    "completeArea": 312,
+    "reference": 1926
+  },
+  "title": "Prüf- und Berichtsauftrag zur Verkehrssicherheit am Bonner Hauptbahnhof",
+  "shortVersion": "Für die Bonner Bahnhofsumgebung sind 37 Rad-Pkw-Unfälle mit Personenschaden dokumentiert. Die Verwaltung soll den ZOB-Planungsstand und einen örtlich überprüfbaren Sicherheitsvergleich vorlegen.",
+  "sachverhalt": "Für den Bereich Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße sind von 2019 bis 2025 insgesamt 37 ausgewählte Rad-Pkw-Unfälle mit Personenschaden amtlich dokumentiert: 0 Unfälle mit Getöteten, 1 Unfall mit Schwerverletzten und 36 Unfälle mit Leichtverletzten. Das vollständige Gebiet umfasst 312 Unfälle vor Anwendung des Beteiligungsfilters. Die getrennte Referenz im übrigen Bonner Stadtgebiet umfasst 1.926 Unfälle unter denselben aktiven Filtern.",
+  "longVersion": "Für den Bereich Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße sind von 2019 bis 2025 insgesamt 37 ausgewählte Rad-Pkw-Unfälle mit Personenschaden amtlich dokumentiert: 0 Unfälle mit Getöteten, 1 Unfall mit Schwerverletzten und 36 Unfälle mit Leichtverletzten. Das vollständige Gebiet umfasst 312 Unfälle vor Anwendung des Beteiligungsfilters. Die getrennte Referenz im übrigen Bonner Stadtgebiet umfasst 1.926 Unfälle unter denselben aktiven Filtern. Der Vergleich betrifft Beteiligungsanteile unter denselben aktiven Filtern: 37/37 im Ausschnitt und 1.875/1.926 im übrigen Stadtgebiet. Die Differenz beträgt rund +2,6 Prozentpunkte. Das Newcombe-95-%-Intervall aus beiden Stichproben reicht von −6,8 bis +3,5 Prozentpunkten und umfasst null. Eine statistisch abgesicherte Überrepräsentation ist damit nicht belegt. Die Suche ist explorativ und unbereinigt. Für absolute Unfallraten oder Risiko je Verkehrsleistung fehlen Expositionsdaten. Die Jahresreihe 2019–2025 lautet 6, 8, 5, 2, 2, 9, 5 und ist als stagnierend klassifiziert. Die veröffentlichten Standorte erlauben eine abschnittsbezogene Prüfung. Zeitliche oder räumliche Zusammenhänge müssen anhand der Einzelfälle geprüft werden. Der Ratsbeschluss 232044 beauftragte die Planung und stellte einen gesonderten Baubeschluss in Aussicht. Die Stellungnahme 232044-01 ST wurde zur Kenntnis genommen. Für 232044-02 AA entfiel die separate Abstimmung. Der geänderte Beschluss verlangt die Prüfung einer mindestens drei Meter breiten Gehfläche nördlich des Radstreifens. Der City-Ring-Verkehrsversuch 2019/2020 ist für den zeitlichen Vergleich relevant, belegt aber keine Unfallwirkung. Der städtische Planungsstand vom Mai 2025 sieht die weitere Prüfung von Querungshilfen und reduzierten Geschwindigkeiten vor. Der SWB-Aufsichtsrat fordert einen Ablaufplan zum ersten Sitzungsturnus 2027. Der Umsetzungsstand und ein Baubeginn bleiben zu klären. Die Bezirksvertretung Bonn bittet die Stadtverwaltung, innerhalb von 12 Wochen nach Beschluss über den Planungsstand, die Zuordnung der Unfallfälle und messbare Prüfkriterien zu berichten. Die Stadtverwaltung legt das Ergebnis auch dem zuständigen Ratsausschuss vor.",
+  "begruendung": "Der Vergleich betrifft Beteiligungsanteile unter denselben aktiven Filtern: 37/37 im Ausschnitt und 1.875/1.926 im übrigen Stadtgebiet. Die Differenz beträgt rund +2,6 Prozentpunkte. Das Newcombe-95-%-Intervall aus beiden Stichproben reicht von −6,8 bis +3,5 Prozentpunkten und umfasst null. Eine statistisch abgesicherte Überrepräsentation ist damit nicht belegt. Die Suche ist explorativ und unbereinigt. Für absolute Unfallraten oder Risiko je Verkehrsleistung fehlen Expositionsdaten. Die Jahresreihe 2019–2025 lautet 6, 8, 5, 2, 2, 9, 5 und ist als stagnierend klassifiziert. Die veröffentlichten Standorte erlauben eine abschnittsbezogene Prüfung. Zeitliche oder räumliche Zusammenhänge müssen anhand der Einzelfälle geprüft werden. Der Ratsbeschluss 232044 beauftragte die Planung und stellte einen gesonderten Baubeschluss in Aussicht. Die Stellungnahme 232044-01 ST wurde zur Kenntnis genommen. Für 232044-02 AA entfiel die separate Abstimmung. Der geänderte Beschluss verlangt die Prüfung einer mindestens drei Meter breiten Gehfläche nördlich des Radstreifens. Der City-Ring-Verkehrsversuch 2019/2020 ist für den zeitlichen Vergleich relevant, belegt aber keine Unfallwirkung. Der städtische Planungsstand vom Mai 2025 sieht die weitere Prüfung von Querungshilfen und reduzierten Geschwindigkeiten vor. Der SWB-Aufsichtsrat fordert einen Ablaufplan zum ersten Sitzungsturnus 2027. Der Umsetzungsstand und ein Baubeginn bleiben zu klären.",
+  "beschlussvorschlag": "Die Bezirksvertretung Bonn bittet die Stadtverwaltung, innerhalb von 12 Wochen nach Beschluss über den Planungsstand, die Zuordnung der Unfallfälle und messbare Prüfkriterien zu berichten. Die Stadtverwaltung legt das Ergebnis auch dem zuständigen Ratsausschuss vor.",
+  "pruefauftrag": "Alle 37 ausgewählten Fälle anhand der Fallnummer, des Datums und des veröffentlichten Unfallorts dem einschlägigen Straßenabschnitt und, soweit möglich, dem damaligen Verkehrsregime zuordnen. Die übrigen Gebietsunfälle aus dem Kollektiv von 312 getrennt auswerten, sofern ihr Unfallort oder ihre Beteiligung eine betrachtete Variante betrifft. Bei der Ortsprüfung Wegeführung, Querungen und Sichtbeziehungen dokumentieren. Für einen späteren Ratenvergleich Rad- und Kfz-Mengen unter vergleichbaren Bedingungen erheben. Für die Maximilianstraße die geplante Gehbreite nördlich des Radstreifens messen beziehungsweise im Entwurf ausweisen. Die Ergebnisse zur Querungsführung und zur mindestens drei Meter breiten Gehfläche mit der ZOB-Fachplanung abgleichen.",
+  "measureSummary": [
+    {
+      "id": "mon_followup",
+      "title": "Monitoring nach Umsetzung (Nachher-Vergleich Unfallatlas-Daten der Folgejahre)",
+      "category": "monitoring",
+      "rationale": "Vergleichbare Bedingungen für eine spätere Vorher-Nachher-Erhebung definieren und Unfälle nach Beteiligung und Schwere dokumentieren."
+    }
+  ],
+  "confidence": {
+    "overall": "medium",
+    "rationale": "Amtliche Unfalldaten belegen die Ereignisse. Unfallabläufe und Maßnahmenwirkungen bedürfen einer gesonderten Prüfung."
+  },
+  "caveats": [
+    "Die Kategorien zählen Unfälle nach ihrer schwersten Folge. Die Anzahl betroffener Personen geht daraus nicht hervor.",
+    "Einzelfallbezogene Fahrwege, genaue Konfliktabläufe, aktuelle Sichtweiten und Verkehrsmengen sind ungeklärt.",
+    "Die 37 Fälle umfassen die gesamte Auswahl. Einzelne Fälle müssen der Maximilianstraße vor einer lokalen Maßnahmenbewertung gesondert zugeordnet werden.",
+    "Die nummerierte Beweisanlage dokumentiert den Gebietsbestand und markiert die Auswahlfälle."
+  ],
+  "valueAddContractVersion": "unfallwerkbank.proposalBriefValueAdd.v1",
+  "deterministicVsAiComparison": [
+    {
+      "deterministicFinding": "37 ausgewählte Unfälle im vollständigen Gebiet mit 312 Fällen.",
+      "deltaStatus": "praezisiert",
+      "aiVerification": "Für den Bereich Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße sind von 2019 bis 2025 insgesamt 37 ausgewählte Rad-Pkw-Unfälle mit Personenschaden amtlich dokumentiert: 0 Unfälle mit Getöteten, 1 Unfall mit Schwerverletzten und 36 Unfälle mit Leichtverletzten. Das vollständige Gebiet umfasst 312 Unfälle vor Anwendung des Beteiligungsfilters. Die getrennte Referenz im übrigen Bonner Stadtgebiet umfasst 1.926 Unfälle unter denselben aktiven Filtern.",
+      "aiAddedValue": "Alle Auswahlfälle erhalten eine abschnittsbezogene Zuordnung mit einer Kategorie für unklare Fälle.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts"
+      ],
+      "uncertaintyOrCheck": "Unfallorte anhand der nummerierten Fälle einzeln prüfen."
+    },
+    {
+      "deterministicFinding": "Vergleich der Beteiligungsanteile mit dem übrigen Stadtgebiet.",
+      "deltaStatus": "praezisiert",
+      "aiVerification": "Der Vergleich betrifft Beteiligungsanteile unter denselben aktiven Filtern: 37/37 im Ausschnitt und 1.875/1.926 im übrigen Stadtgebiet. Die Differenz beträgt rund +2,6 Prozentpunkte. Das Newcombe-95-%-Intervall aus beiden Stichproben reicht von −6,8 bis +3,5 Prozentpunkten und umfasst null. Eine statistisch abgesicherte Überrepräsentation ist damit nicht belegt. Die Suche ist explorativ und unbereinigt. Für absolute Unfallraten oder Risiko je Verkehrsleistung fehlen Expositionsdaten.",
+      "aiAddedValue": "Die Referenz dient als Zusammensetzungsvergleich. Die Vor-Ort-Prüfung folgt der örtlichen Zuordnung.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.patternCompositionComparison",
+        "evidenceCohortCounts"
+      ],
+      "uncertaintyOrCheck": "Exposition nur für eine künftige Risikobewertung erheben."
+    },
+    {
+      "deterministicFinding": "Der Mehrjahrestrend ist stagnierend.",
+      "deltaStatus": "praezisiert",
+      "aiVerification": "Die Jahresreihe 2019–2025 lautet 6, 8, 5, 2, 2, 9, 5 und ist als stagnierend klassifiziert. Die veröffentlichten Standorte erlauben eine abschnittsbezogene Prüfung. Zeitliche oder räumliche Zusammenhänge müssen anhand der Einzelfälle geprüft werden.",
+      "aiAddedValue": "Zeitschnitte nach örtlichem Verkehrsregime vorbereiten, soweit die Fälle zugeordnet werden können.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.yearlyTrend",
+        "features.spatialDensity",
+        "https://bonn-macht-mit.de/archiv/node/4321.html"
+      ],
+      "uncertaintyOrCheck": "Regime und Zeiträume vor dem Vergleich dokumentieren."
+    },
+    {
+      "deterministicFinding": "Politischer Recherchestatus im Bericht.",
+      "deltaStatus": "ergaenzt",
+      "aiVerification": "Der Ratsbeschluss 232044 beauftragte die Planung und stellte einen gesonderten Baubeschluss in Aussicht. Die Stellungnahme 232044-01 ST wurde zur Kenntnis genommen. Für 232044-02 AA entfiel die separate Abstimmung. Der geänderte Beschluss verlangt die Prüfung einer mindestens drei Meter breiten Gehfläche nördlich des Radstreifens. Der City-Ring-Verkehrsversuch 2019/2020 ist für den zeitlichen Vergleich relevant, belegt aber keine Unfallwirkung. Der städtische Planungsstand vom Mai 2025 sieht die weitere Prüfung von Querungshilfen und reduzierten Geschwindigkeiten vor. Der SWB-Aufsichtsrat fordert einen Ablaufplan zum ersten Sitzungsturnus 2027. Der Umsetzungsstand und ein Baubeginn bleiben zu klären.",
+      "aiAddedValue": "Für die Maximilianstraße die geplante Gehbreite nördlich des Radstreifens messen beziehungsweise im Entwurf ausweisen. Die Ergebnisse zur Querungsführung und zur mindestens drei Meter breiten Gehfläche mit der ZOB-Fachplanung abgleichen.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.politicalResearch",
+        "https://bonn-macht-mit.de/archiv/node/4321.html",
+        "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056676",
+        "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056677",
+        "https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295",
+        "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php",
+        "https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/"
+      ],
+      "uncertaintyOrCheck": "Aktuellen Umsetzungsstand amtlich belegen."
+    }
+  ],
+  "prioritisedFindings": [
+    {
+      "rank": 1,
+      "finding": "37 dokumentierte Rad-Pkw-Unfälle mit Personenschaden",
+      "urgency": "high",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts"
+      ],
+      "decisionRelevance": "Zuerst die örtliche Zuordnung der Auswahlfälle und des einen Unfalls mit Schwerverletzten klären."
+    },
+    {
+      "rank": 2,
+      "finding": "Statistisch ungesicherte Abweichung im Beteiligungsmuster",
+      "urgency": "medium",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.patternCompositionComparison",
+        "deterministicAnalysisDigest.yearlyTrend"
+      ],
+      "decisionRelevance": "Prüfpriorität ergibt sich aus dem dokumentierten Unfallgeschehen und dem örtlichen Befund."
+    },
+    {
+      "rank": 3,
+      "finding": "Anschluss an laufende ZOB-Planung",
+      "urgency": "medium",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.politicalResearch",
+        "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056676",
+        "https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295",
+        "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php"
+      ],
+      "decisionRelevance": "Planungsstand und offene Entscheidungen anfordern."
+    }
+  ],
+  "crossLayerInsights": [
+    {
+      "insight": "Die Auswahlfälle sind über mehrere Bereiche verteilt. Die vollständige Gebietsliste hilft, weitere Fälle an den untersuchten Abschnitten zu finden.",
+      "evidenceLayers": [
+        "Amtliche Unfallfälle",
+        "Räumliche Analyse"
+      ],
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts",
+        "features.spatialDensity"
+      ],
+      "decisionValue": "Alle 37 ausgewählten Fälle anhand der Fallnummer, des Datums und des veröffentlichten Unfallorts dem einschlägigen Straßenabschnitt und, soweit möglich, dem damaligen Verkehrsregime zuordnen."
+    },
+    {
+      "insight": "Die Jahresreihe und die explorative Anteilsabweichung tragen eine strukturierte Beobachtung der Unfallentwicklung.",
+      "evidenceLayers": [
+        "Zeitreihe",
+        "Vergleich der Beteiligungsanteile"
+      ],
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.yearlyTrend",
+        "deterministicAnalysisDigest.patternCompositionComparison"
+      ],
+      "decisionValue": "Vorher und nachher dieselbe räumliche Abgrenzung, dieselben Filter und gegebenenfalls Expositionsdaten verwenden."
+    },
+    {
+      "insight": "Die gebietsweiten Rad-Pkw-Fälle und die Ratsplanung für Gehflächen betreffen unterschiedliche Konflikte.",
+      "evidenceLayers": [
+        "Amtliche Unfallfälle",
+        "Kommunale Vorgänge"
+      ],
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "features.visualContextHints",
+        "https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295",
+        "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php"
+      ],
+      "decisionValue": "Querung, Gehbreite und Radführung vor Ort erfassen und das Ergebnis mit der ZOB-Planung abgleichen."
+    }
+  ],
+  "competingHypotheses": [
+    {
+      "claim": "Die Unfallorte können unterschiedliche örtliche Konfliktlagen widerspiegeln.",
+      "hypotheses": [
+        "Mehrere Fälle könnten sich an denselben Abbiege- oder Querungsstellen ereignet haben.",
+        "Die Fälle könnten auf getrennte Abschnitte oder unterschiedliche Verkehrsregime verteilt sein."
+      ],
+      "discriminatingChecks": [
+        "Fallnummern nach Abschnitt, Zeitpunkt und Unfalltyp ordnen. Für unklare Fälle die zugrunde liegende Orts- und Ablaufbeschreibung anfordern."
+      ]
+    }
+  ],
+  "measureDecisionMatrix": [
+    {
+      "rank": 1,
+      "finding": "Die 37 Rad-Pkw-Fälle begründen eine abschnittsbezogene Prüfung. Die Planung betrifft auch Gehflächen.",
+      "safetyObjective": "Konfliktstellen identifizieren und einen vergleichbaren Beobachtungsrahmen für den Schutz von Rad- und Fußverkehr festlegen.",
+      "option": "Prüfbericht mit getrennten Fallgruppen und einem Monitoringkonzept",
+      "requiredVerification": [
+        "Alle 37 ausgewählten Fälle anhand der Fallnummer, des Datums und des veröffentlichten Unfallorts dem einschlägigen Straßenabschnitt und, soweit möglich, dem damaligen Verkehrsregime zuordnen.",
+        "Die übrigen Gebietsunfälle aus dem Kollektiv von 312 getrennt auswerten, sofern ihr Unfallort oder ihre Beteiligung eine betrachtete Variante betrifft.",
+        "Bei der Ortsprüfung Wegeführung, Querungen und Sichtbeziehungen dokumentieren. Für einen späteren Ratenvergleich Rad- und Kfz-Mengen unter vergleichbaren Bedingungen erheben.",
+        "Für die Maximilianstraße die geplante Gehbreite nördlich des Radstreifens messen beziehungsweise im Entwurf ausweisen. Die Ergebnisse zur Querungsführung und zur mindestens drei Meter breiten Gehfläche mit der ZOB-Fachplanung abgleichen."
+      ],
+      "responsibility": "Stadtverwaltung Bonn, Bericht an die Bezirksvertretung Bonn und den zuständigen Ratsausschuss",
+      "deadline": "12 Wochen nach Beschluss",
+      "successCriteria": [
+        "Für alle 37 ausgewählten Fälle nennt die Berichtstabelle Fallnummer, Abschnitt und Zuordnungsstatus. Unklare Zuordnungen bleiben sichtbar.",
+        "Je geprüfter Variante legt der Bericht mindestens eine messbare Prüfvorgabe mit Erhebungszeitraum und einen Termin zur Nachprüfung fest."
+      ],
+      "tradeoffs": [
+        "Gehbreite, Radführung, Busbetrieb und Barrierefreiheit je Variante gemeinsam prüfen."
+      ],
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts",
+        "https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295",
+        "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php"
+      ]
+    }
+  ],
+  "politicalResearchLog": {
+    "status": "complete",
+    "sourceStatus": "results-found",
+    "documentedQueries": [
+      {
+        "query": "Bonn Hauptbahnhof ZOB 232044 232044-02 AA Beschluss Verkehrsversuch Maximilianstraße Münsterplatz Thomas-Mann-Straße Zentraler Omnibusbahnhof Bonn Umsetzung Rat",
+        "source": "Ratsniederschrift und OParl der Bundesstadt Bonn",
+        "sourceType": "manual-primary-source-review",
+        "url": "https://www.bonn.sitzung-online.de/oparl/meetings/2002940"
+      },
+      {
+        "query": "Bonn Cityring Kaiserstraße Verkehrsversuch 2020 Mobilitätskonzept Evaluation Straße Am Hauptbahnhof Bundesstadt Bonn Stadtrat Drucksache 2019 Bonn Verkehrsflächen Am Hauptbahnhof Verkehrsversuch 191",
+        "source": "Beteiligungsarchiv der Bundesstadt Bonn",
+        "sourceType": "manual-primary-source-review",
+        "url": "https://bonn-macht-mit.de/archiv/node/4321.html"
+      },
+      {
+        "query": "Bonn ZOB Vorschläge Beteiligung werden geprüft 9. Mai 2025 Maximilianstraße Gehfläche der Rat Stellungsnahme Verwaltung geprüft 232044-01 ST Rad Gehbahn 3 Meter",
+        "source": "Bundesstadt Bonn",
+        "sourceType": "manual-primary-source-review",
+        "url": "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php"
+      },
+      {
+        "query": "ZOB Bonn Bonner Hauptbahnhof Oktober November 2026 Zukunft Umbau Oktober Stadtwerke Priorität Planung Bundesstadt Bonn November 2026 Busbahnhof Oberbürgermeister Finanzierung konkretes Planungsverfahren",
+        "source": "SWB Bus und Bahn",
+        "sourceType": "manual-primary-source-review",
+        "url": "https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/"
+      }
+    ],
+    "evidenceRefs": [
+      "https://bonn-macht-mit.de/archiv/node/4321.html",
+      "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056676",
+      "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056677",
+      "https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295",
+      "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php",
+      "https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/"
+    ],
+    "comparisonToExistingActivity": "Der Ratsbeschluss 232044 beauftragte die Planung und stellte einen gesonderten Baubeschluss in Aussicht. Die Stellungnahme 232044-01 ST wurde zur Kenntnis genommen. Für 232044-02 AA entfiel die separate Abstimmung. Der geänderte Beschluss verlangt die Prüfung einer mindestens drei Meter breiten Gehfläche nördlich des Radstreifens. Der City-Ring-Verkehrsversuch 2019/2020 ist für den zeitlichen Vergleich relevant, belegt aber keine Unfallwirkung. Der städtische Planungsstand vom Mai 2025 sieht die weitere Prüfung von Querungshilfen und reduzierten Geschwindigkeiten vor. Der SWB-Aufsichtsrat fordert einen Ablaufplan zum ersten Sitzungsturnus 2027. Der Umsetzungsstand und ein Baubeginn bleiben zu klären.",
+    "remainingChecks": [
+      "Planungsstand, späteren Baubeschluss und Umsetzungszeitplan bestätigen."
+    ]
+  },
+  "aiDelta": {
+    "bestaetigt": [
+      "Die amtliche Unfallzahl und die Verteilung nach schwerster Folge bleiben erhalten."
+    ],
+    "praezisiert": [
+      "Gebietsunfälle, Auswahl und Stadtvergleich haben unterschiedliche Rollen bei der Prüfung."
+    ],
+    "ergaenzt": [
+      "Berichtstabelle mit Abschnitten, Zuordnungsstatus, Kriterien und Termin für die Nachprüfung."
+    ],
+    "verworfen": [
+      "Ableitung eines amtlichen Schwerpunkts allein aus der Anteilsabweichung."
+    ],
+    "offen": [
+      "Verkehrsmengen, Unfallabläufe und Bauausführung."
+    ]
+  },
+  "valueAddAssessment": {
+    "status": "passed",
+    "score": 88,
+    "automaticFailureReasons": []
+  },
+  "filingReadinessVerdict": {
+    "status": "ready",
+    "analysisQaStatus": "ready",
+    "politicalResearchStatus": "complete",
+    "reasoning": "Die Quellen und amtlichen Falldaten tragen einen begrenzten Prüf- und Berichtsauftrag.",
+    "blockingReasons": []
+  }
+}

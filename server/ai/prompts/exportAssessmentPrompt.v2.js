@@ -19,7 +19,7 @@
  * RIS-Kontext sind Teil des kanonischen AI-Inputs und ändern bei Bedarf
  * den Cache-Key, ohne bestehende Anfragen ohne diesen Kontext zu ändern.
  */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.9';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.10';
 const { PATTERN_COMPARISON_LIMITATIONS } = require('../features/deriveFeatures.js');
 
 const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
@@ -154,6 +154,12 @@ function buildPrompt(aiInput, mode) {
   lines.push('=== KENNZAHLEN (deterministisch berechnet) ===');
   lines.push(`Unfälle gesamt im Bereich: ${counts.total ?? 0}`);
   lines.push(`Unfälle nach schwerster Folge (Getötete / Schwerverletzte / Leichtverletzte): ${counts.fatal ?? 0} / ${counts.serious ?? 0} / ${counts.slight ?? 0}`);
+  const { years, totals } = aiInput?.deterministicAnalysisDigest?.yearlyTrend || {};
+  if (mode === 'proposal-brief' && Array.isArray(years) && years.length && years.every(Number.isInteger)
+      && Array.isArray(totals) && totals.length === years.length && totals.every(Number.isInteger)) {
+    lines.push(`Untersuchungszeitraum: ${years[0]}–${years.at(-1)}.`);
+    lines.push(`Jahreswerte im Ausschnitt: ${years.map((year, index) => `${year}: ${totals[index]}`).join(', ')}.`);
+  }
   if (Number.isFinite(f.ksiShare)) {
     lines.push(`Anteil schwere Unfälle (getötet+schwerverletzt): ${(f.ksiShare * 100).toFixed(1)} %`);
   }
