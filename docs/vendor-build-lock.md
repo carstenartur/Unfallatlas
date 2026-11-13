@@ -199,6 +199,18 @@ MIT-Lizenz. Das Quelleninventar verweist auf die Fassung des Originals,
 die vor Aufnahme des Decoders in Fontkit veröffentlicht war. Die genaue
 Revision, von der der Autor die Anpassung ableitete, ist nicht angegeben.
 
+Fontkit verweist für die arabische und indische Schriftformung auf HarfBuzz.
+Der Hersteller-Rebuild vergleicht die 42 Übergänge seiner arabischen
+Zustandstabelle und alle elf aktiven indischen Skriptkonfigurationen mit
+den C++-Tabellen aus den zeitgenössischen HarfBuzz-Quellen. Sinhala nutzt
+in Fontkit den Universal-Shaper. Quell- und Lizenzhashes sowie die beiden
+unterschiedlichen Google-Copyrightangaben stehen in der Policy. Notice und
+CycloneDX enthalten die angepassten Abschnitte aus der Fontkit-Source-Map
+mit den beiden zugehörigen HarfBuzz-Originalhinweisen. Der Vergleich lässt
+sich mit `python3 scripts/verify-fontkit-shaping.py node_modules/fontkit`
+wiederholen. Weitere Shaper-Algorithmen, Generatorregeln und die Lizenz des
+Fontkit-Pakets selbst bleiben getrennte Nachweisaufgaben.
+
 Sechs Dateien aus `brotli@1.3.3` tragen denselben Apache-2.0-Lizenzhinweis
 mit Copyright von Google Inc. aus dem Jahr 2013. Der Seitenbuild vergleicht
 diese Dateien bytegenau mit den in der PDF-Source-Map enthaltenen Quellen.
