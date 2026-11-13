@@ -188,6 +188,7 @@ function bodySignature(document, relationships, files, types) {
       const drawing = [...elements(node)];
       const blip = drawing.find(value => matches(value, DRAWING, 'blip'));
       const extent = drawing.find(value => matches(value, WORD_DRAWING, 'extent'));
+      const properties = drawing.find(value => matches(value, WORD_DRAWING, 'docPr'));
       const id = required(attribute(blip, OFFICE, 'embed'), 'embedded drawing relationship');
       const relationship = relationships.get(id);
       if (relationship?.type !== `${OFFICE}/image` || !types.get(relationship.target)?.startsWith('image/')) {
@@ -197,6 +198,8 @@ function bodySignature(document, relationships, files, types) {
         sha256: sha256(files.get(relationship.target)),
         width: positiveInteger(attribute(extent, '', 'cx'), 'Word drawing width'),
         height: positiveInteger(attribute(extent, '', 'cy'), 'Word drawing height'),
+        title: attribute(properties, '', 'title') || '',
+        description: attribute(properties, '', 'descr') || '',
       });
     }
   }

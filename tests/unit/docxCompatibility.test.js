@@ -11,13 +11,16 @@ const URL = 'https://example.org/dataset';
 const MAIN = 'word/document.xml';
 const RELATIONSHIPS = 'word/_rels/document.xml.rels';
 
-async function documentBytes() {
+let bytes;
+
+beforeAll(async () => {
   const cell = text => new docx.TableCell({ children: [new docx.Paragraph(text)] });
   const image = new docx.ImageRun({
     type: 'png', data: createDeterministicMapPng({ width: 300, height: 200 }),
     transformation: { width: 300, height: 200 },
+    altText: { name: 'map', title: 'Unfallkarte', description: 'Unfall A001 im Ausschnitt' },
   });
-  return docx.Packer.toBuffer(new docx.Document({ sections: [{
+  bytes = await docx.Packer.toBuffer(new docx.Document({ sections: [{
     properties: { page: { size: { orientation: docx.PageOrientation.LANDSCAPE } } },
     children: [
       new docx.Paragraph({ text: 'Quelle', keepNext: true }),
@@ -31,7 +34,7 @@ async function documentBytes() {
       ] }),
     ],
   }] }));
-}
+}, 20000);
 
 async function change(bytes, part, transform) {
   const zip = await JSZip.loadAsync(bytes);
@@ -40,7 +43,6 @@ async function change(bytes, part, transform) {
 }
 
 test('reads WordprocessingML content, images and page controls from a real DOCX', async () => {
-  const bytes = await documentBytes();
   const document = await inspectDocx(bytes);
   expect(document.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
   expect(document.signature).toMatchObject({
@@ -51,39 +53,42 @@ test('reads WordprocessingML content, images and page controls from a real DOCX'
     ]],
     pageSizes: [expect.objectContaining({ orientation: 'landscape' })],
     links: [URL],
-    images: [expect.objectContaining({ sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })],
+    images: [expect.objectContaining({
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      title: 'Unfallkarte', description: 'Unfall A001 im Ausschnitt',
+    })],
   });
 });
 
 test('rejects a dangling image relationship even when the ZIP and XML are readable', async () => {
-  const bytes = await change(await documentBytes(), RELATIONSHIPS, xml => xml.replace(/Target="media\/[^\"]+"/, 'Target="media/missing.png"'));
-  await expect(inspectDocx(bytes)).rejects.toThrow(/missing.*media\/missing\.png/i);
+  const changed = await change(bytes, RELATIONSHIPS, xml => xml.replace(/Target="media\/[^\"]+"/, 'Target="media/missing.png"'));
+  await expect(inspectDocx(changed)).rejects.toThrow(/missing.*media\/missing\.png/i);
 });
 
 test('rejects an undeclared relationship ID referenced by the WordprocessingML body', async () => {
-  const bytes = await change(await documentBytes(), MAIN, xml => xml.replace(/r:embed="[^"]+"/, 'r:embed="rIdMissing"'));
-  await expect(inspectDocx(bytes)).rejects.toThrow(/rIdMissing/);
+  const changed = await change(bytes, MAIN, xml => xml.replace(/r:embed="[^"]+"/, 'r:embed="rIdMissing"'));
+  await expect(inspectDocx(changed)).rejects.toThrow(/rIdMissing/);
 });
 
 test('rejects malformed XML that a permissive office importer might repair', async () => {
-  const bytes = await change(await documentBytes(), MAIN, xml => xml.replace('</w:body>', ''));
-  await expect(inspectDocx(bytes)).rejects.toThrow(/invalid XML.*word\/document\.xml/i);
+  const changed = await change(bytes, MAIN, xml => xml.replace('</w:body>', ''));
+  await expect(inspectDocx(changed)).rejects.toThrow(/invalid XML.*word\/document\.xml/i);
 });
 
 test('accepts DOCX written with streaming ZIP data descriptors by an office converter', async () => {
-  const zip = await JSZip.loadAsync(await documentBytes());
-  const bytes = await zip.generateAsync({ type: 'nodebuffer', streamFiles: true });
-  await expect(inspectDocx(bytes, { officeSavedCopy: true })).resolves.toMatchObject({
+  const zip = await JSZip.loadAsync(bytes);
+  const streamed = await zip.generateAsync({ type: 'nodebuffer', streamFiles: true });
+  await expect(inspectDocx(streamed, { officeSavedCopy: true })).resolves.toMatchObject({
     signature: { links: [URL] },
   });
 });
 
 test.each([
-  ['changed table cell', MAIN, xml => xml.replace('A001', 'A002'), 'paragraphs'],
+  ['changed table cell', MAIN, xml => xml.replace('>A001<', '>A002<'), 'paragraphs'],
   ['removed repeated header', MAIN, xml => xml.replace('<w:tblHeader/>', ''), 'tables'],
   ['changed hyperlink target', RELATIONSHIPS, xml => xml.replace(URL, `${URL}/other`), 'links'],
+  ['removed image description', MAIN, xml => xml.replace(' descr="Unfall A001 im Ausschnitt"', ''), 'images'],
 ])('rejects a %s after saving and reopening', async (_label, part, transform, field) => {
-  const bytes = await documentBytes();
   const original = await inspectDocx(bytes);
   const saved = await inspectDocx(await change(bytes, part, transform));
   expect(() => assertPreserved(original, saved)).toThrow(field);

@@ -19,7 +19,7 @@ The gate performs the following checks for both candidates.
   repair or format error fails the check.
 - Compares paragraph and table cell text, repeated header and row-splitting
   settings, heading keep-with-next, page sizes, hyperlink targets, and the
-  embedded image bytes and display dimensions.
+  embedded image bytes, display dimensions, and accessibility titles and descriptions.
 - Repeats the final-page audits with Poppler. The standard report checks table
   rows and the placement of the `Top-Abweichungen` heading. The numbered
   appendix checks its embedded source manifest, the actual maps and captions,
