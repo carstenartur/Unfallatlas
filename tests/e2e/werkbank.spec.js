@@ -891,24 +891,15 @@ test.describe('Werkbank V2 - Cross Table and Accident Details in Export Modal', 
     const modal = page.locator('#modalOverlay .modal');
     await modal.waitFor({ state: 'visible' });
 
-    // Wait for report to generate – the HTML report is rendered into #exportHtml
-    // Wait until it contains 'Beteiligungskombination' (cross-table heading)
+    // Report updates can temporarily replace the preview while data is loading.
     const reportHtml = page.locator('#exportHtml');
-    await expect(reportHtml).toContainText('Beteiligungskombination', { timeout: 15000 });
-
-    const htmlContent = await reportHtml.innerHTML();
-
-    // Cross-table should be present for the selected area with accidents
-    expect(htmlContent).toContain('Beteiligungskombination');
-    expect(htmlContent).toContain('Getötete');
-    expect(htmlContent).toContain('Schwerverletzt');
-    expect(htmlContent).toContain('Leichtverletzt');
-    expect(htmlContent).toContain('Gesamt');
-
-    // Accident details table should also be present
-    expect(htmlContent).toContain('Einzelunfälle im Bereich');
-    expect(htmlContent).toContain('Jahr');
-    expect(htmlContent).toContain('Schwere');
-    expect(htmlContent).toContain('Beteiligte');
+    const expectedLabels = [
+      'Beteiligungskombination', 'Getötete', 'Schwerverletzt', 'Leichtverletzt', 'Gesamt',
+      'Einzelunfälle im Bereich', 'Jahr', 'Schwere', 'Beteiligte',
+    ];
+    await expect.poll(async () => {
+      const html = await reportHtml.innerHTML();
+      return expectedLabels.filter(label => !html.includes(label));
+    }, { timeout: 15000 }).toEqual([]);
   });
 });
