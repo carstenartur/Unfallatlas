@@ -9,6 +9,7 @@ on:
       - 'vendor/pdfmake-build/**'
       - 'vendor/build-lock.recipe.json'
       - 'scripts/verify-*-upstream.sh'
+      - 'scripts/verify-docx-runtime-sources.py'
   workflow_dispatch:
 
 permissions:

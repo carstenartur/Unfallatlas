@@ -41,6 +41,76 @@
           "licenseFile": "LICENSE",
           "licenseSha256": "4383cb2c3608397ce7a4159502614ed66890f8999c2a9c056dd3b1024d6721f0"
         }
+      ],
+      "generatedRuntimes": [
+        {
+          "component": "rolldown@1.2.15",
+          "sourceArchive": "https://registry.npmjs.org/rolldown/-/rolldown-1.2.15.tgz",
+          "sourceIntegrity": "sha512-6odND+fel5zVw3I4Yc2e69gvguDnX0CAAGiNDZSq4ik5WUcaLrkD2GLuog0XcODbor31hZ5ayEMgVDno+KPV5g==",
+          "spdx": "MIT",
+          "licenseFile": "vendor/docx-build/rolldown-runtime-notices.txt",
+          "path": "vendor/licenses/components/docx-rolldown-runtime-notices.txt",
+          "sha256": "7df0da75537e780a5eb5de672138a4f28e8f00a9870b6de73629f8ce41fe739b",
+          "modules": [
+            {
+              "label": "\\0rolldown/runtime.js",
+              "sourcePath": "crates/rolldown/src/runtime/runtime-base.js",
+              "sourceSha256": "dce431abd7483c7b92a675b41958d6a2a2c8b13d2b13ee546a34935da7c7676d"
+            }
+          ],
+          "sourceUrl": "https://raw.githubusercontent.com/rolldown/rolldown/89d821ca07cf9ccd84dd92bd3f48af0f579ab21a/crates/rolldown/src/runtime/runtime-base.js"
+        },
+        {
+          "component": "@oxc-project/runtime@0.155.0",
+          "sourceArchive": "https://registry.npmjs.org/@oxc-project/runtime/-/runtime-0.155.0.tgz",
+          "sourceIntegrity": "sha512-VbW9raczGS5ZZ1FMunUBYHe4uV/R684qlQCoMdE3n5JT1PcqQsvmFpMYkF8AD+W04fBLGAq6Tr7YsTk0jjvDBA==",
+          "spdx": "MIT",
+          "licenseFile": "vendor/docx-build/oxc-runtime-notices.txt",
+          "path": "vendor/licenses/components/docx-oxc-runtime-notices.txt",
+          "sha256": "0e80fa6ef13ae6db0622b1a23c1b6053cb6273a6cabaf349a38a50bc9b6b55b1",
+          "modules": [
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/typeof.js",
+              "sourcePath": "src/helpers/esm/typeof.js",
+              "sourceSha256": "928bcbbdf74fe24ed7486e7f982c4389c1859886b3ed904ebd2677f22193b57a"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/toPrimitive.js",
+              "sourcePath": "src/helpers/esm/toPrimitive.js",
+              "sourceSha256": "9660291e71923cb5ff9aaaa1de354515c26e3220cba56ac5d21b806f23875545"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/toPropertyKey.js",
+              "sourcePath": "src/helpers/esm/toPropertyKey.js",
+              "sourceSha256": "7f0000acc9c9cf7594b412095be66cdc59066b25458a16fe1434fd00cff478e7"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/defineProperty.js",
+              "sourcePath": "src/helpers/esm/defineProperty.js",
+              "sourceSha256": "2bad7c96ee851cf2cfe1320a54fd88dd5f769a7faf8bd92d60c9f2e6d1e381dd"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectSpread2.js",
+              "sourcePath": "src/helpers/esm/objectSpread2.js",
+              "sourceSha256": "d03a134abca2a223a82172030d7d79a4b779ab3ee7df91391fb62cad74586284"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectWithoutPropertiesLoose.js",
+              "sourcePath": "src/helpers/esm/objectWithoutPropertiesLoose.js",
+              "sourceSha256": "625b5d223cee76c6883bac69a573ac5512414c2174b2c4bde50d1543e71d97a1"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectWithoutProperties.js",
+              "sourcePath": "src/helpers/esm/objectWithoutProperties.js",
+              "sourceSha256": "f0d056e4c8fec80fe2fe09364c7f30ae67e3f2e2818e76f8d967544f6335bb98"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/asyncToGenerator.js",
+              "sourcePath": "src/helpers/esm/asyncToGenerator.js",
+              "sourceSha256": "d08e6edc7ad01f1116fcbfbd11da76fd9ca700fc17b6e2d1067d16f55564fde3"
+            }
+          ]
+        }
       ]
     },
     "vendor/export/pdfmake.js": {
@@ -162,7 +232,7 @@
       "kind": "opaque-supplier-bundle",
       "missingEvidence": [
         "two independently signed source-build attestations",
-        "complete source attribution for generated code beyond the verified npm module paths"
+        "independent audit of code attribution beyond the labeled modules and generated runtimes"
       ],
       "migrationOptions": [
         "Build a browser entry from a checked-in, integrity-pinned vendor workspace and retain the bundler metafile and source map.",
