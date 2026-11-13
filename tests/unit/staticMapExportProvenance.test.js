@@ -225,6 +225,35 @@ describe("provenance-bound static PNG export", () => {
     });
   });
 
+  test("binds the rendered Hannover ways and selected profile to the actual DGM grid", async () => {
+    const source = {
+      sourceId: 'hannover.dgm1', source: 'DGM1', publisher: 'LH Hannover', datasetUrl: 'https://www.hannover.de/',
+      licenseId: 'CC-BY-4.0', licenseName: 'Creative Commons Attribution 4.0 International', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+      requiredAttribution: 'Bereich Geoinformation – LH Hannover', acquisitionPeriod: 'Laserscannerbefliegung 2010',
+      retrievedAt: '2026-11-11T09:31:38Z', resolutionM: 1, horizontalTransformation: { from: 'EPSG:4326', to: 'EPSG:25832' },
+      manifestSha256: HASH_A, distributionSha256: HASH_B,
+    };
+    const row = { way_id: '6138345', class: 'gentle', road_slope_source_id: source.sourceId,
+      road_slope_manifest_sha256: HASH_A, road_slope_distribution_sha256: HASH_B, road_slope_percent: 2.8,
+      road_slope_quality: 'high', road_slope_uncertainty_percent: 0.2, slope_statement: 'Straßenlängsneigung +2,8 %.' };
+    const group = { getLayers: () => [{ feature: { properties: row } }] };
+    const ctx = { map: { hasLayer: layer => layer === group }, contextOverlays: {
+      active: { slope: true }, layers: { slope: group }, slopePopup: { slopeWayId: row.way_id } },
+      contextLayerState: { meta: { sources: { roadSlope: source } }, tileIndex: { extractDate: '2026-11-12' } } };
+    const build = () => staticMap.buildStaticMapManifest(manifest(), { qGet: () => '1' }, ctx);
+    const result = await build();
+    const transformation = result.manifest.transformations.find(item => item.transformationId === 'render-static-map-png');
+    expect(transformation.parameters.slopeOverlay).toMatchObject({ selectedWayId: '6138345', debugLabels: true,
+      profiles: [{ wayId: '6138345', gradientPercent: 2.8, uncertaintyPercent: 0.2, quality: 'high' }] });
+    expect(result.manifest.sources.map(source => source.sourceId)).toEqual(expect.arrayContaining(['hannover.dgm1','road-context.openstreetmap']));
+    row.road_slope_distribution_sha256 = HASH_A;
+    await expect(build()).rejects.toMatchObject({ code: 'unverified_slope_overlay' });
+    delete row.road_slope_distribution_sha256;
+    await expect(build()).rejects.toMatchObject({ code: 'unverified_slope_overlay' });
+    ctx.contextOverlays.active.traffic = true;
+    await expect(build()).rejects.toMatchObject({ code: 'unsupported_context_source_provenance' });
+  });
+
   test("renders a source strip below the map and verifies its witness pixels", async () => {
     const calls = [];
     const context = {
