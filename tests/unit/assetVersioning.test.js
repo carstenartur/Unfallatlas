@@ -185,7 +185,7 @@ describe('Werkbank deployment asset versions', () => {
 test.each(['ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  const version = name === 'ua.elevation_provider' ? '2026-11-11-bridge-transition' : '2026-11-08-context';
+  const version = name === 'ua.elevation_provider' ? '2026-11-13-road-exclusions' : '2026-11-08-context';
   expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {

@@ -807,8 +807,12 @@
       const semanticType = reliableForRoad ? "road_gradient" : "terrain_context";
       const uncertaintyPercent = usesRoad && finite(p.road_slope_uncertainty_percent)
         ? p.road_slope_uncertainty_percent : null;
-      const uncertaintyReasons = Array.isArray(p.road_slope_uncertainty_reasons)
-        ? p.road_slope_uncertainty_reasons.slice() : [];
+      // Earlier tiles combined reasons from one window with commas and windows with semicolons.
+      const storedReasons = Array.isArray(p.road_slope_uncertainty_reasons)
+        ? p.road_slope_uncertainty_reasons : [];
+      const uncertaintyReasons = [...new Set([...storedReasons, p.road_slope_missing_reason]
+        .filter(code => typeof code === "string").flatMap(code => code.split(/[,;]/))
+        .map(code => code.trim()).filter(Boolean))];
       const directionLabels = {
         uphill_along_geometry: 'bergauf entlang der Way-Geometrie',
         downhill_along_geometry: 'bergab entlang der Way-Geometrie',
@@ -828,6 +832,16 @@
         const range = magnitude <= 2 ? "0–2" : magnitude <= 4 ? "2–4"
           : magnitude <= 6 ? "4–6" : magnitude <= 10 ? "6–10" : "über 10";
         statement = `Geländeneigung im Umfeld: grobe Klasse ${range} %, ${sourceText}; für die Fahrbahn nicht belastbar.`;
+      }
+      if (!usesRoad) {
+        const structural = uncertaintyReasons.filter(reason => [
+          'bridge_surface_not_represented_by_dtm', 'bridge_transition_surface_not_represented_by_dtm',
+          'tunnel_surface_not_represented_by_dtm', 'non_ground_osm_layer',
+        ].includes(reason));
+        if (structural.length) {
+          const explanation = `Keine belastbare Fahrbahnneigung. ${structural.map(code => REASON_LABELS_DE[code]).join('. ')}.`;
+          statement = value === null ? explanation : `${statement} ${explanation}`;
+        }
       }
       if (uncertaintyReasons.includes("elevated_profile_residual")) {
         statement += ` ${REASON_LABELS_DE.elevated_profile_residual}.`;
