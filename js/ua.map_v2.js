@@ -1059,7 +1059,7 @@
       const body = mapControlBody(ctx, control, container, 'context-overlay-control', 'Karte', 'topright');
       groups = {};
       const labels = { background: 'Hintergrund', accidents: 'Unfalldarstellung', surroundings: 'Umgebung', roads: 'Straßeninformationen' };
-      if (UA.HannoverLayers) labels.mobility = 'Mobilität';
+      if (UA.HannoverLayers || UA.DuesseldorfBikeCounts) labels.mobility = 'Mobilität';
       labels.ris = 'Ratsvorgänge';
       for (const [key, label] of Object.entries(labels)) {
         const group = document.createElement('fieldset');
@@ -1870,9 +1870,14 @@
     const roadGroup = settings.groups.roads;
     const risGroup = settings.groups.ris;
     const mobilityGroup = settings.groups.mobility;
-    const mobilityControl = UA.HannoverLayers?.controlContent(ctx);
+    const hannoverMobility = UA.HannoverLayers?.controlContent(ctx);
+    const duesseldorfMobility = UA.DuesseldorfBikeCounts?.controlContent(ctx);
+    const mobilityControl = hannoverMobility || duesseldorfMobility;
     if (mobilityGroup) {
       mobilityGroup.hidden = !mobilityControl;
+      for (const child of [...mobilityGroup.children]) {
+        if (child.tagName !== 'LEGEND' && child !== mobilityControl) child.remove();
+      }
       if (mobilityControl && mobilityControl.parentElement !== mobilityGroup) mobilityGroup.appendChild(mobilityControl);
     }
     const focusedRis = risControl?.contains(document.activeElement) ? document.activeElement : null;
@@ -1943,9 +1948,9 @@
         changed = true;
       }
     }
-    if (mobilityGroup && !mobilityControl) {
-      for (const kind of ['bikeCounts', 'schoolRoutes']) {
-        if (!reg.active[kind]) continue;
+    if (mobilityGroup) {
+      for (const [kind, supported] of [['bikeCounts', mobilityControl], ['schoolRoutes', hannoverMobility]]) {
+        if (supported || !reg.active[kind]) continue;
         reg.active[kind] = false;
         changed = true;
       }
