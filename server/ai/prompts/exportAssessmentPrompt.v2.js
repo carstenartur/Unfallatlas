@@ -19,7 +19,7 @@
  * RIS-Kontext sind Teil des kanonischen AI-Inputs und ändern bei Bedarf
  * den Cache-Key, ohne bestehende Anfragen ohne diesen Kontext zu ändern.
  */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.7';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.8';
 const { PATTERN_COMPARISON_LIMITATIONS } = require('../features/deriveFeatures.js');
 
 const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
@@ -153,7 +153,7 @@ function buildPrompt(aiInput, mode) {
   }
   lines.push('=== KENNZAHLEN (deterministisch berechnet) ===');
   lines.push(`Unfälle gesamt im Bereich: ${counts.total ?? 0}`);
-  lines.push(`Davon Getötete/Schwerverletzte/Leichtverletzte: ${counts.fatal ?? 0} / ${counts.serious ?? 0} / ${counts.slight ?? 0}`);
+  lines.push(`Unfälle nach schwerster Folge (Getötete / Schwerverletzte / Leichtverletzte): ${counts.fatal ?? 0} / ${counts.serious ?? 0} / ${counts.slight ?? 0}`);
   if (Number.isFinite(f.ksiShare)) {
     lines.push(`Anteil schwere Unfälle (getötet+schwerverletzt): ${(f.ksiShare * 100).toFixed(1)} %`);
   }
@@ -388,7 +388,7 @@ function buildPrompt(aiInput, mode) {
   lines.push('');
   lines.push('=== QUALITÄTSAUFTRAG VOR TEXTGENERATION ===');
   lines.push('1. Gib zuerst in einem internen Plausibilitätsschritt korrekt wieder, dass Musteranteile und nicht absolute Lokal-/Stadtfallzahlen als Unfallraten verglichen werden.');
-  lines.push('2. Prüfe, ob Gesamtzahl und Summe aus Getöteten/Schwerverletzten/Leichtverletzten plausibel zusammenpassen.');
+  lines.push('2. Gleiche die Zahl der Unfälle mit der Summe der Unfälle je Schwereklasse ab. Aus einer Unfallkategorie lässt sich die Zahl der betroffenen Personen nicht ableiten.');
   lines.push('3. Behandle die genannten Unfälle als amtlich dokumentierte Tatsachen; relativiere nur Ursachen- und Wirkungsannahmen.');
   lines.push('4. Auch isSignificant=true bleibt ein unbereinigter explorativer Einzelhinweis, ohne Mehrfachtestkorrektur.');
   lines.push('5. Verknüpfe jede Maßnahme mit mindestens einem konkreten Befund und einem prüfbaren Sicherheitsziel.');

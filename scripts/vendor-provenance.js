@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { gunzipSync } = require('node:zlib');
+const { gunzipSync, brotliDecompressSync } = require('node:zlib');
 const { assertCompleteLicenseText } = require('./validate-vendor-license-evidence');
 
 const POLICY_RELATIVE_PATH = 'vendor/provenance-policy.json';
@@ -12,7 +12,9 @@ const LEAFLET_HEAT_SOURCE = 'dist/leaflet-heat-global.js';
 const LEAFLET_IMAGE_ASSET = 'vendor/leaflet-image/leaflet-image.js';
 const DOCX_ASSET = 'vendor/export/docx.js';
 const DOCX_BUILD_LOCK = 'vendor/docx-build/npm-lock.json.gz';
+const { collectUnicodeData, unicodeDataRecords } = require('./pdf-unicode-data');
 const PDF_ASSET = 'vendor/export/pdfmake.js';
+const { collectPdfkitSources, pdfkitSourceRecords } = require('./pdfkit-nested-sources');
 const COMPLETE_INVENTORY_SCOPE = 'delivered-assets-component-level';
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const VENDOR_BUILD_LOCK_SCHEMA_VERSION = 1;
@@ -168,6 +170,33 @@ function pdfmakeSourcePackages(repoRoot, appLock, inventory) {
     });
   }
   return { components: [...components.values()], unresolved: [...unresolved].sort(), sourceMap };
+}
+
+function docxRuntimeRecords(runtimes) {
+  return runtimes.flatMap(runtime => runtime.modules.map(module => ({
+    ref: `urn:unfallatlas:vendor-source:docx:${encodeURIComponent(module.label.slice(2))}`,
+    component: `${runtime.component} ${module.sourcePath}`, sourcePath: module.sourcePath, sourceSha256: module.sourceSha256,
+    sourceArchive: runtime.sourceArchive, sourceIntegrity: runtime.sourceIntegrity,
+    moduleLabel: module.label, ...(runtime.sourceUrl && { sourceUrl: runtime.sourceUrl }),
+    spdx: runtime.spdx, path: runtime.path, sha256: runtime.sha256,
+  })));
+}
+
+function collectDocxRuntimes(repoRoot, outputRoot, inventory) {
+  const bundle = fs.readFileSync(path.join(repoRoot, 'node_modules/docx/dist/index.iife.js'), 'utf8');
+  const actual = [...bundle.matchAll(/^[\t ]*\/\/ (\\0\S+)$/gm)].map(match => match[1]).sort();
+  const records = docxRuntimeRecords(inventory.generatedRuntimes);
+  if (JSON.stringify(actual) !== JSON.stringify(records.map(record => record.moduleLabel).sort())) {
+    throw new Error('[vendor-provenance] DOCX generated runtime modules differ from their verified source inventory');
+  }
+  for (const runtime of inventory.generatedRuntimes) {
+    const notice = fs.readFileSync(path.join(repoRoot, runtime.licenseFile));
+    if (sha256Buffer(notice) !== runtime.sha256) throw new Error('Changed DOCX runtime notice: ' + runtime.component);
+    const target = path.join(outputRoot, runtime.path);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, notice);
+  }
+  return records.map(record => ({ ...record, asset: DOCX_ASSET, copyrightIncluded: true }));
 }
 
 function docxSourcePackages(repoRoot, inventory) {
@@ -517,6 +546,26 @@ function brotliDecoderRecords(expected) {
   }));
 }
 
+function collectBrotliDictionary(repoRoot, outputRoot, sourceMap, installedRoot, expected) {
+  const entry = 'webpack://pdfmake/./node_modules/brotli/dec/dictionary.bin.js';
+  const index = sourceMap.sources.indexOf(entry);
+  const wrapper = fs.readFileSync(path.join(installedRoot, 'dec/dictionary.bin.js'), 'utf8');
+  const encoded = /^module\.exports="([A-Za-z0-9+/]+={0,2})";\n$/.exec(wrapper);
+  if (!encoded || index < 0 || sourceMap.sources.lastIndexOf(entry) !== index || sourceMap.sourcesContent[index] !== wrapper) {
+    throw new Error('Embedded Brotli dictionary does not match the npm source');
+  }
+  const bytes = brotliDecompressSync(Buffer.from(encoded[1], 'base64'), { maxOutputLength: 122784 });
+  if (bytes.length !== 122784 || sha256Buffer(bytes) !== expected.sourceSha256) {
+    throw new Error('Decoded Brotli dictionary differs from its original');
+  }
+  const license = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses/Brotli-MIT.txt'));
+  if (sha256Buffer(license) !== expected.sha256) throw new Error('Brotli dictionary license differs');
+  const destination = path.join(outputRoot, expected.path);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, license);
+  return { ...expected, asset: PDF_ASSET, copyrightIncluded: true };
+}
+
 function collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, expected) {
   const component = pdfmake.components.find(item => item.purl === expected.purl && item.lockPath === expected.lockPath);
   if (!component?.installedPath) {
@@ -576,7 +625,8 @@ function collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, expected) {
   const destination = path.join(outputRoot, expected.path);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, notice);
-  return records.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true }));
+  const decoder = records.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true }));
+  return [...decoder, collectBrotliDictionary(repoRoot, outputRoot, pdfmake.sourceMap, installedRoot, expected.dictionary)];
 }
 
 function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, discoveredByAsset) {
@@ -764,17 +814,21 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
     throw new Error('[vendor-provenance] Missing BSD-2-Clause license evidence for locked simpleheat');
   }
   const embeddedSources = [
+    ...collectDocxRuntimes(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
+    ...collectUnicodeData(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.unicodeDataManifestSha256),
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
     ...collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, pdfInventory.brotliDecoder),
+    ...collectPdfkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.nestedPdfkitSources),
   ];
   const supplementalLicenses = [{
     component: `simpleheat@${simpleheat.version}`,
     spdx: simpleheat.licenseExpression,
     ...simpleheatLicense,
   }, ...embeddedSources];
-  const pdfBundle = assets.find(asset => asset.path === PDF_ASSET);
-  if (!pdfBundle) throw new Error('[vendor-provenance] Missing delivered pdfmake bundle');
-  pdfBundle.containsFiles = embeddedSources.map(source => source.ref).sort();
+  for (const asset of assets) {
+    asset.containsFiles = embeddedSources.filter(source => source.asset === asset.path)
+      .map(source => source.ref).sort();
+  }
   const fontContainer = assets.find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
   if (!fontContainer) throw new Error('[vendor-provenance] Missing delivered pdfmake font container');
   fontContainer.containsFiles = fontEvidence
@@ -813,8 +867,11 @@ function validateVerifiedBundleInventories(manifest, policy) {
       expected.owner, ...expected.components.map(component => component.purl), ...(expected.sourceMapPurls || []),
     ])].sort();
     const embeddedSources = [
+      ...docxRuntimeRecords(expected.generatedRuntimes || []),
+      ...(expected.unicodeDataManifestSha256 ? unicodeDataRecords(expected.unicodeDataManifestSha256) : []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
-      ...(expected.brotliDecoder ? brotliDecoderRecords(expected.brotliDecoder) : []),
+      ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), expected.brotliDecoder.dictionary] : []),
+      ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),
     ];
     const fileRefs = embeddedSources.map(source => source.ref).sort();
     const gaps = policy.unresolvedAssets.filter(gap => gap.paths.includes(assetPath)).map(gap => gap.id).sort();

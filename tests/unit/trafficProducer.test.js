@@ -114,6 +114,32 @@ describe('traffic_producer qualitative OSM fallback', () => {
     }
   });
 
+  test('uses the actual OSM request provenance for a regenerated proxy', () => {
+    const root = makeTemp();
+    try {
+      const file = path.join(root, 'osm_bonn.json');
+      const osm = { ways: { 100: { highway: 'primary' } }, extractDate: '2024-08-09',
+        distributionUrl: 'https://overpass.example.org/interpreter', retrievedAt: '2025-08-09T12:13:14.000Z',
+        osmBaseTimeRange: { from: '2024-08-08T23:58:00.000Z', to: '2024-08-09T00:03:00.000Z' } };
+      fs.writeFileSync(file, JSON.stringify(osm));
+      const { outFile } = traffic.produceCity(root, 'bonn', { osmDir: root, outDir: root });
+      const current = JSON.parse(fs.readFileSync(outFile));
+      expect(current).not.toHaveProperty('extractDate');
+      expect(current.provenance).toMatchObject({ distributionUrl: osm.distributionUrl,
+        retrievedAt: osm.retrievedAt, temporalCoverage: osm.osmBaseTimeRange.from + '/' + osm.osmBaseTimeRange.to });
+      delete osm.osmBaseTimeRange;
+      delete osm.retrievedAt;
+      delete osm.distributionUrl;
+      fs.writeFileSync(file, JSON.stringify(osm));
+      traffic.produceCity(root, 'bonn', { osmDir: root, outDir: root, force: true });
+      const legacy = JSON.parse(fs.readFileSync(outFile)).provenance;
+      expect(legacy).not.toHaveProperty('retrievedAt');
+      expect(legacy).not.toHaveProperty('distributionUrl');
+      expect(legacy).not.toHaveProperty('temporalCoverage');
+      expect(JSON.parse(fs.readFileSync(outFile))).not.toHaveProperty('extractDate');
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+
   test('resume skips and force replaces an existing city dataset', () => {
     const root = makeTemp();
     const osmDir = path.join(root, 'osm');

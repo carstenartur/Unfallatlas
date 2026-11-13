@@ -32,5 +32,6 @@ node --version
 npm --version
 npm ci --no-audit --no-fund
 npm run build
+python3 "$repo_root/scripts/verify-docx-runtime-sources.py"
 cmp dist/index.iife.js "$package_bundle"
 sha256sum dist/index.iife.js

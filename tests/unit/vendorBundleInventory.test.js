@@ -69,6 +69,27 @@ function withVendorArtifact(check) {
   }
 }
 
+test('ships the license notices for each emitted DOCX runtime helper', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const asset = notice.assetAssessments.find(entry => entry.path === docxAsset);
+    const sources = notice.supplementalLicenses.filter(item => item.asset === docxAsset);
+    expect(sources).toHaveLength(9);
+    expect(sources.map(item => item.ref).sort()).toEqual(asset.containsFiles);
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    for (const record of sources) {
+      const published = sbom.components.find(component => component['bom-ref'] === record.ref);
+      expect(published).toMatchObject({ name: record.sourcePath, hashes: [{ alg: 'SHA-256', content: record.sourceSha256 }],
+        licenses: [{ expression: 'MIT' }] });
+      const license = fs.readFileSync(path.join(root, record.path), 'utf8');
+      expect(license).toContain('VoidZero');
+      if (record.sourcePath.includes('helpers/esm/')) expect(license).toContain('Sebastian McKenzie');
+      else expect(license).toContain('Evan Wallace');
+    }
+    asset.containsFiles.pop();
+    expect(() => validatePolicyBinding(notice, policy)).toThrow(/verified component inventory/i);
+  });
+});
+
 test('rejects a DOCX notice with a missing embedded npm component', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const docx = notice.assetAssessments.find(asset => asset.path === docxAsset);
@@ -111,6 +132,22 @@ function writeRehashedSbom(root, noticePath, notice, sbom) {
   notice.sbom.sha256 = crypto.createHash('sha256').update(sbomBytes).digest('hex');
   fs.writeFileSync(noticePath, JSON.stringify(notice));
 }
+
+test('attributes the decoded standard dictionary separately from the JavaScript wrapper', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const ref = 'urn:unfallatlas:vendor-source:pdfmake:brotli-static-dictionary';
+    const record = notice.supplementalLicenses.find(license => license.ref === ref);
+    expect(record).toMatchObject({
+      asset: pdfAsset, spdx: 'MIT', sourcePath: 'c/common/dictionary.bin',
+      sourceSha256: '20e42eb1b511c21806d4d227d07e5dd06877d8ce7b3a817f378f313653f35c70',
+      copyrightIncluded: true,
+    });
+    expect(fs.readFileSync(path.join(root, record.path), 'utf8')).toContain('by the Brotli Authors');
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    expect(sbom.dependencies.find(entry => entry.ref === 'urn:unfallatlas:vendor-asset:' + pdfAsset).dependsOn).toContain(ref);
+    expect(sbom.components.find(entry => entry['bom-ref'] === ref).hashes[0].content).toBe(record.sourceSha256);
+  });
+});
 
 test('publishes the Google copyright and Apache license for the six shipped Brotli decoder files', () => {
   withVendorArtifact((root, noticePath, notice) => {

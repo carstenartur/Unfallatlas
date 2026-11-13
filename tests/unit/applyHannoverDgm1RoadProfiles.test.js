@@ -292,3 +292,15 @@ describe('apply-hannover-dgm1-road-profiles', () => {
       .toThrow(/way W3 without a DGM1 profile/);
   });
 });
+
+test('each bridge exclusion stays a distinct reason across both windows', () => {
+  const bridge = 'bridge_surface_not_represented_by_dtm';
+  const layer = 'non_ground_osm_layer';
+  const record = { status: 'computed', result: { usable: false, uncertaintyReasons: [bridge, layer] } };
+  const row = {};
+  adapter.applyProfileToRow(row, { wayId: '24011492', windows: { 20: record, 50: record } },
+    { id: 'hannover.dgm1', datasetTitle: 'Digitales Geländemodell DGM1', resolutionMeters: 1 });
+  expect(row.road_slope_uncertainty_reasons).toEqual([bridge, layer]);
+  expect(row.road_slope_missing_reason).toContain(bridge);
+  expect(row).not.toHaveProperty('road_slope_percent');
+});

@@ -351,7 +351,7 @@ describe('exportAssessmentPrompt.v2 buildPrompt', () => {
   }
 
   test('PROMPT_VERSION is stable identifier', () => {
-    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.7');
+    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.8');
   });
 
   test('assessment mode returns system+user strings', () => {

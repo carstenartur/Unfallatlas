@@ -158,7 +158,10 @@ test.describe('touch task surface', () => {
     await expect(page.locator('#exportProgress')).toHaveText('Fertig.');
 
     const modal = page.locator('#modalOverlay .modal');
-    const source = modal.getByRole('link', { name: new RegExp(limitation) });
+    const source = modal.getByRole('link', { name: /Brückenoberfläche ist im Geländemodell nicht abgebildet/ });
+    await expect(source).toContainText('Höhenprofil weicht deutlich von der linearen Anpassung ab');
+    await expect(source).toContainText('Straßengeometrie liegt nicht auf der Geländeebene');
+    await expect(source).not.toContainText(limitation);
     await expect(source).toBeVisible();
     await expect(source).toHaveAttribute('href', 'https://registry.opendata.aws/terrain-tiles/');
     const geometry = await source.evaluate(link => {

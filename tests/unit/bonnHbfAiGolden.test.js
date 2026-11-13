@@ -64,3 +64,43 @@ test('live QA saves the original provider response and rejects an unsupported re
     fs.rmSync(dir,{ recursive:true, force:true });
   }
 });
+
+test('a documented council search reaches the model with its queries and differentiated outcomes', () => {
+  const evidence = require('../fixtures/bonn-hbf-political-research.json');
+  const baseline = require('../fixtures/bonn-hbf-ai-golden.v1.json');
+  const service = require('../../server/ai/aiAssessmentServiceV2');
+  const structured = {
+    meta: { city: 'Bonn' },
+    deterministicAnalysisDigest: baseline.facts.digest,
+    politicalReferences: evidence.references,
+    politicalContextResearch: { status: 'results-found', queries: evidence.queries },
+  };
+  const input = service.buildAiInputV2(structured, {}, []);
+  const research = input.deterministicAnalysisDigest.politicalResearch;
+  expect(research.status).toBe('results-found');
+  expect(research.queries).toEqual(evidence.queries);
+  const { user } = service.buildProviderPrompt(input, 'proposal-brief');
+  expect(user).toContain('Unfälle nach schwerster Folge: 0 mit Getöteten, 1 mit Schwerverletzten, 36 mit Leichtverletzten');
+  for (const ref of evidence.references) {
+    expect(user).toContain(ref.url);
+    expect(user).toContain(ref.snippet);
+  }
+  expect(baseline.facts.digest.politicalResearch.status).toBe('not-searched');
+});
+
+test('map observations belong to the captured facts, exact views and downloadable images', () => {
+  const baseline = require('../fixtures/bonn-hbf-ai-golden.v1.json');
+  const observed = require('../fixtures/bonn-hbf-map-views/capture.json');
+  const hints = qa.reviewedMapHints(baseline);
+  expect(hints.sourceType).toBe('visual_context');
+  expect(hints.views).toHaveLength(4);
+  for (const view of observed.views) {
+    expect(hints.views).toContainEqual(expect.objectContaining({ mode: view.mode, url: view.url, fileSha256: view.fileSha256 }));
+  }
+  const changed = structuredClone(baseline);
+  changed.inputs.mapViews[1].url = changed.inputs.mapViews[0].url;
+  expect(() => qa.reviewedMapHints(changed)).toThrow(/map/i);
+  changed.inputs.mapViews = baseline.inputs.mapViews;
+  changed.inputs.mapInputsFingerprint = '0'.repeat(64);
+  expect(() => qa.reviewedMapHints(changed)).toThrow(/map/i);
+});

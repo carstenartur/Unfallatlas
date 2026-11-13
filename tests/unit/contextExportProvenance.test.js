@@ -234,6 +234,34 @@ describe('visible typed context sources use the exported evidence population', (
     expect(text).not.toContain('SRTM');
     expect(note.sources.some(source=>source.url==='https://example.org/dgm1')).toBe(true);
   });
+  test('documents show a signed, identified road profile once for repeated accidents on the same way', () => {
+    const {ctx, env} = selectedDgmContext();
+    Object.assign(ctx.contextLayerState.ways['23101052'], {
+      road_slope_quality: 'high', road_slope_profile_window_m: 50, road_slope_sample_count: 35,
+    });
+    ctx.allPts.push({...ctx.allPts[0], lat: 52.3631});
+    const labels = api.buildContextNote(env.UA, ctx).sources.map(source => source.label);
+    const profiles = labels.filter(label => label.includes('OSM-Weg 23101052'));
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]).toMatch(/-4,4 %.*bergab entlang der Way-Geometrie/);
+    expect(profiles[0]).toContain('Profilqualität hoch');
+    expect(profiles[0]).toContain('Profilfenster 50 m');
+    expect(profiles[0]).toContain('35 Stützstellen');
+  });
+
+  test('mixed signs across ways report only the absolute range, without a mean travel direction', () => {
+    const {ctx, env} = selectedDgmContext();
+    ctx.allPts.push({...ctx.allPts[0], props: {...ctx.allPts[0].props, matched_way_id: '2'}});
+    ctx.contextLayerState.ways['2'] = {...ctx.contextLayerState.ways['23101052'],
+      road_slope_percent: 0, road_slope_direction: 'approximately_flat'};
+    const sources = api.buildContextNote(env.UA, ctx).sources.map(source => source.label);
+    const ranges = sources.filter(label => label.includes('Neigungsbeträge'));
+    expect(ranges).toHaveLength(1);
+    expect(ranges[0]).toContain('2 Straßenprofile');
+    expect(ranges[0]).toContain('0,0 bis 4,4 %');
+    expect(ranges[0]).not.toMatch(/bergauf|bergab/);
+  });
+
   test('excludes out-of-scope evidence and rejects unsupported count labels', () => {
     const ctx=context(typedTraffic('count',0,2024));
     ctx.selectionBounds={contains:()=>false};

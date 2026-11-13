@@ -1,0 +1,62 @@
+{
+  "publisher": "Landesamt für Geoinformation und Landesvermessung Niedersachsen",
+  "product": "Digitales Geländemodell (DGM1)",
+  "catalog": "https://dgm.stac.lgln.niedersachsen.de/collections/dgm1",
+  "retrievedOn": "2026-11-13",
+  "tileReferenceDate": "2016-04-18",
+  "horizontalCrs": "EPSG:25832",
+  "verticalDatum": "DE_DHHN2016_NH",
+  "license": "CC-BY-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "Quelle: LGLN 2026",
+  "tiles": [
+    {
+      "id": "dgm1_32_547_5803_1_ni_2016",
+      "stac": "https://dgm.stac.lgln.niedersachsen.de/collections/dgm1/items/dgm1_32_547_5803_1_ni_2016",
+      "raster": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_547_5803_1_ni_2016.tif",
+        "sha256": "68ae8993cd3113e893dc92aa51d258da787ed99d309deec092edff518fa227f6"
+      },
+      "metadata": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_547_5803_1_ni_2016.xml",
+        "sha256": "458736ff3721f5f1a2782292f718c29eebe0d02cf0240ec5cf6d374b0e799a33"
+      }
+    },
+    {
+      "id": "dgm1_32_548_5801_1_ni_2016",
+      "stac": "https://dgm.stac.lgln.niedersachsen.de/collections/dgm1/items/dgm1_32_548_5801_1_ni_2016",
+      "raster": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_548_5801_1_ni_2016.tif",
+        "sha256": "5b8c8fd8311acc41d3f5de9c98f3c7680dbdb92e50bdbad6161cc3955e1424fc"
+      },
+      "metadata": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_548_5801_1_ni_2016.xml",
+        "sha256": "ca55a6db5300dd1d062d34371af6f2ee857f21d660d6e2d0ac6196e3a76cadd6"
+      }
+    },
+    {
+      "id": "dgm1_32_549_5802_1_ni_2016",
+      "stac": "https://dgm.stac.lgln.niedersachsen.de/collections/dgm1/items/dgm1_32_549_5802_1_ni_2016",
+      "raster": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_549_5802_1_ni_2016.tif",
+        "sha256": "a6fbed2a0c8d165ed6b21d828e72b964f7fee8c35729ff1677ca00d873f5aa2a"
+      },
+      "metadata": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_549_5802_1_ni_2016.xml",
+        "sha256": "a076275f2319e3a980a154d20dc7929d502d938b74a1fca259aee27910198247"
+      }
+    },
+    {
+      "id": "dgm1_32_550_5802_1_ni_2016",
+      "stac": "https://dgm.stac.lgln.niedersachsen.de/collections/dgm1/items/dgm1_32_550_5802_1_ni_2016",
+      "raster": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_550_5802_1_ni_2016.tif",
+        "sha256": "0ff854e8e57d4d121af026dd17c0d5ff0a00d5bf5d2f481635f17b8ffd28237f"
+      },
+      "metadata": {
+        "url": "https://dgm1.s3.eu-de.cloud-object-storage.appdomain.cloud/L1603/Vollkacheln/dgm1_32_550_5802_1_ni_2016.xml",
+        "sha256": "95507eae4266fdc33d1e9fafb1f6e937cab77e92116e755f25644bf5d4e2f978"
+      }
+    }
+  ]
+}

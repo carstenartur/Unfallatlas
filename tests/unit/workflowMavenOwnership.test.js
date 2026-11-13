@@ -67,9 +67,12 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
     const workflow = workflowSource('verify-export-upstream.yml');
     const scripts = require('../../package.json').scripts;
     const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
-    for (const input of ['pom.xml', 'package.json', 'package-lock.json', 'vendor/leaflet-build/**']) {
+    for (const input of ['pom.xml', 'package.json', 'package-lock.json', 'vendor/leaflet-build/**',
+      'scripts/reproduce-pdf-unicode.py', 'scripts/pdf-unicode-data.js']) {
       expect(workflow).toContain(`- '${input}'`);
     }
+    const pdfRebuild = fs.readFileSync(path.join(ROOT, 'scripts/verify-pdfmake-upstream.sh'), 'utf8');
+    expect(pdfRebuild).toContain('python3 "$repo_root/scripts/reproduce-pdf-unicode.py"');
     const profile = pom.split('<profile>').find(section => section.includes('<id>vendor-upstream-rebuild</id>'));
     expect(profile.split('</profile>')[0]).toContain('<arguments>run qa:vendor-upstream-rebuild</arguments>');
     expect(scripts['qa:vendor-upstream-rebuild'].split(' && ')).toEqual([

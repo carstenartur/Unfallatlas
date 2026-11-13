@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import tempfile
 import zipfile
+from xml.etree import ElementTree
 
 import numpy as np
 from osgeo import gdal, osr
@@ -70,7 +71,7 @@ def neighbours(point):
             (west, south+1, (1-dx)*dy), (west+1, south+1, dx*dy)]
 
 
-def plans(cases):
+def plans(cases, step=1):
     transform = QgsCoordinateTransform(QgsCoordinateReferenceSystem('EPSG:4326'),
                                        QgsCoordinateReferenceSystem('EPSG:25832'), QgsProject.instance())
     def project(point):
@@ -80,19 +81,34 @@ def plans(cases):
         centre = line.lineLocatePoint(QgsGeometry.fromPointXY(project(case['anchor']))) if 'anchor' in case else line.length() / 2
         for window in (20, 50):
             start, end = max(0, centre-window), min(line.length(), centre+window)
-            distances = list(np.arange(start, end+1e-6, 1.0))
+            distances = list(np.arange(start, end+1e-6, step))
             if end - distances[-1] > 0.25:
                 distances.append(end)
             yield case, window, distances, [line.interpolate(float(d)).asPoint() for d in distances]
 
 
-def run(archives, root, samples_file=None):
+def reference_cases(root):
     references = json.loads((root / 'tests/fixtures/hannover-dgm1-real/reference-cases.json').read_text())
-    catalog = json.loads((root / 'config/hannover-dgm1-city-archives.json').read_text())
     bridge_file = root / 'tests/fixtures/hannover-dgm1-real/westschnellweg-transition.json'
     approach = json.loads(bridge_file.read_text())['approach']
-    cases = references['cases'] + [{'wayId': approach['id'], 'originalTags': approach['tags'],
-                                    'geometry': approach['geometry'], 'transition': True}]
+    return references['cases'] + [{'wayId': approach['id'], 'originalTags': approach['tags'],
+                                   'geometry': approach['geometry'], 'transition': True}]
+
+
+def read_height(point, layers, tile_size):
+    height = 0
+    for x, y, weight in neighbours(point):
+        key = tile_size * math.floor(x / tile_size), tile_size * math.floor(y / tile_size)
+        z, ok = layers[key].dataProvider().sample(QgsPointXY(x, y), 1)
+        if not ok or not math.isfinite(z):
+            raise ValueError(f'Missing original DGM1 cell at {x}, {y}')
+        height += weight * z
+    return height
+
+
+def run(archives, root, samples_file=None, state_tiles=None, comparison=None):
+    catalog = json.loads((root / 'config/hannover-dgm1-city-archives.json').read_text())
+    cases = reference_cases(root)
     sample_plans = list(plans(cases))
     cells = {cell_key(x, y) for _, _, _, points in sample_plans for point in points for x, y, _ in neighbours(point)}
     with tempfile.TemporaryDirectory() as temporary:
@@ -100,15 +116,7 @@ def run(archives, root, samples_file=None):
         result = []
         sampled = []
         for case, window, distances, points in sample_plans:
-            heights = []
-            for point in points:
-                height = 0
-                for x, y, weight in neighbours(point):
-                    z, ok = layers[cell_key(x, y)].dataProvider().sample(QgsPointXY(x, y), 1)
-                    if not ok or not math.isfinite(z):
-                        raise ValueError('QGIS could not sample the original DGM1 cell')
-                    height += weight * z
-                heights.append(height)
+            heights = [read_height(point, layers, 500) for point in points]
             if samples_file and window == 50:
                 sampled.append({'wayId': case['wayId'], 'profile': [
                     [round(float(d), 3), round(h, 4)] for d, h in zip(distances, heights)]})
@@ -119,6 +127,8 @@ def run(archives, root, samples_file=None):
                            'terrainProfilePercent': round(fit.slope*100, 3), 'residualMadM': round(residual, 4),
                            'bridge': case['originalTags'].get('bridge') == 'yes',
                            'bridgeTransition': case.get('transition', False)})
+        if comparison:
+            compare_surveys(root, cases, layers, state_tiles, comparison)
         layers.clear()
         if samples_file:
             samples_file.write_text(json.dumps({
@@ -130,18 +140,92 @@ def run(archives, root, samples_file=None):
         print(json.dumps({'qgis': Qgis.QGIS_VERSION, 'originalTiles': len(cells), 'profiles': result}, indent=2))
 
 
+def file_digest(path):
+    with path.open('rb') as source:
+        return hashlib.file_digest(source, 'sha256').hexdigest()
+
+
+def state_reference_layers(directory, catalog):
+    layers, tile_ids = {}, {}
+    for tile in catalog['tiles']:
+        raster = directory / Path(tile['raster']['url']).name
+        metadata = directory / Path(tile['metadata']['url']).name
+        for name, asset in [(raster, 'raster'), (metadata, 'metadata')]:
+            if file_digest(name) != tile[asset]['sha256']:
+                raise ValueError(f'LGLN source digest mismatch: {name}')
+        xml = ElementTree.parse(metadata)
+        checks = {'KACHELNAME': tile['id'], 'AKTUALITAET': catalog['tileReferenceDate'],
+                  'KOORDINATENREFERENZSYSTEM_HOEHE': catalog['verticalDatum']}
+        if any(xml.findtext(field) != expected for field, expected in checks.items()):
+            raise ValueError(f'Unexpected LGLN metadata: {metadata}')
+        layer = QgsRasterLayer(str(raster), tile['id'])
+        if (not layer.isValid() or layer.crs().authid() != catalog['horizontalCrs']
+                or (layer.width(), layer.height()) != (1000, 1000)
+                or (layer.rasterUnitsPerPixelX(), layer.rasterUnitsPerPixelY()) != (1, 1)):
+            raise ValueError(f'Unexpected LGLN raster grid: {raster}')
+        key = layer.extent().xMinimum(), layer.extent().yMinimum()
+        if key in layers or any(v % 1000 for v in key):
+            raise ValueError(f'Duplicate or misaligned LGLN tile: {raster}')
+        layers[key], tile_ids[key] = layer, tile['id']
+    return layers, tile_ids
+
+
+def compare_surveys(root, cases, city_layers, directory, output):
+    city_catalog = 'config/hannover-dgm1-city-archives.json'
+    state_catalog = 'config/hannover-dgm1-lgln-reference-tiles.json'
+    geometry_files = ['tests/fixtures/hannover-dgm1-real/reference-cases.json',
+                      'tests/fixtures/hannover-dgm1-real/westschnellweg-transition.json']
+    city = json.loads((root / city_catalog).read_text())
+    state = json.loads((root / state_catalog).read_text())
+    state_layers, tile_ids = state_reference_layers(directory, state)
+    profiles = {case['wayId']: {'wayId': case['wayId'], 'fits': []} for case in cases}
+    for step in (1, 2, 5):
+        for case, window, distances, points in plans(cases, step):
+            city_z = [read_height(p, city_layers, 500) for p in points]
+            state_z = [read_height(p, state_layers, 1000) for p in points]
+            profile = profiles[case['wayId']]
+            fit = {'windowM': window, 'stepM': step, 'count': len(points)}
+            for name, heights in [('city', city_z), ('state', state_z)]:
+                line = theilslopes(heights, distances, method='joint')
+                residual = np.median(np.abs(heights - (line.slope*np.array(distances) + line.intercept)))
+                fit[name + 'Percent'] = round(100 * line.slope, 3)
+                fit[name + 'ResidualMadM'] = round(residual, 4)
+            profile['fits'].append(fit)
+            if window == 50 and step == 1:
+                profile['stateTiles'] = sorted({tile_ids[(1000*math.floor(x/1000), 1000*math.floor(y/1000))]
+                                                for p in points for x, y, _ in neighbours(p)})
+                rows = [[round(float(d), 3), round(z, 4), round(h, 4)]
+                        for d, z, h in zip(distances, city_z, state_z)]
+                profile['samples'] = rows
+                csv = ''.join(f'{d:.3f},{z:.4f},{h:.4f}\n' for d, z, h in rows)
+                profile['sampleSha256'] = hashlib.sha256(csv.encode('ascii')).hexdigest()
+    for profile in profiles.values():
+        profile['fits'].sort(key=lambda fit: (fit['windowM'], fit['stepM']))
+    result = {'sources': {'municipalSurveyYear': city['surveyYear'], 'municipalVerticalDatum': city['verticalDatum'],
+                          'stateTileReferenceDate': state['tileReferenceDate'], 'stateVerticalDatum': state['verticalDatum'],
+                          'fileSha256': {name: file_digest(root / name) for name in [city_catalog, state_catalog, *geometry_files]}},
+              'attribution': [city['attribution'], state['attribution'], '© OpenStreetMap contributors, ODbL 1.0'],
+              'sampleColumns': ['distanceAlongOsmWayM', 'municipalTerrainHeightM', 'stateTerrainHeightM'],
+              'profiles': list(profiles.values())}
+    output.write_text(json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--archives', type=Path, required=True)
     parser.add_argument('--samples', type=Path, help='Write the checked ±50 m terrain profiles as JSON')
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument('--state-tiles', type=Path, help='Local directory containing the pinned LGLN TIFF/XML pairs')
+    parser.add_argument('--comparison', type=Path, help='Write the paired municipal and LGLN reference profiles')
     args = parser.parse_args()
+    if bool(args.state_tiles) != bool(args.comparison):
+        parser.error('--state-tiles and --comparison must be supplied together')
     os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
     gdal.UseExceptions()
     osr.UseExceptions()
     app = QgsApplication([], False)
     app.initQgis()
     try:
-        run(args.archives, args.root, args.samples)
+        run(args.archives, args.root, args.samples, args.state_tiles, args.comparison)
     finally:
         app.exitQgis()

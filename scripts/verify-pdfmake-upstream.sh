@@ -9,6 +9,8 @@ if (( $# > 2 )); then
   echo "Usage: bash scripts/verify-pdfmake-upstream.sh [local-source-archive [local-roboto-archive]]" >&2
   exit 2
 fi
+# Reproduce the embedded UCD and shaper data against the app lock installed by Maven.
+python3 "$repo_root/scripts/reproduce-pdf-unicode.py"
 build_dir=$(mktemp -d)
 trap 'rm -rf -- "$build_dir"' EXIT
 archive="$build_dir/source.tar.gz"
@@ -46,6 +48,7 @@ with zipfile.ZipFile(archive) as release:
         if hashlib.sha256(raw).hexdigest() != entry['sha256'] or raw != (Path('fonts/Roboto') / name).read_bytes():
             sys.exit('Roboto release differs from the VFS input: ' + name)
 PYFONT
+bash "$repo_root/scripts/verify-roboto-upstream.sh" "$font_archive"
 cp -- "$repo_root/vendor/pdfmake-build/npm-lock.json" package-lock.json
 printf '%s  %s\n' "$lock_sha" package-lock.json | sha256sum --check
 # ajv-keywords 5 requires Ajv 8; the legacy webpack plugin declares webpack 1.
@@ -54,6 +57,7 @@ node --version
 npm --version
 npm ci --legacy-peer-deps --no-audit --no-fund
 bash "$repo_root/scripts/verify-xmldoc-upstream.sh" "$PWD/node_modules/xmldoc"
+bash "$repo_root/scripts/verify-brotli-dictionary-upstream.sh" "$PWD/node_modules/brotli"
 # Compare the five archived notices against the packages actually installed by this build.
 node - "$repo_root/vendor/pdfmake-build" <<'NODE'
 const fs = require('node:fs');

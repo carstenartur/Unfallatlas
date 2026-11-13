@@ -64,7 +64,7 @@ function aiInput() {
 
 describe('server-side AI prompt preserves official Unfallatlas evidence', () => {
   test('keeps the existing cache-version contract while adding official sources', () => {
-    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.7');
+    expect(PROMPT_VERSION).toBe('exportAssessmentPrompt.v2.8');
     expect(OFFICIAL_UNFALLATLAS_URL).toBe('https://www.statistikportal.de/de/karten/unfallatlas');
     expect(OFFICIAL_DESTATIS_URL).toMatch(/destatis\.de/);
   });
@@ -83,7 +83,8 @@ describe('server-side AI prompt preserves official Unfallatlas evidence', () => 
 
     expect(user).toContain('=== DATENSTATUS UND EVIDENZREGEL ===');
     expect(user).toContain('Unfälle gesamt im Bereich: 7');
-    expect(user).toContain('Getötete/Schwerverletzte/Leichtverletzte: 0 / 2 / 5');
+    expect(user).toContain('Unfälle nach schwerster Folge (Getötete / Schwerverletzte / Leichtverletzte): 0 / 2 / 5');
+    expect(user).not.toContain('Davon Getötete/Schwerverletzte/Leichtverletzte');
     expect(user).toContain('=== QUALITÄTSAUFTRAG VOR TEXTGENERATION ===');
     expect(user).toContain('Behandle die genannten Unfälle als amtlich dokumentierte Tatsachen');
     expect(user).toContain('Verknüpfe jede Maßnahme mit mindestens einem konkreten Befund');

@@ -41,9 +41,80 @@
           "licenseFile": "LICENSE",
           "licenseSha256": "4383cb2c3608397ce7a4159502614ed66890f8999c2a9c056dd3b1024d6721f0"
         }
+      ],
+      "generatedRuntimes": [
+        {
+          "component": "rolldown@1.2.15",
+          "sourceArchive": "https://registry.npmjs.org/rolldown/-/rolldown-1.2.15.tgz",
+          "sourceIntegrity": "sha512-6odND+fel5zVw3I4Yc2e69gvguDnX0CAAGiNDZSq4ik5WUcaLrkD2GLuog0XcODbor31hZ5ayEMgVDno+KPV5g==",
+          "spdx": "MIT",
+          "licenseFile": "vendor/docx-build/rolldown-runtime-notices.txt",
+          "path": "vendor/licenses/components/docx-rolldown-runtime-notices.txt",
+          "sha256": "7df0da75537e780a5eb5de672138a4f28e8f00a9870b6de73629f8ce41fe739b",
+          "modules": [
+            {
+              "label": "\\0rolldown/runtime.js",
+              "sourcePath": "crates/rolldown/src/runtime/runtime-base.js",
+              "sourceSha256": "dce431abd7483c7b92a675b41958d6a2a2c8b13d2b13ee546a34935da7c7676d"
+            }
+          ],
+          "sourceUrl": "https://raw.githubusercontent.com/rolldown/rolldown/89d821ca07cf9ccd84dd92bd3f48af0f579ab21a/crates/rolldown/src/runtime/runtime-base.js"
+        },
+        {
+          "component": "@oxc-project/runtime@0.155.0",
+          "sourceArchive": "https://registry.npmjs.org/@oxc-project/runtime/-/runtime-0.155.0.tgz",
+          "sourceIntegrity": "sha512-VbW9raczGS5ZZ1FMunUBYHe4uV/R684qlQCoMdE3n5JT1PcqQsvmFpMYkF8AD+W04fBLGAq6Tr7YsTk0jjvDBA==",
+          "spdx": "MIT",
+          "licenseFile": "vendor/docx-build/oxc-runtime-notices.txt",
+          "path": "vendor/licenses/components/docx-oxc-runtime-notices.txt",
+          "sha256": "0e80fa6ef13ae6db0622b1a23c1b6053cb6273a6cabaf349a38a50bc9b6b55b1",
+          "modules": [
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/typeof.js",
+              "sourcePath": "src/helpers/esm/typeof.js",
+              "sourceSha256": "928bcbbdf74fe24ed7486e7f982c4389c1859886b3ed904ebd2677f22193b57a"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/toPrimitive.js",
+              "sourcePath": "src/helpers/esm/toPrimitive.js",
+              "sourceSha256": "9660291e71923cb5ff9aaaa1de354515c26e3220cba56ac5d21b806f23875545"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/toPropertyKey.js",
+              "sourcePath": "src/helpers/esm/toPropertyKey.js",
+              "sourceSha256": "7f0000acc9c9cf7594b412095be66cdc59066b25458a16fe1434fd00cff478e7"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/defineProperty.js",
+              "sourcePath": "src/helpers/esm/defineProperty.js",
+              "sourceSha256": "2bad7c96ee851cf2cfe1320a54fd88dd5f769a7faf8bd92d60c9f2e6d1e381dd"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectSpread2.js",
+              "sourcePath": "src/helpers/esm/objectSpread2.js",
+              "sourceSha256": "d03a134abca2a223a82172030d7d79a4b779ab3ee7df91391fb62cad74586284"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectWithoutPropertiesLoose.js",
+              "sourcePath": "src/helpers/esm/objectWithoutPropertiesLoose.js",
+              "sourceSha256": "625b5d223cee76c6883bac69a573ac5512414c2174b2c4bde50d1543e71d97a1"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectWithoutProperties.js",
+              "sourcePath": "src/helpers/esm/objectWithoutProperties.js",
+              "sourceSha256": "f0d056e4c8fec80fe2fe09364c7f30ae67e3f2e2818e76f8d967544f6335bb98"
+            },
+            {
+              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/asyncToGenerator.js",
+              "sourcePath": "src/helpers/esm/asyncToGenerator.js",
+              "sourceSha256": "d08e6edc7ad01f1116fcbfbd11da76fd9ca700fc17b6e2d1067d16f55564fde3"
+            }
+          ]
+        }
       ]
     },
     "vendor/export/pdfmake.js": {
+      "unicodeDataManifestSha256": "696ffbbd56ed4c15b0c7dbeb02683b5c437fa5d7ae2c47102188cca869d6cf52",
       "owner": "pkg:npm/pdfmake@0.3.14",
       "bundleSha256": "e095e5b991dce0eb84f1989c42a2dbf7d0672fb8510ea3fe1c958920d6d3751d",
       "lockFile": "vendor/pdfmake-build/npm-lock.json",
@@ -120,6 +191,44 @@
           "dec/dictionary.js": "f7bd7462acad204047edc609009dfeb28239f14fe6f06ca42661f1d751382946",
           "dec/prefix.js": "e65fb2183d6fc1058020ba55939ea08334d39ae33bf4832d952d9acab5db2d8a",
           "dec/transform.js": "56c0ebea0ce70b4d7afa7225eca2e5c9e0046dbdc9a4d6b568c5d5f4b47f170b"
+        },
+        "dictionary": {
+          "ref": "urn:unfallatlas:vendor-source:pdfmake:brotli-static-dictionary",
+          "component": "Brotli static dictionary (decoded bytes)",
+          "sourcePath": "c/common/dictionary.bin",
+          "sourceSha256": "20e42eb1b511c21806d4d227d07e5dd06877d8ce7b3a817f378f313653f35c70",
+          "sourceUrl": "https://raw.githubusercontent.com/google/brotli/ed738e842d2fbdf2d6459e39267a633c4a9b2f5d/c/common/dictionary.bin",
+          "licenseUrl": "https://raw.githubusercontent.com/google/brotli/ed738e842d2fbdf2d6459e39267a633c4a9b2f5d/LICENSE",
+          "spdx": "MIT",
+          "copyright": "Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.",
+          "path": "vendor/licenses/components/pdfmake-brotli-dictionary-MIT.txt",
+          "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"
+        }
+      },
+      "nestedPdfkitSources": {
+        "packagePath": "node_modules/@noble/hashes",
+        "bundleSha256": "797d954a516c57cf4ee8352e17611991ecc2e2799e7e4ac09434ea5ca75423fe",
+        "mapSha256": "4d3bd1849034d304d85e67eee9a437ed9eb3cea4121d9d14ecd12e8f30341d31",
+        "licensePath": "vendor/licenses/components/_noble_hashes-1.8.0-LICENSE.txt",
+        "licenseSha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
+        "files": {
+          "_md.js": "cefb1557e7715cb2117c83f82ef3e3175c7e0391c80bd5795b2d4effc45fc582",
+          "_u64.js": "e48c0cfc10810439a4807b46db136ce603a3fa09b62584f513ef2f3ca496af54",
+          "legacy.js": "4906186a82438392443e3ac2a59d0acbbec2bee2595d048c8d8c0dd6584d4bdb",
+          "sha2.js": "e729088b82e5450bff54c3a0013582aa42e1fe8f58dd31f5967f6ebe34c52299",
+          "utils.js": "4cf4c1e05affedcb4fd584a43d76ae1a3711e34a36e2251b90c27e33ecc74fad"
+        },
+        "colorProfile": {
+          "ref": "urn:unfallatlas:vendor-source:pdfkit:icc:srgb2014",
+          "component": "International Color Consortium sRGB2014",
+          "sourcePath": "node_modules/pdfkit/js/data/sRGB_IEC61966_2_1.icc",
+          "sourceSha256": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+          "sourceUrl": "https://registry.color.org/rgb-registry/profiles/sRGB2014.icc",
+          "licenseUrl": "https://registry.color.org/profile-library/",
+          "spdx": "LicenseRef-ICC-Profile",
+          "copyright": "Copyright International Color Consortium, 2015",
+          "path": "vendor/licenses/components/pdfkit-ICC-sRGB2014.txt",
+          "sha256": "7d3f6be5b6a7c756c7d5fbf80623d64fe94404c4137eef01d0a414d34004ea2d"
         }
       }
     },
@@ -162,7 +271,7 @@
       "kind": "opaque-supplier-bundle",
       "missingEvidence": [
         "two independently signed source-build attestations",
-        "complete source attribution for generated code beyond the verified npm module paths"
+        "independent audit of code attribution beyond the labeled modules and generated runtimes"
       ],
       "migrationOptions": [
         "Build a browser entry from a checked-in, integrity-pinned vendor workspace and retain the bundler metafile and source map.",
@@ -192,11 +301,10 @@
       ],
       "kind": "embedded-font-container",
       "missingEvidence": [
-        "reproduction of the source-to-TTF typeface build",
         "independently signed VFS generator attestations"
       ],
       "migrationOptions": [
-        "Use the pinned, verified typeface-release archive to reproduce and attest the source-to-TTF step.",
+        "Sign the verified source-to-TTF and VFS rebuilds with independent trusted builders.",
         "Use a checked-in OFL font family with deterministic subsetting and VFS generation."
       ]
     },

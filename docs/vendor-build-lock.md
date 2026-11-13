@@ -111,6 +111,15 @@ entpackten Hersteller-Locks und die unveränderten MIT-Texte. Notice und
 CycloneDX binden `fflate@0.8.3` und `nanoid@6.0.2` als enthaltene Komponenten
 an `vendor/export/docx.js`.
 
+Zusätzlich nennt das ausgelieferte IIFE neun virtuelle Laufzeitmodule.
+Rolldown 1.2.15 erzeugt den CommonJS-Helfer aus `runtime-base.js`; acht
+weitere Helfer stammen aus `@oxc-project/runtime@0.155.0`. Der Herkunftsnachweis
+verknüpft jeden Modulnamen mit dem Hash der unveränderten Quelldatei.
+Die Hashes beziehen sich auf die Quellen vor der Minifizierung. Der
+Herstellerbuild prüft diese Originaldateien und die ausgelieferten
+Lizenztexte einschließlich der von Rolldown und Oxc benannten Drittanbieter.
+Der separate Abgleich des vollständigen IIFE prüft die erzeugten Bytes.
+
 Nach `npm ci` im Repository reproduziert der folgende Befehl den Vergleich.
 Als optionales Argument akzeptiert er ein bereits heruntergeladenes
 Upstream-Quellarchiv. Die Prüfsummen für Archiv, Lockfile und Bundle werden
@@ -167,6 +176,20 @@ installierten Versionen sind archiviert und werden beim Neuaufbau mit den
 installierten Originalen verglichen. Der exakte SVG-to-PDFKit-Fork besitzt
 eine eigene CycloneDX-Dateireferenz mit Quell- und Lizenzhash.
 
+PDFKit 0.20.2 enthält in seiner eigenen Browser-Source-Map fünf Module
+von `@noble/hashes@1.8.0`. Für jedes Modul vergleicht der Seitenbuild
+die Bytes mit dem installierten Original aus dem PDF-Build-Lock. Die
+gehashte PDFKit-Source-Map ist über ihr Browser-Modul an die äußere
+pdfmake-Map gebunden. Dabei wird die im pdfmake-Herstellerbuild
+vorgesehene Ersetzung des ICC-Ressourcenpfads berücksichtigt. Die fünf
+Dateien erscheinen mit ihren Hashes und dem MIT-Text in Notice und SBOM.
+Das eingebettete Farbprofil ist bytegleich mit den 3.024 Originalbytes
+von `sRGB2014.icc` im Profilregister des International Color Consortium.
+Der Build vergleicht das Profil mit den Base64-Daten der inneren Source-Map
+und dem Hersteller-Hash. Notice und SBOM binden den eigenen Lizenztext
+des ICC an diese Datei. Die Herkunft der generierten Unicode-Daten
+bleibt offen.
+
 Sechs Dateien aus `brotli@1.3.3` tragen denselben Apache-2.0-Lizenzhinweis
 mit Copyright von Google Inc. aus dem Jahr 2013. Der Seitenbuild vergleicht
 diese Dateien bytegenau mit den in der PDF-Source-Map enthaltenen Quellen.
@@ -175,6 +198,13 @@ Quellhashes, den gemeinsamen Lizenzkopf und den unveränderten Lizenzvolltext
 der Apache Software Foundation. Notice und CycloneDX verknüpfen jede der
 sechs Dateien mit dem gemeinsamen Copyright- und Lizenztext unter
 `vendor/licenses/components/pdfmake-brotli-decoder-Apache-2.0.txt`.
+
+Das aus `dec/dictionary.bin.js` dekodierte Wörterbuch ist mit den 122.784
+Bytes von `c/common/dictionary.bin` im Original-Release 1.1.0 des
+Brotli-Projekts identisch. Auch der Hexdump in RFC 7932, Anhang A,
+ergibt denselben SHA-256. Notice und SBOM verknüpfen die Originalbytes
+mit dem MIT-Text der Brotli-Autoren. Der Dateieintrag umfasst die
+dekodierten Wörterbuchdaten.
 
 Offen bleiben der Volltext für die MIT-Deklaration im Brotli-NPM-Paket,
 die Lizenznachweise für die übrigen eingebetteten Brotli-Dateien, die
@@ -188,6 +218,15 @@ Google Fonts. `vendor/pdfmake-build/roboto-release.json` bindet das
 Releasearchiv, die vier Pfade, SHA-256, PostScript-Namen und Versionsfelder.
 Der normale Seitenbuild prüft die dekodierten VFS-Dateien gegen dieselben
 Hash- und Namensangaben und veröffentlicht den Archivnachweis je Schrift.
+
+Der PDF-Herstellercheck baut außerdem alle vier Web-Schriften aus den UFO-
+und Designspace-Quellen des Tags `v3.016` von Google Fonts. Er verwendet
+Python 3.11, hashgebundene Buildwerkzeuge und den Hinting-, Subsetting-
+und Instanziierungspfad des Herstellers. Für die Zeitfelder dienen die
+Originalzeitstempel der jeweiligen Schrift aus dem gehashten Release.
+Der Vergleich umfasst die vollständigen neu erzeugten TTF-Dateien.
+Der separate Aufruf lautet `bash scripts/verify-roboto-upstream.sh Roboto_v3.016.zip`.
+Mit `ROBOTO_PYTHON` lässt sich der Pfad zu Python 3.11 angeben.
 
 Der PDF-Quellverweis `webpack://pdfmake/../xmldoc.ts` entsteht aus der
 Source Map des ES-Modul-Einstiegs von `xmldoc@2.0.3`. Der Hersteller liefert
@@ -220,3 +259,28 @@ Rolldown 1.2.16, die Global-Einstiegsdatei und die Build-Konfiguration.
 Der Nachbau setzt das Jahr im Copyright-Banner auf das Veröffentlichungsjahr
 2026. Er vergleicht Global-Bundle und Source Map byteweise mit dem npm-Paket.
 Für beide Kartenbibliotheken stehen die unabhängigen Signaturen aus.
+
+## Generierte Unicode-Daten des PDF-Exporters
+
+Drei generierte Unicode-Ressourcen des PDF-Exporters sind aus Originaldaten
+reproduziert. `unicode-properties@1.4.1` erzeugt aus den 13 UCD-12.0.0-Dateien
+in `codepoints@1.3.0` die Dateien `data.trie` (9.696 Bytes) und `data.json`
+(2.516 Bytes). `linebreak@1.1.0` erzeugt aus `LineBreak.txt` von UCD 14.0.0
+`classes.trie` (3.870 Bytes). Nach `npm ci` wiederholt
+`python3 scripts/reproduce-pdf-unicode.py` die beiden ursprünglichen
+Generatoren mit den gepinnten Quellen. Der Seitenbuild prüft die drei Daten
+im installierten Paketmodul, in der pdfmake-Source-Map und im ausgelieferten
+minifizierten PDF-Bundle. Notice und SBOM binden für diese Daten die
+[Unicode-Lizenz](https://www.unicode.org/license.txt) ein. Die zugehörigen
+Release-Readmes werden unverändert mitgeliefert. Sie nennen für UCD 12.0.0
+© 2019 Unicode®, Inc., für UCD 14.0.0 © 2021 Unicode®, Inc., und verweisen
+auf die [Nutzungsbedingungen für Unicode-Daten](https://www.unicode.org/copyright.html).
+Der am 13. November 2026 archivierte Lizenztext V3 trägt separat das
+Copyright 1991–2026. Der Wiederholungslauf prüft diese feste Kopie anhand
+ihres SHA-256. Die MIT-Lizenzen der JavaScript-Pakete gelten für deren Software.
+Der Herstellerprüflauf im Maven-Profil `vendor-upstream-rebuild` ruft das
+Skript auf. Es baut außerdem die drei Tries und zwei
+Zustandsmaschinen aus `fontkit@2.0.4` nach und findet die gleichen Bytes im
+ausgelieferten PDF-Bundle. In diese Ressourcen gehen zusätzliche Shaper-Regeln
+ein. Ihre Lizenzherkunft ist weiterhin offen. Originaladressen und Prüfsummen stehen im
+[Quellenmanifest](../vendor/pdfmake-build/unicode-data.json).
