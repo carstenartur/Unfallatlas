@@ -21,6 +21,7 @@ const {
 const HASH = 'a'.repeat(64);
 const LOCK_ID = 'unfallatlas-vendor-build-2026-07-19';
 const PURL = 'pkg:npm/example@1.0.0';
+const EMBEDDED_REF = 'urn:unfallatlas:vendor-source:example:helper';
 const clone = value => JSON.parse(JSON.stringify(value));
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const sha512 = value => crypto.createHash('sha512').update(value).digest('hex');
@@ -165,6 +166,9 @@ function completeSbom(manifest) {
         type: 'file',
         'bom-ref': `urn:unfallatlas:font:${font.name}`,
       })),
+      ...(manifest.supplementalLicenses || []).filter(source => source.ref).map(source => ({
+        type: 'file', 'bom-ref': source.ref,
+      })),
     ],
     dependencies: [{ ref: assetRef, dependsOn: [PURL, ...asset.containsFiles].sort() }],
     compositions: [{ aggregate: 'complete', assemblies: [assetRef] }],
@@ -203,7 +207,7 @@ of the Font Software, to use, study, copy, merge, embed, modify, redistribute,
 and sell modified and unmodified copies of the Font Software.
 `;
 
-function createDeepFixture() {
+function createDeepFixture({ supplemental = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-vendor-lock-'));
   const write = (relative, contents) => {
     const absolute = path.join(root, relative);
@@ -267,6 +271,54 @@ function createDeepFixture() {
   manifest.components[0].licenseTexts[0].sha256 = sha256(componentLicenseBytes);
   manifest.dependencies[0].licenseTextSha256 = sha256(componentLicenseBytes);
 
+  const supplementalInputs = [];
+  const supplementalSources = [];
+  if (supplemental) {
+    const component = manifest.components[0];
+    component.buildAttestation = component.attestation;
+    component.attestation = { type: 'npm-package-lock-integrity', value: component.integrity, lockPath: 'node_modules/example' };
+    const sourceInput = input('input:embedded-source', 'source-file', 'vendor/build-inputs/helper.js', 'export const helper = true;\n');
+    const licenseInput = input('input:embedded-license', 'license-file', 'vendor/licenses/helper.txt', MIT_LICENSE);
+    const originalNotice = input('input:embedded-notice', 'license-file', 'vendor/licenses/helper-notice.txt', 'Copyright (c) 2026 Example Authors\n');
+    const source = {
+      ref: EMBEDDED_REF,
+      asset: 'vendor/example.js',
+      component: 'Example helper',
+      sourcePath: 'src/helper.js',
+      sourceSha256: sourceInput.record.sha256,
+      sourceUrl: 'https://example.test/src/helper.js',
+      spdx: 'MIT',
+      path: licenseInput.record.path,
+      sha256: licenseInput.record.sha256,
+      licenseUrl: 'https://example.test/LICENSE',
+      sourceNoticePath: originalNotice.record.path,
+      sourceNoticeSha256: originalNotice.record.sha256,
+      copyrightIncluded: true,
+      attestation: lockReference('source:embedded-file'),
+      licenseAttestation: lockReference('source:embedded-license'),
+    };
+    manifest.supplementalLicenses = [source];
+    manifest.assetAssessments[0].containsFiles.push(EMBEDDED_REF);
+    supplementalInputs.push(sourceInput.record, licenseInput.record, originalNotice.record);
+    supplementalSources.push({
+      id: source.attestation.lockRef,
+      type: 'file',
+      subject: { type: 'file', ref: source.ref, path: source.sourcePath, sha256: source.sourceSha256 },
+      upstream: {
+        type: 'source-file', locator: source.sourceUrl,
+        digest: { algorithm: 'sha256', value: source.sourceSha256 }, inputRef: sourceInput.record.id,
+      },
+    }, {
+      id: source.licenseAttestation.lockRef,
+      type: 'license',
+      subject: { type: 'license', ownerRef: source.ref, path: source.path, sha256: source.sha256, copyrightIncluded: true },
+      upstream: {
+        type: 'source-file', locator: source.licenseUrl,
+        digest: { algorithm: 'sha256', value: source.sha256 }, inputRef: licenseInput.record.id,
+      },
+    });
+  }
+
   const fontInputs = manifest.fontEvidence.map((font, index) => {
     const source = input(
       `input:font:${index}`,
@@ -321,7 +373,7 @@ function createDeepFixture() {
   ];
 
   const sources = [{
-    id: manifest.components[0].attestation.lockRef,
+    id: (manifest.components[0].buildAttestation || manifest.components[0].attestation).lockRef,
     type: 'component',
     subject: {
       type: 'component',
@@ -387,6 +439,7 @@ function createDeepFixture() {
     ...toolInputs.map(entry => entry.record.id),
     componentArchive.record.id,
     ...fontInputs.map(entry => entry.record.id),
+    ...supplementalInputs.map(entry => entry.id),
     configInput.record.id,
     buildScriptInput.record.id,
   ];
@@ -402,6 +455,7 @@ function createDeepFixture() {
     ...toolInputs.map(entry => entry.record),
     componentArchive.record,
     ...fontInputs.map(entry => entry.record),
+    ...supplementalInputs,
     componentLicenseInput.record,
     fontLicenseInput.record,
     configInput.record,
@@ -446,6 +500,19 @@ function createDeepFixture() {
           commandRef: command.id,
           cwd: command.cwd,
           argv: command.argv,
+          ...(supplemental ? { supplementalSources: [{
+            ref: EMBEDDED_REF,
+            sourcePath: 'src/helper.js',
+            sourceSha256: supplementalInputs[0].sha256,
+            sourceLocator: 'https://example.test/src/helper.js',
+            sourceInput: 'vendor/build-inputs/helper.js',
+            spdx: 'MIT',
+            licensePath: 'vendor/licenses/helper.txt',
+            licenseSha256: supplementalInputs[1].sha256,
+            licenseLocator: 'https://example.test/LICENSE',
+            sourceNoticePath: 'vendor/licenses/helper-notice.txt',
+            sourceNoticeSha256: supplementalInputs[2].sha256,
+          }] } : {}),
         },
         internalParameters: { toolchain: attestedToolchain },
         resolvedDependencies,
@@ -482,7 +549,7 @@ function createDeepFixture() {
     toolchain,
     commands: [command],
     inputs: [...baseInputs, ...provenanceEntries.map(entry => entry.record)],
-    sources,
+    sources: [...sources, ...supplementalSources],
     outputs: [output],
   };
   const lockBytes = write(manifest.vendorBuildLock.path, `${JSON.stringify(lock, null, 2)}\n`);
@@ -596,9 +663,9 @@ describe('versioned vendor build-lock deep validation', () => {
 
   const validateLock = (lock = fixture.lock, manifest = fixture.manifest, policy = fixture.policy) =>
     validateVendorBuildLock(fixture.root, manifest, lock, policy);
-  const resetFixture = () => {
+  const resetFixture = options => {
     fs.rmSync(fixture.root, { recursive: true, force: true });
-    fixture = createDeepFixture();
+    fixture = createDeepFixture(options);
   };
   const replaceProvenance = (lock, index, envelope) => {
     const ref = lock.outputs[0].rebuilds[index].provenanceInputRef;
@@ -611,6 +678,57 @@ describe('versioned vendor build-lock deep validation', () => {
     expect(() => validateCompletenessClaims(fixture.manifest)).not.toThrow();
     expect(() => validateLock(clone(fixture.lock))).not.toThrow();
     expect(() => loadAndValidateVendorBuildLock(fixture.root, fixture.manifest, fixture.policy)).not.toThrow();
+  });
+
+  test('accepts a signed supplemental file, full license and upstream notice for the owning asset', () => {
+    resetFixture({ supplemental: true });
+    expect(() => validateCompletenessClaims(fixture.manifest)).not.toThrow();
+    expect(() => validateCompleteSbom(fixture.manifest, completeSbom(fixture.manifest))).not.toThrow();
+    expect(() => loadAndValidateVendorBuildLock(fixture.root, fixture.manifest, fixture.policy)).not.toThrow();
+  });
+
+  test('rejects a complete SBOM that links a supplemental file but omits its component', () => {
+    resetFixture({ supplemental: true });
+    const sbom = completeSbom(fixture.manifest);
+    sbom.components = sbom.components.filter(component => component['bom-ref'] !== EMBEDDED_REF);
+    expect(() => validateCompleteSbom(fixture.manifest, sbom)).toThrow(/omits supplemental source/);
+  });
+
+  test.each(['input:embedded-source', 'input:embedded-license', 'input:embedded-notice'])(
+    'rejects a supplemental file with %s omitted from the producing command', inputRef => {
+      resetFixture({ supplemental: true });
+      fixture.lock.commands[0].inputRefs = fixture.lock.commands[0].inputRefs.filter(ref => ref !== inputRef);
+      // The signatures must not substitute for required inputs even when both statements omit them.
+      const file = fixture.lock.inputs.find(input => input.id === inputRef);
+      for (const [index, statement] of fixture.statements.entries()) {
+        const definition = statement.predicate.buildDefinition;
+        definition.resolvedDependencies = definition.resolvedDependencies.filter(entry => entry.uri !== `file:${file.path}`);
+        replaceProvenance(fixture.lock, index, signDsseStatement(statement, fixture.builders[index]));
+      }
+      expect(() => validateLock()).toThrow(/Output command omits source\/toolchain input/);
+    }
+  );
+
+  test('rejects reassignment of a signed supplemental file to a different asset', () => {
+    resetFixture({ supplemental: true });
+    fixture.manifest.supplementalLicenses[0].asset = 'vendor/other.js';
+    expect(() => validateCompletenessClaims(fixture.manifest)).toThrow(/not bound to its delivered container/);
+    expect(() => validateLock()).toThrow(/not bound to its delivered container/);
+  });
+
+  test('rejects a supplemental file with a changed typed source locator', () => {
+    resetFixture({ supplemental: true });
+    const source = fixture.lock.sources.find(entry => entry.id === 'source:embedded-file');
+    source.upstream.locator = 'https://unrelated.test/src/helper.js';
+    expect(() => validateLock()).toThrow(/Supplemental source binding mismatch/);
+  });
+
+  test('rejects a signed supplemental file whose claimed origin changes with the lock', () => {
+    resetFixture({ supplemental: true });
+    const source = fixture.lock.sources.find(entry => entry.id === 'source:embedded-file');
+    source.upstream.locator = 'https://unrelated.test/src/helper.js';
+    fixture.manifest.supplementalLicenses[0].sourceUrl = source.upstream.locator;
+    expect(() => validateLock()).toThrow(/Signed provenance supplemental source mismatch/);
   });
 
   test('parses the hashed lock and rejects arbitrary lock contents', () => {
