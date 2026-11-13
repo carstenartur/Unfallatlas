@@ -16,6 +16,15 @@ async function waitForTaskSurface(page) {
   return ready;
 }
 
+async function routeReportInputs(page) {
+  await page.route(/^https:\/\/(?:[a-z]+\.)?tile\.openstreetmap\.org\//i, route => route.fulfill({
+    path: require.resolve('./fixtures/map-tiles/standard.svg'),
+    contentType: 'image/svg+xml',
+    headers: { 'access-control-allow-origin': '*' },
+  }));
+  await page.route(/^https:\/\/(?:nominatim\.openstreetmap\.org|overpass-api\.de)\//, route => route.abort());
+}
+
 test.describe('responsive task surface', () => {
   test('keyboard user can change the analysis and complete the export-dialog task', async ({ page }) => {
     test.setTimeout(60000);
@@ -134,8 +143,40 @@ test.describe('touch task surface', () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test('long context source links fit in the completed export preview', async ({ page }) => {
+    const limitation = 'bridge_surface_not_represented_by_dtm,elevated_profile_residual,non_ground_osm_layer';
+    await installMobileContextFixture(page, {
+      slope_source: 'SRTM Local Tiles',
+      road_slope_uncertainty_reasons: [limitation],
+    });
+    await routeReportInputs(page);
+    await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
+    await waitForTaskSurface(page);
+    await page.locator('#btnOpenExport').tap();
+    await expect(page.locator('#exportProgress')).toHaveText('Fertig.');
+
+    const modal = page.locator('#modalOverlay .modal');
+    const source = modal.getByRole('link', { name: new RegExp(limitation) });
+    await expect(source).toBeVisible();
+    await expect(source).toHaveAttribute('href', 'https://registry.opendata.aws/terrain-tiles/');
+    const geometry = await source.evaluate(link => {
+      const sheet = link.closest('.modal');
+      return {
+        textRight: Math.max(...Array.from(link.getClientRects(), rect => rect.right)),
+        itemRight: link.closest('li').getBoundingClientRect().right,
+        scrollWidth: sheet.scrollWidth,
+        clientWidth: sheet.clientWidth,
+      };
+    });
+    expect(geometry.textRight).toBeLessThanOrEqual(geometry.itemRight + 1);
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
+  });
+
   test('320px portrait layout and export sheet fit with touch-sized ranges', async ({ page }) => {
+    test.setTimeout(60000);
     await page.setViewportSize({ width: 320, height: 720 });
+    await installMobileContextFixture(page);
+    await routeReportInputs(page);
     await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
     await waitForTaskSurface(page);
 
@@ -166,6 +207,7 @@ test.describe('touch task surface', () => {
     const open = page.locator('#btnOpenExport');
     await open.tap();
     await expect(page.locator('#modalOverlay')).toBeVisible();
+    await expect(page.locator('#exportProgress')).toHaveText('Fertig.', { timeout: 30_000 });
 
     const exportLayout = await page.evaluate(() => {
       const modal = document.querySelector('#modalOverlay .modal');
@@ -190,7 +232,7 @@ test.describe('touch task surface', () => {
 
 // Small real resource responses keep the mobile layout independent of the
 // size and enrichment coverage of the checkout's generated city datasets.
-async function installMobileContextFixture(page) {
+async function installMobileContextFixture(page, accidentContext = {}) {
   const accidents = {
     type: 'FeatureCollection',
     features: [0, 1, 2].map(index => ({
@@ -200,7 +242,7 @@ async function installMobileContextFixture(page) {
         id: `mobile-${index}`, ujahr: '2024', ukategorie: '3', uart: '1', utyp1: '1',
         ustunde: '8', uwochentag: '2', umonat: '6', ulichtverh: '0', ustrzustand: '0',
         istrad: '1', istpkw: '1', istfuss: '0', istkrad: '0', istgkfz: '0', istsonstig: '0',
-        matched_way_id: 'mobile-road', slope_class: 'steep', slope_percent: 8,
+        matched_way_id: 'mobile-road', slope_class: 'steep', slope_percent: 8, ...accidentContext,
       },
     })),
   };

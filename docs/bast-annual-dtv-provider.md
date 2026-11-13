@@ -166,11 +166,39 @@ zusätzlich eine Zufahrt liegt. Die beiden Fixtures enthalten die relevanten
 Unfallfelder aus dem veröffentlichten Bestand sowie Straßenattribute und
 geordnete Geometrien aus dokumentierten OSM-API-Ausschnitten.
 
+## Richtungswerte der Kollaustraße
+
+Für Station 2201 sind die amtlichen Richtungsfelder und Fahrstreifenzahlen
+mit dem geordneten Verlauf des OSM-Ways 1561698173 geprüft. Der Way verläuft
+am Zählquerschnitt von Nordwest nach Südost. Die vier BASt-Fahrstreifen Richtung
+Hamburg-Niendorf stimmen mit den vier OSM-Fahrstreifen gegen die Punktreihenfolge
+überein. Die drei BASt-Fahrstreifen Richtung Hamburg-Lokstedt stimmen mit den
+drei OSM-Fahrstreifen in Punktreihenfolge überein.
+
+| BASt-Originalwert 2023 | Kfz/24 h | Bezug zur OSM-Punktreihenfolge |
+| --- | ---: | --- |
+| Q, beide Fahrtrichtungen | 45.865 | Querschnitt |
+| Ri1, Richtung Hamburg-Niendorf | 22.784 | `backward` |
+| Ri2, Richtung Hamburg-Lokstedt | 23.080 | `forward` |
+
+Die Zuordnung der Einzelrichtungen ist auf diese Station und diesen Way
+beschränkt. Der Generator prüft die BASt-Distribution, die Originalwerte,
+Stationskoordinate, Straßenreferenz, Fahrstreifen in beiden Richtungen und den
+Hash der geordneten OSM-Koordinaten. Eine abweichende BASt-Distribution bricht
+den Lauf ab. Bei Abweichungen der übrigen Richtungsmerkmale bleibt die
+Querschnittsprüfung für Q maßgeblich. Die Coverage-Metadaten zählen getrennt, für
+wie viele Stationen der Richtungsbezug belegt ist und an wie vielen Unfällen
+die getrennten Messwerte der Zählstelle angezeigt werden.
+
+Am Unfallpunkt 9757 bleibt der Originalwert Q ausgewählt. Das Popup und die
+Dokumente führen Ri1 und Ri2 einzeln als Messwerte der Zählstelle auf. CSV,
+GeoJSON, KML und das Quellenmanifest erhalten die Beobachtungen mit dem
+jeweiligen Richtungsbezug. Die Fahrtrichtung beim Unfall ist unbekannt.
+
 ## Verbleibende Grenzen von #413
 
-Die BASt-Richtungswerte `Ri1` und `Ri2` bleiben getrennt im Stationsimport.
-Ihre Himmelsrichtungen und Ziele beschreiben die amtliche Route; für die
-Anwendung auf einzelne Fahrbahnen fehlt ein entsprechend geprüfter Bezug.
+Weitere BASt-Einzelrichtungen benötigen einen eigenen geprüften Straßenbezug.
+Die amtliche Himmelsrichtung beschreibt dabei den überwiegenden Streckenverlauf.
 Für den [Düsseldorfer Stundenwert-Piloten](duesseldorf-bicycle-hourly-provider.md)
 braucht die zeitliche Anwendung eindeutige Quellzeitlabels und Richtungen.
 Modellwerte, BASt-Jahres-DTV, werktäglicher Kölner Verkehr und stündliche

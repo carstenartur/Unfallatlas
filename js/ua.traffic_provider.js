@@ -317,6 +317,14 @@
       if (!coordinate && !wayId)
         fail("missing_location", `${path} requires geometry or wayId`);
 
+      const direction = value.direction == null ? null : requiredString(value.direction, `${path}.direction`);
+      const stationWayDirection = value.stationWayDirection == null ? null : enumValue(
+        value.stationWayDirection, `${path}.stationWayDirection`, ["forward", "backward"], "invalid_station_direction",
+      );
+      if (stationWayDirection && (measurementType !== "count" || geometry?.type !== "Point" || !wayId || !direction)) {
+        fail("invalid_station_direction", `${path} requires a count, station point, wayId and source direction`);
+      }
+
       return Object.freeze({
         observationId: requiredString(
           value.observationId,
@@ -333,10 +341,7 @@
         coordinate,
         geometry,
         wayId,
-        direction:
-          value.direction == null
-            ? null
-            : requiredString(value.direction, `${path}.direction`),
+        direction,
         qualityNotes: Object.freeze(
           Array.isArray(value.qualityNotes)
             ? value.qualityNotes.map((item, noteIndex) =>
@@ -346,6 +351,7 @@
         ),
         source: descriptor,
         ...(value.match == null ? {} : { match: normalizeMatch(value.match) }),
+        ...(stationWayDirection ? { stationWayDirection } : {}),
       });
     }
 
@@ -381,6 +387,28 @@
           observation.year === row.traffic_volume_year &&
           (!row.matched_way_id || String(row.matched_way_id) === selectedWayId);
       } catch (_) { return false; }
+    }
+
+    function stationDirectionalObservations(row, crossSection) {
+      if (crossSection?.measurementType !== "count" || crossSection.stationWayDirection ||
+          crossSection.geometry?.type !== "Point" || !crossSection.wayId || !crossSection.source?.contentHash ||
+          !Array.isArray(row?.traffic_observations)) return [];
+
+      const readings = [];
+      for (const raw of row.traffic_observations) {
+        if (!raw?.stationWayDirection || raw.observationId === crossSection.observationId ||
+            raw.source?.contentHash !== crossSection.source.contentHash ||
+            !["sourceId", "wayId", "mode", "year", "period"].every(key => raw[key] === crossSection[key])) continue;
+        try {
+          const reading = normalizeObservation(raw, crossSection.source, 0);
+          if (reading.coordinate.lon === crossSection.coordinate.lon && reading.coordinate.lat === crossSection.coordinate.lat) {
+            readings.push(reading);
+          }
+        } catch (_) { /* A malformed alternative cannot label the station. */ }
+      }
+      const [first, second] = readings;
+      return readings.length === 2 && first.stationWayDirection !== second.stationWayDirection &&
+        first.observationId !== second.observationId && first.direction !== second.direction ? readings : [];
     }
 
     // Existing display thresholds, shared by filters and the road overlay.
@@ -698,6 +726,10 @@
       }).format(value);
     }
 
+    function formatStationDirectionalCount(observation) {
+      return `${formatInteger(observation.value)} ${observation.unit} · ${observation.direction}`;
+    }
+
     function formatTrafficStatement(result) {
       if (!result || result.evidenceType === "none" || !result.observation) {
         return "Keine belastbare Verkehrsangabe verfügbar.";
@@ -776,6 +808,8 @@
       normalizeDescriptor,
       normalizeObservation,
       hasUsableTypedEvidence,
+      stationDirectionalObservations,
+      formatStationDirectionalCount,
       classifyTrafficValue,
       createProvider,
       createRegistry,
