@@ -53,8 +53,8 @@ The same diagnostic check compares the complete known SBOM projection—componen
 refs, asset/font hashes, exact assemblies, dependency edges, gap properties and
 unresolved detections—against the notice. In particular,
 `pdfmake-fonts.js` contains all four emitted `urn:unfallatlas:font:*` records;
-the missing source/OFL attestation remains an explicit gap rather than an
-orphaned known component.
+the pinned source archive reproduces the four fonts and provides their OFL text.
+Independent signed attestations remain open.
 
 | Package | SPDX license | Evidence included in the site artifact |
 |---|---|---|
@@ -105,7 +105,7 @@ byte-for-byte to the released packages.
 |---|---|---|
 | `vendor/export/docx.js` | Generated-code attribution and two independently signed builds | Retain bundler evidence for generated code and attest the pinned supplier build |
 | `vendor/export/pdfmake.js` | Sources and data inside prebundled modules, full license evidence for the remaining Brotli files, `dfa` and `fontkit`, and two independently signed builds | Resolve each inner bundle and attest the pinned Webpack build |
-| `vendor/export/pdfmake-fonts.js` | Source-to-TTF build and independent signed VFS-generator evidence | Reproduce the typeface build from the pinned release sources and attest the result |
+| `vendor/export/pdfmake-fonts.js` | Independent signed font and VFS-generator evidence | Attest the source rebuilds for the four verified TTFs and their VFS container |
 | `vendor/leaflet.heat/leaflet-heat.js` | Independent signatures for the reproduced global bundle | Attest the matching Rolldown build |
 | `vendor/leaflet-image/leaflet-image.js` | Independent signatures for the reproduced Browserify bundle | Attest the matching build with locked `d3-queue@2.0.3` |
 

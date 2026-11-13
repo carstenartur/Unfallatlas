@@ -46,6 +46,7 @@ with zipfile.ZipFile(archive) as release:
         if hashlib.sha256(raw).hexdigest() != entry['sha256'] or raw != (Path('fonts/Roboto') / name).read_bytes():
             sys.exit('Roboto release differs from the VFS input: ' + name)
 PYFONT
+bash "$repo_root/scripts/verify-roboto-upstream.sh" "$font_archive"
 cp -- "$repo_root/vendor/pdfmake-build/npm-lock.json" package-lock.json
 printf '%s  %s\n' "$lock_sha" package-lock.json | sha256sum --check
 # ajv-keywords 5 requires Ajv 8; the legacy webpack plugin declares webpack 1.
