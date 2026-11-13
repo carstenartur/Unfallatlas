@@ -349,7 +349,7 @@
       "command": "bash scripts/verify-pdfmake-upstream.sh"
     },
     "vendor/leaflet.heat/leaflet-heat.js": {
-      "sha256": "cd0ff2333ddad23a2b8192e0791b2cf80fee759cb33412122bde5eb7bbfd6c4a",
+      "sha256": "3a7433a8493dfcf7e0a691920407f2f9af5c1c4230cf18ca906e95c3313f829c",
       "command": "bash scripts/verify-leaflet-upstream.sh"
     },
     "vendor/leaflet-image/leaflet-image.js": {

@@ -254,7 +254,7 @@ bei npm angegebenen Git-Commit. Das separate npm-Lock unter
 `vendor/leaflet-build/` fixiert Browserify 13.0.1, browser-pack 6.0.2,
 umd 3.0.1 und d3-queue 2.0.3. Diese Werkzeuge laufen nur beim Nachbau.
 
-Für Leaflet.heat 1.0.0 liefert das gehashte Quellarchiv das npm-Lock,
+Für Leaflet.heat 1.0.1 liefert das gehashte Quellarchiv das npm-Lock,
 Rolldown 1.2.16, die Global-Einstiegsdatei und die Build-Konfiguration.
 Der Nachbau setzt das Jahr im Copyright-Banner auf das Veröffentlichungsjahr
 2026. Er vergleicht Global-Bundle und Source Map byteweise mit dem npm-Paket.

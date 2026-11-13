@@ -4,7 +4,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
-heat_commit=2246adc3e130056a6df563c5f58ee5039e04fb14
+heat_commit=d4572acbe9fe15120e7d8b802835875839b95646
 image_commit=9a4190661d92b3ad8bca4b01199d1aed2498effe
 if (( $# > 2 )); then
   echo "Usage: $0 [heat-source.tar.gz [image-source.tar.gz]]" >&2
@@ -25,7 +25,7 @@ extract_release() {
   tar -xzf "$archive" --strip-components=1 -C "$work/$destination"
 }
 extract_release Leaflet/Leaflet.heat "$heat_commit" \
-  c5ba2cd0354b06e503902ca073a1ac8201388b12836ce688ef92fa0710a97c6a heat "${1:-}"
+  e1ba78f7a301110dc5fec4c6afc9b63bb228866a428b43c7e43a3aa5b5f1c93d heat "${1:-}"
 extract_release mapbox/leaflet-image "$image_commit" \
   435635da76368b8a280d8fc57e77ea93724dc09404319a7bfa2bdd6fa4614b87 image "${2:-}"
 
