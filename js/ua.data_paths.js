@@ -41,6 +41,11 @@
       cache: 'force-cache',
       path: ({ city }) => `out/poi_${slug(city)}.geojson`,
     }),
+    duesseldorfBikeCounts: Object.freeze({
+      compression: COMPRESSION.GZIP_ONLY,
+      cache: 'no-cache',
+      path: () => 'data/mobility/duesseldorf-mannesmannufer-2024.json',
+    }),
     schoolPlans: Object.freeze({
       compression: COMPRESSION.RAW,
       cache: 'no-cache',

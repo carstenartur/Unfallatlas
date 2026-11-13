@@ -233,7 +233,8 @@ test('publishes the exact source evidence for both Leaflet-image Browserify modu
     const asset = notice.assetAssessments.find(entry => entry.path === leafletImageAsset);
     expect(asset).toMatchObject({
       contains: [d3QueuePurl, leafletImagePurl],
-      reproducible: false,
+      reproducible: true,
+      reproductionMethod: 'bash scripts/verify-leaflet-upstream.sh',
       provenanceComplete: false,
       gaps: ['leaflet-image-embedded-d3-queue'],
       componentAttestations: [
