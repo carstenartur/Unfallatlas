@@ -154,7 +154,7 @@ def state_reference_layers(directory, catalog):
             if file_digest(name) != tile[asset]['sha256']:
                 raise ValueError(f'LGLN source digest mismatch: {name}')
         xml = ElementTree.parse(metadata)
-        checks = {'KACHELNAME': tile['id'], 'AKTUALITAET': catalog['acquisitionDate'],
+        checks = {'KACHELNAME': tile['id'], 'AKTUALITAET': catalog['tileReferenceDate'],
                   'KOORDINATENREFERENZSYSTEM_HOEHE': catalog['verticalDatum']}
         if any(xml.findtext(field) != expected for field, expected in checks.items()):
             raise ValueError(f'Unexpected LGLN metadata: {metadata}')
@@ -202,7 +202,7 @@ def compare_surveys(root, cases, city_layers, directory, output):
     for profile in profiles.values():
         profile['fits'].sort(key=lambda fit: (fit['windowM'], fit['stepM']))
     result = {'sources': {'municipalSurveyYear': city['surveyYear'], 'municipalVerticalDatum': city['verticalDatum'],
-                          'stateSurveyDate': state['acquisitionDate'], 'stateVerticalDatum': state['verticalDatum'],
+                          'stateTileReferenceDate': state['tileReferenceDate'], 'stateVerticalDatum': state['verticalDatum'],
                           'fileSha256': {name: file_digest(root / name) for name in [city_catalog, state_catalog, *geometry_files]}},
               'attribution': [city['attribution'], state['attribution'], '© OpenStreetMap contributors, ODbL 1.0'],
               'sampleColumns': ['distanceAlongOsmWayM', 'municipalTerrainHeightM', 'stateTerrainHeightM'],

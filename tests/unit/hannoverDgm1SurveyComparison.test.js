@@ -28,6 +28,10 @@ function theilSen(rows, heightIndex) {
 test('each comparison preserves identical stations, source height systems, pinned samples and both independent slopes', () => {
   expect(comparison.sources.municipalVerticalDatum).toBeNull();
   expect(sources.verticalDatum).toBe('DE_DHHN2016_NH');
+  expect(sources.tileReferenceDate).toBe('2016-04-18');
+  expect(comparison.sources.stateTileReferenceDate).toBe(sources.tileReferenceDate);
+  expect(sources).not.toHaveProperty('acquisitionDate');
+  expect(comparison.sources).not.toHaveProperty('stateSurveyDate');
   expect(comparison.profiles.map(p => p.wayId)).toEqual(city.profiles.map(p => p.wayId));
   for (const [index, profile] of comparison.profiles.entries()) {
     const rows = profile.samples;

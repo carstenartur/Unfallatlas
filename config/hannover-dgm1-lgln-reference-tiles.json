@@ -3,7 +3,7 @@
   "product": "Digitales Geländemodell (DGM1)",
   "catalog": "https://dgm.stac.lgln.niedersachsen.de/collections/dgm1",
   "retrievedOn": "2026-11-13",
-  "acquisitionDate": "2016-04-18",
+  "tileReferenceDate": "2016-04-18",
   "horizontalCrs": "EPSG:25832",
   "verticalDatum": "DE_DHHN2016_NH",
   "license": "CC-BY-4.0",
