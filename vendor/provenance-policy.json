@@ -205,6 +205,22 @@
           "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"
         }
       },
+      "fontkitDecoder": {
+        "mapSha256": "312af373c0db0d3c36e425b3b791e7e7cf23ac4b6d1fb58725f16cfa00e574b3",
+        "record": {
+          "ref": "urn:unfallatlas:vendor-source:fontkit:base64-decoder",
+          "component": "Base64 decoder adapted from base64-arraybuffer in fontkit@2.0.4",
+          "sourcePath": "node_modules/fontkit/src/utils.js#decodeBase64",
+          "sourceSha256": "bb78c97f3bdd227e1a7226b19d626771ff7ff11dfea805493787b0b80b5da843",
+          "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/utils.js#L30-L62",
+          "upstreamReferenceUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/src/index.ts",
+          "licenseUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/LICENSE",
+          "copyright": "Copyright (c) 2012 Niklas von Hertzen",
+          "spdx": "MIT",
+          "path": "vendor/licenses/components/fontkit-base64-arraybuffer-MIT.txt",
+          "sha256": "f3eca6ff762533fa5a77caf954a143e48afa204668cf97dce758c45a9e006be3"
+        }
+      },
       "nestedPdfkitSources": {
         "packagePath": "node_modules/@noble/hashes",
         "bundleSha256": "797d954a516c57cf4ee8352e17611991ecc2e2799e7e4ac09434ea5ca75423fe",
