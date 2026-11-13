@@ -79,8 +79,12 @@ describe('check-context-datasets', () => {
     expect(r.cities[0]).toEqual({ slug: 'goodcity', ok: true, problems: [] });
   });
 
-  test.each([['matching rows', true], ['SRTM replacement tile', false]])(
-    'validates the Hannover DGM1 sidecar against actual gzip tiles with %s', (_name, dgm1) => {
+  test.each([
+    {name: 'matching rows', expected: true},
+    {name: 'low confidence terrain profile', expected: true, terrainReliability: false},
+    {name: 'low confidence marked road reliable', expected: false, terrainReliability: true},
+    {name: 'SRTM replacement tile', expected: false, replaceRoad: true},
+  ])('validates the Hannover DGM1 sidecar against actual gzip tiles with $name', ({expected, terrainReliability, replaceRoad}) => {
       writeGoodCity(tmpRoot, 'hannover');
       const output = path.join(tmpRoot, 'out');
       const metaPath = path.join(output, 'output_all_years_hannover.enrichment.meta.json');
@@ -91,7 +95,8 @@ describe('check-context-datasets', () => {
         manifestSha256: 'a'.repeat(64), distributionSha256: 'b'.repeat(64),
       };
       meta.roadSlope = { sourceId: 'hannover.dgm1', runtimeWayRows: 2,
-        runtimeWayRowsWithUsableGradient: 1, uniqueWaysObserved: 2 };
+        runtimeWayRowsWithUsableGradient: 1, runtimeWayRowsWithTerrainProfile: terrainReliability === undefined ? 0 : 1,
+        uniqueWaysObserved: 2 };
       meta.counts.withDgm1RoadSlope = 1;
       fs.unlinkSync(metaPath);
       fs.writeFileSync(metaPath + '.gz', zlib.gzipSync(JSON.stringify(meta)));
@@ -100,18 +105,20 @@ describe('check-context-datasets', () => {
       const official = { highway: 0, road_slope_source_id: 'hannover.dgm1', road_slope_resolution_m: 1 };
       const bridge = { ...official, road_slope_reliable_for_road: false,
         road_slope_missing_reason: 'bridge_surface_not_represented_by_dtm' };
-      const road = { ...official, road_slope_percent: 2.8, road_slope_reliable_for_road: true };
+      const road = { ...official, road_slope_percent: 2.8, road_slope_reliable_for_road: true, road_slope_quality: 'high' };
+      const terrain = { ...official, road_slope_percent: 6.4, road_slope_reliable_for_road: terrainReliability, road_slope_quality: 'low' };
       const replacement = { highway: 0, road_slope_percent: 2.8 };
-      for (const [x, way, row] of [[100, 'W1', dgm1 ? road : replacement], [101, 'W2', bridge]]) {
+      for (const [x, way, row] of [[100, 'W1', replaceRoad ? replacement : road],
+        [101, 'W2', terrainReliability === undefined ? bridge : terrain]]) {
         const tilePath = path.join(tiles, String(x), '200.json');
         fs.unlinkSync(tilePath);
         fs.writeFileSync(tilePath + '.gz', zlib.gzipSync(JSON.stringify({ ways: { [way]: row } })));
       }
 
       const city = validateAll(tmpRoot).cities[0];
-      expect(city.ok).toBe(dgm1);
-      expect(city.roadSlopeSource).toBe(dgm1 ? 'hannover.dgm1' : undefined);
-      if (!dgm1) expect(city.problems.join('\n')).toMatch(/DGM1 runtime/);
+      expect(city.ok).toBe(expected);
+      expect(city.roadSlopeSource).toBe(expected ? 'hannover.dgm1' : undefined);
+      if (!expected) expect(city.problems.join('\n')).toMatch(/DGM1 runtime/);
     },
   );
 

@@ -49,6 +49,8 @@ test.each([
 test('large residuals retain numerical uncertainty and reach runtime evidence as low confidence', async () => {
   const result = await profile(1.625, 1);
   expect(result.uncertaintyPercent).toBe(4.8);
+  expect(result.semanticType).toBe('terrain_context');
+  expect(result.statement).toMatch(/Geländeprofil.*4,8 Prozentpunkte.*Fahrbahn nicht belastbar/);
   const row = {};
   adapter.applyProfileToRow(row, {
     wayId: 'synthetic-residual-profile',
@@ -58,13 +60,32 @@ test('large residuals retain numerical uncertainty and reach runtime evidence as
     road_slope_percent: 0,
     road_slope_quality: 'low',
     road_slope_confidence: 'low',
+    road_slope_reliable_for_road: false,
     road_slope_residual_mad_m: 1.625,
     road_slope_uncertainty_percent: 4.8,
     road_slope_uncertainty_reasons: ['elevated_profile_residual'],
   });
   const presentation = elevation.presentContext(row);
+  expect(presentation.semanticType).toBe('terrain_context');
+  expect(presentation.statement).toMatch(/Geländeprofil.*4,8 Prozentpunkte.*Fahrbahn nicht belastbar/);
   expect(presentation.uncertaintyReasons).toEqual(['elevated_profile_residual']);
   expect(presentation.statement).toMatch(/Höhenprofil.*linearen Anpassung/);
+});
+
+test('older selected ways with a low rating retain the DGM fit as terrain evidence', () => {
+  const row = {
+    road_slope_source_id: 'hannover.dgm1', road_slope_source: 'DGM1', road_slope_resolution_m: 1,
+    road_slope_percent: -26.1, road_slope_reliable_for_road: true, road_slope_quality: 'low',
+    road_slope_uncertainty_percent: 19.1, road_slope_uncertainty_reasons: ['elevated_profile_residual'],
+    road_slope_direction: 'downhill_along_geometry',
+  };
+  const projected = elevation.projectSelectedWayEvidence({matched_way_id: '24855098'}, row);
+  expect(projected).toMatchObject({...row, road_slope_reliable_for_road: false});
+  expect(elevation.presentContext(row)).toMatchObject({
+    semanticType: 'terrain_context', reliableForRoad: false,
+    statement: expect.stringMatching(/Geländeprofil.*-26,1 %.*19,1 Prozentpunkte.*Fahrbahn nicht belastbar/),
+  });
+  expect(row.road_slope_reliable_for_road).toBe(true);
 });
 
 test('residual confidence never overrides bridge rejection', async () => {

@@ -378,14 +378,8 @@
         const sourceUrl = usesRoad
           ? descriptor.datasetUrl || descriptor.distributionUrl || descriptor.url
           : descriptor.distributionUrl || descriptor.datasetUrl || descriptor.url;
-        if (presentation.reliableForRoad && p.matched_way_id != null) {
-          const key = JSON.stringify([presentation.sourceId, p.road_slope_manifest_sha256,
-            p.road_slope_distribution_sha256, sourceUrl]);
-          if (!roadProfilesBySource.has(key)) {
-            roadProfilesBySource.set(key, {sourceName, sourceUrl, labels: new Set(), profiles: new Map()});
-          }
-          const group = roadProfilesBySource.get(key);
-          group.labels.add(label);
+        if (usesRoad && !knownSrtm && presentation.resolutionMeters > 0 &&
+            presentation.resolutionMeters < 20 && presentation.sourceId && p.matched_way_id != null) {
           const details = [];
           if (Object.hasOwn(ROAD_PROFILE_QUALITY_LABELS, p.road_slope_quality)) {
             details.push('Profilqualität ' + ROAD_PROFILE_QUALITY_LABELS[p.road_slope_quality]);
@@ -394,7 +388,18 @@
           if (Number.isInteger(p.road_slope_sample_count)) details.push(`${p.road_slope_sample_count} Stützstellen`);
           const profileLabel = `OSM-Weg ${p.matched_way_id}. ${presentation.statement}` +
             (details.length ? ' ' + details.join(', ') + '.' : '');
-          group.profiles.set(profileLabel, Math.abs(p.road_slope_percent));
+          if (presentation.reliableForRoad) {
+            const key = JSON.stringify([presentation.sourceId, p.road_slope_manifest_sha256,
+              p.road_slope_distribution_sha256, sourceUrl]);
+            if (!roadProfilesBySource.has(key)) {
+              roadProfilesBySource.set(key, {sourceName, sourceUrl, labels: new Set(), profiles: new Map()});
+            }
+            const group = roadProfilesBySource.get(key);
+            group.labels.add(label);
+            group.profiles.set(profileLabel, Math.abs(p.road_slope_percent));
+          } else {
+            add(label + ' ' + profileLabel, sourceUrl);
+          }
         } else {
           add(label, sourceUrl || (knownSrtm ? 'https://registry.opendata.aws/terrain-tiles/' : null));
         }

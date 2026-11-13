@@ -193,3 +193,20 @@ describe('UA.contextRoadLayer.buildSlopeLayer — debug.showPercent tooltip', ()
     }
   });
 });
+
+test('legacy low confidence terrain lines expose their effective reliability for static export', () => {
+  const {UA} = loadModule();
+  UA.elevationProvider = require('../../js/ua.elevation_provider');
+  const row = {
+    road_slope_source_id: 'hannover.dgm1', road_slope_source: 'DGM1', road_slope_resolution_m: 1,
+    road_slope_class: 'very_steep', road_slope_percent: -26.1, road_slope_quality: 'low',
+    road_slope_reliable_for_road: true, road_slope_uncertainty_percent: 19.1,
+  };
+  const state = {ways: {'24855098': row}, geometries: {'24855098': [52.36388, 9.70701, 52.36408, 9.70718]}};
+  const [line] = UA.contextRoadLayer.buildSlopeLayer(state).getLayers();
+  expect(line.feature.properties).toMatchObject({
+    class: 'low_confidence', slope_semantic_type: 'terrain_context', road_slope_reliable_for_road: false,
+    slope_statement: expect.stringMatching(/Geländeprofil.*-26,1 %.*für die Fahrbahn nicht belastbar/),
+  });
+  expect(row.road_slope_reliable_for_road).toBe(true);
+});

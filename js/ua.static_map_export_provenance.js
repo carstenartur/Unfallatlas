@@ -232,6 +232,7 @@
           fail('unverified_slope_overlay', 'Weg und DGM-Quelldateien stimmen nicht überein.');
         }
         return { wayId: row.way_id, class: row.class, statement: row.slope_statement || null,
+          semanticType: row.slope_semantic_type || null, reliableForRoad: row.slope_semantic_type === 'road_gradient',
           gradientPercent: row.road_slope_percent ?? null, quality: row.road_slope_quality || null,
           uncertaintyPercent: row.road_slope_uncertainty_percent ?? null,
           uncertaintyReasons: row.road_slope_uncertainty_reasons || [], windowMeters: row.road_slope_profile_window_m ?? null,
@@ -564,7 +565,9 @@
       const slope = normalized.manifest.transformations.find(item => item.transformationId === 'render-static-map-png')
         ?.parameters?.slopeOverlay;
       const selected = slope?.profiles.find(profile => profile.wayId === slope.selectedWayId);
-      const profileLabel = selected ? `OSM-Weg ${selected.wayId} · ${selected.statement} ` : '';
+      const quality = {high: 'hoch', medium: 'mittel', low: 'niedrig'}[selected?.quality];
+      const profileLabel = selected ? `OSM-Weg ${selected.wayId} · ${selected.statement} ` +
+        (quality ? `Profilqualität ${quality}. ` : '') : '';
       const prefix = slope
         ? `${profileLabel}DGM1 · ${slope.source.resolutionM} m · ${slope.source.acquisitionPeriod} · ${slope.source.requiredAttribution} · OSM-Wege © OpenStreetMap-Mitwirkende (ODbL). Quellen`
         : opts.noticeOptions?.prefix;

@@ -80,12 +80,14 @@ Quellen-/Matchingrisiken können die Klasse weiter abwerten. Über 0,25 m bleibt
 `elevated_profile_residual` als ausdrücklicher Unsicherheitsgrund erhalten und
 wird auch im lesbaren Profil-/Laufzeittext erläutert. Dies beschreibt die
 Abweichung vom linearen Fit, ohne deren physikalische Ursache zu behaupten.
-Gradient und numerische Unsicherheit werden weiterhin unverändert berechnet;
-eine niedrige Qualitätsklasse allein setzt `usable` nicht auf `false`.
-Die Regel ist eine konservative Softwarekennzeichnung, keine fachliche
-Kalibrierung oder Abnahme der alten DGM-Daten als heutige Fahrbahnoberfläche.
-Sie gilt für neu berechnete Profile; bereits gespeicherte Artefakte werden
-dadurch nicht nachträglich neu bewertet oder produktiv neu veröffentlicht.
+Bei `low` bleibt der berechnete Gradient einschließlich Vorzeichen und
+Unsicherheit als Geländeprofil entlang des OSM-Wegs erhalten. Die Werkbank
+kennzeichnet dieses Ergebnis in der Karte, in Popups und in Exporten als
+für die Fahrbahn nicht belastbar. In den Datenexporten trägt es
+`road_slope_reliable_for_road: false`. Die Kennzeichnung gilt auch für ältere
+Profile mit `low` und einem früher gesetzten Zuverlässigkeitsmerkmal. `usable`
+gibt an, ob der Fit überhaupt eine Zahl liefert. Eine Vermessung der heutigen
+Fahrbahn ist eine eigenständige Datenquelle.
 
 Brücken und Tunnel erhalten keine vermeintliche Fahrbahnneigung: Der vorhandene
 Gradientenalgorithmus markiert sie als `usable:false` und nennt den konkreten
