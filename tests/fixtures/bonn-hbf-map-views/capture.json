@@ -1,0 +1,106 @@
+{
+  "caseId": "bonn-hbf-37-rad-pkw-2019-2025",
+  "mapInputsFingerprint": "641614f3db4424e59df1d088af924de3e3407e8c79ab42e79b7992146e504ac3",
+  "build": {
+    "url": "https://carstenartur.github.io/Unfallatlas/build-manifest.json",
+    "sha256": "4ffce89dc85d93381be6572e72a4900b2687cb99a03d39b1d1f77ba9c4f72402",
+    "applicationFingerprint": "f9f095c5e24de37d3aff1e97619577b992c9e8516d1a5d396a9daf6388e1c0e8",
+    "dataFingerprint": "7e214a17a30f1a261222db9c269226c8f160e8fc99997311a0a3360e94a66a61"
+  },
+  "chromium": "158.0.8127.18",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "views": [
+    {
+      "mode": "standard",
+      "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=standard&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16",
+      "checkedAt": "2026-11-13T07:32:05.348Z",
+      "source": null,
+      "tileHosts": {
+        "c.tile.openstreetmap.org": 9,
+        "a.tile.openstreetmap.org": 9,
+        "b.tile.openstreetmap.org": 10
+      },
+      "selected": 37,
+      "bounds": {
+        "south": 50.73,
+        "west": 7.091,
+        "north": 50.7355,
+        "east": 7.101
+      },
+      "imageSha256": "9b2b3de604287adb454130bbde63413849cba0779e912123c06c597fd8ffddf9",
+      "file": "standard.webp",
+      "fileSha256": "793cbe32bf267a2f6dc597ec75de1b6aac4e37175008da4125e824a2122d70fa",
+      "captureRgbSha256": "504aec1a535c2bfb18b8e76b887a944e82993dbaed01bdc2187c3ae439660c0b"
+    },
+    {
+      "mode": "hybrid",
+      "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=hybrid&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16",
+      "checkedAt": "2026-11-13T07:32:50.771Z",
+      "source": "nrw-orthophoto",
+      "tileHosts": {
+        "www.wms.nrw.de": 28
+      },
+      "selected": 37,
+      "bounds": {
+        "south": 50.73,
+        "west": 7.091,
+        "north": 50.7355,
+        "east": 7.101
+      },
+      "imageSha256": "91fecc69f1718481a2904224c765f9212d8e5b19b5354affc20baf2e908ddb7c",
+      "file": "hybrid.webp",
+      "fileSha256": "7cee3a96217f74c54038bc023d057ecb82d6b41dc72b0608631f6c75835ae250",
+      "captureRgbSha256": "a2ad4624491a7096cb9b10d95968f55b0bede2200afbc0d32c5311e20fc8746f"
+    },
+    {
+      "mode": "orthophoto",
+      "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=orthophoto&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=0&showHeatmap=0&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16",
+      "checkedAt": "2026-11-13T07:32:57.467Z",
+      "source": "nrw-orthophoto",
+      "tileHosts": {
+        "www.wms.nrw.de": 28
+      },
+      "selected": 37,
+      "bounds": {
+        "south": 50.73,
+        "west": 7.091,
+        "north": 50.7355,
+        "east": 7.101
+      },
+      "imageSha256": "c8fe66edcbbfb69991d7fba09f67cb6a4f0c156bcd70dead354b4ab7efa9bf3c",
+      "file": "orthophoto.webp",
+      "fileSha256": "e270f2f9273c398a0340bc5da5bda653b3a93ceab870495c894451e5c7b157e9",
+      "captureRgbSha256": "a5a58935be449b60bd4cfd11e3653fcc1f27a92d1718a9effb4d818d10123912"
+    },
+    {
+      "mode": "analysis",
+      "url": "https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?areaName=Bonn+Hauptbahnhof+%2F+M%C3%BCnsterplatz+%2F+Maximilianstra%C3%9Fe+%2F+Thomas-Mann-Stra%C3%9Fe&areaNameGeometry=%5B%22Bonn%22%2C50.73%2C7.091%2C50.7355%2C7.101%5D&areaSearchTerms=M%C3%BCnsterplatz%3BMaximilianstra%C3%9Fe%3BThomas-Mann-Stra%C3%9Fe&centerLat=50.732211&centerLon=7.095119&city=Bonn&ctxOnlyMatched=0&dayType=all&heatRadius=25&hourFrom=0&hourTo=23&includeCar=1&includeCyclist=1&includeGkfz=0&includeMotorcycle=0&includePedestrian=0&includeSonstig=0&involvementMode=and&mapMode=analysis&maxPoints=100000&orthophotoOpacity=92&roadCondition=all&selEast=7.101&selNorth=50.7355&selSouth=50.73&selWest=7.091&severity=all&showArgumentation=1&showCluster=1&showHeatmap=1&showKindergartens=1&showOnlyAboveAverage=0&showSchools=1&viewportPaddingPct=20&zoom=16",
+      "checkedAt": "2026-11-13T07:33:04.345Z",
+      "source": "nrw-orthophoto",
+      "tileHosts": {
+        "www.wms.nrw.de": 28
+      },
+      "selected": 37,
+      "bounds": {
+        "south": 50.73,
+        "west": 7.091,
+        "north": 50.7355,
+        "east": 7.101
+      },
+      "imageSha256": "5f4fb5e82c73b5fa0d318bda9f21fdcca2776f5dde75483ee5650595ffbf8d40",
+      "file": "analysis.webp",
+      "fileSha256": "fe19546ca073d9b470164025682d2df7a9fbeffd9660599e3541eb44f84bcc89",
+      "captureRgbSha256": "25d37a458407ff2da1a8caadba89ba83f4592e1c00d70b71318f99200815e980"
+    }
+  ],
+  "limits": "Technische Sichtprüfung des veröffentlichten Ausschnitts. Befahrbarkeit, Unfallhergänge, Verkehrsstärken und die heutige Markierung erfordern weitere Belege.",
+  "previewFormat": "WebP 1440 × 900 aus dem unveränderten Chromium-PNG. Die gespeicherte Vorschau ist verlustbehaftet komprimiert. imageSha256 bezeichnet das ursprüngliche PNG, fileSha256 den bereitgestellten Download.",
+  "observations": [
+    "Die Standardkarte zeigt Bahntrasse, Hauptbahnhof und Münsterplatz innerhalb des ausgewählten Rechtecks. Die Unfallzahl 37 bezeichnet die gesamte Auswahl.",
+    "Luftbild und Hybridansicht zeigen Bahnhof, Bussteige und angrenzende Bebauung. Fahrwege einzelner Unfallbeteiligter, Blickrichtungen und Sichtweiten lassen sich daraus nicht rekonstruieren.",
+    "In der Analyseansicht erscheinen gruppierte Punkte im Ausschnitt und in seiner Umgebung. Die sichtbaren Zahlen außerhalb des Rechtecks gehören nicht zur Auswahlsumme."
+  ]
+}
