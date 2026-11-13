@@ -220,6 +220,34 @@ describe('visible typed context sources use the exported evidence population', (
     expect(note.body+' '+note.sources.map(s=>s.label).join(' ')).toMatch(/Proxy.*keine (Verkehrs)?zählung/i);
     expect(JSON.stringify(note)).not.toMatch(/Kfz\/24 h|2026-11-01/);
   });
+  test('the visible road-class proxy cites its acquisition independently of the replica dates', async () => {
+    const ctx = context({ traffic_measurement_type: 'proxy', traffic_proxy_class: 'high' });
+    const provenance = {
+      sourceId: 'traffic.proxy.osm-highway-class',
+      publisher: 'OpenStreetMap contributors',
+      datasetUrl: 'https://www.openstreetmap.org/',
+      distributionUrl: 'https://overpass-api.de/api/interpreter',
+      licenseUrl: 'https://opendatacommons.org/licenses/odbl/1-0/',
+      temporalCoverage: '2026-11-11T23:57:00.000Z/2026-11-12T00:03:00.000Z',
+      retrievedAt: '2026-11-13T07:30:00.000Z',
+    };
+    ctx.contextLayerState = { meta: { sources: { traffic: { measurementType: 'proxy', provenance } } } };
+    const manifest = await api.createManifest(ctx, environment);
+    const bound = api.bindExportContext(UA, ctx, manifest);
+    ctx.contextLayerState.meta.sources.traffic = { extractDate: '2020-01-01' };
+    const { sources } = api.buildContextNote(UA, bound);
+    expect(sources).toContainEqual({
+      label: expect.stringContaining('OSM-Datenstand ' + provenance.temporalCoverage),
+      url: provenance.distributionUrl,
+    });
+    expect(sources.find(source => source.url === provenance.distributionUrl).label)
+      .toContain('Abgerufen am ' + provenance.retrievedAt);
+    expect(sources.map(item => item.url)).toEqual(expect.arrayContaining([provenance.datasetUrl, provenance.licenseUrl]));
+    const legacy = api.buildContextNote(UA, ctx);
+    expect(legacy.sources.map(source => source.label).join(' ')).toContain('OSM-Datenstand unbekannt');
+    expect(JSON.stringify(legacy)).not.toContain('2020-01-01');
+  });
+
   test('selected DGM Way source replaces generic SRTM attribution and preserves unknown clock/quality', () => {
     const {ctx,env}=selectedDgmContext();
     delete ctx.allPts[0].props.slope_source;

@@ -373,25 +373,32 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     expect(dataset.ways['101'].elevationRiskTags.bridge).toBe('no');
   });
 
-  test.each(['timeout remark', 'missing way tags', 'missing geometry', 'invalid point'])('does not record full structure coverage for an Overpass response with %s', async (caseName) => {
-    const city = 'hannover';
-    fs.writeFileSync(path.join(tmpRoot, 'out', `output_all_years_${city}.geojson`),
-      JSON.stringify(fc([pt(1, 9.7, 52.4)])));
-    const way = {
-      type: 'way', id: 100, tags: { highway: 'primary' },
-      geometry: [{ lat: 52.4, lon: 9.7 }, { lat: 52.401, lon: 9.701 }],
-    };
-    const response = { elements: [way, { ...way, id: 101 }] };
-    if (caseName === 'timeout remark') response.remark = 'runtime error: Query timed out';
-    if (caseName === 'missing way tags') delete way.tags;
-    if (caseName === 'missing geometry') delete way.geometry;
-    if (caseName === 'invalid point') way.geometry = [way.geometry[0], null, way.geometry[1]];
-    const outDir = path.join(tmpRoot, 'cache');
-    await expect(osm.produceCity(tmpRoot, city, {
-      outDir, fetchOverpass: async () => response, includeElevationStructureTags: true,
-    })).rejects.toThrow('Incomplete Overpass road geometry or structure tags');
-    expect(fs.existsSync(path.join(outDir, 'osm_hannover.json'))).toBe(false);
-  });
+  describe.each([['bonn', false], ['hannover', true]])(
+    'complete Overpass source for %s', (city, includeElevationStructureTags) => {
+      test.each(['timeout remark', 'missing elements', 'missing way tags', 'missing geometry', 'invalid point'])(
+        'preserves the previous city snapshot after a partial tile with %s', async (caseName) => {
+          fs.writeFileSync(path.join(tmpRoot, 'out', `output_all_years_${city}.geojson`),
+            JSON.stringify(fc([pt(1, 9.7, 52.4)])));
+          const geometry = [{ lat: 52.4, lon: 9.7 }, { lat: 52.401, lon: 9.701 }];
+          const validWay = { type: 'way', id: 100, tags: { highway: 'primary' }, geometry };
+          const otherWay = { ...validWay, id: 101 };
+          const response = { elements: [validWay, otherWay] };
+          if (caseName === 'timeout remark') response.remark = 'runtime error: Query timed out';
+          if (caseName === 'missing elements') delete response.elements;
+          if (caseName === 'missing way tags') delete otherWay.tags;
+          if (caseName === 'missing geometry') delete otherWay.geometry;
+          if (caseName === 'invalid point') otherWay.geometry = [geometry[0], null, geometry[1]];
+          const cacheFile = path.join(tmpRoot, `osm_${city}.json`);
+          fs.writeFileSync(cacheFile, 'previous verified snapshot');
+          const fetchOverpass = jest.fn()
+            .mockResolvedValueOnce({ elements: [validWay] })
+            .mockResolvedValue(response);
+          await expect(osm.produceCity(tmpRoot, city, {
+            outDir: tmpRoot, force: true, fetchOverpass, includeElevationStructureTags,
+          })).rejects.toThrow('Incomplete Overpass road geometry or structure tags');
+          expect(fs.readFileSync(cacheFile, 'utf8')).toBe('previous verified snapshot');
+        });
+    });
 
   test('resume: skips when osm_<slug>.json already exists in outDir', async () => {
     const inputFc = fc([pt(1, 7.0005, 50.0)]);

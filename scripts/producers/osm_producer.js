@@ -60,7 +60,7 @@ const { applyStructureTags, structureRecord } = require('./osm_structure_produce
 //         the front-end full-network slope/traffic overlay has data for
 //         the entire visible road network. Cache key bumps so the first
 //         CI run after the bump re-fetches every city.
-const PRODUCER_VERSION = '1.3.0';
+const PRODUCER_VERSION = '1.3.1';
 const TRAFFIC_ROUTE_TAGS_VERSION = 1;
 const TRAFFIC_ROUTE_KEYS = ['ref', 'oneway', 'oneway:conditional', 'oneway:vehicle', 'oneway:vehicle:conditional',
   'oneway:motor_vehicle', 'oneway:motor_vehicle:conditional', 'oneway:motorcar', 'oneway:motorcar:conditional',
@@ -818,13 +818,11 @@ async function produceCity(repoRoot, citySlug, opts) {
       if (!earliestBaseTime || iso < earliestBaseTime) earliestBaseTime = iso;
       if (!latestBaseTime || iso > latestBaseTime) latestBaseTime = iso;
     }
-    if (o.includeElevationStructureTags && (
-      !Array.isArray(resp?.elements) || resp.remark || !resp.elements.every(isCompleteOverpassWay)
-    )) {
+    // Overpass can return a partial set of ways with HTTP 200 and a timeout remark.
+    if (!Array.isArray(resp?.elements) || resp.remark || !resp.elements.every(isCompleteOverpassWay)) {
       const detail = resp?.remark ? `: ${resp.remark}` : '';
       throw new Error(`Incomplete Overpass road geometry or structure tags${detail}`);
     }
-    if (!resp || !Array.isArray(resp.elements)) return;
     totalElements += resp.elements.length;
     const slim = parseOverpassResponse(resp);
     for (const w of slim) {

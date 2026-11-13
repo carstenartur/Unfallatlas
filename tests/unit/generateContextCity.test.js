@@ -59,6 +59,10 @@ describe('generate-context-city helpers', () => {
     }));
     expect(generator.producerDatasetIsCurrent(file, preflight.validateOsm, fingerprint)).toBe(true);
     expect(generator.producerDatasetIsCurrent(file, preflight.validateOsm, 'b'.repeat(64))).toBe(false);
+    // 1.3.0 could mark a partial Overpass response outside Hannover as complete.
+    const previous = { ...JSON.parse(fs.readFileSync(file)), producerVersion: '1.3.0' };
+    write(file, JSON.stringify(previous));
+    expect(generator.producerDatasetIsCurrent(file, preflight.validateOsm, fingerprint)).toBe(false);
   });
 
   test('installs verified city files and replaces the tile directory', () => {
