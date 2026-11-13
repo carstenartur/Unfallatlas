@@ -295,6 +295,7 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     const r = await osm.produceCity(tmpRoot, 'bonn', {
       outDir,
       fetchOverpass: stubFetch,
+      endpoint: 'https://replica.example.org/overpass?source=fixture',
       maxDistanceM: 50,
       extractDate: '2026-05-07',
     });
@@ -309,6 +310,8 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
       fs.readFileSync(path.join(outDir, 'osm_bonn.json'), 'utf8'),
     );
     expect(written.source).toBe('OpenStreetMap (Overpass)');
+    expect(written.distributionUrl).toBe('https://replica.example.org/overpass');
+    expect(Date.parse(written.retrievedAt)).toBeGreaterThan(0);
     expect(written.extractDate).toBe('2026-05-07');
     expect(written.ways['100']).toEqual({ highway: 'residential', maxspeed: 30 });
     expect(written.index).toHaveLength(2);

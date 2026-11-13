@@ -29,13 +29,13 @@ die vollständige SourceManifest-Provenienz erneut.
 
 | Source-ID | Typ | Abdeckung | Einheit | Lizenz |
 |---|---|---|---|---|
-| `traffic.model.berlin-dtvw-2023` | ausgeglichener DTVw-Modellwert | Berlin, 2023 | `Kfz/24 h` | DL-DE-Zero-2.0 |
+| `traffic.model.hamburg-hvs-2019` | DTV aus dem Verkehrsmodell | Hamburg, amtlicher HVS-Abschnitt 1, 2019 | `Kfz/24 h` | DL-DE-BY-2.0 |
 | `traffic.count.berlin-bicycle-hourly-2012-2025` | Rad-Dauerzählstelle | Berlin, 2012–2025 | `Fahrräder/Stunde` | DL-DE-Zero-2.0 |
 
-Der Katalog ist keine Behauptung, dass ein aktueller Snapshot bereits
-mitgeliefert wird. Originaldistributionen werden bewusst nicht ungeprüft in das
-Repository übernommen. Ein Produktionslauf muss die tatsächlich abgerufenen
-Bytes und den daraus erzeugten Snapshot pinnen.
+Für den Hamburger Modellabschnitt enthält das Repository die abgerufenen
+Originalbytes und den geprüften Snapshot. Der Provider vergleicht dessen
+Prüfsumme zusätzlich mit dem Katalogeintrag. Für die Berliner Radzählungen
+muss der Aufrufer einen eigenen geprüften Snapshot registrieren.
 
 ## Zurückgezogene Kölner Knotendatei
 
@@ -69,48 +69,36 @@ Die alte Source-ID wird nicht still auf eine andere Distribution umgebogen:
 Ein vorhandener Snapshot könnte sonst trotz identischer ID eine völlig andere
 Zeilen- und Richtungssemantik erhalten.
 
-## Generisches Snapshot-Schema
+## Amtlicher Modellfall und vier Referenzfälle
 
-Das folgende Beispiel verwendet deshalb den weiterhin aktiven Berliner
-DTVw-Modellwert:
+Der [Hamburger Quellenkatalog](https://suche.transparenz.hamburg.de/dataset/verkehrsmengen-auf-hauptverkehrsstrassen-in-hamburg46)
+beschreibt für 2019 die Umrechnung der werktäglichen Kfz-Modellwerte auf
+Montag bis Sonntag und den anschließenden fachlichen Abgleich. Der
+[amtliche Abschnitt 1](https://api.hamburg.de/datasets/v1/verkehrsmengen/collections/verkehrsmengen_dtv_hvs_2019/items/1?f=json)
+enthält 4.000 Kfz/24 h und eine Liniengeometrie. Die Namensnennung lautet
+„Freie und Hansestadt Hamburg, Behörde für Verkehr und Mobilitätswende, (BVM)“.
+Der Wochentagsbezug des Schwerverkehrsanteils weicht vom DTV ab. Er geht
+nicht in den Kfz-Modellwert ein.
 
-```json
-{
-  "schemaVersion": 1,
-  "snapshotId": "traffic.model.berlin-dtvw-2023.2026-07-28",
-  "sourceId": "traffic.model.berlin-dtvw-2023",
-  "retrievedAt": "2026-07-28T12:00:00Z",
-  "distribution": {
-    "url": "https://gdi.berlin.de/services/wfs/verkehrsmengen_2023",
-    "sha256": "<sha256-der-originaldistribution>",
-    "bytes": 12345,
-    "mediaType": "application/gml+xml",
-    "versionOrPublicationDate": "2024-12-06"
-  },
-  "coverage": {
-    "city": "Berlin",
-    "fromYear": 2023,
-    "toYear": 2023,
-    "modes": ["motor_vehicle"]
-  },
-  "observations": [
-    {
-      "observationId": "berlin-dtvw-segment-123-2023",
-      "measurementType": "model",
-      "mode": "motor_vehicle",
-      "year": 2023,
-      "period": "DTVw",
-      "value": 18500,
-      "unit": "Kfz/24 h",
-      "wayId": "berlin-segment-123",
-      "qualityNotes": ["Deterministisches Schema-Beispiel, kein Produktionswert."]
-    }
-  ]
-}
-```
+Die [unveränderten Originalbytes und der normalisierte Snapshot](../tests/fixtures/traffic/hamburg-model/)
+bilden den Bezugsfall für den optionalen Modellprovider. Die Registry muss
+explizit auf den Snapshot mit seiner Prüfsumme zeigen. Er enthält weder
+eine OSM-Weg-ID noch eine Zuordnung zu Unfallpunkten. Die früher verwendete
+Kennung `traffic.model.berlin-dtvw-2023` ist für Modellwerte gesperrt.
+Der [Berliner Methodenbericht, Abschnitt 7.2](https://www.berlin.de/sen/uvk/_assets/verkehr/verkehrsmanagement/verkehrserhebungen/ergebnisbericht-2023.pdf)
+belegt die Hochrechnung von Zählungen. Eine neue Zuordnung solcher Daten
+erfordert die belegte Herleitung für den jeweiligen Abschnitt.
 
-Die Zahl illustriert nur das Schema. Sie darf nicht als realer Berliner Wert
-in einen Produktionssnapshot kopiert werden.
+| Typ | Referenzfall | Ergebnis |
+|---|---|---|
+| Messwert | Hamburg, Kollaustraße, BASt 2201, Unfall 9757 (2023) | 45.865 Kfz/24 h am Querschnitt. Die beiden Richtungszählungen bleiben separat. |
+| Modellwert | Hamburg, amtlicher Hauptstraßenabschnitt 1 (2019) | 4.000 Kfz/24 h auf der amtlichen Modelllinie. |
+| Historischer Messwert | Köln, Unfall 96301 (2019), Bayenthalgürtel | 5.830 Kfz/24 h aus einer DTVw-Hochrechnung 2019. Der mit Referenzjahr 2026 veröffentlichte Straßenbezug hat niedrige Qualität und eine Alterswarnung. |
+| Straßenklassenproxy | Köln, Unfall 95521 (2019) | Hohe qualitative Klasse aus `highway=secondary`, ohne numerische Verkehrsmenge. |
+
+Der Test `trafficPublishedGold.test.js` liest die Hamburger und Kölner
+Unfallfälle aus den eingecheckten Stadtdateien und prüft den Modellfall mit
+dem echten Registry-Aufruf gegen die amtliche GeoJSON-Antwort.
 
 ## Registry-Schema
 
@@ -121,8 +109,8 @@ Die Hashes der normalisierten Snapshots liegen außerhalb der Snapshots selbst:
   "schemaVersion": 1,
   "snapshots": [
     {
-      "sourceId": "traffic.model.berlin-dtvw-2023",
-      "path": "snapshots/berlin-dtvw-2023.json",
+      "sourceId": "traffic.model.hamburg-hvs-2019",
+      "path": "snapshots/feature-1.snapshot.json",
       "sha256": "<sha256-des-normalisierten-snapshots>"
     }
   ]
@@ -142,7 +130,7 @@ snapshots.registerSnapshotManifest(registry, {
 });
 
 const observations = await registry.collect({
-  city: "Berlin",
+  city: "Hamburg",
   failOnProviderError: true,
 });
 ```
@@ -151,49 +139,29 @@ const observations = await registry.collect({
 oder nicht mehr reproduzierbarer Provider darf nicht stillschweigend den
 qualitativen Fallback verdecken.
 
-## Nachgewiesene optionale Integration und verbleibende Abnahme
+## Veröffentlichtes Straßenmatching und offene Zuordnungen
 
-Der Kölner Link-CSV-Pilot wurde am 8. November 2026 mit den tatsächlichen
-amtlichen CSV-/Shapefile-Distributionen und einem separat gepinnten OSM-Abruf
-geprüft. Alle 5.197 Beobachtungen besitzen eine exakte Verbindung zur amtlichen
-Geometrie; die anschließende OSM-Zuordnung akzeptiert 2.743 Beobachtungen,
-kennzeichnet 213 als mehrdeutig und lässt 2.241 ohne Zuordnung. Niedrige Qualität,
-Richtung und Messjahre 2016–2019 bleiben erhalten. Diese Zahlen bezeichnen
-verschiedene Prüfschritte und sind keine Behauptung einer vollständigen
-OSM-Zuordnung oder eines aktuellen Messjahres.
+Die [Kölner Metadaten](https://carstenartur.github.io/Unfallatlas/out/output_all_years_koeln.enrichment.meta.json.gz)
+vom 12. November 2026 weisen 2.716 eindeutig zugeordnete historische
+Zählbeobachtungen unter 5.197 aus. Weitere 213 sind mehrdeutig, 2.268
+konnten keinem Weg zugeordnet werden. Sie bleiben von der Messwertausgabe
+ausgeschlossen. Insgesamt enthalten 3.957 Unfallpunkte historische
+Kfz-Zählwerte. Quelle, Lizenz, Beobachtungszeitraum und Abrufzeitpunkt
+stehen in `sources.trafficMatched.source`; die Güte der Zuordnung ist je
+Beobachtung dokumentiert.
 
-Die optionale Übernahme in Unfall-GeoJSON und Way-Tiles prüft Originalbytes,
-normalisiertes Artefakt und die tatsächlich verwendeten geordneten Zielgeometrien
-vor jedem Schreiben. Typisierte Quelle, Datentyp, Alter, Qualität und ausgewählte
-Straßenevidenz werden in Popups und Exporten erhalten. Der reale, isolierte
-Kölner Probelauf und seine Grenzen sind in
-[koeln-kfz-link-csv-provider.md](koeln-kfz-link-csv-provider.md) dokumentiert.
-Der veröffentlichte Standardbestand wurde damit nicht auf Zählwerte umgestellt.
+Die [Hamburger Metadaten](https://carstenartur.github.io/Unfallatlas/out/output_all_years_hamburg.enrichment.meta.json.gz)
+weisen die BASt-Zuordnung von Station 2201 an einen Unfallpunkt im Messjahr
+2023 aus, darunter beide getrennten Richtungskanäle. Sieben Stationen blieben
+mehrdeutig. Vor einer weiteren Zuordnung sind belastbare Straßenreferenzen
+und eindeutige Parallel- und Richtungsbezüge erforderlich.
+Die [Düsseldorfer Radzählreihe](duesseldorf-bicycle-hourly-provider.md)
+ist auf den amtlichen Zählpunkt und seinen belegten Radweg begrenzt.
 
-Ein weiterer optionaler, tatsächlich gegen Originalbytes geprüfter Provider
-importiert die überregionalen BASt-Jahres-DTV 2023 einschließlich amtlicher
-WGS84-Stationspunkte. Er erhält 4.671 getrennte Querschnitts-/Richtungsbeobachtungen
-aus 1.557 Stationen; weitere 559 Stationen besitzen keine Kfz-Jahreswerte.
-Der Stadtgenerator kann auf ausdrückliche Konfiguration den passenden
-Querschnitt an lokale Kfz-Unfallpunkte des Messjahrs anbinden, wenn die
-OSM-Bundesstraße und beide Fahrtrichtungen eindeutig belegt sind.
-[BASt-Jahres-DTV und lokaler Straßenbezug](bast-annual-dtv-provider.md).
-
-Der ebenfalls optionale [Düsseldorfer Stundenwert-Pilot](duesseldorf-bicycle-hourly-provider.md)
-erhält 17.566 richtungsgetrennte Fahrrad-Stundenwerte der Station Mannesmannufer
-für 2024 mit separat belegtem amtlichem Stationspunkt. Er ergänzt Köln als
-zweite gegen Originaldaten geprüfte kommunale Quelle. Jahres-DTV und
-Fahrrad-Stundenwerte bleiben unterschiedliche Messgrößen; dieser Quellenbaustein
-behauptet keine Straßenpassung oder vollständige Abnahme von #413.
-
-Für die vollständige Abnahme von #413 fehlen weiterhin:
-
-- die fachliche Abnahme schwacher oder gemeinsam zugeordneter Straßensegmente;
-- Coverage-Bericht, Frischeprüfung und sichtbare Warnung bei alten Messständen;
-- die Übernahme ausgewählter Evidenz in Unfall-GeoJSON, Way-Tiles, Sidecar,
-  Popups und Exporte;
-- manuell gegen die Originalquellen geprüfte Goldfälle.
-
-Die generischen Berliner Source-Descriptoren oben ersetzen keine geprüften
-WFS/GML-/XLSX-Importe und zählen nicht als real aktivierte Quellen.
-Die Provider bleiben opt-in; der ausgelieferte Standardbestand bleibt qualitativ.
+Neue OSM-Abfragen speichern die verwendete Overpass-Adresse sowie den
+tatsächlichen Zeitpunkt nach Abschluss des letzten Teilabrufs. Ein neuer
+Verkehrsproxy übernimmt diese Angaben und den Stand des OSM-Abzugs. Werden
+ältere Dateien ohne Abrufnachweis einzeln verarbeitet, bleiben die
+fehlenden Herkunftsfelder offen. Für die Auslieferung dieser zusätzlichen
+Quellenangaben ist ein Kontextdatenlauf mit den neuen Erzeugerversionen
+erforderlich.

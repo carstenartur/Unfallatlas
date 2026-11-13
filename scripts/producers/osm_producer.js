@@ -60,7 +60,7 @@ const { applyStructureTags, structureRecord } = require('./osm_structure_produce
 //         the front-end full-network slope/traffic overlay has data for
 //         the entire visible road network. Cache key bumps so the first
 //         CI run after the bump re-fetches every city.
-const PRODUCER_VERSION = '1.2.0';
+const PRODUCER_VERSION = '1.3.0';
 const TRAFFIC_ROUTE_TAGS_VERSION = 1;
 const TRAFFIC_ROUTE_KEYS = ['ref', 'oneway', 'oneway:conditional', 'oneway:vehicle', 'oneway:vehicle:conditional',
   'oneway:motor_vehicle', 'oneway:motor_vehicle:conditional', 'oneway:motorcar', 'oneway:motorcar:conditional',
@@ -593,6 +593,7 @@ function buildOsmDataset(fc, ways, opts) {
     producerVersion: o.producerVersion || PRODUCER_VERSION,
     extractDate:     o.extractDate || new Date().toISOString().slice(0, 10),
     coverage:        'full',
+    ...(o.retrievedAt && { retrievedAt: o.retrievedAt, distributionUrl: o.routeDistributionUrl }),
     ways:            wayTable,
     wayGeometries,
     index:           indexEntries,
@@ -822,16 +823,15 @@ async function produceCity(repoRoot, citySlug, opts) {
 
   const ways = Array.from(wayMap.values());
 
-  let routeDistributionUrl;
-  if (o.includeTrafficRouteTags) {
-    const endpoint = new URL(o.endpoint || process.env.OVERPASS_ENDPOINT || DEFAULT_OVERPASS_ENDPOINT);
-    // Report the actual public endpoint without including endpoint credentials.
-    routeDistributionUrl = `${endpoint.origin}${endpoint.pathname}`;
-  }
+  // Record the completion of the successful tile requests and their public endpoint.
+  const retrievedAt = new Date().toISOString();
+  const endpoint = new URL(o.endpoint || process.env.OVERPASS_ENDPOINT || DEFAULT_OVERPASS_ENDPOINT);
+  const routeDistributionUrl = `${endpoint.origin}${endpoint.pathname}`;
 
   const dataset = buildOsmDataset(fc, ways, {
     maxDistanceM: o.maxDistanceM,
-    extractDate:  o.extractDate,
+    extractDate:  o.extractDate || retrievedAt.slice(0, 10),
+    retrievedAt,
     includeTrafficRouteTags: o.includeTrafficRouteTags,
     includeElevationStructureTags: o.includeElevationStructureTags,
     routeDistributionUrl,

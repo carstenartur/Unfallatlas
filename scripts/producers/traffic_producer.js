@@ -34,7 +34,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const PRODUCER_VERSION = '2.0.0';
+const PRODUCER_VERSION = '2.1.0';
 const DEFAULT_INTER_CITY_DELAY_MS = 0;
 const DEFAULT_SOURCE = 'OSM-highway-class-proxy';
 const DEFAULT_CONFIDENCE = 'low';
@@ -96,6 +96,9 @@ function buildTrafficDataset(osmWays, options) {
       publisher: 'OpenStreetMap contributors',
       datasetTitle: 'OpenStreetMap highway classification',
       datasetUrl: 'https://www.openstreetmap.org/',
+      ...(opts.osmSnapshot?.distributionUrl && { distributionUrl: opts.osmSnapshot.distributionUrl }),
+      ...(opts.osmSnapshot?.retrievedAt && { retrievedAt: opts.osmSnapshot.retrievedAt }),
+      ...(opts.osmSnapshot?.extractDate && { temporalCoverage: opts.osmSnapshot.extractDate }),
       licenseId: 'ODbL-1.0',
       licenseName: 'Open Data Commons Open Database License 1.0',
       licenseUrl: 'https://opendatacommons.org/licenses/odbl/1-0/',
@@ -124,23 +127,27 @@ function buildTrafficDataset(osmWays, options) {
   return dataset;
 }
 
-function readOsmWays(osmDir, citySlug) {
+function readOsmDataset(osmDir, citySlug) {
   if (!osmDir) return null;
   const file = path.join(osmDir, `osm_${citySlug}.json`);
   if (!fs.existsSync(file)) return null;
   try {
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return data && data.ways && typeof data.ways === 'object' ? data.ways : null;
+    return data && data.ways && typeof data.ways === 'object' ? data : null;
   } catch (_) {
     return null;
   }
 }
 
+function readOsmWays(osmDir, citySlug) {
+  return readOsmDataset(osmDir, citySlug)?.ways || null;
+}
+
 function produceCity(repoRoot, citySlug, options) {
   const opts = options || {};
   const osmDir = opts.osmDir || process.env.ENRICH_OSM_DATA_DIR || null;
-  const ways = readOsmWays(osmDir, citySlug);
-  if (!ways) return { citySlug, skipped: true, reason: 'no osm cache for city' };
+  const osm = readOsmDataset(osmDir, citySlug);
+  if (!osm) return { citySlug, skipped: true, reason: 'no osm cache for city' };
 
   const outDir = opts.outDir;
   if (!outDir) throw new Error('produceCity: opts.outDir required');
@@ -149,11 +156,12 @@ function produceCity(repoRoot, citySlug, options) {
     return { citySlug, skipped: true, reason: 'already cached', outFile };
   }
 
-  const dataset = buildTrafficDataset(ways, {
+  const dataset = buildTrafficDataset(osm.ways, {
+    osmSnapshot: osm,
     source: opts.source,
     datasetVersion: opts.datasetVersion,
     confidence: opts.confidence,
-    extractDate: opts.extractDate,
+    extractDate: osm.extractDate || opts.extractDate,
     proxyClassLookup: opts.proxyClassLookup,
   });
   fs.mkdirSync(outDir, { recursive: true });
@@ -162,7 +170,7 @@ function produceCity(repoRoot, citySlug, options) {
     citySlug,
     skipped: false,
     counts: {
-      candidateWays: Object.keys(ways).length,
+      candidateWays: Object.keys(osm.ways).length,
       taggedWays: Object.keys(dataset.ways).length,
     },
     outFile,
