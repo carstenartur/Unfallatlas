@@ -135,6 +135,33 @@ describe('Microsoft Word compatibility evidence', () => {
       .toThrow(/input_fingerprint_mismatch/);
   });
 
+  test.each([
+    ['version', '<Word version and build>'],
+    ['version', 'Microsoft 365'],
+    ['platform', '<Windows or macOS version>'],
+    ['platform', 'Linux 6.8'],
+    ['platform', 'Windows'],
+    ['version', 'Word Online 16.0.1'],
+  ])('rejects unobserved or non-desktop environment metadata: %s = %s', (field, value) => {
+    const input = validator.computeInputEvidence(root);
+    const receipt = validReceipt(input, now);
+    receipt.environment[field] = value;
+    expect(() => validator.validateReceipt(receipt, input, { now })).toThrow(/invalid_word_environment/);
+  });
+
+  test.each([
+    ['16.90 (24101387)', 'macOS Sonoma 14.6'],
+    ['16.90 (24101387)', 'macOS Sonoma'],
+    ['Microsoft 365 Version 2609 (Build 19231.20194)', 'Windows 11'],
+    ['Version 2410 (Build 18129)', 'Windows 11'],
+    ['Word 2021', 'macOS 15'],
+  ])('accepts observed Word version %s on %s', (version, platform) => {
+    const input = validator.computeInputEvidence(root);
+    const receipt = validReceipt(input, now);
+    Object.assign(receipt.environment, {version, platform});
+    expect(validator.validateReceipt(receipt, input, { now }).passed).toBe(true);
+  });
+
   test('accepts recent evidence with every required manual Word check', () => {
     const input = validator.computeInputEvidence(root);
     const report = validator.validateReceipt(validReceipt(input, now), input, {
