@@ -9,7 +9,7 @@ const environment = {
 };
 
 const stages = [
-  [require.resolve('./qa-bonn-hbf-ai-golden'), '--skip-build'],
+  [require.resolve('./qa-bonn-hbf-ai-golden'), '--skip-build', '--replay-model'],
   [playwrightCli, 'test', '--project=chromium'],
   [playwrightCli, 'test', '--project=firefox-smoke'],
   [playwrightCli, 'test', '--project=webkit-smoke'],

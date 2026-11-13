@@ -1,0 +1,16 @@
+{
+  "caseId": "bonn-hbf-37-rad-pkw-2019-2025",
+  "origin": "chatgpt-authored-reference",
+  "authoredOn": "2026-11-13",
+  "promptVersion": "exportAssessmentPrompt.v2.10",
+  "cases": {
+    "unsearched": {
+      "requestSha256": "f67fe75da6b0bc747601213dd3eb8a57a2d46920193bbd365851cbb379cf0bb0",
+      "rawResponseSha256": "e1341409a654e861f4f0b16ccf26ffa53cefa6f2f9de4509d26549bcbc521634"
+    },
+    "council-research": {
+      "requestSha256": "159305e479d34962ac9f6596a78705199432c53cfba203f5943cdc765be37146",
+      "rawResponseSha256": "16f7ff551b78d355389b7c4b0064222aa1d42ace5bf66a813b8a7e0138ddcd24"
+    }
+  }
+}

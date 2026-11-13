@@ -1,0 +1,233 @@
+{
+  "schemaVersion": "proposalBrief.v1",
+  "evidenceCohortCounts": {
+    "discovery": 37,
+    "completeArea": 312,
+    "reference": 1926
+  },
+  "title": "Arbeitsentwurf zur Verkehrssicherheit am Bonner Hauptbahnhof",
+  "shortVersion": "Für die Bonner Bahnhofsumgebung sind 37 Rad-Pkw-Unfälle mit Personenschaden dokumentiert. Die politische Vorbefassung und die örtlichen Prüfgrundlagen sind zuerst zu klären.",
+  "sachverhalt": "Für den Bereich Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße sind von 2019 bis 2025 insgesamt 37 ausgewählte Rad-Pkw-Unfälle mit Personenschaden amtlich dokumentiert: 0 Unfälle mit Getöteten, 1 Unfall mit Schwerverletzten und 36 Unfälle mit Leichtverletzten. Das vollständige Gebiet umfasst 312 Unfälle vor Anwendung des Beteiligungsfilters. Die getrennte Referenz im übrigen Bonner Stadtgebiet umfasst 1.926 Unfälle unter denselben aktiven Filtern.",
+  "longVersion": "Für den Bereich Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße sind von 2019 bis 2025 insgesamt 37 ausgewählte Rad-Pkw-Unfälle mit Personenschaden amtlich dokumentiert: 0 Unfälle mit Getöteten, 1 Unfall mit Schwerverletzten und 36 Unfälle mit Leichtverletzten. Das vollständige Gebiet umfasst 312 Unfälle vor Anwendung des Beteiligungsfilters. Die getrennte Referenz im übrigen Bonner Stadtgebiet umfasst 1.926 Unfälle unter denselben aktiven Filtern. Der Vergleich betrifft Beteiligungsanteile unter denselben aktiven Filtern: 37/37 im Ausschnitt und 1.875/1.926 im übrigen Stadtgebiet. Die Differenz beträgt rund +2,6 Prozentpunkte. Das Newcombe-95-%-Intervall aus beiden Stichproben reicht von −6,8 bis +3,5 Prozentpunkten und umfasst null. Eine statistisch abgesicherte Überrepräsentation ist damit nicht belegt. Die Suche ist explorativ und unbereinigt. Für absolute Unfallraten oder Risiko je Verkehrsleistung fehlen Expositionsdaten. Die Jahresreihe 2019–2025 lautet 6, 8, 5, 2, 2, 9, 5 und ist als stagnierend klassifiziert. Die veröffentlichten Standorte erlauben eine abschnittsbezogene Prüfung. Zeitliche oder räumliche Zusammenhänge müssen anhand der Einzelfälle geprüft werden. Für die politische Vorbefassung liegt keine ausgeführte Recherche vor. Vor einer Vorlage sind die amtlichen Rats- und Verwaltungsvorgänge für den bestätigten Bereich zu recherchieren. Arbeitsentwurf für die Bezirksvertretung Bonn. Die Stadtverwaltung soll zunächst die amtliche Vorbefassung recherchieren und einen abschnittsbezogenen Bericht vorbereiten. Der Entwurf bleibt bis zur Quellenprüfung gesperrt.",
+  "begruendung": "Der Vergleich betrifft Beteiligungsanteile unter denselben aktiven Filtern: 37/37 im Ausschnitt und 1.875/1.926 im übrigen Stadtgebiet. Die Differenz beträgt rund +2,6 Prozentpunkte. Das Newcombe-95-%-Intervall aus beiden Stichproben reicht von −6,8 bis +3,5 Prozentpunkten und umfasst null. Eine statistisch abgesicherte Überrepräsentation ist damit nicht belegt. Die Suche ist explorativ und unbereinigt. Für absolute Unfallraten oder Risiko je Verkehrsleistung fehlen Expositionsdaten. Die Jahresreihe 2019–2025 lautet 6, 8, 5, 2, 2, 9, 5 und ist als stagnierend klassifiziert. Die veröffentlichten Standorte erlauben eine abschnittsbezogene Prüfung. Zeitliche oder räumliche Zusammenhänge müssen anhand der Einzelfälle geprüft werden. Für die politische Vorbefassung liegt keine ausgeführte Recherche vor. Vor einer Vorlage sind die amtlichen Rats- und Verwaltungsvorgänge für den bestätigten Bereich zu recherchieren.",
+  "beschlussvorschlag": "Arbeitsentwurf für die Bezirksvertretung Bonn. Die Stadtverwaltung soll zunächst die amtliche Vorbefassung recherchieren und einen abschnittsbezogenen Bericht vorbereiten. Der Entwurf bleibt bis zur Quellenprüfung gesperrt.",
+  "pruefauftrag": "Alle 37 ausgewählten Fälle anhand der Fallnummer, des Datums und des veröffentlichten Unfallorts dem einschlägigen Straßenabschnitt und, soweit möglich, dem damaligen Verkehrsregime zuordnen. Die übrigen Gebietsunfälle aus dem Kollektiv von 312 getrennt auswerten, sofern ihr Unfallort oder ihre Beteiligung eine betrachtete Variante betrifft. Bei der Ortsprüfung Wegeführung, Querungen und Sichtbeziehungen dokumentieren. Für einen späteren Ratenvergleich Rad- und Kfz-Mengen unter vergleichbaren Bedingungen erheben. Die amtliche Vorbefassung anhand dokumentierter Suchwege und direkter Vorgangslinks prüfen. Kartenmaterial vor Ort verifizieren.",
+  "measureSummary": [
+    {
+      "id": "mon_followup",
+      "title": "Monitoring nach Umsetzung (Nachher-Vergleich Unfallatlas-Daten der Folgejahre)",
+      "category": "monitoring",
+      "rationale": "Vergleichbare Bedingungen für eine spätere Vorher-Nachher-Erhebung definieren und Unfälle nach Beteiligung und Schwere dokumentieren."
+    }
+  ],
+  "confidence": {
+    "overall": "medium",
+    "rationale": "Amtliche Unfalldaten belegen die Ereignisse. Unfallabläufe und Maßnahmenwirkungen bedürfen einer gesonderten Prüfung."
+  },
+  "caveats": [
+    "Die Kategorien zählen Unfälle nach ihrer schwersten Folge. Die Anzahl betroffener Personen geht daraus nicht hervor.",
+    "Einzelfallbezogene Fahrwege, genaue Konfliktabläufe, aktuelle Sichtweiten und Verkehrsmengen sind ungeklärt.",
+    "Die 37 Fälle umfassen die gesamte Auswahl. Einzelne Fälle müssen der Maximilianstraße vor einer lokalen Maßnahmenbewertung gesondert zugeordnet werden.",
+    "Ausstehend sind amtliche Ratsrecherche und dokumentierte Kartenprüfung."
+  ],
+  "valueAddContractVersion": "unfallwerkbank.proposalBriefValueAdd.v1",
+  "deterministicVsAiComparison": [
+    {
+      "deterministicFinding": "37 ausgewählte Unfälle im vollständigen Gebiet mit 312 Fällen.",
+      "deltaStatus": "praezisiert",
+      "aiVerification": "Für den Bereich Bonn Hauptbahnhof / Münsterplatz / Maximilianstraße / Thomas-Mann-Straße sind von 2019 bis 2025 insgesamt 37 ausgewählte Rad-Pkw-Unfälle mit Personenschaden amtlich dokumentiert: 0 Unfälle mit Getöteten, 1 Unfall mit Schwerverletzten und 36 Unfälle mit Leichtverletzten. Das vollständige Gebiet umfasst 312 Unfälle vor Anwendung des Beteiligungsfilters. Die getrennte Referenz im übrigen Bonner Stadtgebiet umfasst 1.926 Unfälle unter denselben aktiven Filtern.",
+      "aiAddedValue": "Alle Auswahlfälle erhalten eine abschnittsbezogene Zuordnung mit einer Kategorie für unklare Fälle.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts"
+      ],
+      "uncertaintyOrCheck": "Unfallorte anhand der nummerierten Fälle einzeln prüfen."
+    },
+    {
+      "deterministicFinding": "Vergleich der Beteiligungsanteile mit dem übrigen Stadtgebiet.",
+      "deltaStatus": "praezisiert",
+      "aiVerification": "Der Vergleich betrifft Beteiligungsanteile unter denselben aktiven Filtern: 37/37 im Ausschnitt und 1.875/1.926 im übrigen Stadtgebiet. Die Differenz beträgt rund +2,6 Prozentpunkte. Das Newcombe-95-%-Intervall aus beiden Stichproben reicht von −6,8 bis +3,5 Prozentpunkten und umfasst null. Eine statistisch abgesicherte Überrepräsentation ist damit nicht belegt. Die Suche ist explorativ und unbereinigt. Für absolute Unfallraten oder Risiko je Verkehrsleistung fehlen Expositionsdaten.",
+      "aiAddedValue": "Die Referenz dient als Zusammensetzungsvergleich. Die Vor-Ort-Prüfung folgt der örtlichen Zuordnung.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.patternCompositionComparison",
+        "evidenceCohortCounts"
+      ],
+      "uncertaintyOrCheck": "Exposition nur für eine künftige Risikobewertung erheben."
+    },
+    {
+      "deterministicFinding": "Der Mehrjahrestrend ist stagnierend.",
+      "deltaStatus": "praezisiert",
+      "aiVerification": "Die Jahresreihe 2019–2025 lautet 6, 8, 5, 2, 2, 9, 5 und ist als stagnierend klassifiziert. Die veröffentlichten Standorte erlauben eine abschnittsbezogene Prüfung. Zeitliche oder räumliche Zusammenhänge müssen anhand der Einzelfälle geprüft werden.",
+      "aiAddedValue": "Zeitschnitte nach örtlichem Verkehrsregime vorbereiten, soweit die Fälle zugeordnet werden können.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.yearlyTrend",
+        "features.spatialDensity"
+      ],
+      "uncertaintyOrCheck": "Regime und Zeiträume vor dem Vergleich dokumentieren."
+    },
+    {
+      "deterministicFinding": "Politischer Recherchestatus im Bericht.",
+      "deltaStatus": "offen",
+      "aiVerification": "Für die politische Vorbefassung liegt keine ausgeführte Recherche vor. Vor einer Vorlage sind die amtlichen Rats- und Verwaltungsvorgänge für den bestätigten Bereich zu recherchieren.",
+      "aiAddedValue": "Die amtliche Vorbefassung anhand dokumentierter Suchwege und direkter Vorgangslinks prüfen. Kartenmaterial vor Ort verifizieren.",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.politicalResearch"
+      ],
+      "uncertaintyOrCheck": "Aktuellen Umsetzungsstand amtlich belegen."
+    }
+  ],
+  "prioritisedFindings": [
+    {
+      "rank": 1,
+      "finding": "37 dokumentierte Rad-Pkw-Unfälle mit Personenschaden",
+      "urgency": "high",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts"
+      ],
+      "decisionRelevance": "Zuerst die örtliche Zuordnung der Auswahlfälle und des einen Unfalls mit Schwerverletzten klären."
+    },
+    {
+      "rank": 2,
+      "finding": "Statistisch ungesicherte Abweichung im Beteiligungsmuster",
+      "urgency": "medium",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.patternCompositionComparison",
+        "deterministicAnalysisDigest.yearlyTrend"
+      ],
+      "decisionRelevance": "Prüfpriorität ergibt sich aus dem dokumentierten Unfallgeschehen und dem örtlichen Befund."
+    },
+    {
+      "rank": 3,
+      "finding": "Offene politische Vorbefassung",
+      "urgency": "medium",
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.politicalResearch"
+      ],
+      "decisionRelevance": "Direkte amtliche Vorgänge und Suchwege dokumentieren, bevor ein Antrag vorgelegt wird."
+    }
+  ],
+  "crossLayerInsights": [
+    {
+      "insight": "Die Auswahlfälle sind über mehrere Bereiche verteilt. Die vollständige Gebietsliste hilft, weitere Fälle an den untersuchten Abschnitten zu finden.",
+      "evidenceLayers": [
+        "Amtliche Unfallfälle",
+        "Räumliche Analyse"
+      ],
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts",
+        "features.spatialDensity"
+      ],
+      "decisionValue": "Alle 37 ausgewählten Fälle anhand der Fallnummer, des Datums und des veröffentlichten Unfallorts dem einschlägigen Straßenabschnitt und, soweit möglich, dem damaligen Verkehrsregime zuordnen."
+    },
+    {
+      "insight": "Die Jahresreihe und die explorative Anteilsabweichung tragen eine strukturierte Beobachtung der Unfallentwicklung.",
+      "evidenceLayers": [
+        "Zeitreihe",
+        "Vergleich der Beteiligungsanteile"
+      ],
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.yearlyTrend",
+        "deterministicAnalysisDigest.patternCompositionComparison"
+      ],
+      "decisionValue": "Vorher und nachher dieselbe räumliche Abgrenzung, dieselben Filter und gegebenenfalls Expositionsdaten verwenden."
+    },
+    {
+      "insight": "Die dokumentierte räumliche Verteilung lässt ohne Rechercheprotokoll den Stand früherer Vorhaben offen.",
+      "evidenceLayers": [
+        "Amtliche Unfallfälle",
+        "Politischer Recherchestatus"
+      ],
+      "evidenceRefs": [
+        "features.spatialDensity",
+        "deterministicAnalysisDigest.politicalResearch"
+      ],
+      "decisionValue": "Amtliche Vorbefassung und räumliche Unfallzuordnung gemeinsam in der Arbeitsgrundlage dokumentieren."
+    }
+  ],
+  "competingHypotheses": [
+    {
+      "claim": "Die Unfallorte können unterschiedliche örtliche Konfliktlagen widerspiegeln.",
+      "hypotheses": [
+        "Mehrere Fälle könnten sich an denselben Abbiege- oder Querungsstellen ereignet haben.",
+        "Die Fälle könnten auf getrennte Abschnitte oder unterschiedliche Verkehrsregime verteilt sein."
+      ],
+      "discriminatingChecks": [
+        "Fallnummern nach Abschnitt, Zeitpunkt und Unfalltyp ordnen. Für unklare Fälle die zugrunde liegende Orts- und Ablaufbeschreibung anfordern."
+      ]
+    }
+  ],
+  "measureDecisionMatrix": [
+    {
+      "rank": 1,
+      "finding": "Die 37 Rad-Pkw-Fälle begründen eine Arbeitsprüfung. Politische Vorbefassung und Kartenprüfung sind offen.",
+      "safetyObjective": "Konfliktstellen identifizieren und einen vergleichbaren Beobachtungsrahmen für den Schutz von Rad- und Fußverkehr festlegen.",
+      "option": "Prüfbericht mit getrennten Fallgruppen und einem Monitoringkonzept",
+      "requiredVerification": [
+        "Alle 37 ausgewählten Fälle anhand der Fallnummer, des Datums und des veröffentlichten Unfallorts dem einschlägigen Straßenabschnitt und, soweit möglich, dem damaligen Verkehrsregime zuordnen.",
+        "Die übrigen Gebietsunfälle aus dem Kollektiv von 312 getrennt auswerten, sofern ihr Unfallort oder ihre Beteiligung eine betrachtete Variante betrifft.",
+        "Bei der Ortsprüfung Wegeführung, Querungen und Sichtbeziehungen dokumentieren. Für einen späteren Ratenvergleich Rad- und Kfz-Mengen unter vergleichbaren Bedingungen erheben.",
+        "Die amtliche Vorbefassung anhand dokumentierter Suchwege und direkter Vorgangslinks prüfen. Kartenmaterial vor Ort verifizieren."
+      ],
+      "responsibility": "Stadtverwaltung Bonn, Bericht an die Bezirksvertretung Bonn",
+      "deadline": "8 Wochen für die vorbereitende Recherche ab internem Prüfauftrag",
+      "successCriteria": [
+        "Für alle 37 ausgewählten Fälle nennt die Berichtstabelle Fallnummer, Abschnitt und Zuordnungsstatus. Unklare Zuordnungen bleiben sichtbar.",
+        "Je geprüfter Variante legt der Bericht mindestens eine messbare Prüfvorgabe mit Erhebungszeitraum und einen Termin zur Nachprüfung fest."
+      ],
+      "tradeoffs": [
+        "Gehbreite, Radführung, Busbetrieb und Barrierefreiheit je Variante gemeinsam prüfen."
+      ],
+      "evidenceRefs": [
+        "deterministicAnalysisDigest.officialAccidentFacts",
+        "evidenceCohortCounts",
+        "deterministicAnalysisDigest.politicalResearch",
+        "features.spatialDensity"
+      ]
+    }
+  ],
+  "politicalResearchLog": {
+    "status": "blocked",
+    "sourceStatus": "not-searched",
+    "documentedQueries": [],
+    "evidenceRefs": [],
+    "comparisonToExistingActivity": "Für die politische Vorbefassung liegt keine ausgeführte Recherche vor. Vor einer Vorlage sind die amtlichen Rats- und Verwaltungsvorgänge für den bestätigten Bereich zu recherchieren.",
+    "remainingChecks": [
+      "Amtliche Suchwege und direkte Rats- oder Verwaltungsquellen nachtragen."
+    ]
+  },
+  "aiDelta": {
+    "bestaetigt": [
+      "Die amtliche Unfallzahl und die Verteilung nach schwerster Folge bleiben erhalten."
+    ],
+    "praezisiert": [
+      "Gebietsunfälle, Auswahl und Stadtvergleich haben unterschiedliche Rollen bei der Prüfung."
+    ],
+    "ergaenzt": [
+      "Berichtstabelle mit Abschnitten, Zuordnungsstatus, Kriterien und Termin für die Nachprüfung."
+    ],
+    "verworfen": [
+      "Ableitung eines amtlichen Schwerpunkts allein aus der Anteilsabweichung."
+    ],
+    "offen": [
+      "Amtliche Vorbefassung und örtliche Kartenprüfung."
+    ]
+  },
+  "valueAddAssessment": {
+    "status": "failed",
+    "score": 72,
+    "automaticFailureReasons": [
+      "Die politische Recherche wurde noch nicht ausgeführt."
+    ]
+  },
+  "filingReadinessVerdict": {
+    "status": "blocked",
+    "analysisQaStatus": "conditional",
+    "politicalResearchStatus": "blocked",
+    "reasoning": "Für die politische Vorbefassung liegt keine ausgeführte Recherche vor. Vor einer Vorlage sind die amtlichen Rats- und Verwaltungsvorgänge für den bestätigten Bereich zu recherchieren.",
+    "blockingReasons": [
+      "Amtliche politische Recherche und dokumentierte Kartenprüfung fehlen."
+    ]
+  }
+}

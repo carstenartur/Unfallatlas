@@ -85,13 +85,47 @@ the intervals are unadjusted for multiplicity. A spatial cluster or an
 official hotspot designation requires separate evidence. Absolute accident
 rates require suitable exposure data.
 
-## Review artifacts and real blockers
+## Automatic model-response replay
+
+Extended Maven QA runs the Bonn Chromium Golden and both reference responses
+on every pull request through `scripts/run-extended-e2e.js`. To run the same
+check locally with Chromium installed, use:
+
+```sh
+node scripts/qa-bonn-hbf-ai-golden.js --replay-model
+```
+
+ChatGPT authored the two fixed responses under
+`tests/fixtures/bonn-hbf-model-replay/` from the browser-generated server
+prompts and reviewed Bonn evidence. CI replays the raw responses through the
+production provider request, parser, schema, value-add checks and response
+processing. The fixture manifest binds each raw response and the matching
+system/user prompt and provider schema. Only the generated export date is
+normalized for the fixture comparison. Both cases run without Gemini access.
+
+The unsearched answer must preserve the local block. The researched answer
+must pass the local gate for a draft of a Prüf- und Berichtsauftrag. The
+automated case-specific rubric checks accident cohorts and severity,
+statistics and their limits, additional decision value, political outcomes,
+measurable verification and traceable sources. Read the two `model-replay/`
+directories in the QA artifact for the raw responses, request bindings and
+results. Each receipt records `actualProviderRun: false`. Each review records
+`releaseApproval: false`. These checks cover specific claims and known
+regressions in the two fixed answers. A reviewer must assess the full prose
+and new claims in any new answer.
+
+If the prompt or provider schema changes, inspect the new browser-generated
+input and prompt against the original evidence before refreshing a response
+or its manifest. A changed response must still pass the production service
+and the case-specific rubric.
+
+## Optional live Gemini check
 
 `out/qa/bonn-hbf-ai/` contains the actual deterministic report, source manifest,
 external facts/prompt, production server model input and prompt, and review and
-execution receipts. The production server feature extractor, preselection,
-input builder, prompt builder, proposal schema and value-add rubric are reused;
-no replacement statistics or fake response is supplied. Receipts hash the exact
+execution receipts. The harness uses the production feature extractor,
+preselection, input builder, prompt builder, proposal schema and value-add rubric.
+Receipts hash the exact
 input, prompt, schema and rubric and record provider availability only as a
 boolean, with no credential values. A model version and execution timestamp
 remain null until real evidence is supplied.
@@ -102,7 +136,9 @@ prompt after the Golden comparison passes. Each live request saves its raw
 answer, parsed JSON, serving model version, execution receipt and rubric in
 a separate `out/qa/bonn-hbf-ai/provider-run-*/` directory. Missing model
 version, invalid output and an unsupported filing verdict fail the live check.
-The default run stays offline.
+The separate GitHub workflow is available by manual dispatch on `main`. A
+live run can establish Gemini's behavior for the two inputs. An independent
+subject-matter review is still required for an actual filing decision.
 
 An offline imported response can be examined with `--model-response FILE
 --provider-receipt FILE`; the receipt must name the provider/model/exact version,
@@ -163,8 +199,8 @@ On 13 November the Node 26.13.1 / Chromium run reproduced the 37/312
 case with zero Golden differences. Both inputs had the same geometry and
 accident totals. The second provider prompt included all six source URLs,
 their separate outcomes and all four documented queries. The local service
-reported no configured Gemini key and produced no response. Both results
-therefore still require a configured provider run.
+reported no configured Gemini key. Both prompts now have automated fixture
+coverage. A live Gemini comparison remains available when configured.
 
 For independent review of an actual answer, record the answer SHA-256, reviewer
 and review date. Check the difference interval and denominator against the

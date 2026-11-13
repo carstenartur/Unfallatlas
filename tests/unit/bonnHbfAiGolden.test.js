@@ -1,6 +1,7 @@
 /** @jest-environment node */
 'use strict';
 const qa = require('../../scripts/qa-bonn-hbf-ai-golden');
+const { evaluateReplayEvidence, replayRequestSha256 } = require('../../scripts/bonn-hbf-model-replay');
 test('semantic comparison excludes only the execution envelope and exposes exact fact/source/map drift', () => {
   const a = { facts: { total: 37, years: [6,8,5,2,2,9,5] }, inputs: { sourceHash: 'a', mapSceneHash: 'b' }, political: { searchedAt: null }, execution: { generatedAt: 'old' } };
   expect(qa.compareSnapshots(a, {...a, execution: {generatedAt:'new'}})).toEqual([]);
@@ -90,6 +91,8 @@ test('a documented council search reaches the model with its queries and differe
   const { user } = service.buildProviderPrompt(input, 'proposal-brief');
   expect(user).toContain('Unfälle nach schwerster Folge: 0 mit Getöteten, 1 mit Schwerverletzten, 36 mit Leichtverletzten');
   expect(user).toContain('37 ausgewählte Unfälle, 312 Unfälle im vollständigen Gebiet, 1926 Fälle in der Referenz');
+  expect(user).toContain('Untersuchungszeitraum: 2019–2025.');
+  expect(user).toContain('2019: 6, 2020: 8, 2021: 5, 2022: 2, 2023: 2, 2024: 9, 2025: 5');
   for (const ref of evidence.references) {
     expect(user).toContain(ref.url);
     expect(user).toContain(ref.snippet);
@@ -112,4 +115,61 @@ test('map observations belong to the captured facts, exact views and downloadabl
   changed.inputs.mapViews = baseline.inputs.mapViews;
   changed.inputs.mapInputsFingerprint = '0'.repeat(64);
   expect(() => qa.reviewedMapHints(changed)).toThrow(/map/i);
+});
+
+test('the credential-free replay fingerprint ignores only the generated export date', () => {
+  const request = {
+    system: 'System instruction',
+    user: '=== KONTEXT ===\nDatum des Exports: 13.11.2026\nBelegdatum: 14.03.2024\n37 ausgewählte Unfälle',
+    responseSchema: { type: 'object', required: ['sachverhalt'] },
+  };
+  const digest = replayRequestSha256(request);
+  expect(replayRequestSha256({ ...request, user: request.user.replace('13.11.2026', '14.11.2026') })).toBe(digest);
+  expect(replayRequestSha256({ ...request, user: request.user.replace('14.03.2024', '15.03.2024') })).not.toBe(digest);
+  expect(replayRequestSha256({ ...request, user: request.user.replace('37', '38') })).not.toBe(digest);
+  expect(replayRequestSha256({ ...request, responseSchema: { ...request.responseSchema, required: [] } })).not.toBe(digest);
+});
+
+const replayFixture = require('../fixtures/bonn-hbf-model-replay/council-research.json');
+const council = require('../fixtures/bonn-hbf-political-research.json');
+const snapshot = require('../fixtures/bonn-hbf-ai-golden.v1.json');
+const replayInput = {
+  evidenceCohortCounts: { discovery: 37, completeArea: 312, reference: 1926 },
+  deterministicAnalysisDigest: snapshot.facts.digest,
+  features: { spatialDensity: {}, visualContextHints: {} },
+};
+const evidenceGate = {
+  filingReady: true,
+  passed: true,
+  analysisQaStatus: 'ready',
+  politicalResearchStatus: 'complete',
+  filingReadinessStatus: 'ready',
+};
+
+test('scores the researched and unsearched answers against their own evidence', () => {
+  expect(evaluateReplayEvidence(replayFixture, replayInput, council, evidenceGate).passed).toBe(true);
+  const blocked = require('../fixtures/bonn-hbf-model-replay/unsearched.json');
+  expect(evaluateReplayEvidence(blocked, replayInput, null, { filingReady: false }).passed).toBe(true);
+  expect(evaluateReplayEvidence(replayFixture, replayInput, null, { filingReady: false }).checks.politicalFit).toBe(false);
+  expect(evaluateReplayEvidence(replayFixture, replayInput, council, { ...evidenceGate, filingReady: false }).checks.politicalFit).toBe(false);
+});
+
+test.each([
+  ['officialFacts', proposal => { proposal.sachverhalt = proposal.sachverhalt.replace('312 Unfälle', '1.926 Unfälle').replace('1.926 Unfälle unter', '312 Unfälle unter'); }],
+  ['method', proposal => { proposal.begruendung = proposal.begruendung.replace('−6,8', '+0,8'); }],
+  ['politicalFit', proposal => { proposal.politicalResearchLog.comparisonToExistingActivity = proposal.politicalResearchLog.comparisonToExistingActivity.replace('entfiel die separate Abstimmung', 'fand die separate Abstimmung statt'); }],
+  ['politicalFit', proposal => {
+    const inventedVote = 'Der Änderungsantrag 232044-02 AA wurde separat einstimmig beschlossen.';
+    proposal.longVersion += ' ' + inventedVote;
+    proposal.begruendung += ' ' + inventedVote;
+  }],
+  ['sourceResolution', proposal => { proposal.crossLayerInsights[0].evidenceRefs[0] = 'https://www.bonn.de/falscher-vorgang'; }],
+  ['measureQuality', proposal => { proposal.measureDecisionMatrix[0].successCriteria = ['Sicherheit verbessern']; }],
+  ['addedValue', proposal => { proposal.competingHypotheses[0].hypotheses[1] = proposal.competingHypotheses[0].hypotheses[0]; }],
+])('rejects a substantive %s regression even when the answer still claims a high score', (check, mutate) => {
+  const proposal = structuredClone(replayFixture);
+  mutate(proposal);
+  expect(evaluateReplayEvidence(proposal, replayInput, council, evidenceGate)).toMatchObject({
+    passed: false, checks: { [check]: false },
+  });
 });

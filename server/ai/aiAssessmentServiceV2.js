@@ -96,55 +96,9 @@ async function runAssessmentV2(args) {
     throw new NotConfiguredError();
   }
 
-  const { system, user } = buildProviderPrompt(aiInput, mode);
-
-  const responseSchema = toGeminiSchema(
-    mode === 'proposal-brief' ? schemaProposalV1 : schemaAssessmentV2
-  );
-
-  let parsed;
-  let source = 'ai';
+  let assessment;
   try {
-    const rawText = await sharedQueue.enqueue(() => providerCall({ system, user, responseSchema }));
-    parsed = parseJsonLoose(rawText);
-    if (mode === 'proposal-brief') {
-      parsed = ensureProposalValueAdd(
-        parsed,
-        aiInput,
-        'Die erste Modellantwort enthielt keinen vollständigen Mehrwertnachweis.'
-      );
-    }
-
-    const validation = validateAgainstMode(parsed, mode, {
-      aiInput,
-      normalizeProposal: false,
-    });
-    if (!validation.valid) {
-      const repaired = await sharedQueue.enqueue(() => providerCall({
-        system: `${system}\nReparieren: Antworte erneut, valides JSON gemäß Schema und Mehrwertvertrag.`,
-        user: `${user}\n\nDie vorige Antwort war ungültig: ${validation.errors.join('; ')}\nAntworte erneut, ausschließlich gültiges JSON.`,
-        responseSchema,
-      }));
-      let repairedParsed = parseJsonLoose(repaired);
-      if (mode === 'proposal-brief') {
-        repairedParsed = ensureProposalValueAdd(
-          repairedParsed,
-          aiInput,
-          'Auch die Reparaturantwort enthielt keinen vollständigen Mehrwertnachweis.'
-        );
-      }
-      const repairedValidation = validateAgainstMode(repairedParsed, mode, {
-        aiInput,
-        normalizeProposal: false,
-      });
-      if (!repairedValidation.valid) {
-        throw new Error(
-          `KI-Antwort ungültig auch nach Reparaturversuch: ${repairedValidation.errors.join('; ')}`
-        );
-      }
-      parsed = repairedParsed;
-      source = 'ai-repaired';
-    }
+    assessment = await requestAssessmentV2({ aiInput, mode, providerCall });
   } catch (err) {
     if (withFallback) {
       return {
@@ -157,13 +111,68 @@ async function runAssessmentV2(args) {
     throw err;
   }
 
-  const catalogById = buildCatalogIndex(citySlug);
+  cache.set(cacheKey, assessment.result);
+  return { ...assessment, cacheKey };
+}
+
+function buildProviderRequest(aiInput, mode) {
+  return { ...buildProviderPrompt(aiInput, mode), responseSchema: toGeminiSchema(
+    mode === 'proposal-brief' ? schemaProposalV1 : schemaAssessmentV2
+  ) };
+}
+
+/** Executes the prepared assessment using the caller's transport. */
+async function requestAssessmentV2({ aiInput, mode, providerCall }) {
+  const request = buildProviderRequest(aiInput, mode);
+  const rawText = await sharedQueue.enqueue(() => providerCall(request));
+  let parsed = parseJsonLoose(rawText);
+  let source = 'ai';
+
+  if (mode === 'proposal-brief') {
+    parsed = ensureProposalValueAdd(
+      parsed,
+      aiInput,
+      'Die erste Modellantwort enthielt keinen vollständigen Mehrwertnachweis.'
+    );
+  }
+
+  const validation = validateAgainstMode(parsed, mode, {
+    aiInput,
+    normalizeProposal: false,
+  });
+  if (!validation.valid) {
+    const repaired = await sharedQueue.enqueue(() => providerCall({
+      ...request,
+      system: `${request.system}\nReparieren: Antworte erneut, valides JSON gemäß Schema und Mehrwertvertrag.`,
+      user: `${request.user}\n\nDie vorige Antwort war ungültig: ${validation.errors.join('; ')}\nAntworte erneut, ausschließlich gültiges JSON.`,
+    }));
+    let repairedParsed = parseJsonLoose(repaired);
+    if (mode === 'proposal-brief') {
+      repairedParsed = ensureProposalValueAdd(
+        repairedParsed,
+        aiInput,
+        'Auch die Reparaturantwort enthielt keinen vollständigen Mehrwertnachweis.'
+      );
+    }
+    const repairedValidation = validateAgainstMode(repairedParsed, mode, {
+      aiInput,
+      normalizeProposal: false,
+    });
+    if (!repairedValidation.valid) {
+      throw new Error(
+        `KI-Antwort ungültig auch nach Reparaturversuch: ${repairedValidation.errors.join('; ')}`
+      );
+    }
+    parsed = repairedParsed;
+    source = 'ai-repaired';
+  }
+
+  const catalogById = buildCatalogIndex(normalizeCitySlug(aiInput?.meta?.city));
   parsed = mode === 'assessment'
     ? harmonizeAssessment(parsed, catalogById)
     : harmonizeProposal(parsed, catalogById);
 
-  cache.set(cacheKey, parsed);
-  return { result: parsed, source, cacheKey };
+  return { result: parsed, source };
 }
 
 function buildProviderPrompt(aiInput, mode) {
@@ -785,7 +794,9 @@ function tagToText(tag) {
 
 module.exports = {
   runAssessmentV2,
+  requestAssessmentV2,
   buildProviderPrompt,
+  buildProviderRequest,
   isAvailable,
   buildAiInputV2,
   buildDeterministicFallback,

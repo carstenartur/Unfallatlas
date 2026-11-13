@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { once } = require('events');
 const { configuredModel } = require('../server/ai/providers/geminiApi');
+const { runModelReplay } = require('./bonn-hbf-model-replay');
 const zlib = require('zlib');
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC_ORIGIN = 'https://carstenartur.github.io';
@@ -304,7 +305,7 @@ function prepareModelReview(raw,outDir,councilEvidence,mapHints) {
     write(path.join(outDir,'external-facts.json'),raw.facts);
     fs.writeFileSync(path.join(outDir,'external-prompt.md'),raw.externalPrompt);
   }
-  write(path.join(outDir,'model-review-receipt.json'),receipt);return {receipt, prompt};
+  write(path.join(outDir,'model-review-receipt.json'),receipt);return {receipt, prompt, input};
 }
 async function runBoundModelReview(prompt, binding, outDir, councilEvidence) {
   const service = require('../server/ai/aiAssessmentServiceV2');
@@ -335,13 +336,17 @@ async function runBoundModelReview(prompt, binding, outDir, councilEvidence) {
 }
 async function main(args=process.argv.slice(2)) {
   const runModel = args.includes('--run-model');
-  if (runModel && (args.includes('--model-response') || args.includes('--update'))) {
-    throw new Error('--run-model requires independent comparison with the existing Golden.');
+  const replayModel = args.includes('--replay-model');
+  if ((runModel && replayModel)
+      || ((runModel || replayModel) && (args.includes('--model-response') || args.includes('--update')))) {
+    throw new Error('Live and fixture replay runs are separate and require comparison with the existing Golden.');
   }
   const outDir=path.join(ROOT,'out/qa/bonn-hbf-ai'),fixture=path.join(ROOT,'tests/fixtures/bonn-hbf-ai-golden.v1.json');
   fs.mkdirSync(outDir,{recursive:true});
   const raw=await captureRuntime({skipBuild:args.includes('--skip-build')});
-  const snapshot=snapshotFromRuntime(raw);const {receipt:review, prompt}=prepareModelReview(raw,outDir);
+  const snapshot=snapshotFromRuntime(raw);
+  const baseline=prepareModelReview(raw,outDir);
+  const { receipt:review } = baseline;
   write(path.join(outDir,'current-snapshot.json'),snapshot);write(path.join(outDir,'source-manifest.json'),raw.manifest);
   fs.writeFileSync(path.join(outDir,'deterministic-report.txt'),raw.reportText);
   const execution={generatedAt:new Date().toISOString(),sourceAcquisition:raw.sourceAcquisition,node:process.version,templatePath:'canonical-generated-offline-defaults',...review,
@@ -361,14 +366,26 @@ async function main(args=process.argv.slice(2)) {
   if (councilEvidence.caseId !== snapshot.case.id) throw new Error('Council research belongs to a different case.');
   const councilDir = path.join(outDir, 'council-research');
   const council = prepareModelReview(raw, councilDir, councilEvidence, reviewedMapHints(snapshot));
-  if (runModel) {
+  if (runModel || replayModel) {
     // Each case must retain its own response even if the other one fails its rubric.
     const errors = [];
-    for (const [candidate, dir, evidence] of [[{prompt, receipt:review}, outDir], [council, councilDir, councilEvidence]]) {
-      try { await runBoundModelReview(candidate.prompt, candidate.receipt, dir, evidence); }
-      catch (error) { errors.push(error.message); }
+    const cases = [
+      { candidate: baseline, directory: outDir, localGate: raw.gate },
+      { candidate: council, directory: councilDir, localGate: raw.councilGate, evidence: councilEvidence },
+    ];
+    for (const { candidate, directory, localGate, evidence } of cases) {
+      try {
+        if (replayModel) {
+          const result = await runModelReplay({ input: candidate.input, binding: candidate.receipt, outDir: directory,
+            caseId: snapshot.case.id, councilEvidence: evidence, localGate });
+          if (!result.passed) throw new Error('Model fixture failed review: ' + result.directory);
+        } else {
+          await runBoundModelReview(candidate.prompt, candidate.receipt, directory, evidence);
+        }
+      } catch (error) { errors.push(error.message); }
     }
     if (errors.length) throw new Error([...new Set(errors)].join('\n'));
+    if (replayModel) console.log('[bonn-hbf-ai] PASS: both ChatGPT-authored fixture responses passed the production model handoff and Bonn evidence checks.');
   }
   console.log(`[bonn-hbf-ai] PASS: ${snapshot.facts.totalAccidents} selected / ${snapshot.facts.completeAreaCount} complete area; reproducible facts, model/political/map release remains blocked.`);
 }
