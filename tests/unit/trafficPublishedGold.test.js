@@ -6,12 +6,33 @@ const { gunzipSync } = require('node:zlib');
 const crypto = require('node:crypto');
 const traffic = require('../../js/ua.traffic_provider');
 const snapshots = require('../../scripts/providers/traffic_snapshot_provider');
+const { readCitiesFile, slugify } = require('../../scripts/lib/static-data-validation');
 const root = path.resolve(__dirname, '../..');
 const modelDir = path.join(root, 'tests/fixtures/traffic/hamburg-model');
 
 function observations(city) {
   return JSON.parse(gunzipSync(fs.readFileSync(path.join(root, 'out', 'output_all_years_' + city + '.geojson.gz')))).features;
 }
+
+test.each(readCitiesFile(path.join(root, 'cities.txt')).map(slugify))(
+  'the published OSM proxy in %s identifies its source and separates data time from download time', city => {
+    const file = path.join(root, 'out', `output_all_years_${city}.enrichment.meta.json.gz`);
+    const { measurementType, provenance } = JSON.parse(gunzipSync(fs.readFileSync(file))).sources.traffic;
+    expect(measurementType).toBe('proxy');
+    expect(provenance).toMatchObject({
+      sourceId: 'traffic.proxy.osm-highway-class',
+      datasetUrl: expect.stringMatching(/^https:\/\/\S+$/),
+      distributionUrl: expect.stringMatching(/^https:\/\/\S+$/),
+      licenseUrl: expect.stringMatching(/^https:\/\/\S+$/),
+      publisher: expect.stringMatching(/\S/),
+      temporalCoverage: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      retrievedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    });
+    const [from, to = from] = provenance.temporalCoverage.split('/').map(Date.parse);
+    expect(from).toBeLessThanOrEqual(to);
+    expect(to).toBeLessThanOrEqual(Date.parse(provenance.retrievedAt));
+  },
+);
 
 test.each(['hamburg', 'koeln'])('published numeric source in %s carries reproducible provenance', city => {
   const file = path.join(root, 'out', 'output_all_years_' + city + '.enrichment.meta.json.gz');
