@@ -34,7 +34,7 @@ async function routeVideoExportInputs(page) {
     const body = gzipSync(JSON.stringify(json));
     await page.route(`**/out/${name}.gz`, route =>
       route.fulfill({ contentType: 'application/gzip', body }));
-    await page.route(`**/out/${name}`, route => route.fulfill({ json }));
+    await page.route(`**/out/${name}`, route => route.fulfill({ status: 404, body: '' }));
   }
   const headers = { 'access-control-allow-origin': '*' };
   await page.route(/^https:\/\/(?:[a-z]+\.)?tile\.openstreetmap\.org\//i, route => route.fulfill({
@@ -164,14 +164,13 @@ test.describe('document provenance with context-filtered state', () => {
     expect(snapshot.filters.contextTrafficClasses).toEqual(['high', 'very_high']);
     expect(snapshot.filters.onlyMatchedWays).toBe(true);
 
-    await page.waitForFunction(() => {
-      const text = String(document.querySelector('#exportProgress')?.textContent || '');
-      return text === 'Fertig.' || /^Fehler/i.test(text);
-    }, null, { timeout: 60_000 });
-    expect(await page.locator('#exportProgress').innerText()).toBe('Fertig.');
     await expect(page.locator('#cbIncludeMap')).toBeChecked();
 
+    const progress = page.locator('#exportProgress');
+    await expect(progress).toHaveText('Fertig.', { timeout: 60_000 });
     await scrollPreviewLikeVideoExporter(page);
+    // A later render can replace the preview while the exporter scrolls it.
+    await expect(progress).toHaveText('Fertig.', { timeout: 60_000 });
     const download = await waitForDownloadOrVisibleFailure(
       page,
       page.locator('#btnExportPDF'),

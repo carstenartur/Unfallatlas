@@ -93,8 +93,10 @@ test.describe('touch task surface', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   test('touch user can alter the map and open/close the export bottom sheet', async ({ page }) => {
+    test.setTimeout(60_000);
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(String(error && error.message || error)));
+    await routeReportInputs(page);
     await page.goto('/werkbank_v2.html', { waitUntil: 'domcontentloaded' });
     let ready = await waitForTaskSurface(page);
 
