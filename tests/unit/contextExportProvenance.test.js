@@ -25,6 +25,7 @@ test('coarse terrain source facts remain explicit and an unknown retrieval time 
   expect(provenance.fieldCounts.elevation_m).toEqual({ present: 1, null: 0 });
   expect(provenance.contextDataSha256).toMatch(/^[a-f0-9]{64}$/);
   expect(manifest.sources).toHaveLength(1); // incomplete source facts cannot become a complete licensed source record
+  expect(api.buildContextNote(environment.UA, ctx).sources[0].url).toBe('https://registry.opendata.aws/terrain-tiles/');
 });
 
 test('GeoJSON context binding preserves typed evidence and fails closed for a different population', () => {
@@ -107,7 +108,7 @@ test('compact terrain summary keeps null distinct from zero and binds that chang
 
 function selectedDgmContext() {
   const ctx={CITY_RAW:'Hannover',allPts:[{lat:52.3630532,lon:9.7059495,props:{year:2024,matched_way_id:'23101052',slope_percent:3.2,slope_source:'SRTM Local Tiles'}}],
-    contextLayerState:{ways:{'23101052':{road_slope_percent:-4.4,road_slope_source_id:'hannover.dgm1',road_slope_source:'DGM1',road_slope_resolution_m:1,road_slope_direction:'downhill_along_geometry',road_slope_reliable_for_road:true,road_slope_uncertainty_reasons:[]}},
+    contextLayerState:{ways:{'23101052':{road_slope_percent:-4.4,road_slope_source_id:'hannover.dgm1',road_slope_source:'DGM1',road_slope_resolution_m:1,road_slope_direction:'downhill_along_geometry',road_slope_reliable_for_road:true,road_slope_manifest_sha256:'a'.repeat(64),road_slope_uncertainty_reasons:[]}},
       meta:{sources:{roadSlope:{sourceId:'hannover.dgm1',manifestSha256:'a'.repeat(64),retrievedAt:'2026-11-08T16:41:39.000Z'}}}}};
   const UA={BUILD:'selected-way-review',contextLayers:{resolveWayAcrossTiles:(state,id)=>state.ways[id]}};
   return {ctx,env:{UA,root:{}}};
@@ -223,7 +224,7 @@ describe('visible typed context sources use the exported evidence population', (
     const {ctx,env}=selectedDgmContext();
     delete ctx.allPts[0].props.slope_source;
     delete ctx.allPts[0].props.slope_percent;
-    ctx.contextLayerState.meta.sources.roadSlope={sourceId:'hannover.dgm1',retrievedAt:null,datasetUrl:'https://example.org/dgm1',licenseId:'DL-DE-Zero-2.0'};
+    Object.assign(ctx.contextLayerState.meta.sources.roadSlope,{retrievedAt:null,datasetUrl:'https://example.org/dgm1'});
     const note=api.buildContextNote(env.UA,ctx);
     const text=JSON.stringify(note);
     expect(text).toContain('hannover.dgm1');
@@ -251,6 +252,28 @@ test('an unbound road source cannot borrow the terrain source clock or link',()=
   expect(JSON.stringify(note)).toContain('Abruf unbekannt');
   expect(JSON.stringify(note)).not.toContain('unrelated');
   expect(JSON.stringify(note)).not.toContain('2026-11-0');
+});
+
+test('a legacy SRTM way row links its known terrain dataset without borrowing its snapshot clock', () => {
+  const ctx = context({
+    road_slope_percent: 0.2,
+    road_slope_source: 'SRTM Local Tiles',
+    road_slope_source_id: 'global.srtm30',
+    road_slope_resolution_m: 30,
+    road_slope_reliable_for_road: false,
+    road_slope_method: 'median_segments',
+  });
+  ctx.contextLayerState = { meta: { sources: { roadSlope: {
+    sourceId: 'global.srtm30',
+    retrievedAt: '2026-11-02T00:00:00Z',
+    datasetUrl: 'https://example.org/unrelated-snapshot',
+  } } } };
+
+  const { sources } = api.buildContextNote({}, ctx);
+  expect(sources).toHaveLength(1);
+  expect(sources[0].label).toMatch(/Geländekontext.*Auflösung 30 m.*Abruf unbekannt/);
+  expect(sources[0].label).not.toContain('Methode');
+  expect(sources[0].url).toBe('https://registry.opendata.aws/terrain-tiles/');
 });
 
 test('visible source grouping retains observation-specific coverage limits',()=>{
@@ -303,21 +326,57 @@ test('document note deduplicates only exact bound source notes while standalone 
   expect(JSON.stringify(api.buildContextNote({},different,{sourceDetailsIncluded:true}))).toContain(sourceNote);
 });
 
-test.each(['manifest','distribution','missing-meta-pin'])('same source ID cannot lend clock/link to a road profile with %s mismatch',async mismatch=>{
+test.each(['manifest','distribution','missing-meta-pin','missing-row-pin'])('same source ID cannot lend clock/link to a road profile with %s mismatch',async mismatch=>{
   const {ctx,env}=selectedDgmContext();
   const good=ctx.contextLayerState.ways['23101052'];
   Object.assign(good,{road_slope_manifest_sha256:'a'.repeat(64),road_slope_distribution_sha256:'b'.repeat(64)});
   const bad={...good,road_slope_resolution_m:2};
-  if(mismatch==='manifest')bad.road_slope_manifest_sha256='c'.repeat(64);
-  else bad.road_slope_distribution_sha256='c'.repeat(64);
   ctx.contextLayerState.ways.bad=bad;
   ctx.allPts.push({lat:52.364,lon:9.706,props:{year:2024,matched_way_id:'bad'}});
-  Object.assign(ctx.contextLayerState.meta.sources.roadSlope,{distributionSha256:'b'.repeat(64),datasetUrl:'https://example.org/exact-dgm'});
-  if(mismatch==='missing-meta-pin'){delete good.road_slope_distribution_sha256;delete ctx.contextLayerState.meta.sources.roadSlope.distributionSha256;}
+  const source = ctx.contextLayerState.meta.sources.roadSlope;
+  Object.assign(source,{distributionSha256:'b'.repeat(64),datasetUrl:'https://example.org/exact-dgm'});
+  if (mismatch === 'manifest') bad.road_slope_manifest_sha256 = 'c'.repeat(64);
+  if (mismatch === 'distribution') bad.road_slope_distribution_sha256 = 'c'.repeat(64);
+  if (mismatch === 'missing-meta-pin') { delete good.road_slope_distribution_sha256; delete source.distributionSha256; }
+  if (mismatch === 'missing-row-pin') delete bad.road_slope_distribution_sha256;
   const manifest=await api.createManifest(ctx,env);
   const note=api.buildContextNote(env.UA,api.bindExportContext(env.UA,ctx,manifest));
   const matching=note.sources.find(s=>s.label.includes('Auflösung 1 m'));
   const different=note.sources.find(s=>s.label.includes('Auflösung 2 m'));
   expect(matching.label).toContain('2026-11-08T16:41:39.000Z');expect(matching.url).toBe('https://example.org/exact-dgm');
   expect(different.label).toContain('Abruf unbekannt');expect(different.url).toBeNull();
+});
+
+test('a matching malformed pin cannot bind road profile source metadata', async () => {
+  const { ctx, env } = selectedDgmContext();
+  ctx.contextLayerState.ways['23101052'].road_slope_manifest_sha256 = 'malformed';
+  ctx.contextLayerState.meta.sources.roadSlope.manifestSha256 = 'malformed';
+
+  const manifest = await api.createManifest(ctx, env);
+  expect(manifest.transformations.find(item => item.transformationId === 'context-evidence').parameters.sources)
+    .not.toHaveProperty('roadSlope');
+});
+
+test.each([false, true])('a pinless road grade keeps its value without borrowing source provenance (metadata pinned: %s)', async metadataPinned => {
+  const { ctx, env } = selectedDgmContext();
+  const row = ctx.contextLayerState.ways['23101052'];
+  delete row.road_slope_manifest_sha256;
+  const source = ctx.contextLayerState.meta.sources.roadSlope;
+  if (!metadataPinned) delete source.manifestSha256;
+  Object.assign(source, {
+    datasetUrl: 'https://example.org/another-dgm',
+    licenseUrl: 'https://example.org/another-license',
+    requiredAttribution: 'Nicht zugeordnete Quelle',
+    acquisitionPeriod: 'Andere Befliegung',
+  });
+
+  const manifest = await api.createManifest(ctx, env);
+  const bound = api.bindExportContext(env.UA, ctx, manifest);
+  expect(bound.allPts[0].props).toMatchObject({ road_slope_percent: -4.4, road_slope_reliable_for_road: true });
+  expect(manifest.transformations.find(item => item.transformationId === 'context-evidence').parameters.sources)
+    .not.toHaveProperty('roadSlope');
+  const { sources } = api.buildContextNote(env.UA, bound);
+  expect(sources).toHaveLength(1);
+  expect(sources[0].label).toMatch(/Straßenprofil.*DGM1.*Abruf unbekannt/);
+  expect(sources[0].url).toBeNull();
 });

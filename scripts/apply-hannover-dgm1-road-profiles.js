@@ -11,6 +11,7 @@ const { slugify } = require('./lib/static-data-validation');
 const SOURCE_ID = 'hannover.dgm1';
 const CITY = 'Hannover';
 const PRIMARY_WINDOWS = Object.freeze([50, 20]);
+const SHA256 = /^[a-f0-9]{64}$/i;
 const SLOPE_FIELDS = Object.freeze([
   'road_slope_percent',
   'road_slope_class',
@@ -21,6 +22,8 @@ const SLOPE_FIELDS = Object.freeze([
   'road_slope_missing_reason',
   'road_slope_source_id',
   'road_slope_source',
+  'road_slope_manifest_sha256',
+  'road_slope_distribution_sha256',
   'road_slope_resolution_m',
   'road_slope_profile_window_m',
   'road_slope_direction',
@@ -156,6 +159,9 @@ function sourceDescriptor(artifact) {
   if (descriptor.resolutionMeters !== 1 || descriptor.modelType !== 'DTM') {
     fail('profile artifact does not use the official 1 m DTM contract');
   }
+  if (descriptor.horizontalCrs !== 'EPSG:25832') {
+    fail('profile artifact does not use the official horizontal CRS EPSG:25832');
+  }
   return descriptor;
 }
 
@@ -219,11 +225,17 @@ function validateProfiles(value) {
   const ids = Object.keys(profiles).sort((left, right) => Number(left) - Number(right));
   if (!ids.length) fail('profile artifact is empty');
   profileProducer.validateArtifact(value, ids);
-  sourceDescriptor(value);
-  return { profiles, ids };
+  const descriptor = sourceDescriptor(value);
+  for (const field of ['manifestSha256', 'distributionSha256']) {
+    const pin = value.source[field];
+    if (typeof pin !== 'string' || !SHA256.test(pin)) {
+      fail(`profile artifact source.${field} must be a SHA-256 hex digest`);
+    }
+  }
+  return { profiles, ids, descriptor };
 }
 
-function applyProfilesToWaysPayload(payload, profiles, descriptor, observed) {
+function applyProfilesToWaysPayload(payload, profiles, descriptor, observed, rowSourcePins) {
   const ways = payload && payload.ways;
   if (!ways || typeof ways !== 'object' || Array.isArray(ways)) return { rows: 0, applied: 0 };
   let rows = 0;
@@ -232,6 +244,7 @@ function applyProfilesToWaysPayload(payload, profiles, descriptor, observed) {
     const profile = profiles[wayId];
     if (!profile) fail(`runtime context contains way ${wayId} without a DGM1 profile`);
     const result = applyProfileToRow(row, profile, descriptor);
+    Object.assign(row, rowSourcePins);
     observed.add(wayId);
     rows += 1;
     if (result.applied) applied += 1;
@@ -273,6 +286,8 @@ function updateMetadata(meta, artifact, stats) {
     resolutionM: descriptor.resolutionMeters,
     modelType: descriptor.modelType,
     horizontalCrs: descriptor.horizontalCrs,
+    horizontalTransformation: { from: 'EPSG:4326', to: descriptor.horizontalCrs },
+    verticalDatum: descriptor.verticalDatum || null,
     acquisitionPeriod: descriptor.acquisitionPeriod || null,
     publicationDate: descriptor.publicationDate || null,
     retrievedAt: descriptor.retrievedAt,
@@ -306,7 +321,11 @@ function applyHannoverDgm1RoadProfiles(options = {}) {
   const profilesFile = path.resolve(root, options.profilesFile || '.build/context-provider/hannover-dgm1-road-profiles.json');
   const profileArtifact = readJsonArtifact(profilesFile).value;
   const validated = validateProfiles(profileArtifact);
-  const descriptor = sourceDescriptor(profileArtifact);
+  const { descriptor } = validated;
+  const rowSourcePins = {
+    road_slope_manifest_sha256: profileArtifact.source.manifestSha256,
+    road_slope_distribution_sha256: profileArtifact.source.distributionSha256,
+  };
   const runtime = loadRuntimeArtifacts(outputDir, slug);
   const observed = new Set();
   let rows = 0;
@@ -314,7 +333,7 @@ function applyHannoverDgm1RoadProfiles(options = {}) {
 
   for (const artifact of runtime.artifacts) {
     if (artifact === runtime.meta) continue;
-    const result = applyProfilesToWaysPayload(artifact.value, validated.profiles, descriptor, observed);
+    const result = applyProfilesToWaysPayload(artifact.value, validated.profiles, descriptor, observed, rowSourcePins);
     rows += result.rows;
     applied += result.applied;
   }
