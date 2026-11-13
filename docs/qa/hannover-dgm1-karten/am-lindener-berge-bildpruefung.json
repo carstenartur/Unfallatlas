@@ -1,0 +1,46 @@
+{
+  "standard": {
+    "runtime": "Lokale Hannover-QA, Chromium, OSM-Kacheln unverändert",
+    "runtimeRevision": "58da9fb52e93e5c7cffd9ab5e2d576ff8e6416c0",
+    "generatedAt": "2026-11-13T17:16:30.275Z",
+    "boundsWestSouthEastNorth": [
+      9.705125391483309,
+      52.3631938136222,
+      9.709041416645052,
+      52.36476617123042
+    ],
+    "zoom": 19,
+    "mapTilesLoaded": 30,
+    "roadCanvasPixels": 111774,
+    "visibleWays": 27,
+    "visibleDebugLabelCount": 0,
+    "selectedWayId": "24855098",
+    "popup": "Geländeprofil entlang des OSM-Wegs: -26,1 % in Wegrichtung; Unsicherheit ±19,1 Prozentpunkte; Digitales Geländemodell DGM1 (1 m); für die Fahrbahn nicht belastbar. Höhenprofil weicht deutlich von der linearen Anpassung ab. Qualität niedrig. Laserscannerbefliegung 2010",
+    "pngBytes": 593957,
+    "pngSha256": "998c9a601cca172557a5fd573f066c85c2c84f074c5bc10922231513042ca010",
+    "sidecarSha256": "8c5e845581a1d09bb1e64795ae6a989b5f77512427788a1ebd867e25160cdd6e",
+    "sourceManifestSha256": "c8e13ad9de72c87ea8a0e18383bc3cf6b37a6f58c1e1911a05a784e3ccbb040c"
+  },
+  "debug": {
+    "runtime": "Lokale Hannover-QA, Chromium, OSM-Kacheln unverändert",
+    "runtimeRevision": "58da9fb52e93e5c7cffd9ab5e2d576ff8e6416c0",
+    "generatedAt": "2026-11-13T17:16:33.011Z",
+    "boundsWestSouthEastNorth": [
+      9.705125391483309,
+      52.3631938136222,
+      9.709041416645052,
+      52.36476617123042
+    ],
+    "zoom": 19,
+    "mapTilesLoaded": 30,
+    "roadCanvasPixels": 111774,
+    "visibleWays": 27,
+    "visibleDebugLabelCount": 25,
+    "selectedWayId": "24855098",
+    "popup": "Geländeprofil entlang des OSM-Wegs: -26,1 % in Wegrichtung; Unsicherheit ±19,1 Prozentpunkte; Digitales Geländemodell DGM1 (1 m); für die Fahrbahn nicht belastbar. Höhenprofil weicht deutlich von der linearen Anpassung ab. Qualität niedrig. Laserscannerbefliegung 2010",
+    "pngBytes": 566073,
+    "pngSha256": "f0e4a9e912981256c4e78db2ba7c0f151caa21daf64ab9216e66a593a899a024",
+    "sidecarSha256": "ad33253454912a450cb3b75541760dd3b7b4c8b3c369f448939f9de59ea4a7d0",
+    "sourceManifestSha256": "bd681bd947405cebc5cb0f8785a7b2f2066ca625faf2ee7cbe2e3960ee354cf8"
+  }
+}
