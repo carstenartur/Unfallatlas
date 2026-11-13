@@ -13,6 +13,7 @@ const LEAFLET_IMAGE_ASSET = 'vendor/leaflet-image/leaflet-image.js';
 const DOCX_ASSET = 'vendor/export/docx.js';
 const DOCX_BUILD_LOCK = 'vendor/docx-build/npm-lock.json.gz';
 const PDF_ASSET = 'vendor/export/pdfmake.js';
+const { collectPdfkitSources, pdfkitSourceRecords } = require('./pdfkit-nested-sources');
 const COMPLETE_INVENTORY_SCOPE = 'delivered-assets-component-level';
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const VENDOR_BUILD_LOCK_SCHEMA_VERSION = 1;
@@ -794,6 +795,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
     ...collectDocxRuntimes(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
     ...collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, pdfInventory.brotliDecoder),
+    ...collectPdfkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.nestedPdfkitSources),
   ];
   const supplementalLicenses = [{
     component: `simpleheat@${simpleheat.version}`,
@@ -845,6 +847,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
       ...docxRuntimeRecords(expected.generatedRuntimes || []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
       ...(expected.brotliDecoder ? brotliDecoderRecords(expected.brotliDecoder) : []),
+      ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),
     ];
     const fileRefs = embeddedSources.map(source => source.ref).sort();
     const gaps = policy.unresolvedAssets.filter(gap => gap.paths.includes(assetPath)).map(gap => gap.id).sort();

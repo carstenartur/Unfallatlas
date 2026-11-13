@@ -191,6 +191,32 @@
           "dec/prefix.js": "e65fb2183d6fc1058020ba55939ea08334d39ae33bf4832d952d9acab5db2d8a",
           "dec/transform.js": "56c0ebea0ce70b4d7afa7225eca2e5c9e0046dbdc9a4d6b568c5d5f4b47f170b"
         }
+      },
+      "nestedPdfkitSources": {
+        "packagePath": "node_modules/@noble/hashes",
+        "bundleSha256": "797d954a516c57cf4ee8352e17611991ecc2e2799e7e4ac09434ea5ca75423fe",
+        "mapSha256": "4d3bd1849034d304d85e67eee9a437ed9eb3cea4121d9d14ecd12e8f30341d31",
+        "licensePath": "vendor/licenses/components/_noble_hashes-1.8.0-LICENSE.txt",
+        "licenseSha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
+        "files": {
+          "_md.js": "cefb1557e7715cb2117c83f82ef3e3175c7e0391c80bd5795b2d4effc45fc582",
+          "_u64.js": "e48c0cfc10810439a4807b46db136ce603a3fa09b62584f513ef2f3ca496af54",
+          "legacy.js": "4906186a82438392443e3ac2a59d0acbbec2bee2595d048c8d8c0dd6584d4bdb",
+          "sha2.js": "e729088b82e5450bff54c3a0013582aa42e1fe8f58dd31f5967f6ebe34c52299",
+          "utils.js": "4cf4c1e05affedcb4fd584a43d76ae1a3711e34a36e2251b90c27e33ecc74fad"
+        },
+        "colorProfile": {
+          "ref": "urn:unfallatlas:vendor-source:pdfkit:icc:srgb2014",
+          "component": "International Color Consortium sRGB2014",
+          "sourcePath": "node_modules/pdfkit/js/data/sRGB_IEC61966_2_1.icc",
+          "sourceSha256": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+          "sourceUrl": "https://registry.color.org/rgb-registry/profiles/sRGB2014.icc",
+          "licenseUrl": "https://registry.color.org/profile-library/",
+          "spdx": "LicenseRef-ICC-Profile",
+          "copyright": "Copyright International Color Consortium, 2015",
+          "path": "vendor/licenses/components/pdfkit-ICC-sRGB2014.txt",
+          "sha256": "7d3f6be5b6a7c756c7d5fbf80623d64fe94404c4137eef01d0a414d34004ea2d"
+        }
       }
     },
     "vendor/leaflet-image/leaflet-image.js": {
