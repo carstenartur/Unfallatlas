@@ -142,7 +142,7 @@ describe('public Pages distribution profile', () => {
     const digest = crypto.createHash('sha256').update(fs.readFileSync(path.join(source, 'source.js'))).digest('hex');
     expect(license.sourceSha256).toBe(digest);
     expect(license.ref).toBe(SVG_REF);
-    expect(notice.assetAssessments.find(asset => asset.path === PDF_ASSET).containsFiles).toEqual([SVG_REF]);
+    expect(notice.assetAssessments.find(asset => asset.path === PDF_ASSET).containsFiles).toContain(SVG_REF);
     const sbom = readJson('vendor/sbom.cdx.json');
     expect(sbom.components.find(component => component['bom-ref'] === SVG_REF)).toMatchObject({
       name: license.sourcePath,

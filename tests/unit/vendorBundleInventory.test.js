@@ -15,6 +15,8 @@ const bundlePath = 'node_modules/docx/dist/index.iife.js';
 const lockPath = 'vendor/docx-build/npm-lock.json.gz';
 const pdfAsset = 'vendor/export/pdfmake.js';
 const svgRef = 'urn:unfallatlas:vendor-source:pdfmake:svg-to-pdfkit';
+const brotliRefPrefix = 'urn:unfallatlas:vendor-source:pdfmake:brotli-decoder:';
+const brotliPurl = 'pkg:npm/brotli@1.3.3';
 const leafletImageAsset = 'vendor/leaflet-image/leaflet-image.js';
 const leafletImagePurl = 'pkg:npm/leaflet-image@0.4.0';
 const d3QueuePurl = 'pkg:npm/d3-queue@2.0.3';
@@ -80,7 +82,8 @@ test('rejects coordinated omission of the SVG fork from the notice and SBOM', ()
     const sbomPath = path.join(root, notice.sbom.path);
     const sbom = JSON.parse(fs.readFileSync(sbomPath));
     notice.supplementalLicenses = notice.supplementalLicenses.filter(license => license.ref !== svgRef);
-    notice.assetAssessments.find(asset => asset.path === pdfAsset).containsFiles = [];
+    const asset = notice.assetAssessments.find(asset => asset.path === pdfAsset);
+    asset.containsFiles = asset.containsFiles.filter(ref => ref !== svgRef);
     sbom.components = sbom.components.filter(component => component['bom-ref'] !== svgRef);
     const pdf = sbom.dependencies.find(item => item.ref === `urn:unfallatlas:vendor-asset:${pdfAsset}`);
     pdf.dependsOn = pdf.dependsOn.filter(ref => ref !== svgRef);
@@ -108,6 +111,122 @@ function writeRehashedSbom(root, noticePath, notice, sbom) {
   notice.sbom.sha256 = crypto.createHash('sha256').update(sbomBytes).digest('hex');
   fs.writeFileSync(noticePath, JSON.stringify(notice));
 }
+
+test('publishes the Google copyright and Apache license for the six shipped Brotli decoder files', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const files = [
+      'bit_reader.js', 'context.js', 'decode.js', 'dictionary.js', 'prefix.js', 'transform.js',
+    ];
+    const copyright = 'Copyright 2013 Google Inc. All Rights Reserved.';
+    const records = notice.supplementalLicenses.filter(license => license.ref?.startsWith(brotliRefPrefix));
+    expect(records.map(license => license.ref)).toEqual(files.map(file => brotliRefPrefix + file));
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const pdf = notice.assetAssessments.find(asset => asset.path === pdfAsset);
+    const sbomDependencies = sbom.dependencies.find(item => item.ref === `urn:unfallatlas:vendor-asset:${pdfAsset}`);
+    for (const [index, file] of files.entries()) {
+      const license = records[index];
+      const sourcePath = 'node_modules/brotli/dec/' + file;
+      const sha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(repoRoot, sourcePath))).digest('hex');
+      expect(license).toMatchObject({ asset: pdfAsset, sourcePath, sourceSha256: sha256,
+        copyright, copyrightIncluded: true, spdx: 'Apache-2.0' });
+      expect(pdf.containsFiles).toContain(license.ref);
+      expect(sbomDependencies.dependsOn).toContain(license.ref);
+      expect(sbom.components.find(component => component['bom-ref'] === license.ref)).toMatchObject({
+        type: 'file', name: sourcePath, hashes: [{ alg: 'SHA-256', content: sha256 }],
+        licenses: [{ expression: 'Apache-2.0' }], copyright,
+      });
+      expect(license.path).toBe(records[0].path);
+    }
+    const noticeText = fs.readFileSync(path.join(root, records[0].path), 'utf8');
+    expect(noticeText).toContain('Brotli decoder files from brotli@1.3.3');
+    expect(noticeText).toContain(copyright);
+    for (const file of files) expect(noticeText).toContain(`dec/${file}\n`);
+    const licenseStart = noticeText.indexOf('\n                                 Apache License\n');
+    expect(licenseStart).toBeGreaterThan(0);
+    expect(crypto.createHash('sha256').update(noticeText.slice(licenseStart)).digest('hex')).toBe(
+      'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30'
+    );
+    expect(notice.components.find(component => component.purl === brotliPurl)).toMatchObject({
+      licenseExpression: 'MIT', licenseTexts: [],
+      attestation: { lockFile: 'vendor/pdfmake-build/npm-lock.json', lockPath: 'node_modules/brotli' },
+    });
+    expect(pdf.provenanceComplete).toBe(false);
+    expect(notice.complete).toBe(false);
+  });
+});
+
+test('rejects coordinated removal of one Brotli file from the notice and SBOM', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const ref = brotliRefPrefix + 'transform.js';
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const pdf = notice.assetAssessments.find(asset => asset.path === pdfAsset);
+    const sbomDependencies = sbom.dependencies.find(item => item.ref === `urn:unfallatlas:vendor-asset:${pdfAsset}`);
+    notice.supplementalLicenses = notice.supplementalLicenses.filter(license => license.ref !== ref);
+    pdf.containsFiles = pdf.containsFiles.filter(file => file !== ref);
+    sbom.components = sbom.components.filter(component => component['bom-ref'] !== ref);
+    sbomDependencies.dependsOn = sbomDependencies.dependsOn.filter(dependency => dependency !== ref);
+
+    writeRehashedSbom(root, noticePath, notice, sbom);
+    expect(() => validateVendorProvenance(noticePath)).toThrow(/verified component inventory.*pdfmake\.js/i);
+  });
+});
+
+test('rejects a rehashed replacement for the shared Brotli decoder notice', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const records = notice.supplementalLicenses.filter(license => license.ref?.startsWith(brotliRefPrefix));
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const replacement = 'rehashed decoder notice';
+    fs.writeFileSync(path.join(root, records[0].path), replacement);
+    const sha256 = crypto.createHash('sha256').update(replacement).digest('hex');
+    for (const record of records) {
+      record.sha256 = sha256;
+      const component = sbom.components.find(component => component['bom-ref'] === record.ref);
+      component.properties.find(property => property.name === 'unfallatlas:license-sha256').value = sha256;
+    }
+
+    writeRehashedSbom(root, noticePath, notice, sbom);
+    expect(() => validateVendorProvenance(noticePath)).toThrow(/embedded source or license.*pdfmake\.js/i);
+  });
+});
+
+test('rejects promoting the decoder license to the whole Brotli npm component in a rehashed SBOM', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    sbom.components.find(component => component.purl === brotliPurl).licenses.push({ expression: 'Apache-2.0' });
+    writeRehashedSbom(root, noticePath, notice, sbom);
+    expect(() => validateVendorProvenance(noticePath)).toThrow(`SBOM component evidence mismatch: ${brotliPurl}`);
+  });
+});
+
+test('rejects a changed installed Brotli source even when the policy repeats its new hash', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-brotli-source-'));
+  try {
+    for (const entry of ['package-lock.json', 'licenses']) {
+      fs.symlinkSync(path.join(repoRoot, entry), path.join(root, entry));
+    }
+    fs.cpSync(path.join(repoRoot, 'vendor'), path.join(root, 'vendor'), { recursive: true });
+    const nodeModules = path.join(root, 'node_modules');
+    fs.mkdirSync(nodeModules);
+    for (const entry of fs.readdirSync(path.join(repoRoot, 'node_modules'))) {
+      const source = path.join(repoRoot, 'node_modules', entry);
+      const destination = path.join(nodeModules, entry);
+      if (entry === 'brotli') fs.cpSync(source, destination, { recursive: true });
+      else fs.symlinkSync(source, destination);
+    }
+    const decoderPath = 'dec/decode.js';
+    const sourcePath = path.join(nodeModules, 'brotli', decoderPath);
+    fs.appendFileSync(sourcePath, '\n// changed decoder source\n');
+    const policyPath = path.join(root, 'vendor/provenance-policy.json');
+    const edited = JSON.parse(fs.readFileSync(policyPath));
+    edited.verifiedBundleInventories[pdfAsset].brotliDecoder.files[decoderPath] =
+      crypto.createHash('sha256').update(fs.readFileSync(sourcePath)).digest('hex');
+    fs.writeFileSync(policyPath, JSON.stringify(edited));
+
+    expect(() => copyVendorLicenses(root, path.join(root, '_site'))).toThrow(/Brotli decoder source differs.*decode\.js/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('publishes the exact source evidence for both Leaflet-image Browserify modules', () => {
   withVendorArtifact((root, noticePath, notice) => {
