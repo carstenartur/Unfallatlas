@@ -404,14 +404,16 @@
     if (includesTrafficProxy) {
       const proxy = facts.traffic?.provenance;
       const source = proxy?.sourceId === 'traffic.proxy.osm-highway-class' ? proxy : {};
+      const datasetUrl = safeUrl(source.datasetUrl);
+      const distributionUrl = safeUrl(source.distributionUrl);
+      const licenseUrl = safeUrl(source.licenseUrl);
       const clock = source.retrievedAt ? `Abgerufen am ${source.retrievedAt}` : 'Abrufzeitpunkt unbekannt';
       const credit = source.requiredAttribution || '© OpenStreetMap-Mitwirkende';
       add(`Verkehrsproxy aus OSM-Straßenklasse. Qualitative Expositionsklasse, keine Verkehrszählung. ` +
         `OSM-Datenstand ${source.temporalCoverage || 'unbekannt'}. ${clock}. ${credit}, ODbL.`,
-        safeUrl(source.distributionUrl) || 'https://www.openstreetmap.org/copyright');
-      if (safeUrl(source.distributionUrl)) {
-        add('Lizenz und Namensnennung für die OSM-Straßenklassen.', 'https://www.openstreetmap.org/copyright');
-      }
+        distributionUrl || datasetUrl || 'https://www.openstreetmap.org/copyright');
+      if (datasetUrl && distributionUrl && datasetUrl !== distributionUrl) add('Datensatz der OSM-Straßenklassen.', datasetUrl);
+      if (licenseUrl) add('Lizenz der OSM-Straßenklassen (ODbL).', licenseUrl);
     }
     for (const {sourceName, sourceUrl, profiles, labels} of roadProfilesBySource.values()) {
       if (profiles.size === 1) {

@@ -225,7 +225,9 @@ describe('visible typed context sources use the exported evidence population', (
     const provenance = {
       sourceId: 'traffic.proxy.osm-highway-class',
       publisher: 'OpenStreetMap contributors',
+      datasetUrl: 'https://www.openstreetmap.org/',
       distributionUrl: 'https://overpass-api.de/api/interpreter',
+      licenseUrl: 'https://opendatacommons.org/licenses/odbl/1-0/',
       temporalCoverage: '2026-11-11T23:57:00.000Z/2026-11-12T00:03:00.000Z',
       retrievedAt: '2026-11-13T07:30:00.000Z',
     };
@@ -240,6 +242,7 @@ describe('visible typed context sources use the exported evidence population', (
     });
     expect(sources.find(source => source.url === provenance.distributionUrl).label)
       .toContain('Abgerufen am ' + provenance.retrievedAt);
+    expect(sources.map(item => item.url)).toEqual(expect.arrayContaining([provenance.datasetUrl, provenance.licenseUrl]));
     const legacy = api.buildContextNote(UA, ctx);
     expect(legacy.sources.map(source => source.label).join(' ')).toContain('OSM-Datenstand unbekannt');
     expect(JSON.stringify(legacy)).not.toContain('2020-01-01');
