@@ -137,6 +137,7 @@ describe('Microsoft Word compatibility evidence', () => {
 
   test.each([
     ['version', '<Word version and build>'],
+    ['version', 'Microsoft 365'],
     ['platform', '<Windows or macOS version>'],
     ['platform', 'Linux 6.8'],
     ['platform', 'Windows'],

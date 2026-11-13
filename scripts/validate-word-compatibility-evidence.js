@@ -358,7 +358,8 @@ function validateReceipt(value, inputEvidence, options = {}) {
   const platform = nonEmptyString(receipt.environment.platform, 'environment.platform');
   const desktopVersion = /\b(?:Windows|macOS|Mac OS X|OS X)\s+[\p{L}\d]/iu.test(platform);
   const browserEdition = /\b(?:web|online|browser)\b/i.test(version + ' ' + platform);
-  if (!desktopVersion || browserEdition || /[<>]/.test(platform + version) || !/\d/.test(version)) {
+  const observedBuild = /\d+[.]\d+/.test(version);
+  if (!desktopVersion || !observedBuild || browserEdition || /[<>]/.test(platform + version)) {
     fail('invalid_word_environment', 'Record the desktop Word version/build and Windows or macOS version', {
       version, platform,
     });
