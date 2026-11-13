@@ -34,14 +34,18 @@ on:
       - 'scripts/generate-document-golden-matrix.js'
       - 'scripts/generate-sample-docx.js'
       - 'scripts/generate-sample-pdf.js'
+      - 'scripts/lib/docx-package-audit.js'
+      - 'scripts/lib/strict-zip.js'
       - 'scripts/libreoffice-rendered-document.js'
       - 'scripts/pdfmake-node.js'
       - 'scripts/poppler-rendered-document.js'
+      - 'scripts/qa-docx-compatibility.js'
       - 'scripts/qa-sample-docx-rendered.js'
       - 'scripts/render-document-golden-matrix.js'
       - 'scripts/rendered-document-audit.js'
       - 'scripts/rendered-table-hints.js'
       - 'scripts/run-document-render-qa.js'
+      - 'scripts/validate-word-compatibility-evidence.js'
       - 'scripts/verify-document-golden-rendered-semantics.js'
       - 'scripts/verify-rendered-document-evidence.js'
       - 'tests/fixtures/rendered-document/ci-docx-contract.json'
@@ -50,6 +54,7 @@ on:
       - 'tests/unit/documentGoldenMatrixLongReport.test.js'
       - 'tests/unit/documentGoldenMatrixRegression.test.js'
       - 'tests/unit/documentGoldenRenderedSemantics.test.js'
+      - 'tests/unit/docxCompatibility.test.js'
       - 'tests/unit/docxPagination.test.js'
       - 'tests/unit/docxSourceLinks.test.js'
       - 'tests/unit/enrichRenderedDocumentTables.test.js'
@@ -134,6 +139,7 @@ jobs:
             out/qa/rendered-document/docx/
             out/qa/document-golden-matrix/
             out/qa/release-document/
+            out/qa/docx-compatibility/
             analysis-service/target/surefire-reports/
           if-no-files-found: error
           retention-days: 14

@@ -243,7 +243,7 @@ const RAW_SCENARIOS = [
       minimumRenderedPages: 4,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
-      manualWordEvidenceRequired: true,
+      manualWordEvidenceRequired: false,
     },
   },
   {
@@ -278,7 +278,7 @@ const RAW_SCENARIOS = [
       minimumRenderedPages: 4,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
-      manualWordEvidenceRequired: true,
+      manualWordEvidenceRequired: false,
     },
   },
   {
@@ -312,7 +312,7 @@ const RAW_SCENARIOS = [
       minimumRenderedPages: 7,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: ['severity', 'year-trend', 'deviations'],
-      manualWordEvidenceRequired: true,
+      manualWordEvidenceRequired: false,
     },
   },
   {
@@ -347,7 +347,7 @@ const RAW_SCENARIOS = [
       minimumRenderedPages: 4,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
-      manualWordEvidenceRequired: true,
+      manualWordEvidenceRequired: false,
     },
   },
   {
@@ -382,7 +382,7 @@ const RAW_SCENARIOS = [
       minimumRenderedPages: 4,
       requiredMapKinds: COMMON_MAPS,
       requiredTables: COMMON_TABLES,
-      manualWordEvidenceRequired: true,
+      manualWordEvidenceRequired: false,
     },
   },
 ];

@@ -15,10 +15,6 @@ Before starting a release:
   `X.Y.Z-SNAPSHOT`. The workflow derives the release version by removing the
   `-SNAPSHOT` suffix and rejects inconsistent Maven, npm, citation, or archive
   metadata.
-- Before publishing, commit the Microsoft Word compatibility receipts for the
-  standard report and the numbered appendix to `main`. The dry-run evidence
-  contains both DOCX candidates for review. See
-  [`word-compatibility-release-check.md`](word-compatibility-release-check.md).
 - Known provenance limitations must be resolved far enough for the
   `release-site` gate to pass. In particular, issue
   [#406](https://github.com/carstenartur/Unfallatlas/issues/406) documents the
@@ -43,8 +39,7 @@ created with `-DskipTests`, `maven.test.skip`, or an equivalent workflow option.
 
 4. Start with `dry_run: true`.
 5. Inspect the uploaded acceptance evidence and candidate assets.
-6. Only after the dry run and Word evidence are green, repeat with
-   `dry_run: false`.
+6. After the dry run passes, repeat with `dry_run: false`.
 
 The release version itself is not entered manually. For example,
 `2.1.4-SNAPSHOT` produces release `2.1.4`.
@@ -67,10 +62,9 @@ The explicit Failsafe override is required because the
 pattern to its own Golden test. The release command restores the complete
 `**/*IT.java` matrix.
 
-The publication run adds `word-compatibility-release` to this command. The
-profile validates both committed receipts against the fingerprint of the locally
-versioned release commit and saves the Word reports under `out/qa/`. A missing,
-expired or invalid receipt fails the acceptance command before any remote mutation.
+Both dry runs and publication runs execute automated DOCX compatibility QA on
+the same locally versioned release commit. It checks the standard report and
+numbered appendix and records the result in `out/qa/docx-compatibility/report.json`.
 
 The profiles cover:
 
@@ -80,7 +74,7 @@ The profiles cover:
 | `e2e` | Chromium, Firefox, and WebKit end-to-end acceptance |
 | `system-it` | Java/Testcontainers system integration tests |
 | `location-brief-golden` | Versioned filing/location-brief Golden cases and evidence |
-| `document-render` | Native PDF and LibreOffice-rendered DOCX auditing with Poppler |
+| `document-render` | Native PDF and DOCX rendering, OOXML validation, and LibreOffice save/reopen with Poppler audits |
 | `release-site` | Publication bundle, media, licence, SBOM, and vendor-provenance gates |
 
 The runner is prepared for this combined workload before the release version is
@@ -211,28 +205,17 @@ After a successful release `X.Y.Z`:
 | Git tag | `vX.Y.Z` |
 | Maintenance branch | `maintenance/X.Y.x` |
 | Automated acceptance evidence | `release-acceptance-evidence` Actions artefact |
-| Word compatibility reports | `release-acceptance-evidence` Actions artefact |
+| Automated DOCX compatibility report and round-trip files | `release-acceptance-evidence` Actions artefact |
 
 ---
 
-## Microsoft Word evidence
+## DOCX compatibility evidence
 
-LibreOffice is the automated DOCX renderer in CI, but Microsoft Word remains a
-separate release environment.
-
-- `config/word-compatibility-inputs.json` defines compatibility-sensitive
-  inputs.
-- `npm run validate:word-compatibility -- --print-fingerprint` computes the
-  current fingerprint.
-- `npm run validate:word-compatibility -- --write-template ...` creates a
-  receipt template.
-- The completed receipt records the tested DOCX hash, Word version, platform,
-  reviewer, page count, and required checks.
-- The validator rejects stale evidence, changed inputs, failed checks,
-  malformed metadata, and undeclared fields.
-
-The normal maximum age is 30 days. Any compatibility-sensitive change
-invalidates the receipt immediately.
+The automated gate checks the DOCX packages and compares each original with
+its LibreOffice-saved copy. It repeats the applicable rendered audits on the
+saved copy and binds the exact artifacts by SHA-256. Desktop Microsoft Word
+receipts may be recorded separately as optional evidence. See the
+[DOCX compatibility release check](word-compatibility-release-check.md).
 
 ---
 
@@ -274,5 +257,4 @@ not be inferred from the presence of the maintenance branch alone.
 
 Review and merge the automatically opened
 `release/prepare-next-X.Y.Z-SNAPSHOT` pull request. Retain the automated
-acceptance evidence and the matching Word compatibility report with the release
-records.
+acceptance evidence and DOCX compatibility report with the release records.

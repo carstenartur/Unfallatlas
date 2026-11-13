@@ -161,4 +161,7 @@ npm run qa:sample-docx-rendered
 
 The local command executes the same map, pagination and table contract as CI.
 
-This is the LibreOffice/DOCX slice of issue #415. Microsoft Word compatibility, the large-individual-accident table and the wider Bonn/Hannover/few-row/many-row/missing-context Golden matrix remain separate follow-ups.
+The complete `document-render` gate includes the
+[Golden matrix](document-golden-matrix-rendering.md), the
+[numbered appendix](document-release-qa.md), and the
+[DOCX compatibility check](word-compatibility-release-check.md).

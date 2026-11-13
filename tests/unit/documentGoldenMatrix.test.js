@@ -142,7 +142,7 @@ describe('document Golden scenario matrix', () => {
       entry.automatedEvidence.renderedPageCount === null &&
       entry.automatedEvidence.renderedMapSemantics === null &&
       entry.automatedEvidence.renderedTableSemantics === null &&
-      entry.manualWordEvidence.required === true &&
+      entry.manualWordEvidence.required === false &&
       entry.manualWordEvidence.status === 'not-performed' &&
       entry.manualWordEvidence.receipt === null
     )).toBe(true);
