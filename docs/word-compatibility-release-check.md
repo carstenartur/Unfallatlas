@@ -38,32 +38,25 @@ Run the **Release Workflow** with `dry_run: true` to generate the candidates. Do
 | `ci-docx-sample` | `out/qa/rendered-document/docx/source.docx` | `out/qa/rendered-document/docx/converted.pdf` | `docs/release-evidence/word-compatibility.json` |
 | `release-numbered-docx` | `out/qa/release-document/appendix.docx` | `out/qa/release-document/docx/converted.pdf` | `docs/release-evidence/word-compatibility-appendix.json` |
 
-Record `release_commit` from `out/qa/release-acceptance-contract.txt` as the source commit in both receipts. Check out the recorded `release_base_commit` from `main` to generate both templates:
+The release artifact includes two prefilled JSON forms in `out/qa/word-review/`.
+Each form carries the renderer fingerprint, exact candidate commit, DOCX size
+and SHA-256 for its corresponding file. Keep the downloaded DOCX as the
+original and use a copy for the save-and-reopen check.
+
+Open each file in desktop Microsoft Word and complete its own form. Enter the
+inspection time, Word version/build, operating system, reviewer, observed
+page count and the results below. Copy the completed forms to the receipt paths
+in the table. The generated forms have an empty inspection time and every
+observation starts as `false`.
+
+To prepare the same forms from a local checkout after rendering both candidates:
 
 ```bash
-npm run validate:word-compatibility -- --print-fingerprint
-npm run validate:word-compatibility -- \
-  --write-template docs/release-evidence/word-compatibility.json
-npm run validate:word-compatibility -- \
-  --document-id release-numbered-docx \
-  --write-template docs/release-evidence/word-compatibility-appendix.json
+npm run validate:word-compatibility -- --prepare-review "$(git rev-parse HEAD)"
 ```
 
-Record the exact artifact hash and byte size:
-
-```bash
-sha256sum out/qa/rendered-document/docx/source.docx out/qa/release-document/appendix.docx
-wc -c out/qa/rendered-document/docx/source.docx out/qa/release-document/appendix.docx
-```
-
-On PowerShell, the equivalent hash command is:
-
-```powershell
-Get-FileHash out/qa/rendered-document/docx/source.docx, out/qa/release-document/appendix.docx -Algorithm SHA256
-Get-Item out/qa/rendered-document/docx/source.docx, out/qa/release-document/appendix.docx | Select-Object Name, Length
-```
-
-Open both exact files in a supported desktop Microsoft Word version and record the results independently. Mark a check as passed only after observing it in Word.
+Use the commit that actually produced the two DOCX files. For a release
+candidate it is `release_commit` in `out/qa/release-acceptance-contract.txt`.
 
 ## Mandatory manual checks
 
