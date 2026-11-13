@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const terrainProfileVersion = '2026-11-13-low-quality-terrain';
 
 describe('Werkbank deployment asset versions', () => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
@@ -30,7 +31,7 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'js/ua.context_road_layer.js', 'js/ua.map_scene_url_codec.js', 'js/ua.tour.js',
   ])('%s refreshes the mobility layers and compact map controls', asset => {
-    const revision = asset === 'js/ua.context_road_layer.js' ? '2026-11-13-dgm1' : '2026-11-09-mobility';
+    const revision = asset === 'js/ua.context_road_layer.js' ? terrainProfileVersion : '2026-11-09-mobility';
     expect(html).toContain(`${asset}?v=${revision}"`);
   });
 
@@ -116,7 +117,7 @@ describe('Werkbank deployment asset versions', () => {
 
   test('refreshes the loader for versioned document provenance', () => {
     const legacy = fs.readFileSync(path.resolve(__dirname, '../../werkbank.html'), 'utf8');
-    expect(html).toContain('js/ua.core.js?v=2026-11-13-proxy-quelle"');
+    expect(html).toContain(`js/ua.core.js?v=${terrainProfileVersion}"`);
     expect(legacy).toContain('js/ua.core.js?v=2026-11-13-proxy-quelle"');
   });
 
@@ -189,13 +190,17 @@ describe('Werkbank deployment asset versions', () => {
 test.each(['ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  const version = ['ua.elevation_provider', 'ua.popup_context'].includes(name) ? '2026-11-13-road-risk-quality' : '2026-11-08-context';
+  const versions = {
+    'ua.elevation_provider': terrainProfileVersion,
+    'ua.popup_context': '2026-11-13-road-risk-quality',
+  };
+  const version = versions[name] || '2026-11-08-context';
   expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
   const core = fs.readFileSync(path.resolve(__dirname, '../../js/ua.core.js'), 'utf8');
   for (const name of ['ua.artifact_provenance', 'ua.export_provenance', 'ua.kml_export_provenance', 'ua.document_export_provenance']) {
-    const version = name === 'ua.export_provenance' ? '2026-11-13-proxy-quelle' : name === 'ua.document_export_provenance' ? '2026-11-10-antrag-quality' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
+    const version = name === 'ua.export_provenance' ? terrainProfileVersion : name === 'ua.document_export_provenance' ? '2026-11-10-antrag-quality' : name === 'ua.kml_export_provenance' ? '2026-11-08-typed-context-export' : '2026-11-08-source-note-links';
     expect(core).toContain(`${name}.js?v=${version}`);
   }
 });
