@@ -120,6 +120,18 @@
           "dec/dictionary.js": "f7bd7462acad204047edc609009dfeb28239f14fe6f06ca42661f1d751382946",
           "dec/prefix.js": "e65fb2183d6fc1058020ba55939ea08334d39ae33bf4832d952d9acab5db2d8a",
           "dec/transform.js": "56c0ebea0ce70b4d7afa7225eca2e5c9e0046dbdc9a4d6b568c5d5f4b47f170b"
+        },
+        "dictionary": {
+          "ref": "urn:unfallatlas:vendor-source:pdfmake:brotli-static-dictionary",
+          "component": "Brotli static dictionary (decoded bytes)",
+          "sourcePath": "c/common/dictionary.bin",
+          "sourceSha256": "20e42eb1b511c21806d4d227d07e5dd06877d8ce7b3a817f378f313653f35c70",
+          "sourceUrl": "https://raw.githubusercontent.com/google/brotli/ed738e842d2fbdf2d6459e39267a633c4a9b2f5d/c/common/dictionary.bin",
+          "licenseUrl": "https://raw.githubusercontent.com/google/brotli/ed738e842d2fbdf2d6459e39267a633c4a9b2f5d/LICENSE",
+          "spdx": "MIT",
+          "copyright": "Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.",
+          "path": "vendor/licenses/components/pdfmake-brotli-dictionary-MIT.txt",
+          "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"
         }
       }
     },

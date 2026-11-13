@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { gunzipSync } = require('node:zlib');
+const { gunzipSync, brotliDecompressSync } = require('node:zlib');
 const { assertCompleteLicenseText } = require('./validate-vendor-license-evidence');
 
 const POLICY_RELATIVE_PATH = 'vendor/provenance-policy.json';
@@ -517,6 +517,26 @@ function brotliDecoderRecords(expected) {
   }));
 }
 
+function collectBrotliDictionary(repoRoot, outputRoot, sourceMap, installedRoot, expected) {
+  const entry = 'webpack://pdfmake/./node_modules/brotli/dec/dictionary.bin.js';
+  const index = sourceMap.sources.indexOf(entry);
+  const wrapper = fs.readFileSync(path.join(installedRoot, 'dec/dictionary.bin.js'), 'utf8');
+  const encoded = /^module\.exports="([A-Za-z0-9+/]+={0,2})";\n$/.exec(wrapper);
+  if (!encoded || index < 0 || sourceMap.sources.lastIndexOf(entry) !== index || sourceMap.sourcesContent[index] !== wrapper) {
+    throw new Error('Embedded Brotli dictionary does not match the npm source');
+  }
+  const bytes = brotliDecompressSync(Buffer.from(encoded[1], 'base64'), { maxOutputLength: 122784 });
+  if (bytes.length !== 122784 || sha256Buffer(bytes) !== expected.sourceSha256) {
+    throw new Error('Decoded Brotli dictionary differs from its original');
+  }
+  const license = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses/Brotli-MIT.txt'));
+  if (sha256Buffer(license) !== expected.sha256) throw new Error('Brotli dictionary license differs');
+  const destination = path.join(outputRoot, expected.path);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, license);
+  return { ...expected, asset: PDF_ASSET, copyrightIncluded: true };
+}
+
 function collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, expected) {
   const component = pdfmake.components.find(item => item.purl === expected.purl && item.lockPath === expected.lockPath);
   if (!component?.installedPath) {
@@ -576,7 +596,8 @@ function collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, expected) {
   const destination = path.join(outputRoot, expected.path);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, notice);
-  return records.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true }));
+  const decoder = records.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true }));
+  return [...decoder, collectBrotliDictionary(repoRoot, outputRoot, pdfmake.sourceMap, installedRoot, expected.dictionary)];
 }
 
 function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, discoveredByAsset) {
@@ -814,7 +835,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
     ])].sort();
     const embeddedSources = [
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
-      ...(expected.brotliDecoder ? brotliDecoderRecords(expected.brotliDecoder) : []),
+      ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), expected.brotliDecoder.dictionary] : []),
     ];
     const fileRefs = embeddedSources.map(source => source.ref).sort();
     const gaps = policy.unresolvedAssets.filter(gap => gap.paths.includes(assetPath)).map(gap => gap.id).sort();

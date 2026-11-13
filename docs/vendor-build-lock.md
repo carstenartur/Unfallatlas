@@ -176,6 +176,13 @@ der Apache Software Foundation. Notice und CycloneDX verknüpfen jede der
 sechs Dateien mit dem gemeinsamen Copyright- und Lizenztext unter
 `vendor/licenses/components/pdfmake-brotli-decoder-Apache-2.0.txt`.
 
+Das aus `dec/dictionary.bin.js` dekodierte Wörterbuch ist mit den 122.784
+Bytes von `c/common/dictionary.bin` im Original-Release 1.1.0 des
+Brotli-Projekts identisch. Auch der Hexdump in RFC 7932, Anhang A,
+ergibt denselben SHA-256. Notice und SBOM verknüpfen die Originalbytes
+mit dem MIT-Text der Brotli-Autoren. Der Dateieintrag umfasst die
+dekodierten Wörterbuchdaten.
+
 Offen bleiben der Volltext für die MIT-Deklaration im Brotli-NPM-Paket,
 die Lizenznachweise für die übrigen eingebetteten Brotli-Dateien, die
 fehlenden Volltexte für `dfa` und `fontkit`, die vollständigen Nachweise
