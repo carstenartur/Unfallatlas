@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {gunzipSync} = require('node:zlib');
 const api = require('../../scripts/providers/duesseldorf_bicycle_hourly_provider');
+const sourceManifest = require('../../js/ua.source_manifest');
 const traffic = require('../../js/ua.traffic_provider');
 const root = path.join(__dirname, '../fixtures/traffic/duesseldorf');
 const counts = gunzipSync(fs.readFileSync(path.join(root, 'mannesmannufer2024-original-excerpt.csv.gz')));
@@ -129,4 +130,109 @@ test('the real pinned factory requires a reviewed Düsseldorf city name and bicy
     expect(provider.coverage).toMatchObject({rowCount: 8783, observationCount: 17566, missingCountCells: 0, stationCount: 1});
     expect(provider.coverage.gaps).toEqual([{previous: '31-03-2024 01:00:00', next: '31-03-2024 03:00:00', labelHours: 2}]);
   } finally {fs.rmSync(temp, {recursive: true, force: true});}
+});
+
+describe('reviewed Mannesmannufer cycleway', () => {
+  let temp;
+  let provider;
+
+  beforeAll(() => {
+    temp = fs.mkdtempSync(path.join(os.tmpdir(), 'duesseldorf-reviewed-way-'));
+    fs.writeFileSync(path.join(temp, 'counts.csv'), gunzipSync(fs.readFileSync(path.join(root, 'mannesmannufer2024-original.csv.gz'))));
+    fs.writeFileSync(path.join(temp, 'stations.csv'), stations);
+    provider = api.createDuesseldorfBicycleHourlyProvider({...clocks, allowedRoot: temp,
+      csvPath: 'counts.csv', stationsPath: 'stations.csv',
+      expectedDistributionSha256: evidence.countDistribution.sha256, expectedBytes: evidence.countDistribution.bytes,
+      expectedStationsSha256: evidence.stationDistribution.sha256, expectedStationsBytes: evidence.stationDistribution.bytes});
+  });
+
+  afterAll(() => fs.rmSync(temp, {recursive: true, force: true}));
+
+  test('binds the exact original pair to the historical cycleway in OSM node order', async () => {
+    const result = provider.loadReviewedStationContext();
+    expect(result).toMatchObject({
+      station: {id: 'duesseldorf-mannesmannufer', sourceName: 'mannesmann ufer-totem 01',
+        geometry: {type: 'Point', coordinates: [6.76712, 51.22015]}},
+      way: {id: '1219366607', version: 1, geometry: {type: 'LineString', coordinates: [
+        [6.7672252, 51.2204667], [6.7670158, 51.2201176], [6.7666648, 51.2196516], [6.7666108, 51.2195962],
+      ]}},
+      match: {distanceMeters: 5.5, method: 'explicit-way-id-with-geometry'},
+      timeZone: null, intervalBoundary: null,
+      sources: {
+        counts: {licenseId: 'DL-DE-BY-2.0', contentHash: evidence.countDistribution.sha256, retrievedAt: clocks.retrievedAt},
+        station: {licenseId: 'DL-DE-Zero-2.0', contentHash: evidence.stationDistribution.sha256, retrievedAt: clocks.stationsRetrievedAt},
+        osm: {licenseId: 'ODbL-1.0', requiredAttribution: '© OpenStreetMap contributors'},
+      },
+    });
+    expect(result.osmResponses.map(({distributionUrl, bytes}) => [distributionUrl, bytes])).toEqual([
+      ['https://api.openstreetmap.org/api/0.6/way/1219366607/1.json', 626],
+      ['https://api.openstreetmap.org/api/0.6/node/11298492540/1.json', 391],
+      ['https://api.openstreetmap.org/api/0.6/node/1223516213/3.json', 392],
+      ['https://api.openstreetmap.org/api/0.6/node/7756613438/1.json', 392],
+      ['https://api.openstreetmap.org/api/0.6/node/203983852/15.json', 390],
+    ]);
+    expect(result.directions).toEqual([
+      {direction: 'Mannesmann Ufer Stadteinwaerts (Ri. Sueden)', stationWayDirection: 'forward'},
+      {direction: 'Mannesmann Ufer Stadtauswaerts (Ri. Norden)', stationWayDirection: 'backward'},
+    ]);
+    expect(result.observations).toHaveLength(17566);
+    expect(result.observations.filter(row => row.value === 0)).toHaveLength(1223);
+    expect(result.observations.slice(0, 4).map(row => [row.value, row.stationWayDirection])).toEqual([
+      [1, 'forward'], [0, 'backward'], [5, 'forward'], [14, 'backward'],
+    ]);
+    expect(result.coverage.gaps).toEqual([{previous: '31-03-2024 01:00:00', next: '31-03-2024 03:00:00', labelHours: 2}]);
+    expect(result.sources.counts.changeNotice).toContain('OSM-Weg 1219366607');
+    const {id, measurementType, modes, unit, priority, ...countSource} = result.sources.counts;
+    const manifest = sourceManifest.normalizeManifest({schemaVersion: 1, artifactId: 'reviewed-bike-station',
+      generatedAt: clocks.retrievedAt, applicationVersion: 'test', buildFingerprint: '1'.repeat(64), dataFingerprint: '2'.repeat(64),
+      scenario: {city: 'Düsseldorf', filters: {}}, sources: [countSource, result.sources.station, result.sources.osm], transformations: []});
+    expect(manifest.sources.map(source => source.licenseId).sort()).toEqual(['DL-DE-BY-2.0', 'DL-DE-Zero-2.0', 'ODbL-1.0']);
+    const original = await provider.loadObservations();
+    const reading = row => [row.observationId, row.year, row.period, row.mode, row.unit, row.value, row.direction];
+    expect(result.observations.map(reading)).toEqual(original.map(reading));
+    expect(result.observations.every((row, i) => row.wayId === result.way.id &&
+      row.stationWayDirection === result.directions[i % 2].stationWayDirection && row.geometry === result.station.geometry)).toBe(true);
+    expect(original.every(row => row.wayId === null && !row.stationWayDirection)).toBe(true);
+  });
+
+  test.each([
+    ['adjacent cycleway', 'way-1219366607-v1.json', way => {way.id = 1219366605;}],
+    ['closer motor ramp', 'way-1219366607-v1.json', way => {way.id = 145432016; way.tags.highway = 'trunk_link';}],
+    ['reversed way order', 'way-1219366607-v1.json', way => {way.nodes.reverse();}],
+    ['one-way cycleway', 'way-1219366607-v1.json', way => {way.tags.oneway = 'yes';}],
+    ['changed node geometry', 'node-1223516213-v3.json', node => {node.lon += 0.00001;}],
+    ['later node version', 'node-203983852-v15.json', node => {node.version = 16; node.lat = 51.2195782;}],
+  ])('rejects %s while ordinary source reads remain available', async (_description, target, mutate) => {
+    const read = fs.readFileSync;
+    const mock = jest.spyOn(fs, 'readFileSync').mockImplementation((file, ...args) => {
+      const bytes = read(file, ...args);
+      if (path.basename(file) !== target) return bytes;
+      const envelope = JSON.parse(bytes);
+      mutate(envelope.elements[0]);
+      return Buffer.from(JSON.stringify(envelope));
+    });
+    try {
+      expect(() => provider.loadReviewedStationContext()).toThrow(/distribution_hash_mismatch/);
+      expect((await provider.loadObservations())[0].wayId).toBeNull();
+    } finally {
+      mock.mockRestore();
+    }
+  });
+
+  test('rejects a missing historical response instead of selecting another way', () => {
+    const read = fs.readFileSync;
+    const mock = jest.spyOn(fs, 'readFileSync').mockImplementation((file, ...args) => {
+      if (path.basename(file) === 'way-1219366607-v1.json') {
+        const error = new Error('Missing versioned way evidence');
+        error.code = 'ENOENT';
+        throw error;
+      }
+      return read(file, ...args);
+    });
+    try {
+      expect(() => provider.loadReviewedStationContext()).toThrow('Missing versioned way evidence');
+    } finally {
+      mock.mockRestore();
+    }
+  });
 });

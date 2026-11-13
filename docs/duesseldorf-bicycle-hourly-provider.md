@@ -76,7 +76,7 @@ fehlende Beobachtung und niemals als null oder Richtungsersatz. Die amtlichen
 Metadaten erklären fehlende Angaben mit dem Ausfall einer Zählstelle; daraus
 wird keine Ursache der beobachteten Kalenderlücke abgeleitet.
 
-## Stationsbezug und Provenienz
+## Amtlicher Stationspunkt und Provenienz
 
 Der geprüfte Bezug ist ausdrücklich auf die Originalzeile
 `mannesmann ufer-totem 01` der amtlichen Standortdatei begrenzt. Der Punkt
@@ -84,12 +84,9 @@ Der geprüfte Bezug ist ausdrücklich auf die Originalzeile
 **WGS84/EPSG:4326** bezeichneten amtlichen GeoJSON-Distribution überein; auch alle
 18 anderen CSV-/GeoJSON-Koordinatenpaare stimmen exakt überein.
 
-Dies ist **keine OSM-/Straßenzuordnung** und kein Beleg einer bestimmten
-Lagegenauigkeit. Die Standortdistribution wurde zuletzt am 31. März 2022 geändert;
-der Abruf 2026 macht sie nicht zu neu erhobener Geometrie für 2024. Quellen-Hash,
-separate Standortlizenz und eigener Abrufzeitpunkt bleiben in den bestehenden
-SourceManifest-Qualitätshinweisen erhalten. Der Quellenabruf der Zählungen und
-das historische Messjahr bleiben getrennt.
+Der Provider gibt diesen amtlichen Punkt bei der regulären Abfrage mit eigener
+Standortlizenz, Quellen-Hash und Abrufzeitpunkt aus. Die Standortdistribution
+wurde zuletzt am 31. März 2022 geändert. Die absolute Lagegenauigkeit ist unbekannt.
 
 Ein unabhängiger Python-Standard-CSV-/Datetime-Reader hat sämtliche 17.566 IDs,
 Werte, Richtungen, Quellzeitlabels und Koordinaten aus den vollständigen
@@ -144,3 +141,40 @@ Auswahl eines passenden Zeitraums/Richtungswerts, Qualitäts-/Coverage-Abnahme u
 reale Export-/Golden-Prüfung. Die verschiedenen Messgrößen aus Köln, Düsseldorf
 und überregionalen Quellen dürfen nicht ohne belegte Methodik als gemeinsame
 Tagesbelastung verglichen werden.
+
+## Geprüfter Radweg an der Thomasstraße
+
+Die [städtische Mitteilung zum Fahrradbarometer](https://www.duesseldorf.de/fileadmin/Amt13/pld/archive/pld/d2014/d2014_11/d2014_11_03/14103114_300.pdf)
+verortet die Zählstelle am Mannesmannufer auf Höhe der Thomasstraße. Das
+[Verkehrsgutachten zur Erweiterung des Landtags, Abbildung 19](https://www.o-sp.de/download/duesseldorf/534066)
+zeigt die Stele neben dem dortigen Zweirichtungsradweg. Der dazu geprüfte
+[OSM-Weg 1219366607, Version 1](https://api.openstreetmap.org/api/0.6/way/1219366607/1.json)
+ist als `highway=cycleway` und `oneway=no` erfasst. Der amtliche Stationspunkt
+liegt nach der im Projekt verwendeten Distanzberechnung 5,5 m von der historischen
+Weggeometrie entfernt. Der 10-m-Grenzwert gilt für diesen einzelnen geprüften Weg.
+
+Die fünf unveränderten OSM-API-Antworten im Verzeichnis
+`scripts/providers/evidence/duesseldorf-mannesmannufer-2024/` belegen die
+Wegversion sowie die vier 2024 gültigen Knotenpositionen in Wegreihenfolge.
+Der letzte Knoten wurde 2025 verschoben. Der Provider prüft die historische
+Antwort jedes Elements anhand von Bytezahl und SHA-256. OSM-Geometrie steht
+unter [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/), © OpenStreetMap-Mitwirkende.
+
+Der geprüfte Weg läuft in OSM-Knotenreihenfolge nach Süden. Das unveränderte
+Quelllabel `Mannesmann Ufer Stadteinwaerts (Ri. Sueden)` erhält deshalb
+`stationWayDirection: 'forward'`. Das Quelllabel
+`Mannesmann Ufer Stadtauswaerts (Ri. Norden)` erhält `'backward'`.
+
+Ein Aufrufer kann den räumlichen Stationskontext ausdrücklich abrufen:
+
+```js
+const provider = source.createDuesseldorfBicycleHourlyProvider(options);
+const context = provider.loadReviewedStationContext();
+```
+
+Das Ergebnis enthält Stationspunkt, historische Weglinie, Abstand, Quellnachweise,
+die beiden Richtungskanäle und sämtliche Originalbeobachtungen mit `wayId` und
+`stationWayDirection`. `timeZone` und `intervalBoundary` bleiben `null`. Die
+Wegbindung beschreibt den Messquerschnitt der Station. Ihre Verwendung für
+Unfallpunkte oder räumlich und zeitlich aggregierte Expositionswerte erfordert
+eine gesonderte fachliche Prüfung.

@@ -1,7 +1,7 @@
 "use strict";
 
 // Optional source pilot: actual published Mannesmannufer hourly values and
-// a separately licensed official station point. No road matching or resampling.
+// a separately licensed official station point with an opt-in cycleway binding.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -10,6 +10,7 @@ const traffic = require('../../js/ua.traffic_provider');
 const {parseCsv} = require('./koeln_kfz_link_csv_provider');
 
 const SOURCE_ID = 'traffic.count.duesseldorf-mannesmannufer-hourly-2024';
+const PUBLISHER = 'Landeshauptstadt Düsseldorf – Amt für Verkehrsmanagement';
 const DISTRIBUTION_URL = 'https://opendata.duesseldorf.de/sites/default/files/Mannesmannufer_IN_OUT_2024_0.csv';
 const STATIONS_URL = 'https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_2.csv';
 const DISTRIBUTION_SHA256 = '06f2f90fb145b224077f69f777aff345007ca7612f916b58ba9a764f6e1576f7';
@@ -20,6 +21,21 @@ const COUNT_HEADER_SHA256 = 'ad6dc3e2d2643877c72abf7041bedac470b7a21b725367be29c
 const STATION_HEADER = 'standort;installiert;latitude;longitude;kommentar';
 const STATION_NAME = 'mannesmann ufer-totem 01';
 const DIRECTIONS = Object.freeze(['Mannesmann Ufer Stadteinwaerts (Ri. Sueden)', 'Mannesmann Ufer Stadtauswaerts (Ri. Norden)']);
+const UNBOUND_SOURCE_NOTE = 'Koordinaten aus expliziter Standortzeile mannesmann ufer-totem 01; keine belegte Lagegenauigkeit, Straßenpassung oder OSM-Way-ID.';
+const UNBOUND_STATION_NOTE = 'Amtlicher Stationspunkt; Standortdistribution geändert 31.03.2022. Keine belegte Lagegenauigkeit oder OSM-/Straßenzuordnung.';
+const REVIEWED_STATION_NOTE = 'Amtlicher Stationspunkt; Standortdistribution geändert 31.03.2022. Abstand zum geprüften Radweg aus den Geometrien berechnet; absolute Lagegenauigkeit unbekannt.';
+const REVIEWED_DIRECTIONS = Object.freeze([
+  Object.freeze({direction: DIRECTIONS[0], stationWayDirection: 'forward'}),
+  Object.freeze({direction: DIRECTIONS[1], stationWayDirection: 'backward'}),
+]);
+const OSM_EVIDENCE_ROOT = path.join(__dirname, 'evidence/duesseldorf-mannesmannufer-2024');
+const OSM_EVIDENCE = [
+  ['way', 1219366607, 1, 626, '11e54518102d6e53a5fc8daf066f807f2c7d86e7b2c74f3f17847cfcbb4e26b4', '2026-11-13T05:28:39.297Z'],
+  ['node', 11298492540, 1, 391, '8eed33e401d37e0e907cf6df7ba594ddee5dc7861c13508d11fbdc8769855264', '2026-11-13T05:28:39.294Z'],
+  ['node', 1223516213, 3, 392, '8ed0b4f1efbcc36af110f70501e9fea8e720c75fd63506a62a17887e9f5d2fce', '2026-11-13T05:28:39.289Z'],
+  ['node', 7756613438, 1, 392, '8147fb4e471786a7a3ed8f5845b05848058de25a16706633dd38a2cb31caa2f3', '2026-11-13T05:28:39.290Z'],
+  ['node', 203983852, 15, 390, '4967acee047aa80f2f148c9eae75898656d776c4a648e6582335d933a84c40cc', '2026-11-13T05:28:39.299Z'],
+];
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 
 class DuesseldorfHourlyError extends Error {
@@ -92,7 +108,7 @@ function parseHourlyCsv(countBytes, stationBytes) {
           'Originaler Stundenwert; Zeitzone und genaue Intervallgrenzen nicht angegeben. Keine Tagesumrechnung oder Richtungssumme.',
           'Zeitlücken bleiben Lücken; wiederholte Zeitlabels werden nicht ohne amtliche Unterscheidung zusammengefasst.',
           `Amtliche Standortbezeichnung: ${STATION_NAME}; installiert laut Standortdatei: ${station.installed}; ${station.notes}.`,
-          'Amtlicher Stationspunkt; Standortdistribution geändert 31.03.2022. Keine belegte Lagegenauigkeit oder OSM-/Straßenzuordnung.',
+          UNBOUND_STATION_NOTE,
         ]});
     }
   }
@@ -103,7 +119,7 @@ function createDescriptor(options) {
   const opts = options || {};
   for (const key of ['retrievedAt', 'stationsRetrievedAt'])
     if (typeof opts[key] !== 'string' || !opts[key].includes('T')) fail('invalid_date', `${key} requires an actual retrieval timestamp`);
-  const base = {id: SOURCE_ID, publisher: 'Landeshauptstadt Düsseldorf – Amt für Verkehrsmanagement',
+  const base = {id: SOURCE_ID, publisher: PUBLISHER,
     datasetTitle: 'Mannesmannufer IN OUT – Wetterabhängige Jahresübersicht Dauerzählstelle 2024',
     datasetUrl: 'https://opendata.duesseldorf.de/dataset/wetterabh%C3%A4ngige-jahres%C3%BCbersicht-der-dauerz%C3%A4hlstellen-radverkehr-2024',
     distributionUrl: DISTRIBUTION_URL, licenseId: 'DL-DE-BY-2.0',
@@ -121,7 +137,7 @@ function createDescriptor(options) {
     'Historische Richtungs-Stundenwerte 2024; kein DTV oder tägliches Verkehrsvolumen. Originale Zeitlabels ohne belegte Zeitzone/Intervallgrenzen.',
     'Original: 8.783 eindeutige Stundenlabels; 31.03.2024 02:00 fehlt, 27.10.2024 02:00 steht nur einmal. Keine Zeitzonen-/Sommerzeitrekonstruktion.',
     `Separate amtliche Standortdistribution: ${STATIONS_URL}; SHA256 ${STATIONS_SHA256}; Lizenz DL-DE-Zero-2.0; Abruf ${opts.stationsRetrievedAt}; Distributionsänderung 2022-03-31.`,
-    'Koordinaten aus expliziter Standortzeile mannesmann ufer-totem 01; keine belegte Lagegenauigkeit, Straßenpassung oder OSM-Way-ID.',
+    UNBOUND_SOURCE_NOTE,
   ]});
 }
 
@@ -143,6 +159,86 @@ function readPinned(file, expectedHash, expectedBytes) {
   return bytes;
 }
 
+function loadReviewedWay() {
+  const responses = OSM_EVIDENCE.map(([type, id, version, bytes, contentHash, retrievedAt]) => {
+    const filename = `${type}-${id}-v${version}.json`;
+    const {elements} = JSON.parse(readPinned(path.join(OSM_EVIDENCE_ROOT, filename), contentHash, bytes));
+    const element = elements?.[0];
+    if (elements?.length !== 1 || element?.type !== type || element.id !== id || element.version !== version) {
+      fail('unreviewed_cycleway', `Unexpected historical OSM element in ${filename}`);
+    }
+    return {
+      element,
+      source: Object.freeze({distributionUrl: `https://api.openstreetmap.org/api/0.6/${type}/${id}/${version}.json`,
+        bytes, contentHash, retrievedAt}),
+    };
+  });
+  const [{element: way}, ...nodes] = responses;
+  if (way.tags?.highway !== 'cycleway' || way.tags.oneway !== 'no' ||
+      way.nodes?.length !== nodes.length || nodes.some(({element}, index) => element.id !== way.nodes[index])) {
+    fail('unreviewed_cycleway', 'The historical way must be the reviewed two-way cycleway in OSM node order');
+  }
+  const coordinates = Object.freeze(nodes.map(({element}) => Object.freeze([element.lon, element.lat])));
+  if (coordinates.some(([, lat], index) => index > 0 && lat >= coordinates[index - 1][1])) {
+    fail('unreviewed_direction', 'The reviewed way runs south in OSM node order');
+  }
+  return {
+    way: Object.freeze({id: String(way.id), version: way.version,
+      geometry: Object.freeze({type: 'LineString', coordinates})}),
+    responses: Object.freeze(responses.map(({source}) => source)),
+  };
+}
+
+function reviewedStationContext(rawObservations, station, descriptor, stationRetrievedAt, coverage) {
+  const {way, responses} = loadReviewedWay();
+  const counts = traffic.normalizeDescriptor({...descriptor,
+    changeNotice: `Originale Fahrrad-Stundenwerte richtungsgetrennt normalisiert und dem geprüften OSM-Weg ${way.id} an der Zählstelle zugeordnet.`,
+    qualityNotes: descriptor.qualityNotes.map(note => note === UNBOUND_SOURCE_NOTE ? REVIEWED_STATION_NOTE : note),
+  });
+  const observations = rawObservations.map((reading, index) => {
+    const direction = REVIEWED_DIRECTIONS.find(item => item.direction === reading.direction);
+    if (!direction) fail('unreviewed_direction', `Unknown Mannesmannufer count direction: ${reading.direction}`);
+    return traffic.normalizeObservation({...reading, geometry: station.geometry, wayId: way.id,
+      stationWayDirection: direction.stationWayDirection,
+      qualityNotes: reading.qualityNotes.map(note => note === UNBOUND_STATION_NOTE ? REVIEWED_STATION_NOTE : note),
+    }, counts, index);
+  });
+  // Only the reviewed way is a candidate. The generic matcher can fall back to
+  // a nearest segment when an explicit way ID is missing from a larger network.
+  const matched = traffic.matchObservationToRoads(observations[0],
+    [{wayId: way.id, coordinates: way.geometry.coordinates}], {maxDistanceMeters: 10});
+  if (!matched) fail('unreviewed_cycleway', 'The station lies outside the reviewed cycleway distance');
+  return Object.freeze({
+    station, way, directions: REVIEWED_DIRECTIONS, coverage,
+    match: Object.freeze({distanceMeters: matched.distanceMeters, method: matched.matchMethod}),
+    timeZone: null,
+    intervalBoundary: null,
+    observations: Object.freeze(observations),
+    osmResponses: responses,
+    sources: Object.freeze({
+      counts,
+      station: Object.freeze({
+        sourceId: 'road-context.duesseldorf-bicycle-stations', role: 'road_context', publisher: PUBLISHER,
+        datasetTitle: 'Standorte der Dauerzählstellen Radverkehr in Düsseldorf',
+        datasetUrl: 'https://opendata.duesseldorf.de/dataset/standorte-der-dauerz%C3%A4hlstellen-radverkehr-d%C3%BCsseldorf',
+        distributionUrl: STATIONS_URL, licenseId: 'DL-DE-Zero-2.0',
+        licenseName: 'Datenlizenz Deutschland – Zero – Version 2.0', licenseUrl: 'https://www.govdata.de/dl-de/zero-2-0',
+        contentHash: STATIONS_SHA256, retrievedAt: stationRetrievedAt, versionOrPublicationDate: '2022-03-31',
+        changedOrDerived: true, changeNotice: 'Amtliche Standortzeile Mannesmannufer aus der CSV ausgewählt.',
+      }),
+      osm: Object.freeze({
+        sourceId: 'road-context.osm-mannesmannufer-cycleway', role: 'road_context', publisher: 'OpenStreetMap contributors',
+        datasetTitle: 'OpenStreetMap – Radweg am Mannesmannufer, Weg 1219366607',
+        datasetUrl: `https://www.openstreetmap.org/way/${way.id}`, distributionUrl: responses[0].distributionUrl,
+        contentHash: responses[0].contentHash, retrievedAt: responses[0].retrievedAt, licenseId: 'ODbL-1.0',
+        licenseName: 'Open Data Commons Open Database License 1.0', licenseUrl: 'https://opendatacommons.org/licenses/odbl/1-0/',
+        requiredAttribution: '© OpenStreetMap contributors', changedOrDerived: true,
+        changeNotice: 'Liniengeometrie aus vier einzeln versionierten OSM-Knoten in Wegreihenfolge zusammengesetzt.',
+      }),
+    }),
+  });
+}
+
 function createDuesseldorfBicycleHourlyProvider(options) {
   const opts = options || {};
   if (opts.expectedDistributionSha256 !== DISTRIBUTION_SHA256 || opts.expectedBytes !== DISTRIBUTION_BYTES ||
@@ -153,10 +249,19 @@ function createDuesseldorfBicycleHourlyProvider(options) {
   const root = fs.realpathSync(opts.allowedRoot);
   const csvPath = confinedFile(root, opts.csvPath), stationsPath = confinedFile(root, opts.stationsPath);
   const parsed = parseHourlyCsv(readPinned(csvPath, DISTRIBUTION_SHA256, DISTRIBUTION_BYTES), readPinned(stationsPath, STATIONS_SHA256, STATIONS_BYTES));
+  const station = Object.freeze({id: 'duesseldorf-mannesmannufer', sourceName: STATION_NAME,
+    geometry: Object.freeze({type: 'Point', coordinates: Object.freeze([...parsed.observations[0].geometry.coordinates])})});
+  const stationRetrievedAt = opts.stationsRetrievedAt;
   const provider = traffic.createProvider({descriptor, canProvide: context =>
     ['Düsseldorf', 'Duesseldorf'].includes(context.city) && context.mode === 'bicycle', loadObservations: async () => parsed.observations});
-  return Object.freeze({...provider, coverage: Object.freeze({rowCount: parsed.rowCount, missingCountCells: parsed.missingCountCells,
-    gaps: parsed.gaps, observationCount: parsed.observations.length, stationCount: 1})});
+  const coverage = Object.freeze({rowCount: parsed.rowCount, missingCountCells: parsed.missingCountCells,
+    gaps: parsed.gaps, observationCount: parsed.observations.length, stationCount: 1});
+  const reviewedCoverage = Object.freeze({...coverage, gaps: Object.freeze(parsed.gaps.map(gap => Object.freeze({...gap})))});
+  return Object.freeze({...provider, coverage,
+    loadReviewedStationContext() {
+      return reviewedStationContext(parsed.observations, station, descriptor, stationRetrievedAt, reviewedCoverage);
+    },
+  });
 }
 
 module.exports = Object.freeze({SOURCE_ID, DISTRIBUTION_URL, STATIONS_URL, DISTRIBUTION_SHA256, DISTRIBUTION_BYTES,
