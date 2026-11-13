@@ -497,3 +497,34 @@ describe('server-side proposalBrief value-add contract', () => {
       .toMatch(/weder eine amtliche Einstufung.*noch.*räumlichen Cluster/i);
   });
 });
+
+test('review of researched Hbf evidence requires the bound sources and search trace, with open map review', () => {
+  const evidence = require('../fixtures/bonn-hbf-political-research.json');
+  const proposal = completeValueAddProposal();
+  const log = proposal.politicalResearchLog;
+  Object.assign(log, { status: 'complete', sourceStatus: 'results-found', documentedQueries: evidence.queries,
+    evidenceRefs: evidence.references.map(ref => ref.url) });
+  Object.assign(proposal.filingReadinessVerdict, { status: 'blocked', politicalResearchStatus: 'complete' });
+  const binding = Object.fromEntries(['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256']
+    .map(key => [key, 'a'.repeat(64)]));
+  const review = () => {
+    const canonical = JSON.stringify(proposal, (_key, value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+      return Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]));
+    }, 2) + '\n';
+    return reviewModelResponse(proposal, { ...binding, provider: 'gemini', model: 'unit-fixture',
+      modelVersion: 'unit-fixture-v1', executedAt: '2026-11-13T08:00:00Z',
+      responseSha256: createHash('sha256').update(canonical).digest('hex') }, binding, evidence);
+  };
+  expect(review()).toMatchObject({ councilEvidenceCasePassed: true, status: 'blocked', rubric: { valid: true } });
+  proposal.filingReadinessVerdict.status = 'ready';
+  expect(review().councilEvidenceCasePassed).toBe(false);
+  proposal.filingReadinessVerdict.status = 'blocked';
+  log.evidenceRefs = [...log.evidenceRefs, 'https://example.invalid/invented'];
+  expect(review().councilEvidenceCasePassed).toBe(false);
+  log.evidenceRefs = evidence.references.slice(1).map(ref => ref.url);
+  expect(review().councilEvidenceCasePassed).toBe(false);
+  log.evidenceRefs = evidence.references.map(ref => ref.url);
+  log.documentedQueries = [{ ...evidence.queries[0], query: 'Andere Abfrage' }];
+  expect(review().councilEvidenceCasePassed).toBe(false);
+});

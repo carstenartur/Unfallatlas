@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "snapshotId": "traffic.model.hamburg-hvs-2019.feature-1",
+  "sourceId": "traffic.model.hamburg-hvs-2019",
+  "retrievedAt": "2026-11-13T07:22:42.943797+00:00",
+  "distribution": {
+    "url": "https://api.hamburg.de/datasets/v1/verkehrsmengen/collections/verkehrsmengen_dtv_hvs_2019/items/1?f=json",
+    "bytes": 823,
+    "sha256": "771d8959a83a9ac6c4d58dbe0096f3a42c84adb0f1372d161e0e3510e5061d94",
+    "mediaType": "application/geo+json",
+    "versionOrPublicationDate": "2022-11-22"
+  },
+  "coverage": {
+    "city": "Hamburg",
+    "fromYear": 2019,
+    "toYear": 2019,
+    "modes": [
+      "motor_vehicle"
+    ]
+  },
+  "observations": [
+    {
+      "observationId": "hamburg-hvs-2019-feature-1",
+      "measurementType": "model",
+      "mode": "motor_vehicle",
+      "year": 2019,
+      "period": "DTV (Mo–So)",
+      "value": 4000,
+      "unit": "Kfz/24 h",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            9.958530300186531,
+            53.61024622017566
+          ],
+          [
+            9.958476913632337,
+            53.61024440144238
+          ],
+          [
+            9.95829332827991,
+            53.61017873822109
+          ]
+        ]
+      },
+      "qualityNotes": [
+        "Abschnitt 1 in der amtlichen Sammlung verkehrsmengen_dtv_hvs_2019. Die Quelle weist keine Fahrtrichtung aus."
+      ]
+    }
+  ]
+}

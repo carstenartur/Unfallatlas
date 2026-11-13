@@ -69,6 +69,27 @@ function withVendorArtifact(check) {
   }
 }
 
+test('ships the license notices for each emitted DOCX runtime helper', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const asset = notice.assetAssessments.find(entry => entry.path === docxAsset);
+    const sources = notice.supplementalLicenses.filter(item => item.asset === docxAsset);
+    expect(sources).toHaveLength(9);
+    expect(sources.map(item => item.ref).sort()).toEqual(asset.containsFiles);
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    for (const record of sources) {
+      const published = sbom.components.find(component => component['bom-ref'] === record.ref);
+      expect(published).toMatchObject({ name: record.sourcePath, hashes: [{ alg: 'SHA-256', content: record.sourceSha256 }],
+        licenses: [{ expression: 'MIT' }] });
+      const license = fs.readFileSync(path.join(root, record.path), 'utf8');
+      expect(license).toContain('VoidZero');
+      if (record.sourcePath.includes('helpers/esm/')) expect(license).toContain('Sebastian McKenzie');
+      else expect(license).toContain('Evan Wallace');
+    }
+    asset.containsFiles.pop();
+    expect(() => validatePolicyBinding(notice, policy)).toThrow(/verified component inventory/i);
+  });
+});
+
 test('rejects a DOCX notice with a missing embedded npm component', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const docx = notice.assetAssessments.find(asset => asset.path === docxAsset);
