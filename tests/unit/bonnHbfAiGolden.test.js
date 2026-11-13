@@ -90,7 +90,7 @@ test('a documented council search reaches the model with its queries and differe
 
 test('map observations belong to the captured facts, exact views and downloadable images', () => {
   const baseline = require('../fixtures/bonn-hbf-ai-golden.v1.json');
-  const observed = require('../../docs/qa/bonn-hbf-map-views/capture.json');
+  const observed = require('../fixtures/bonn-hbf-map-views/capture.json');
   const hints = qa.reviewedMapHints(baseline);
   expect(hints.sourceType).toBe('visual_context');
   expect(hints.views).toHaveLength(4);

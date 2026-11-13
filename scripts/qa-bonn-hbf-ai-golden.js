@@ -204,8 +204,8 @@ function snapshotFromRuntime(raw) {
     modelRelease:{status:'blocked',actualProviderRun:false,providerReceipt:null,positiveAcceptance:false,required:['Configured provider run on exact facts/prompt','Exact model version and timestamp','Production schema and value-add rubric evaluation','Completed source-linked political research','Four-mode live map inspection']}};
 }
 function reviewedMapHints(snapshot) {
-  const directory = 'docs/qa/bonn-hbf-map-views';
-  const capture = require('../docs/qa/bonn-hbf-map-views/capture.json');
+  const directory = 'tests/fixtures/bonn-hbf-map-views';
+  const capture = require('../tests/fixtures/bonn-hbf-map-views/capture.json');
   if (capture.caseId !== snapshot.case.id || capture.mapInputsFingerprint !== snapshot.inputs.mapInputsFingerprint
       || capture.views.length !== snapshot.inputs.mapViews.length) throw new Error('Map observation case or inputs changed.');
   for (const expected of snapshot.inputs.mapViews) {

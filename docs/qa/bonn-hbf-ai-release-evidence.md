@@ -146,11 +146,10 @@ reviewed evidence, production input and prompt, and binding receipt. The
 original unsearched case retains its own evidence and verdict. `--run-model`
 submits both prompts and saves each actual answer independently. A researched
 answer is checked against the six source URLs and four recorded queries.
-Four [public map observations](bonn-hbf-map-views/capture.json) bind the exact Golden view URLs,
+Four [public map observations](../../tests/fixtures/bonn-hbf-map-views/capture.json) bind the exact Golden view URLs,
 selection bounds and population to the observed public deployment and image hashes.
-Each [standard](bonn-hbf-map-views/standard.webp), [hybrid](bonn-hbf-map-views/hybrid.webp),
-[orthophoto](bonn-hbf-map-views/orthophoto.webp) and [analysis](bonn-hbf-map-views/analysis.webp)
-preview records the actual Chromium view at 1440 × 900. Credit for the maps:
+The [four Golden test fixtures](../../tests/fixtures/bonn-hbf-map-views) include
+the standard, hybrid, orthophoto and analysis views recorded by Chromium at 1440 × 900. Credit for the maps:
 © OpenStreetMap contributors (ODbL) and Geobasis NRW (Datenlizenz Deutschland – Namensnennung 2.0).
 Rendering was checked after all visible tiles loaded and reached full opacity. The
 four screenshots were visually inspected. The stable public build manifest was
