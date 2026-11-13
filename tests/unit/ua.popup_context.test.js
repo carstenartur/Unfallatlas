@@ -601,3 +601,18 @@ test.each([['count', 'Älterer gemessener Verkehrswert'], ['model', 'Verkehrsmod
   expect(html).toContain('A → B');
   expect(html).not.toContain('Schätzung anhand OSM');
 });
+
+test('direct and unhydrated accident popups cap confidence on a stored limited profile', () => {
+  const UA = loadModules();
+  UA.elevationProvider = require('../../js/ua.elevation_provider');
+  const props = { matched_way_id: '885100281', road_slope_percent: -3.4,
+    road_slope_quality: 'high', road_slope_confidence: 'high',
+    road_slope_uncertainty_reasons: ['non_ground_osm_layer'] };
+  const ctx = { contextCapabilities: { hasSlope: true } };
+  for (const html of [UA.buildAccidentContextPopupHtml(ctx, props), UA.composeAccidentPopupHtml(ctx, props)]) {
+    expect(html).toContain('>mittel</div>');
+    expect(html).not.toContain('>hoch</div>');
+  }
+  expect(UA.popupContext.hydrateWayAttrs(ctx, props).road_slope_confidence).toBe('medium');
+  expect(props.road_slope_confidence).toBe('high');
+});

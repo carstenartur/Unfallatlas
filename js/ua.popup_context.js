@@ -469,7 +469,7 @@
    * @returns {string|null}
    */
   function render(props, capabilities) {
-    const p = props || {};
+    const p = UA.elevationProvider?.limitStoredRoadQuality?.(props) || props || {};
     const caps = capabilities || {};
 
     const sections = [
@@ -542,7 +542,7 @@
   ]);
 
   function hydrateWayAttrs(ctx, props) {
-    const p = props || {};
+    const p = UA.elevationProvider?.limitStoredRoadQuality?.(props) || props || {};
     if (!p.matched_way_id) return p;
     const state = ctx && ctx.contextLayerState;
     if (!state) return p;
