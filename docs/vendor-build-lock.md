@@ -211,3 +211,22 @@ die mit `d3-queue` gelieferte BSD-3-Clause-Lizenz. Die Artefaktprüfung
 vergleicht das Inventar und die Lizenzhashes mit der eingecheckten Policy.
 Für den vollständigen Nachweis fehlt weiterhin ein unabhängiger Nachbau
 mit gepinntem Browserify und signierter Build-Attestierung.
+
+## Generierte Unicode-Daten des PDF-Exporters
+
+Drei generierte Unicode-Ressourcen des PDF-Exporters sind aus Originaldaten
+reproduziert. `unicode-properties@1.4.1` erzeugt aus den 13 UCD-12.0.0-Dateien
+in `codepoints@1.3.0` die Dateien `data.trie` (9.696 Bytes) und `data.json`
+(2.516 Bytes). `linebreak@1.1.0` erzeugt aus `LineBreak.txt` von UCD 14.0.0
+`classes.trie` (3.870 Bytes). Nach `npm ci` wiederholt
+`python3 scripts/reproduce-pdf-unicode.py` die beiden ursprünglichen
+Generatoren mit den gepinnten Quellen. Der Seitenbuild prüft die drei Daten
+im installierten Paketmodul, in der pdfmake-Source-Map und im ausgelieferten
+minifizierten PDF-Bundle. Notice und SBOM binden für diese Daten die
+[Unicode-Lizenz](https://www.unicode.org/license.txt) ein. Die MIT-Lizenzen der
+JavaScript-Pakete gelten weiterhin für deren Software.
+Der optionale Reproduktionslauf baut außerdem die drei Tries und zwei
+Zustandsmaschinen aus `fontkit@2.0.4` nach und findet die gleichen Bytes im
+ausgelieferten PDF-Bundle. In diese Ressourcen gehen zusätzliche Shaper-Regeln
+ein. Ihre Lizenzherkunft ist weiterhin offen. Originaladressen und Prüfsummen stehen im
+[Quellenmanifest](../vendor/pdfmake-build/unicode-data.json).

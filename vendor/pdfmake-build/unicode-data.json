@@ -1,0 +1,111 @@
+{
+  "sources": {
+    "ucd12": {
+      "url": "https://www.unicode.org/Public/zipped/12.0.0/UCD.zip",
+      "sha256": "b0e63d9bee7cae523001b2dc7f7873615773beec999f74c2b6b84ec9d2f0f0c5",
+      "files": {
+        "ArabicShaping.txt": "fdc543859433c4578ec7991d8c3238a3638d59962eb0db446d0228cccb7a48da",
+        "Blocks.txt": "a1a3ca4381eb91f7b65afe7cb7df615cdcf67993fef4b486585f66b349993a10",
+        "CaseFolding.txt": "d6caa458afc9a76d86bc2ef26a5423f4e663981904de450c97dd53ee0ab5c125",
+        "CompositionExclusions.txt": "08a52bd7f893f5c9a34a6d4cc3a0b2d7a44293ee45fb15d581e729b9f8584dfa",
+        "DerivedNormalizationProps.txt": "8b4210273920c013e736332434222b73786e6c468a360710f6799eeace9b3d38",
+        "EastAsianWidth.txt": "f7e61d7cd168d4496c6019148579af3adfd6e0dac8fa7cd98d8617bcd8732b28",
+        "IndicPositionalCategory.txt": "1df3666ef987e492b4323a9cd907738e41656e6428752f4b1f6fd95f9bfc8adb",
+        "IndicSyllabicCategory.txt": "b3932cf25d7ea43e1bf6be6d45094d4552f753f6b651a7a869464028f1aa88a1",
+        "PropertyValueAliases.txt": "648e1cb9942f02b9358edc52d523803efa491ff576aa7063d4b9aebdef7d7217",
+        "Scripts.txt": "bd327cbb8bffd2e4b40b1e9842c9a7d641d1c4e91c34a41020cf174f3a1c86a1",
+        "SpecialCasing.txt": "22b1bff498f08633f72468d46eebb65e30dc325fbb6822dde319cb605af014c2",
+        "UnicodeData.txt": "57913fdb1c1271fa9fd51dea08d49370f33d5bfda6bbaba348f44d90029ea11d",
+        "extracted/DerivedNumericValues.txt": "73192b1b7662d9ea424b779bcda06ccbe57a4121bf28ed981a39a78aa5808d06"
+      }
+    },
+    "ucd14": {
+      "url": "https://www.unicode.org/Public/zipped/14.0.0/UCD.zip",
+      "sha256": "033a5276b5d7af8844589f8e3482f3977a8385e71d107d375055465178c23600",
+      "files": {
+        "LineBreak.txt": "9e06e9f35c6959fb91dcc7993f90d58523c3079bc62c6b25f828b4cdebc5d70c"
+      }
+    },
+    "codepoints": {
+      "url": "https://registry.npmjs.org/codepoints/-/codepoints-1.3.0.tgz",
+      "sha256": "c0400bd734f19a1707707d3cff6b468228b1e2376bb02e5e0b98b7edd66d961f"
+    },
+    "unicode-properties": {
+      "url": "https://codeload.github.com/devongovett/unicode-properties/tar.gz/6cc2e62ba83258584bd54bc15034afce3fb7de8e",
+      "sha256": "5eabef15ce9786002855f4d40bcaac00cbe6ef9f49f2cea1b7e0a77381201afc"
+    },
+    "linebreak": {
+      "url": "https://codeload.github.com/devongovett/linebreaker/tar.gz/71bb535aa97229a7602752f74563f8c2d24e71de",
+      "sha256": "d6a6cac2c27ea8e91b36ce5fea110b58e6aa6a1120006f0d3876cf42ad570d6d"
+    },
+    "fontkit": {
+      "url": "https://codeload.github.com/foliojs/fontkit/tar.gz/fbf3b9ef21eebd219eb73e666faed573af0fba09",
+      "sha256": "da64e8a7ebd35162dbed4bff6dc2eeedb91d4fe3058428d09577d2715ed253c2"
+    }
+  },
+  "license": {
+    "spdx": "Unicode-3.0",
+    "copyright": "Copyright © 1991-2026 Unicode, Inc.",
+    "url": "https://www.unicode.org/license.txt",
+    "file": "Unicode-License.txt",
+    "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+  },
+  "outputs": [
+    {
+      "file": "data.trie",
+      "package": "unicode-properties",
+      "ucd": "ucd12",
+      "encoding": "base64",
+      "bytes": 9696,
+      "sha256": "90b02ee1703d7e9c3caf8721e425bbaac14222153f143e63efdf0ecb26c76daa"
+    },
+    {
+      "file": "data.json",
+      "package": "unicode-properties",
+      "ucd": "ucd12",
+      "encoding": "json",
+      "bytes": 2516,
+      "sha256": "d68a7653d61f8995affd7e3c82f704c9ac978ca7b3e0657dbe2ca8346946a9a0"
+    },
+    {
+      "file": "classes.trie",
+      "package": "linebreak",
+      "ucd": "ucd14",
+      "encoding": "base64",
+      "bytes": 3870,
+      "sha256": "15cf0c0132455b0f02fd7afdc7a3d7db44d5d3ede5126f7be97ff7885ed720de"
+    }
+  ],
+  "fontkitReproductionOnly": [
+    {
+      "file": "data.trie",
+      "bytes": 526,
+      "sha256": "6d735b80dcfb2270ab2d20a193aa676b82c7888b7deee1db34daee3f444c58b8",
+      "encoding": "base64"
+    },
+    {
+      "file": "indic.trie",
+      "bytes": 3959,
+      "sha256": "7f86f07a1a4efe63959e8baa1d9bda1b176d9911e3545f9b3f55c410fa95c5e3",
+      "encoding": "base64"
+    },
+    {
+      "file": "use.trie",
+      "bytes": 3606,
+      "sha256": "16447d2fca775fcd2ea6611d43f394b944b940c1d72d696678796692dee89daa",
+      "encoding": "base64"
+    },
+    {
+      "file": "indic.json",
+      "bytes": 43727,
+      "sha256": "903a39c0f59dca5ab4d31d14ca39bacb58786fa373b64d38af82c5749f2e16e2",
+      "encoding": "json"
+    },
+    {
+      "file": "use.json",
+      "bytes": 7290,
+      "sha256": "98de30bc007d0e3fb180839e167de030dd579acd40285865d67718d713b2e9b1",
+      "encoding": "json"
+    }
+  ]
+}

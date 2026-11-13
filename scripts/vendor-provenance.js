@@ -12,6 +12,7 @@ const LEAFLET_HEAT_SOURCE = 'dist/leaflet-heat-global.js';
 const LEAFLET_IMAGE_ASSET = 'vendor/leaflet-image/leaflet-image.js';
 const DOCX_ASSET = 'vendor/export/docx.js';
 const DOCX_BUILD_LOCK = 'vendor/docx-build/npm-lock.json.gz';
+const { collectUnicodeData, unicodeDataRecords } = require('./pdf-unicode-data');
 const PDF_ASSET = 'vendor/export/pdfmake.js';
 const COMPLETE_INVENTORY_SCOPE = 'delivered-assets-component-level';
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
@@ -764,6 +765,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
     throw new Error('[vendor-provenance] Missing BSD-2-Clause license evidence for locked simpleheat');
   }
   const embeddedSources = [
+    ...collectUnicodeData(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.unicodeDataManifestSha256),
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
     ...collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, pdfInventory.brotliDecoder),
   ];
@@ -813,6 +815,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
       expected.owner, ...expected.components.map(component => component.purl), ...(expected.sourceMapPurls || []),
     ])].sort();
     const embeddedSources = [
+      ...(expected.unicodeDataManifestSha256 ? unicodeDataRecords(expected.unicodeDataManifestSha256) : []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
       ...(expected.brotliDecoder ? brotliDecoderRecords(expected.brotliDecoder) : []),
     ];
