@@ -69,6 +69,24 @@ function withVendorArtifact(check) {
   }
 }
 
+test('attributes the adapted Base64 decoder in Fontkit to its upstream author', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const ref = 'urn:unfallatlas:vendor-source:fontkit:base64-decoder';
+    const record = notice.supplementalLicenses.find(entry => entry.ref === ref);
+    const fontkit = notice.components.find(entry => entry.purl === 'pkg:npm/fontkit@2.0.4');
+    expect(record).toMatchObject({ asset: pdfAsset, spdx: 'MIT', copyright: 'Copyright (c) 2012 Niklas von Hertzen' });
+    expect(fs.readFileSync(path.join(root, record.path), 'utf8')).toContain(record.copyright);
+    expect(fontkit.licenseTexts).toEqual([]);
+    expect(notice.assetAssessments.find(entry => entry.path === pdfAsset).containsFiles).toContain(ref);
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    expect(sbom.components.find(entry => entry['bom-ref'] === ref)).toMatchObject({
+      type: 'file', hashes: [{ alg: 'SHA-256', content: record.sourceSha256 }], copyright: record.copyright,
+    });
+    record.sourceSha256 = '0'.repeat(64);
+    expect(() => validatePolicyBinding(notice, policy)).toThrow(/Embedded source or license/);
+  });
+});
+
 test('ships the license notices for each emitted DOCX runtime helper', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const asset = notice.assetAssessments.find(entry => entry.path === docxAsset);

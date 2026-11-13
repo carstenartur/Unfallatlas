@@ -187,8 +187,17 @@ Das eingebettete Farbprofil ist bytegleich mit den 3.024 Originalbytes
 von `sRGB2014.icc` im Profilregister des International Color Consortium.
 Der Build vergleicht das Profil mit den Base64-Daten der inneren Source-Map
 und dem Hersteller-Hash. Notice und SBOM binden den eigenen Lizenztext
-des ICC an diese Datei. Die Herkunft der generierten Unicode-Daten
-bleibt offen.
+des ICC an diese Datei. Der Abschnitt zu den Unicode-Daten beschreibt die
+reproduzierten Ressourcen und die offenen Nachweise für die Shaper-Regeln.
+
+`fontkit@2.0.4` nennt in `src/utils.js` das Projekt `base64-arraybuffer`
+als Quelle seines angepassten Base64-Decoders. Der Seitenbuild prüft den
+markierten Quellabschnitt aus dem npm-Archiv gegen die innere Fontkit-Map
+und deren Browsermodul gegen die äußere PDF-Map. Notice und CycloneDX
+binden den SHA-256 des angepassten Abschnitts an Niklas von Hertzens
+MIT-Lizenz. Das Quelleninventar verweist auf die Fassung des Originals,
+die vor Aufnahme des Decoders in Fontkit veröffentlicht war. Die genaue
+Revision, von der der Autor die Anpassung ableitete, ist nicht angegeben.
 
 Sechs Dateien aus `brotli@1.3.3` tragen denselben Apache-2.0-Lizenzhinweis
 mit Copyright von Google Inc. aus dem Jahr 2013. Der Seitenbuild vergleicht
@@ -208,7 +217,7 @@ dekodierten Wörterbuchdaten.
 
 Offen bleiben der Volltext für die MIT-Deklaration im Brotli-NPM-Paket,
 die Lizenznachweise für die übrigen eingebetteten Brotli-Dateien, die
-fehlenden Volltexte für `dfa` und `fontkit`, die vollständigen Nachweise
+releasebezogenen Volltexte für `dfa` und `fontkit` selbst, die vollständigen Nachweise
 für intern gebündelte Komponenten und Daten sowie die unabhängigen,
 von der Policy anerkannten Build-Signaturen.
 
