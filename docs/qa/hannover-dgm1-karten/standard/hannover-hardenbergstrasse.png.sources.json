@@ -1,0 +1,901 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "name": "hannover-hardenbergstrasse.png",
+    "mediaType": "image/png",
+    "bytes": 628489,
+    "sha256": "7e55f5670651168a2aceda13ed28a9d8b7c3b96a53fdc4f30361646e7e26bcde"
+  },
+  "sourceManifest": {
+    "schemaVersion": 1,
+    "artifactId": "unfallwerkbank-hannover-f95de8efd0d5",
+    "generatedAt": "2026-11-13T07:58:53.798Z",
+    "applicationVersion": "2.1.4",
+    "buildFingerprint": "8c5460518c332f9318e1cd81735e413eeadb907138751ab16faee16c6d74ec04",
+    "dataFingerprint": "f95de8efd0d5c8516dd78db9df99fb1a0c722c2ef83f65ee6c45e4a8237db8d4",
+    "scenario": {
+      "city": "Hannover",
+      "bounds": {
+        "south": 52.36636140186562,
+        "west": 9.732054769992828,
+        "north": 52.36793364674238,
+        "east": 9.735970795154573
+      },
+      "filters": {
+        "dataExportInvolvementPolicy": "Beteiligungsfilter dokumentiert; Datenexport enthält alle Kombinationen im übrigen Filterumfang",
+        "dayType": "all",
+        "hourFrom": 0,
+        "hourTo": 23,
+        "includeCar": true,
+        "includeCyclist": true,
+        "includeGkfz": false,
+        "includeMotorcycle": false,
+        "includePedestrian": true,
+        "includeSonstig": false,
+        "involvementMode": "or",
+        "roadCondition": "all",
+        "severity": "all"
+      },
+      "years": [
+        2017,
+        2018,
+        2019,
+        2021,
+        2022,
+        2024,
+        2025
+      ]
+    },
+    "sources": [
+      {
+        "sourceId": "accidents.de.unfallatlas",
+        "role": "accidents",
+        "publisher": "Statistische Ämter des Bundes und der Länder",
+        "datasetTitle": "Unfallatlas – Straßenverkehrsunfälle mit Personenschaden",
+        "datasetUrl": "https://www.statistikportal.de/de/karten/unfallatlas",
+        "distributionUrl": "https://unfallatlas.statistikportal.de/",
+        "licenseId": "DL-DE-BY-2.0",
+        "licenseName": "Datenlizenz Deutschland – Namensnennung – Version 2.0",
+        "licenseUrl": "https://www.govdata.de/dl-de/by-2-0",
+        "requiredAttribution": "© Statistische Ämter des Bundes und der Länder, Unfallatlas",
+        "temporalCoverage": "2017–2025",
+        "spatialCoverage": "Hannover",
+        "retrievedAt": "2026-11-13T07:58:53.798Z",
+        "changedOrDerived": true,
+        "changeNotice": "Räumlich und nach den gewählten Filtern ausgewählt; Exportfelder normalisiert.",
+        "qualityNotes": [
+          "Enthalten sind polizeilich erfasste Unfälle mit Personenschaden."
+        ],
+        "permissions": {
+          "permitsRedistribution": true,
+          "permitsDerivatives": true,
+          "commercialUseAllowed": true
+        }
+      },
+      {
+        "sourceId": "basemap.openstreetmap.standard",
+        "role": "basemap",
+        "publisher": "OpenStreetMap-Mitwirkende",
+        "datasetTitle": "OpenStreetMap Standard-Grundkarte",
+        "datasetUrl": "https://www.openstreetmap.org/",
+        "distributionUrl": "https://tile.openstreetmap.org/",
+        "licenseId": "ODbL-1.0",
+        "licenseName": "Open Data Commons Open Database License 1.0",
+        "licenseUrl": "https://opendatacommons.org/licenses/odbl/1-0/",
+        "requiredAttribution": "© OpenStreetMap-Mitwirkende",
+        "spatialCoverage": "Hannover",
+        "retrievedAt": "2026-11-13T07:58:53.798Z",
+        "changedOrDerived": true,
+        "changeNotice": "Kartenkacheln wurden für den gewählten Ausschnitt gerendert, mit Analyseebenen kombiniert und in ein PNG überführt.",
+        "qualityNotes": [
+          "Community-basierte Grundkarte; nicht als amtliche Katastergrundlage zu interpretieren."
+        ],
+        "permissions": {
+          "permitsRedistribution": true,
+          "permitsDerivatives": true,
+          "commercialUseAllowed": true
+        }
+      },
+      {
+        "sourceId": "hannover.dgm1",
+        "role": "elevation",
+        "publisher": "Landeshauptstadt Hannover – Geoinformation",
+        "datasetTitle": "Digitales Geländemodell DGM1",
+        "datasetUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Verwaltungen-Kommunen/Die-Verwaltung-der-Landeshauptstadt-Hannover/Dezernate-und-Fachbereiche-der-LHH/Stadtentwicklung-und-Bauen/Fachbereich-Planen-und-Stadtentwicklung/Geoinformation/Open-GeoData/3D-Stadtmodell-und-Gel%C3%A4ndemodell/Digitales-Gel%C3%A4ndemodell-DGM1",
+        "licenseId": "CC-BY-4.0",
+        "licenseName": "Creative Commons Attribution 4.0 International",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "requiredAttribution": "Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026)",
+        "temporalCoverage": "Laserscannerbefliegung 2010",
+        "spatialCoverage": "Hannover",
+        "retrievedAt": "2026-11-11T09:31:38Z",
+        "contentHash": "492a90154f4fd1791dd81d8eb1044717af108c8ecba38a8206bdbfa24ff6c7fb",
+        "changedOrDerived": true,
+        "changeNotice": "Geländehöhen wurden entlang der OpenStreetMap-Wege interpoliert und als Profilklassen eingefärbt."
+      },
+      {
+        "sourceId": "road-context.openstreetmap",
+        "role": "road_context",
+        "publisher": "OpenStreetMap-Mitwirkende",
+        "datasetTitle": "OpenStreetMap-Straßengeometrien",
+        "datasetUrl": "https://www.openstreetmap.org/",
+        "licenseId": "ODbL-1.0",
+        "licenseName": "Open Data Commons Open Database License 1.0",
+        "licenseUrl": "https://opendatacommons.org/licenses/odbl/1-0/",
+        "requiredAttribution": "© OpenStreetMap-Mitwirkende",
+        "temporalCoverage": "2026-11-12",
+        "spatialCoverage": "Hannover",
+        "retrievedAt": "2026-11-12T20:55:50.019Z",
+        "changedOrDerived": true,
+        "changeNotice": "OSM-Wege wurden vereinfacht und nach Geländeprofil eingefärbt.",
+        "qualityNotes": [
+          "Community-basierte Grundkarte; nicht als amtliche Katastergrundlage zu interpretieren."
+        ],
+        "permissions": {
+          "permitsRedistribution": true,
+          "permitsDerivatives": true,
+          "commercialUseAllowed": true
+        }
+      }
+    ],
+    "transformations": [
+      {
+        "transformationId": "context-evidence",
+        "label": "Kontextdaten und Quellenbindung",
+        "description": "Kontextfelder im ausgewählten Unfallbestand; Unfallquelle dient der räumlichen Zuordnung. Unvollständige Kontextquellenfakten bleiben als solche erhalten und werden nicht als vollständiger Quellenbeleg ausgegeben.",
+        "sourceIds": [
+          "accidents.de.unfallatlas"
+        ],
+        "outputFields": [
+          "elevation_m",
+          "matched_way_id",
+          "road_slope_class",
+          "road_slope_confidence",
+          "road_slope_direction",
+          "road_slope_distribution_sha256",
+          "road_slope_manifest_sha256",
+          "road_slope_max_abs_percent",
+          "road_slope_method",
+          "road_slope_percent",
+          "road_slope_profile_window_m",
+          "road_slope_quality",
+          "road_slope_reliable_for_road",
+          "road_slope_residual_mad_m",
+          "road_slope_resolution_m",
+          "road_slope_sample_count",
+          "road_slope_source",
+          "road_slope_source_id",
+          "road_slope_uncertainty_percent",
+          "road_slope_uncertainty_reasons",
+          "slope_abs_percent",
+          "slope_class",
+          "slope_percent",
+          "slope_resolution_m",
+          "slope_semantic_type",
+          "slope_source",
+          "traffic_measurement_type",
+          "traffic_proxy_basis",
+          "traffic_proxy_class",
+          "traffic_volume_confidence",
+          "traffic_volume_source"
+        ],
+        "parameters": {
+          "additionalObservationSources": [],
+          "artifacts": [],
+          "contextDataSha256": "4555cb6d5e868f414e143c14aef394e6c6918daaf4cce7e37a0ffa457ce1169d",
+          "fieldCounts": {
+            "elevation_m": {
+              "null": 0,
+              "present": 8
+            },
+            "matched_way_id": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_class": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_confidence": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_direction": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_distribution_sha256": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_manifest_sha256": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_max_abs_percent": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_method": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_percent": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_profile_window_m": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_quality": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_reliable_for_road": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_residual_mad_m": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_resolution_m": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_sample_count": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_source": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_source_id": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_uncertainty_percent": {
+              "null": 0,
+              "present": 8
+            },
+            "road_slope_uncertainty_reasons": {
+              "null": 0,
+              "present": 8
+            },
+            "slope_abs_percent": {
+              "null": 0,
+              "present": 8
+            },
+            "slope_class": {
+              "null": 0,
+              "present": 8
+            },
+            "slope_percent": {
+              "null": 0,
+              "present": 8
+            },
+            "slope_resolution_m": {
+              "null": 0,
+              "present": 8
+            },
+            "slope_semantic_type": {
+              "null": 0,
+              "present": 8
+            },
+            "slope_source": {
+              "null": 0,
+              "present": 8
+            },
+            "traffic_measurement_type": {
+              "null": 0,
+              "present": 5
+            },
+            "traffic_proxy_basis": {
+              "null": 0,
+              "present": 5
+            },
+            "traffic_proxy_class": {
+              "null": 0,
+              "present": 5
+            },
+            "traffic_volume_confidence": {
+              "null": 0,
+              "present": 5
+            },
+            "traffic_volume_source": {
+              "null": 0,
+              "present": 5
+            }
+          },
+          "measurementTypes": {
+            "proxy": 5
+          },
+          "observations": [],
+          "pointCount": 8,
+          "selections": [],
+          "sources": {
+            "dem": {
+              "limitations": [
+                "Raster-Geländekontext; keine belastbare Fahrbahnlängsneigung."
+              ],
+              "processedAt": "2026-11-12",
+              "producerVersion": "1.1.0",
+              "resolutionM": 30,
+              "retrievedAt": null,
+              "semanticType": "terrain_context",
+              "source": "SRTM Local Tiles",
+              "sourceId": "global.srtm30"
+            },
+            "roadSlope": {
+              "acquisitionPeriod": "Laserscannerbefliegung 2010",
+              "datasetUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Verwaltungen-Kommunen/Die-Verwaltung-der-Landeshauptstadt-Hannover/Dezernate-und-Fachbereiche-der-LHH/Stadtentwicklung-und-Bauen/Fachbereich-Planen-und-Stadtentwicklung/Geoinformation/Open-GeoData/3D-Stadtmodell-und-Gel%C3%A4ndemodell/Digitales-Gel%C3%A4ndemodell-DGM1",
+              "distributionSha256": "492a90154f4fd1791dd81d8eb1044717af108c8ecba38a8206bdbfa24ff6c7fb",
+              "distributionUrl": null,
+              "horizontalCrs": "EPSG:25832",
+              "horizontalTransformation": {
+                "from": "EPSG:4326",
+                "to": "EPSG:25832"
+              },
+              "licenseId": "CC-BY-4.0",
+              "licenseName": "Creative Commons Attribution 4.0 International",
+              "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+              "manifestSha256": "ae059553e8814644c798ba2c5a90b61f4acd6074993fbfc92c19d4c4cedf9af1",
+              "method": "theil-sen-linear-profile-v1",
+              "modelType": "DTM",
+              "producerVersion": "1.1.0",
+              "publicationDate": "2024-01-15",
+              "publisher": "Landeshauptstadt Hannover – Geoinformation",
+              "requiredAttribution": "Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026)",
+              "resolutionM": 1,
+              "retrievedAt": "2026-11-11T09:31:38Z",
+              "source": "Digitales Geländemodell DGM1",
+              "sourceId": "hannover.dgm1",
+              "verticalDatum": null,
+              "windowsMeters": [
+                20,
+                50
+              ]
+            },
+            "traffic": {
+              "datasetVersion": "2.0.0",
+              "extractDate": "2026-11-12",
+              "measurementType": "proxy",
+              "producerVersion": "2.0.0",
+              "provenance": {
+                "changeNotice": "OSM highway classes are grouped into qualitative exposure classes; no traffic count is inferred.",
+                "changedOrDerived": true,
+                "datasetTitle": "OpenStreetMap highway classification",
+                "datasetUrl": "https://www.openstreetmap.org/",
+                "licenseId": "ODbL-1.0",
+                "licenseName": "Open Data Commons Open Database License 1.0",
+                "licenseUrl": "https://opendatacommons.org/licenses/odbl/1-0/",
+                "publisher": "OpenStreetMap contributors",
+                "requiredAttribution": "© OpenStreetMap contributors",
+                "sourceId": "traffic.proxy.osm-highway-class"
+              },
+              "semantics": "qualitative-osm-highway-class-no-numeric-volume",
+              "source": "OSM-highway-class-proxy"
+            }
+          },
+          "terrainSources": [
+            {
+              "road_slope_reliable_for_road": true,
+              "road_slope_resolution_m": 1,
+              "road_slope_source": "Digitales Geländemodell DGM1",
+              "road_slope_source_id": "hannover.dgm1",
+              "slope_resolution_m": 30,
+              "slope_semantic_type": "terrain_context",
+              "slope_source": "SRTM Local Tiles"
+            }
+          ]
+        }
+      },
+      {
+        "transformationId": "filter-export-selection",
+        "label": "Gefilterter Unfallstellenexport",
+        "description": "Auswahl im Exportbereich unter Schwere-, Zeit-, Zustands- und Kontextfiltern; Beteiligungsfilter werden dokumentiert, der Datenexport bewahrt jedoch alle Beteiligungskombinationen. Exportfelder werden normalisiert.",
+        "sourceIds": [
+          "accidents.de.unfallatlas"
+        ],
+        "outputFields": [
+          "IstFuss",
+          "IstGkfz",
+          "IstKrad",
+          "IstPKW",
+          "IstRad",
+          "IstSonstig",
+          "lat",
+          "lon",
+          "strzustand",
+          "ukategorie",
+          "ustunde",
+          "uwochentag",
+          "year"
+        ],
+        "softwareVersion": "2.1.4",
+        "parameters": {
+          "bounds": {
+            "east": 9.735970795154573,
+            "north": 52.36793364674238,
+            "south": 52.36636140186562,
+            "west": 9.732054769992828
+          },
+          "filters": {
+            "dataExportInvolvementPolicy": "Beteiligungsfilter dokumentiert; Datenexport enthält alle Kombinationen im übrigen Filterumfang",
+            "dayType": "all",
+            "hourFrom": 0,
+            "hourTo": 23,
+            "includeCar": true,
+            "includeCyclist": true,
+            "includeGkfz": false,
+            "includeMotorcycle": false,
+            "includePedestrian": true,
+            "includeSonstig": false,
+            "involvementMode": "or",
+            "roadCondition": "all",
+            "severity": "all"
+          }
+        }
+      },
+      {
+        "transformationId": "render-static-map-png",
+        "label": "Statisches Kartenbild rendern",
+        "description": "Rendert die aktive Standardgrundkarte und die gefilterten Unfallanalyseebenen in ein PNG mit sichtbarer Quellenleiste.",
+        "sourceIds": [
+          "accidents.de.unfallatlas",
+          "basemap.openstreetmap.standard",
+          "hannover.dgm1",
+          "road-context.openstreetmap"
+        ],
+        "outputFields": [
+          "mapPixels",
+          "visibleSourceNotice"
+        ],
+        "softwareVersion": "2.1.4",
+        "parameters": {
+          "layerIds": [
+            "standard-osm",
+            "slope"
+          ],
+          "mapMode": "standard",
+          "renderer": "leaflet-image",
+          "slopeOverlay": {
+            "debugLabels": false,
+            "osmExtractDate": "2026-11-12",
+            "profiles": [
+              {
+                "class": "flat",
+                "gradientPercent": -0.2,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: -0,2 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1087832233",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.4,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: +0,4 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1089017424",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -0.3,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: -0,3 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1089017426",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.3,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: +0,3 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1089017427",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -0.2,
+                "quality": "high",
+                "samples": 83,
+                "statement": "Straßenlängsneigung: -0,2 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1194339670",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.2,
+                "quality": "high",
+                "samples": 41,
+                "statement": "Straßenlängsneigung: +0,2 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1338821683",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.9,
+                "quality": "high",
+                "samples": 16,
+                "statement": "Straßenlängsneigung: +0,9 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1338821684",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.5,
+                "quality": "high",
+                "samples": 75,
+                "statement": "Straßenlängsneigung: +0,5 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1354700174",
+                "windowMeters": 50
+              },
+              {
+                "class": "gentle",
+                "gradientPercent": 2.5,
+                "quality": "high",
+                "samples": 8,
+                "statement": "Straßenlängsneigung: +2,5 %; bergauf entlang der Way-Geometrie; Unsicherheit ±1,1 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 1.1,
+                "uncertaintyReasons": [],
+                "wayId": "1556804941",
+                "windowMeters": 50
+              },
+              {
+                "class": "gentle",
+                "gradientPercent": -2.4,
+                "quality": "high",
+                "samples": 59,
+                "statement": "Straßenlängsneigung: -2,4 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,5 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.5,
+                "uncertaintyReasons": [],
+                "wayId": "1556804954",
+                "windowMeters": 50
+              },
+              {
+                "class": "gentle",
+                "gradientPercent": 2.3,
+                "quality": "high",
+                "samples": 21,
+                "statement": "Straßenlängsneigung: +2,3 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "1556804955",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 1.9,
+                "quality": "high",
+                "samples": 9,
+                "statement": "Straßenlängsneigung: +1,9 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "204624788",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.6,
+                "quality": "high",
+                "samples": 13,
+                "statement": "Straßenlängsneigung: +0,6 %; bergauf entlang der Way-Geometrie; Unsicherheit ±1,1 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 1.1,
+                "uncertaintyReasons": [],
+                "wayId": "204624789",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.2,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: +0,2 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,4 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.4,
+                "uncertaintyReasons": [],
+                "wayId": "23394629",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -0.6,
+                "quality": "high",
+                "samples": 45,
+                "statement": "Straßenlängsneigung: -0,6 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "23618155",
+                "windowMeters": 50
+              },
+              {
+                "class": "moderate",
+                "gradientPercent": -4.9,
+                "quality": "high",
+                "samples": 43,
+                "statement": "Straßenlängsneigung: -4,9 %; bergab entlang der Way-Geometrie; Unsicherheit ±1 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 1,
+                "uncertaintyReasons": [],
+                "wayId": "23718160",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.4,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: +0,4 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "260273008",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.6,
+                "quality": "high",
+                "samples": 61,
+                "statement": "Straßenlängsneigung: +0,6 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,4 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.4,
+                "uncertaintyReasons": [],
+                "wayId": "260273011",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -0.1,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: -0,1 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "267640785",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 1,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: +1,0 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "27095857",
+                "windowMeters": 50
+              },
+              {
+                "class": "no_signal",
+                "gradientPercent": null,
+                "quality": null,
+                "samples": null,
+                "statement": "Neigungsangabe nicht verfügbar.",
+                "uncertaintyPercent": null,
+                "uncertaintyReasons": [
+                  "bridge_surface_not_represented_by_dtm,non_ground_osm_layer"
+                ],
+                "wayId": "28393402",
+                "windowMeters": null
+              },
+              {
+                "class": "no_signal",
+                "gradientPercent": null,
+                "quality": null,
+                "samples": null,
+                "statement": "Neigungsangabe nicht verfügbar.",
+                "uncertaintyPercent": null,
+                "uncertaintyReasons": [
+                  "bridge_transition_surface_not_represented_by_dtm"
+                ],
+                "wayId": "28393403",
+                "windowMeters": null
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -0.3,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: -0,3 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "28686440",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -1,
+                "quality": "high",
+                "samples": 25,
+                "statement": "Straßenlängsneigung: -1,0 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "29179609",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.6,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: +0,6 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "307548570",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: 0,0 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "31659253",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: 0,0 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "31659254",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.3,
+                "quality": "medium",
+                "samples": 47,
+                "statement": "Straßenlängsneigung: +0,3 %; bergauf entlang der Way-Geometrie; Unsicherheit ±1,7 Prozentpunkte; Digitales Geländemodell DGM1 (1 m). Höhenprofil weicht deutlich von der linearen Anpassung ab.",
+                "uncertaintyPercent": 1.7,
+                "uncertaintyReasons": [
+                  "elevated_profile_residual"
+                ],
+                "wayId": "33095614",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -1.6,
+                "quality": "high",
+                "samples": 19,
+                "statement": "Straßenlängsneigung: -1,6 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "43917354",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -0.4,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: -0,4 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "59322751",
+                "windowMeters": 50
+              },
+              {
+                "class": "gentle",
+                "gradientPercent": 2.8,
+                "quality": "high",
+                "samples": 35,
+                "statement": "Straßenlängsneigung: +2,8 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "6138345",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0.3,
+                "quality": "high",
+                "samples": 59,
+                "statement": "Straßenlängsneigung: +0,3 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "6138347",
+                "windowMeters": 50
+              },
+              {
+                "class": "flat",
+                "gradientPercent": -0.3,
+                "quality": "high",
+                "samples": 101,
+                "statement": "Straßenlängsneigung: -0,3 %; bergab entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "6138348",
+                "windowMeters": 50
+              },
+              {
+                "class": "no_signal",
+                "gradientPercent": null,
+                "quality": null,
+                "samples": null,
+                "statement": "Neigungsangabe nicht verfügbar.",
+                "uncertaintyPercent": null,
+                "uncertaintyReasons": [
+                  "bridge_transition_surface_not_represented_by_dtm"
+                ],
+                "wayId": "627109432",
+                "windowMeters": null
+              },
+              {
+                "class": "flat",
+                "gradientPercent": 0,
+                "quality": "high",
+                "samples": 18,
+                "statement": "Straßenlängsneigung: 0,0 %; nahezu eben entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m).",
+                "uncertaintyPercent": 0.2,
+                "uncertaintyReasons": [],
+                "wayId": "76896350",
+                "windowMeters": 50
+              }
+            ],
+            "selectedWayId": "6138345",
+            "source": {
+              "acquisitionPeriod": "Laserscannerbefliegung 2010",
+              "datasetUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Verwaltungen-Kommunen/Die-Verwaltung-der-Landeshauptstadt-Hannover/Dezernate-und-Fachbereiche-der-LHH/Stadtentwicklung-und-Bauen/Fachbereich-Planen-und-Stadtentwicklung/Geoinformation/Open-GeoData/3D-Stadtmodell-und-Gel%C3%A4ndemodell/Digitales-Gel%C3%A4ndemodell-DGM1",
+              "distributionSha256": "492a90154f4fd1791dd81d8eb1044717af108c8ecba38a8206bdbfa24ff6c7fb",
+              "distributionUrl": null,
+              "horizontalCrs": "EPSG:25832",
+              "horizontalTransformation": {
+                "from": "EPSG:4326",
+                "to": "EPSG:25832"
+              },
+              "licenseId": "CC-BY-4.0",
+              "licenseName": "Creative Commons Attribution 4.0 International",
+              "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+              "manifestSha256": "ae059553e8814644c798ba2c5a90b61f4acd6074993fbfc92c19d4c4cedf9af1",
+              "method": "theil-sen-linear-profile-v1",
+              "modelType": "DTM",
+              "producerVersion": "1.1.0",
+              "publicationDate": "2024-01-15",
+              "publisher": "Landeshauptstadt Hannover – Geoinformation",
+              "requiredAttribution": "Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026)",
+              "resolutionM": 1,
+              "retrievedAt": "2026-11-11T09:31:38Z",
+              "source": "Digitales Geländemodell DGM1",
+              "sourceId": "hannover.dgm1",
+              "verticalDatum": null,
+              "windowsMeters": [
+                20,
+                50
+              ]
+            }
+          },
+          "visibleSourceStrip": true
+        }
+      }
+    ]
+  },
+  "sourceManifestSha256": "24840a0bc7938a67988097f5df13c9d0da0fdfcbcd7d5e3e196bffd40bae8eed",
+  "visibleSourceNotice": "OSM-Weg 6138345 · Straßenlängsneigung: +2,8 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m). DGM1 · 1 m · Laserscannerbefliegung 2010 · Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026) · OSM-Wege © OpenStreetMap-Mitwirkende (ODbL). Quellen: Statistische Ämter des Bundes und der Länder: Unfallatlas – Straßenverkehrsunfälle mit Personenschaden – Datenlizenz Deutschland – Namensnennung – Version 2.0 (DL-DE-BY-2.0); OpenStreetMap-Mitwirkende: OpenStreetMap Standard-Grundkarte – Open Data Commons Open Database License 1.0 (ODbL-1.0); Landeshauptstadt Hannover – Geoinformation: Digitales Geländemodell DGM1 – Creative Commons Attribution 4.0 International (CC-BY-4.0); OpenStreetMap-Mitwirkende: OpenStreetMap-Straßengeometrien – Open Data Commons Open Database License 1.0 (ODbL-1.0)"
+}

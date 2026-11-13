@@ -1,0 +1,56 @@
+{
+  "standard": {
+    "browser": "Chromium 158",
+    "generatedAt": "2026-11-13T07:58:53.798Z",
+    "mapScene": {
+      "city": "Hannover",
+      "center": [
+        52.367148,
+        9.734014
+      ],
+      "zoom": 19,
+      "mapLayer": "slope",
+      "debugSlope": 0
+    },
+    "mapTilesLoaded": 35,
+    "popup": "Straßenlängsneigung: +2,8 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m). Qualität hoch. Laserscannerbefliegung 2010",
+    "roadCanvasPixels": 149628,
+    "gentleClassPixels": 4566,
+    "visibleDebugLabelCount": 0,
+    "wayAnchorPixel": [
+      641,
+      488
+    ],
+    "pngBytes": 628489,
+    "pngSha256": "7e55f5670651168a2aceda13ed28a9d8b7c3b96a53fdc4f30361646e7e26bcde",
+    "sidecarSha256": "4b879cbad5971edd31bb38e00155f627a403ec7e65e9a2fdf423f91af26723e4",
+    "manifestSha256": "24840a0bc7938a67988097f5df13c9d0da0fdfcbcd7d5e3e196bffd40bae8eed"
+  },
+  "debug": {
+    "browser": "Chromium 158",
+    "generatedAt": "2026-11-13T07:58:59.379Z",
+    "mapScene": {
+      "city": "Hannover",
+      "center": [
+        52.367148,
+        9.734014
+      ],
+      "zoom": 19,
+      "mapLayer": "slope",
+      "debugSlope": 1
+    },
+    "mapTilesLoaded": 35,
+    "popup": "Straßenlängsneigung: +2,8 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m). Qualität hoch. Laserscannerbefliegung 2010",
+    "roadCanvasPixels": 149628,
+    "gentleClassPixels": 4566,
+    "visibleDebugLabelCount": 32,
+    "wayAnchorPixel": [
+      641,
+      488
+    ],
+    "pngBytes": 602502,
+    "pngSha256": "bc971ba41aed18357a882d0e168f370e62af43a32e6a10482ebdf61507715fbb",
+    "sidecarSha256": "4db8aeafcd4cbd5ec834a1ddd0418d5c0f3047bd668bb8261d660ad3394316bc",
+    "manifestSha256": "e42ccce54a9c7d6d4969e350a0f8cb28d967575b2af0e7ccbfea3ae958dbe0b6"
+  }
+}

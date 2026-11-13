@@ -279,7 +279,7 @@
         moduleUrl("ua.document_export_prewarm.js?v=2026-07-22"),
         moduleUrl("ua.docx_source_links.js?v=2026-07-23"),
         moduleUrl("ua.docx_pagination.js?v=2026-07-23"),
-        moduleUrl("ua.static_map_export_provenance.js?v=2026-07-23"),
+        moduleUrl("ua.static_map_export_provenance.js?v=2026-11-13-dgm1"),
         moduleUrl("ua.filtered_export_provenance.js?v=2026-07-23"),
       ];
 

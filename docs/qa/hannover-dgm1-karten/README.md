@@ -1,0 +1,27 @@
+# Hardenbergstraße in Hannover
+
+Die beiden exportierten Karten zeigen denselben 1-m-Geländeschnitt entlang des OSM-Wegs 6138345 am westlichen Ufer der Leine. Nach einem Klick auf den Weg nennt die Werkbank **+2,8 %** bergauf in OSM-Wegrichtung, **±0,2 Prozentpunkte** Unsicherheit und die hohe Profilqualität. Das ±50-m-Fenster endet an den Enden des 33,5 m langen Abschnitts. Die 35 Höhenproben stammen aus der städtischen Laserscannerbefliegung 2010. Das westliche Widerlager und die anschließende Querung sind eigene OSM-Abschnitte.
+
+| Darstellung | Download | Sichtprüfung am 13.11.2026 |
+|---|---|---|
+| [Standardkarte](standard/hannover-hardenbergstrasse.png) | [PNG-Sidecar](standard/hannover-hardenbergstrasse.png.sources.json) | Farbige Straßenprofile, keine dauerhaften Prozentetiketten. Der ausgewählte Weg und die Zahl stehen in der Quellenleiste. |
+| [Debugkarte](debug/hannover-hardenbergstrasse.png) | [PNG-Sidecar](debug/hannover-hardenbergstrasse.png.sources.json) | Gleicher Ausschnitt und Prüfweg. Auf den Wegen erscheinen 32 dauerhafte Etiketten mit Wert, DGM1 und Qualität, darunter +2,8 %. |
+
+Die geöffneten PNGs zeigen die Linien über den geladenen OSM-Kacheln und in beiden Fällen die Quellenleiste. Der getrennte Canvas des Straßenlayers enthielt 149.628 nicht transparente Pixel, davon 4.566 in der Klasse „leicht“. Die identischen Pixelzahlen beziehen sich auf den Straßenlayer. Die Debugtexte entstehen auf einer eigenen Ebene. Die Werkbank lud 35 Grundkartenkacheln. Beide PNGs entstanden im normalen statischen ZIP-Export des lokalen Werkbank-Builds mit den Hannover-Daten aus [#835](https://github.com/carstenartur/Unfallatlas/pull/835). Die Sidecars enthalten die SHA-256-Prüfsumme der endgültigen PNG-Bytes, das Quellenmanifest, beide Originaldaten-Pins und die 35 Straßenprofile des Ausschnitts. [Prüfwerte beider Aufnahmen](bildpruefung.json)
+
+Zur Wiederholung die [Hardenbergstraße in der Werkbank](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&mapLayer=slope&centerLat=52.367148&centerLon=9.734014&zoom=19&showHeatmap=0&showCluster=0) öffnen, den gelb gezeichneten Weg westlich der Brücke anklicken und **Karte + Quellen (ZIP)** wählen. Für die zweite Aufnahme `debugSlope=1` zur URL ergänzen. Der Kartenstand von OpenStreetMap und die Erstellungszeit des Manifests können sich zwischen zwei Exporten ändern.
+
+## Gegenlesen der sechs QGIS-Originalprofile
+
+Die je Weg registrierten Stationen stammen aus dem eigenständigen QGIS-Rasterzugriff auf die fünf kommunalen Originalarchive und die vier Original-GeoTIFFs des Landes. Für die fachliche Prüfung wurden die beiden vollständigen Höhenverläufe je Weg als Kurven betrachtet, Anfang, Mitte und Ende der städtischen Einzelreihe abgelesen und mit den Regressionswerten aller Fenster und Abtastabstände verglichen. Höhen sind in Metern innerhalb des jeweiligen Bestands angegeben. Die Spalte „Stadthöhen“ nennt Anfang, Mitte und Ende der Reihe auf Millimeter gerundet. [Alle Rohreihen, Varianten und Eingangsprüfsummen](https://github.com/carstenartur/Unfallatlas/pull/833)
+
+| Weg | Stadthöhen | Fachlicher Befund |
+|---|---|---|
+| Friedrichswall 4697937 | 54,925 / 54,923 / 54,895 | Kleine Schwankungen ohne anhaltenden Anstieg. Die beiden robusten Fits im ±50-m-Fenster liegen bei +0,022 und −0,042 %. Die flache Klasse und die gerundeten 0,0 % sind plausibel. |
+| Hardenbergstraße 6138345 | 52,781 / 53,263 / 53,696 | Beide Profile steigen nach wenigen Metern kontinuierlich. Beide Raster und alle sechs Auswertungsvarianten ergeben +2,766 bis +2,968 %. Die gerundeten +2,8 % mit positiver Wegrichtung stimmen. |
+| Friederikenbrücke 24011492 | 52,559 / 48,983 / 51,846 | Beide Profile fallen nach dem Anfang um mehrere Meter und bleiben in der Mitte nahezu horizontal. Die Bauwerksgeometrie macht die Geländehöhe als Beschreibung des Decks ungeeignet. Keine Fahrbahnzahl. |
+| Am Lindener Berge 23101052 | 87,635 / 86,177 / 83,780 | Beide unabhängigen Reihen fallen über 100 m in fast identischem Verlauf ab. Die ±50-m-Fits von −4,403 und −4,520 % stützen die gerichtete Geländeneigung entlang des Wegs. |
+| Am Lindener Berge 24855098 | 79,141 / 78,315 / 70,655 | Ab etwa Station 16 m brechen die Profile unterschiedlich steil ab. Im städtischen Raster fällt die Höhe dort über zwei Meter Wegstrecke um mehrere Meter. Niedrige Qualität und ±19,1 Prozentpunkte sind für den ausgegebenen Wert von −26,1 % wesentlich. Ein exakter aktueller Fahrbahnwert ist hier unbelegt. |
+| B 6 am Brückenübergang 23838108 | 53,992 / 55,876 / 55,837 | Beide Kurven steigen am Anfang und gehen dann in ein Plateau über. In der nur 7,48 m langen Stichprobe ergeben die Fits +22,266 und +7,044 %. Das Profil reicht bis zum gemeinsamen Brückenknoten. Keine Fahrbahnzahl. |
+
+Die Auswertung prüft die Aussagekraft der **Geländeprofile** am jeweiligen Weg. Das Landesraster nennt den Kacheldatenstand 18.04.2016 und den vertikalen Bezug DE_DHHN2016_NH. Für den kommunalen Bestand dokumentiert das Produktblatt EPSG:25832 als Lagebezug. Ein amtlich bestätigter vertikaler Bezug dieses Bestands und aktuelle Straßenoberflächen-Aufmaße liegen weiterhin nicht vor.

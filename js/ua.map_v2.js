@@ -1311,15 +1311,16 @@
       };
       const build = builders[kind];
       if (typeof build !== 'function') return null;
-      if (kind === 'speed30') {
-        if (isHannover(ctx)) opts.speedRules = reg.speed30Rules;
+      if (kind === 'speed30' || kind === 'slope') {
+        if (kind === 'speed30' && isHannover(ctx)) opts.speedRules = reg.speed30Rules;
         // A popup tied to a polyline closes when autopan rebuilds the tiled group.
-        opts.openPopup = (latlng, content) => {
+        opts.openPopup = (latlng, content, wayId) => {
           const popup = window.L.popup().setLatLng(latlng).setContent(content);
+          if (kind === 'slope') popup.slopeWayId = wayId;
           popup.once('remove', () => {
-            if (reg.speed30Popup === popup) reg.speed30Popup = null;
+            if (reg[kind + 'Popup'] === popup) reg[kind + 'Popup'] = null;
           });
-          reg.speed30Popup = popup.openOn(ctx.map);
+          reg[kind + 'Popup'] = popup.openOn(ctx.map);
         };
       }
       const layer = build(state, opts);
@@ -1483,7 +1484,7 @@
       // state.geometries (v1/v2 path resolves immediately).
       load();
     } else {
-      if (kind === 'speed30') reg.speed30Popup?.remove();
+      if (kind === 'speed30' || kind === 'slope') reg[kind + 'Popup']?.remove();
       if (reg.layers[kind]) {
         try { reg.layers[kind].remove(); } catch (_) { /* noop */ }
         // The cached group only covered the viewport at the time it was built.
@@ -1915,6 +1916,7 @@
 
     // Detach any prior layers + controls so a city switch starts clean.
     reg.speed30Popup?.remove();
+    reg.slopePopup?.remove();
     for (const kind of CONTEXT_OVERLAY_KINDS) {
       if (reg.layers[kind]) {
         try { reg.layers[kind].remove(); } catch (_) {}
