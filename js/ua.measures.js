@@ -523,7 +523,7 @@
   // --------------------------------------------------------------------
   // Priorisierung nach Umsetzungshorizont (Goldstandard-Sektion 8).
   // --------------------------------------------------------------------
-  // Bezirksvertretungen brauchen nicht die volle Maßnahmen­liste, sondern
+  // Bezirksvertretungen brauchen nicht die volle Maßnahmenliste, sondern
   // eine 30-Sekunden-Antwort darauf, *wann* welche Schritte realistisch
   // umsetzbar sind. Wir leiten die Zuordnung deterministisch aus der
   // `leadTime`-Spannweite jedes Maßnahmen-Eintrags im Katalog ab — kein

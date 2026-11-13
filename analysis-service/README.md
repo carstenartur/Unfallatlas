@@ -54,7 +54,7 @@ für spätere PRs:
 - **Hibernate-Search-Backend** (Lucene/Elasticsearch); Marker an den
   Entitäten sind vorhanden, das Backend selbst ist nicht eingebunden.
 - **PostGIS-Geometrien** – derzeit kein Persistenzbedarf.
-- Erweiterte Domänen­objekte (z. B. zusätzliche Profile, Maßnahmen­
+- Erweiterte Domänenobjekte (z. B. zusätzliche Profile, Maßnahmen
   versionierung) und reiche Such-/Filter-APIs jenseits der Lese-
   Endpunkte oben.
 - Eine Frontend-Migration auf den persistierten Pfad – die Werkbank
@@ -99,7 +99,7 @@ für spätere PRs:
 
 ## Welche Daten werden gespeichert?
 
-Pro persistiertem Brief landen u. a. folgende Domänen­objekte in der
+Pro persistiertem Brief landen u. a. folgende Domänenobjekte in der
 Datenbank (vollständiges Schema siehe `domain/` und `V1__init_schema.sql`):
 
 | Tabelle / Entität                          | Inhalt (gekürzt)                                                              |
@@ -128,7 +128,7 @@ Jeder gespeicherte Brief enthält drei klar getrennte Versions-Dimensionen:
 1. **`schemaVersion`** (z. B. `locationActionBrief.v1`) – beschreibt
    das *Format* des Briefs.  Steigt nur bei breaking changes am Schema.
 2. **`sourceFingerprint`** – SHA-256 über die deterministisch
-   reproduzierbaren *Eingaben* des Briefs (Filter, Bereich, Daten­
+   reproduzierbaren *Eingaben* des Briefs (Filter, Bereich, Daten
    ausschnitt, Profil, Regelversionen) **ohne** Zeitstempel und KI-
    Metadaten.  Damit ist das Ingest **idempotent** über
    `(locationKey, profileKey, sourceFingerprint)`: derselbe Brief

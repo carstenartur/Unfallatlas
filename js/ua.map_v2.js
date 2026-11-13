@@ -158,7 +158,7 @@
   /**
    * Aktiviert den Export-Stil auf der Karte:
    *  - dimmt die Heatmap (CSS-Opacity ≤ 0.35), damit Punkte sichtbar bleiben.
-   *  - überlagert die aktuellen Punkte (`ctx.viewportPts`) mit hochkontrast­
+   *  - überlagert die aktuellen Punkte (`ctx.viewportPts`) mit hochkontrast
    *    farbigen Severity-Punkten (rot/orange/gelb, dunkler Rand).
    * Liefert ein Token, das `endExportMapMode` zum Wiederherstellen braucht.
    * Idempotent: ein doppelter Aufruf legt keine zweite Overlay-Schicht an.
@@ -356,7 +356,7 @@
     const pts = ctx.viewportPts || [];
     if (pts.length < 3) return; // Bei sehr wenigen Punkten kein "Hotspot" sinnvoll.
 
-    // Auf Leaflet-projizierte Pixel-Zellen aufsetzen, damit die Zell­größe
+    // Auf Leaflet-projizierte Pixel-Zellen aufsetzen, damit die Zellgröße
     // sich konsistent mit dem bereits bestehenden Hotspot-Raster verhält.
     let cellKeyFn = null;
     try {

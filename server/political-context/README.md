@@ -186,7 +186,7 @@ Funktion `shouldAllowForAiEvaluation(reference, context)`):
 
 Die Suche bleibt damit bewusst breit; die fachliche Auswahl für die
 KI-Bewertung erfolgt zentral und deterministisch – keine KI-basierte
-Erst­klassifikation.
+Erstklassifikation.
 
 ---
 

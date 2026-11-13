@@ -237,7 +237,7 @@ describe('Location Action Brief – Szenarien', () => {
         { mask: 5,  label: '🚲+🚗', total: 6, sev1: 0, sev2: 1, sev3: 5 }
       ]
     });
-    const ctx = { locationHints: ['Lkw-Liefer­verkehr zur Industriezone'] };
+    const ctx = { locationHints: ['Lkw-Liefer\u00adverkehr zur Industriezone'] };
     const brief = buildLocationBrief({ structured, contextHints: ctx });
     commonBriefAssertions(brief);
     expectsPattern(brief, 'lkw_lieferverkehr_kontext');
@@ -472,7 +472,7 @@ describe('summarizePoliticalContext', () => {
     expect(s.administrativeMomentumHints).toEqual([]);
   });
 
-  test('nicht verkehrsrelevante Treffer werden ignoriert (kein Straßennamen-Falsch­positiv)', () => {
+  test('nicht verkehrsrelevante Treffer werden ignoriert (kein Straßennamen-Falschpositiv)', () => {
     const fake = buildPoliticalContext([
       // Same street name but not classified as traffic-relevant → ignored
       { title: 'Kulturveranstaltung in der Hauptstraße', type: 'Mitteilung', url: 'https://x', relevanceScore: 0.0,

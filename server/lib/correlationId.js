@@ -12,7 +12,7 @@
  *
  *  - Das Modul ist bewusst **abhängigkeitsfrei** (kein `uuid`-Paket): die
  *    erzeugten IDs sind 16 Hex-Zeichen lang (8 Byte Zufall) und werden
- *    ausschließlich für Tracing/Logging verwendet, nicht als Sicherheits­
+ *    ausschließlich für Tracing/Logging verwendet, nicht als Sicherheits
  *    Token.  Aus `crypto.randomBytes` gewonnen, also kryptographisch
  *    stark genug für diesen Zweck.
  *
