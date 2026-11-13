@@ -33,7 +33,7 @@ jobs:
           fi
 
   capture:
-    name: Bonner Referenzfall mit Gemini prüfen
+    name: Bonner Referenzfall mit und ohne Ratsrecherche prüfen
     needs: provider
     if: needs.provider.outputs.configured == 'true'
     runs-on: ubuntu-latest
@@ -62,7 +62,7 @@ jobs:
         run: |
           if [[ "$REVIEW_OUTCOME" == success ]]; then
             echo "### Modellantwort für den Bonner Referenzfall geprüft" >> "$GITHUB_STEP_SUMMARY"
-            echo "Gemini hat geantwortet. Die Antwort ist dem Referenzfall zugeordnet und erfüllt die automatischen Kriterien für diesen gesperrten Fall. Die unabhängige Fachfreigabe steht aus." >> "$GITHUB_STEP_SUMMARY"
+            echo "Beide Gemini-Antworten sind mit ihrem jeweiligen Prompt verknüpft. Geprüft wurden der Fall ohne Ratsrecherche und der Fall mit sechs Belegquellen. Die unabhängige Fachfreigabe steht aus." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### Modellprüfung nicht erfolgreich abgeschlossen" >> "$GITHUB_STEP_SUMMARY"
             echo "Protokoll und vorhandene Prüfarbelege zeigen, wie weit der Referenzlauf gekommen ist. Die unabhängige Fachfreigabe steht aus." >> "$GITHUB_STEP_SUMMARY"

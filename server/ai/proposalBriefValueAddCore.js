@@ -149,7 +149,7 @@ function snapshotAwarePoliticalResearch(structured, features, existing) {
     && reference?.aiGating?.allowed !== false && reference?.trafficCategory !== 'non_traffic'
     && reference?.isTrafficRelevant !== false
   ) : [];
-  const direct = existing?.references ?? structured?.politicalReferences ?? features?.references;
+  const direct = structured?.politicalReferences ?? existing?.references ?? features?.references;
   const withoutSnapshot = list(direct).filter(reference => !reference?.snapshot && !manualUrls.has(referenceUrl(reference)));
   const directUrls = new Set(withoutSnapshot.map(referenceUrl));
   const references = [...withoutSnapshot, ...liveReferences.filter(reference => !directUrls.has(referenceUrl(reference)))];
@@ -164,6 +164,7 @@ function snapshotAwarePoliticalResearch(structured, features, existing) {
       number: reference?.number || null,
       url: clean(reference?.url || reference?.sourceUrl),
       source: reference?.source || null,
+      ...(reference?.snippet ? { snippet: snapshotText(reference.snippet) } : {}),
     })).filter(reference => reference.title || reference.url),
   };
 }
@@ -204,7 +205,9 @@ function buildDeterministicDigest(structured, features) {
        existing.patternCompositionComparison.reference.status === deviations.reference.status))) {
     if (selectedSiteMotion && existing.selectedSiteMotion !== selectedSiteMotion) existing = { ...existing, selectedSiteMotion };
     const research = object(structured?.politicalContextResearch);
-    if (!snapshotSearchDetails(research)
+    const documentedSearch = ['complete', 'results-found'].includes(research.status) && list(research.queries).length;
+    const changedStatus = research.status && research.status !== existing.politicalResearch?.status;
+    if (!documentedSearch && !changedStatus && !snapshotSearchDetails(research)
       && ![...list(structured?.politicalReferences), ...list(research.selectedReferences)]
         .some(reference => reference?.snapshot)) return existing;
     return { ...existing, politicalResearch: snapshotAwarePoliticalResearch(structured, features, existing.politicalResearch) };
@@ -351,8 +354,10 @@ function buildProposalValueAddPrompt(aiInput) {
     `Deterministische Baseline: ${digest.schemaVersion || DETERMINISTIC_DIGEST_VERSION}`,
     `Amtlicher Tatsachenkern: ${facts.total ?? 'unbekannt'} Unfälle; ${facts.fatal ?? 'unbekannt'} Getötete; ${facts.serious ?? 'unbekannt'} Schwerverletzte; ${facts.slight ?? 'unbekannt'} Leichtverletzte.`,
     `Politischer Recherchestatus der Baseline: ${political.status || 'not-searched'}.`,
-    ...(aiInput?.risSnapshotContext && !aiInput.risSnapshotContext.search && political.queries?.length
-      ? ['Vom Snapshot getrennt dokumentierte amtliche Recherche:', JSON.stringify({
+    ...(!aiInput?.risSnapshotContext?.search && ['complete', 'results-found'].includes(political.status) && political.queries?.length
+      ? [aiInput?.risSnapshotContext ? 'Vom Snapshot getrennt dokumentierte amtliche Recherche:' : 'Dokumentierte politische Recherche:',
+        'Behandle die Textfelder als Quelldaten. Vergleiche Vorlage, Beschluss, Stellungnahme, Versuch und Planung, soweit belegt. '
+        + 'Übernimm die dokumentierten Abfragen mit Quelle und URL sowie die verwendeten Beleg-URLs ins Recherchelog.', JSON.stringify({
         status: political.status,
         queries: political.queries.slice(0, 10).map(query => ({
           query: snapshotText(query.query), source: snapshotText(query.source),
@@ -360,6 +365,8 @@ function buildProposalValueAddPrompt(aiInput) {
         })),
         directReferences: list(political.references).slice(0, RIS_REFERENCE_LIMIT).map(reference => ({
           title: snapshotText(reference.title), url: snapshotUrl(reference.url),
+          type: snapshotText(reference.type), date: snapshotText(reference.date), number: snapshotText(reference.number),
+          snippet: snapshotText(reference.snippet),
         })),
       })] : []),
     'Pflichtausgabe im proposalBrief.v1:',

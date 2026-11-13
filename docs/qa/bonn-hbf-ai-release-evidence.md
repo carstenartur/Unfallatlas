@@ -115,14 +115,53 @@ ready. Inspect `model-review-receipt.json` for exact binding hashes.
 The hermetic Golden's planned political search includes the confirmed area name, Bonn,
 Münsterplatz, Maximilianstraße and Thomas-Mann-Straße. Search execution and
 verified direct proceeding links are absent; this is **not-searched**, not zero
-results. Real motions, resolutions, administrative answers, traffic trials and
-ongoing plans have not been compared. Scene/input fingerprints prove which
+results. This unsearched input contains no comparison of motions, resolutions,
+administrative answers, traffic trials or ongoing plans. Scene/input fingerprints prove which
 selection and view URLs are intended; image hashes are null and no live image
 inspection is claimed by this Golden. The separate bounded live check below
 does not change that negative fixture. The illustrative location-brief example.org fixtures do
 not supply positive acceptance for this case. A configured real provider run,
 methodology demonstration, complete positive evidence and an independent rubric
 review remain external release gates.
+
+## Reviewed council sources for the same 37 crashes, 13 November 2026
+
+The second reference input uses the same browser capture and six primary-source
+records. The published [research record](../../tests/fixtures/bonn-hbf-political-research.json)
+contains the executed queries, retrieval date and SHA-256 of each HTTP response
+body. These hashes identify the observed versions. Future versions of the web
+pages may differ. The search covers the specified ZOB and City-Ring proceedings.
+
+| Evidence | Implication for a subsequent proposal |
+| --- | --- |
+| The City's August 2019 notice described the City-Ring trial and the intended reopening of the Kaiserplatz access to Maximilianstraße. | Check the layout and date applicable to each crash. The notice gives no estimate of the trial's effect. [Trial notice](https://bonn-macht-mit.de/archiv/node/4321.html) |
+| On 14 March 2024 the council amended 232044 and commissioned further design. It recorded the administration's statement 232044-01 ST as received. | Ask the administration for the design and the outstanding decisions. The resolution required a separate construction decision. [Decision](https://www.bonn.sitzung-online.de/oparl/agendaItems/2056676) · [Statement](https://www.bonn.sitzung-online.de/oparl/agendaItems/2056677) |
+| The request for a pavement at least three metres wide north of the cycle lane entered the revised decision. The council took no separate vote on amendment 232044-02 AA. | Seek the result of the width assessment and identify where pedestrian and cycle paths interact. [Amendment](https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295) · [Minutes, items 5.2–5.2.2](https://www.bonn.sitzung-online.de/oparl/meetings/2002940) |
+| In May 2025 the City described further examination of crossings and lower-speed or pedestrian areas. In September 2026 the transport operator's supervisory board called for a timetable in the first council cycle of 2027. | Distinguish the City's examination from the operator's request. Ask which options and dates the council has since adopted. [City notice](https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php) · [Operator's resolution](https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/) |
+
+The default command writes a separate `council-research/` directory with the
+reviewed evidence, production input and prompt, and binding receipt. The
+original unsearched case retains its own evidence and verdict. `--run-model`
+submits both prompts and saves each actual answer independently. A researched
+answer is checked against the six source URLs and four recorded queries.
+Both cases still lack a case-bound independent map assessment for filing.
+
+On 13 November the Node 26.13.1 / Chromium run reproduced the 37/312
+case with zero Golden differences. Both inputs had the same geometry and
+accident totals. The second provider prompt included all six source URLs,
+their separate outcomes and all four documented queries. The local service
+reported no configured Gemini key and produced no response. Both results
+therefore still require a configured provider run.
+
+For independent review of an actual answer, record the answer SHA-256, reviewer
+and review date. Check the difference interval and denominator against the
+facts above, and check the 37 cases and their severity against the captured
+report. Record the sections that add insight, distinguish competing explanations,
+compare the council decisions, and identify a responsible body, timeframe and
+measurable result. Verify each source against the claim it supports and record
+any incorrect or unsupported statement. Automated trace matching cannot assess
+whether the prose interprets the linked proceedings correctly. A fully accepted
+model-generated proposal requires the actual output and this separate review.
 
 ## Integrated source binding and bounded live check, 2026-11-08
 

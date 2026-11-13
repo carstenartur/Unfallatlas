@@ -39,7 +39,7 @@ function compareSnapshots(expected, actual) {
 function canonicalUrl(raw) {
   const url=new URL(raw);url.protocol='https:';url.host='carstenartur.github.io';url.port='';url.pathname='/Unfallatlas/werkbank_v2.html';url.searchParams.delete('export');url.searchParams.sort();return url.href;
 }
-function reviewModelResponse(response, receipt, binding) {
+function reviewModelResponse(response, receipt, binding, councilEvidence) {
   const digestFields = ['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256'];
   const verified = Boolean(receipt && ['provider', 'model', 'modelVersion', 'executedAt'].every(
     key => typeof receipt[key] === 'string' && receipt[key].trim()
@@ -49,6 +49,21 @@ function reviewModelResponse(response, receipt, binding) {
   const {evaluateProposalValueAdd}=require('../server/ai/proposalBriefValueAdd');
   const rubric=evaluateProposalValueAdd(response);
   const schemaValidation=require('../server/ai/aiAssessmentServiceV2').validateAgainstMode(response,'proposal-brief',{normalizeProposal:false});
+  if (councilEvidence) {
+    const log = response?.politicalResearchLog;
+    const expectedUrls = councilEvidence.references.map(ref => ref.url).sort();
+    const actualUrls = [...new Set(Array.isArray(log?.evidenceRefs) ? log.evidenceRefs : [])].sort();
+    const queryKey = entry => JSON.stringify([entry?.query, entry?.source, entry?.url]);
+    const expectedQueries = councilEvidence.queries.map(queryKey).sort();
+    const actualQueries = [...new Set((Array.isArray(log?.documentedQueries) ? log.documentedQueries : []).map(queryKey))].sort();
+    const sourcesMatch = log?.status === 'complete' && log.sourceStatus === 'results-found'
+      && json(actualUrls) === json(expectedUrls) && json(actualQueries) === json(expectedQueries);
+    const councilEvidenceCasePassed = verified && schemaValidation.valid && rubric.valid && sourcesMatch
+      && response?.filingReadinessVerdict?.status === 'blocked';
+    return {status:'blocked', providerReceiptVerified:verified, councilEvidenceCasePassed, sourcesMatch,
+      schemaValidation, rubric, independentReview:'pending',
+      blockingReasons:['The archived council evidence does not certify map inspection or independent assessment of the model answer.']};
+  }
   // The captured Bonn baseline has neither executed searches nor verified proceedings.
   const politicalResearch = response?.politicalResearchLog;
   const politicalBlockerMaintained = politicalResearch?.status === 'blocked'
@@ -188,25 +203,35 @@ function snapshotFromRuntime(raw) {
       verifiedDirectProceedings:[],positiveCaseEvidence:'blocked: real motions, resolutions, administrative answers, trials and plans have not been verified'},
     modelRelease:{status:'blocked',actualProviderRun:false,providerReceipt:null,positiveAcceptance:false,required:['Configured provider run on exact facts/prompt','Exact model version and timestamp','Production schema and value-add rubric evaluation','Completed source-linked political research','Four-mode live map inspection']}};
 }
-function prepareModelReview(raw,outDir) {
+function prepareModelReview(raw,outDir,councilEvidence) {
   const {deriveFeatures}=require('../server/ai/features/deriveFeatures');
   const {preselectMeasures}=require('../server/ai/scoring/preselectMeasures');
   const service=require('../server/ai/aiAssessmentServiceV2');
   const {PROMPT_VERSION}=require('../server/ai/prompts/exportAssessmentPrompt.v2');
-  const features=deriveFeatures(raw.structured),preselected=preselectMeasures(features,{citySlug:'bonn'});
-  const input=service.buildAiInputV2(raw.structured,features,preselected);
+  const structured = councilEvidence ? {...raw.structured,
+    politicalContextResearch: {status:'results-found', queries:councilEvidence.queries},
+    politicalReferences: councilEvidence.references,
+  } : raw.structured;
+  const features=deriveFeatures(structured),preselected=preselectMeasures(features,{citySlug:'bonn'});
+  const input=service.buildAiInputV2(structured,features,preselected);
   const prompt = service.buildProviderPrompt(input, 'proposal-brief');
   const binding={inputSha256:hash(json(input)),promptSha256:hash(json(prompt))};
   const schema='server/ai/schema/proposalBrief.v1.schema.json',rubric='server/ai/proposalBriefValueAddCore.js';
   const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:service.activeProviderName(),requestedModel:configuredModel(),actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
     rubricDimensions:['Methodentreue','Erhalt amtlicher Fakten','Zusätzlicher Erkenntniswert','Politische Anschlussfähigkeit','Maßnahmenqualität','Quellenauflösbarkeit'],
     requiredProviderReceiptFields:['provider','model','modelVersion','executedAt','inputSha256','promptSha256','schemaSha256','rubricSha256','responseSha256'],
-    blockingReasons:['No configured provider execution has been performed by this harness.','No real positive political/map evidence exists for this generation.']};
+    blockingReasons:['This input receipt precedes provider execution.', councilEvidence
+      ? 'The council-source comparison still requires model evaluation and independent map and subject review.'
+      : 'No real positive political/map evidence exists for this generation.']};
   write(path.join(outDir,'production-model-input.json'),input);write(path.join(outDir,'production-model-prompt.json'),prompt);
-  write(path.join(outDir,'external-facts.json'),raw.facts);fs.writeFileSync(path.join(outDir,'external-prompt.md'),raw.externalPrompt);
+  if (councilEvidence) write(path.join(outDir,'council-research.json'),councilEvidence);
+  else {
+    write(path.join(outDir,'external-facts.json'),raw.facts);
+    fs.writeFileSync(path.join(outDir,'external-prompt.md'),raw.externalPrompt);
+  }
   write(path.join(outDir,'model-review-receipt.json'),receipt);return {receipt, prompt};
 }
-async function runBoundModelReview(prompt, binding, outDir) {
+async function runBoundModelReview(prompt, binding, outDir, councilEvidence) {
   const service = require('../server/ai/aiAssessmentServiceV2');
   if (service.activeProviderName() !== 'gemini' || !service.isAvailable()) {
     throw new Error('A live model review requires AI_PROVIDER=gemini and GEMINI_API_KEY.');
@@ -226,10 +251,11 @@ async function runBoundModelReview(prompt, binding, outDir) {
   };
   write(path.join(runDir, 'response.json'), response);
   write(path.join(runDir, 'receipt.json'), receipt);
-  const review = reviewModelResponse(response, receipt, binding);
+  const review = reviewModelResponse(response, receipt, binding, councilEvidence);
   write(path.join(runDir, 'review.json'), review);
   if (!review.providerReceiptVerified) throw new Error('Provider returned incomplete execution evidence: ' + runDir);
-  if (!review.blockerCasePassed) throw new Error('Live model failed the blocked case; inspect review.json in ' + runDir);
+  if (councilEvidence && !review.councilEvidenceCasePassed) throw new Error('Live model failed the council-source comparison: ' + runDir);
+  if (!councilEvidence && !review.blockerCasePassed) throw new Error('Live model failed the blocked case; inspect review.json in ' + runDir);
   console.log('[bonn-hbf-ai] Live provider response and review: ' + runDir);
 }
 async function main(args=process.argv.slice(2)) {
@@ -256,7 +282,19 @@ async function main(args=process.argv.slice(2)) {
     write(path.join(outDir,'golden-drift.json'),differences);
     if(differences.length) throw new Error(`Golden drift (${differences.length} paths). Inspect out/qa/bonn-hbf-ai/golden-drift.json; source/runtime hashes distinguish input/code drift from changed facts. Update only after review.`);
   }
-  if (runModel) await runBoundModelReview(prompt, review, outDir);
+  const councilEvidence = require('../tests/fixtures/bonn-hbf-political-research.json');
+  if (councilEvidence.caseId !== snapshot.case.id) throw new Error('Council research belongs to a different case.');
+  const councilDir = path.join(outDir, 'council-research');
+  const council = prepareModelReview(raw, councilDir, councilEvidence);
+  if (runModel) {
+    // Each case must retain its own response even if the other one fails its rubric.
+    const errors = [];
+    for (const [candidate, dir, evidence] of [[{prompt, receipt:review}, outDir], [council, councilDir, councilEvidence]]) {
+      try { await runBoundModelReview(candidate.prompt, candidate.receipt, dir, evidence); }
+      catch (error) { errors.push(error.message); }
+    }
+    if (errors.length) throw new Error([...new Set(errors)].join('\n'));
+  }
   console.log(`[bonn-hbf-ai] PASS: ${snapshot.facts.totalAccidents} selected / ${snapshot.facts.completeAreaCount} complete area; reproducible facts, model/political/map release remains blocked.`);
 }
 if(require.main===module)main().catch(e=>{console.error(e.stack);process.exitCode=1;});

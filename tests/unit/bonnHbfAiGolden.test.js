@@ -64,3 +64,25 @@ test('live QA saves the original provider response and rejects an unsupported re
     fs.rmSync(dir,{ recursive:true, force:true });
   }
 });
+
+test('a documented council search reaches the model with its queries and differentiated outcomes', () => {
+  const evidence = require('../fixtures/bonn-hbf-political-research.json');
+  const baseline = require('../fixtures/bonn-hbf-ai-golden.v1.json');
+  const service = require('../../server/ai/aiAssessmentServiceV2');
+  const structured = {
+    meta: { city: 'Bonn' },
+    deterministicAnalysisDigest: baseline.facts.digest,
+    politicalReferences: evidence.references,
+    politicalContextResearch: { status: 'results-found', queries: evidence.queries },
+  };
+  const input = service.buildAiInputV2(structured, {}, []);
+  const research = input.deterministicAnalysisDigest.politicalResearch;
+  expect(research.status).toBe('results-found');
+  expect(research.queries).toEqual(evidence.queries);
+  const { user } = service.buildProviderPrompt(input, 'proposal-brief');
+  for (const ref of evidence.references) {
+    expect(user).toContain(ref.url);
+    expect(user).toContain(ref.snippet);
+  }
+  expect(baseline.facts.digest.politicalResearch.status).toBe('not-searched');
+});

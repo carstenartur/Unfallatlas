@@ -19,7 +19,7 @@
  * RIS-Kontext sind Teil des kanonischen AI-Inputs und ändern bei Bedarf
  * den Cache-Key, ohne bestehende Anfragen ohne diesen Kontext zu ändern.
  */
-const PROMPT_VERSION = 'exportAssessmentPrompt.v2.7';
+const PROMPT_VERSION = 'exportAssessmentPrompt.v2.8';
 const { PATTERN_COMPARISON_LIMITATIONS } = require('../features/deriveFeatures.js');
 
 const OFFICIAL_UNFALLATLAS_URL = 'https://www.statistikportal.de/de/karten/unfallatlas';
