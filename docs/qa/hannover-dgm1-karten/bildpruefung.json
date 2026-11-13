@@ -1,7 +1,7 @@
 {
   "standard": {
     "browser": "Chromium 158",
-    "generatedAt": "2026-11-13T07:58:53.798Z",
+    "generatedAt": "2026-11-13T08:14:35.235Z",
     "mapScene": {
       "city": "Hannover",
       "center": [
@@ -21,14 +21,17 @@
       641,
       488
     ],
-    "pngBytes": 628489,
-    "pngSha256": "7e55f5670651168a2aceda13ed28a9d8b7c3b96a53fdc4f30361646e7e26bcde",
-    "sidecarSha256": "4b879cbad5971edd31bb38e00155f627a403ec7e65e9a2fdf423f91af26723e4",
-    "manifestSha256": "24840a0bc7938a67988097f5df13c9d0da0fdfcbcd7d5e3e196bffd40bae8eed"
+    "pngBytes": 628449,
+    "pngSha256": "c0737a841e55ad1952ff3fec3f16af4c23180ce6eccf0940600b7eda0571fe05",
+    "sidecarSha256": "40b983a5bfc72fcf88da654b51c09d7a4d8267290a78a92b17ceac3eb9f62909",
+    "manifestSha256": "a6fc5ca74355d5134bc3df6cd18510ca18197da310b512fe8634f07b3b9a72e9",
+    "buildManifestSha256": "bd6d7b5890f1b2b91724869859fd00db4282e7e614ce01b3791d789f98f4d11b",
+    "buildFingerprint": "baaec9287d757897fa831ea00e800032f5a8835e471b56d54189fcfb7e6f4ceb",
+    "applicationFingerprint": "b0e7c3d77c56253f92d2d3418cd28bf4b38ef5cf2a5c83c332b26df835fa3b09"
   },
   "debug": {
     "browser": "Chromium 158",
-    "generatedAt": "2026-11-13T07:58:59.379Z",
+    "generatedAt": "2026-11-13T08:14:41.317Z",
     "mapScene": {
       "city": "Hannover",
       "center": [
@@ -48,9 +51,12 @@
       641,
       488
     ],
-    "pngBytes": 602502,
-    "pngSha256": "bc971ba41aed18357a882d0e168f370e62af43a32e6a10482ebdf61507715fbb",
-    "sidecarSha256": "4db8aeafcd4cbd5ec834a1ddd0418d5c0f3047bd668bb8261d660ad3394316bc",
-    "manifestSha256": "e42ccce54a9c7d6d4969e350a0f8cb28d967575b2af0e7ccbfea3ae958dbe0b6"
+    "pngBytes": 602174,
+    "pngSha256": "bb9926bf5301aea1fe7a6dae4a386f1a8f178f641ea5b5811eaefefe16f39fb7",
+    "sidecarSha256": "794b07a7d4ee808fb3d6567ea9dc2def482b3bf499e6d355124d592fe81a647c",
+    "manifestSha256": "926a499bb8f0277ca7854ed0aabc18b8f78969e7b233258e7b87b201ec954f45",
+    "buildManifestSha256": "bd6d7b5890f1b2b91724869859fd00db4282e7e614ce01b3791d789f98f4d11b",
+    "buildFingerprint": "baaec9287d757897fa831ea00e800032f5a8835e471b56d54189fcfb7e6f4ceb",
+    "applicationFingerprint": "b0e7c3d77c56253f92d2d3418cd28bf4b38ef5cf2a5c83c332b26df835fa3b09"
   }
 }

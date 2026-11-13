@@ -3,15 +3,15 @@
   "artifact": {
     "name": "hannover-hardenbergstrasse.png",
     "mediaType": "image/png",
-    "bytes": 628489,
-    "sha256": "7e55f5670651168a2aceda13ed28a9d8b7c3b96a53fdc4f30361646e7e26bcde"
+    "bytes": 628449,
+    "sha256": "c0737a841e55ad1952ff3fec3f16af4c23180ce6eccf0940600b7eda0571fe05"
   },
   "sourceManifest": {
     "schemaVersion": 1,
     "artifactId": "unfallwerkbank-hannover-f95de8efd0d5",
-    "generatedAt": "2026-11-13T07:58:53.798Z",
+    "generatedAt": "2026-11-13T08:14:35.235Z",
     "applicationVersion": "2.1.4",
-    "buildFingerprint": "8c5460518c332f9318e1cd81735e413eeadb907138751ab16faee16c6d74ec04",
+    "buildFingerprint": "baaec9287d757897fa831ea00e800032f5a8835e471b56d54189fcfb7e6f4ceb",
     "dataFingerprint": "f95de8efd0d5c8516dd78db9df99fb1a0c722c2ef83f65ee6c45e4a8237db8d4",
     "scenario": {
       "city": "Hannover",
@@ -60,7 +60,7 @@
         "requiredAttribution": "© Statistische Ämter des Bundes und der Länder, Unfallatlas",
         "temporalCoverage": "2017–2025",
         "spatialCoverage": "Hannover",
-        "retrievedAt": "2026-11-13T07:58:53.798Z",
+        "retrievedAt": "2026-11-13T08:14:35.235Z",
         "changedOrDerived": true,
         "changeNotice": "Räumlich und nach den gewählten Filtern ausgewählt; Exportfelder normalisiert.",
         "qualityNotes": [
@@ -84,7 +84,7 @@
         "licenseUrl": "https://opendatacommons.org/licenses/odbl/1-0/",
         "requiredAttribution": "© OpenStreetMap-Mitwirkende",
         "spatialCoverage": "Hannover",
-        "retrievedAt": "2026-11-13T07:58:53.798Z",
+        "retrievedAt": "2026-11-13T08:14:35.235Z",
         "changedOrDerived": true,
         "changeNotice": "Kartenkacheln wurden für den gewählten Ausschnitt gerendert, mit Analyseebenen kombiniert und in ein PNG überführt.",
         "qualityNotes": [
@@ -896,6 +896,6 @@
       }
     ]
   },
-  "sourceManifestSha256": "24840a0bc7938a67988097f5df13c9d0da0fdfcbcd7d5e3e196bffd40bae8eed",
+  "sourceManifestSha256": "a6fc5ca74355d5134bc3df6cd18510ca18197da310b512fe8634f07b3b9a72e9",
   "visibleSourceNotice": "OSM-Weg 6138345 · Straßenlängsneigung: +2,8 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m). DGM1 · 1 m · Laserscannerbefliegung 2010 · Datenquelle: CC-BY-4.0 – Bereich Geoinformation – LH Hannover (2026) · OSM-Wege © OpenStreetMap-Mitwirkende (ODbL). Quellen: Statistische Ämter des Bundes und der Länder: Unfallatlas – Straßenverkehrsunfälle mit Personenschaden – Datenlizenz Deutschland – Namensnennung – Version 2.0 (DL-DE-BY-2.0); OpenStreetMap-Mitwirkende: OpenStreetMap Standard-Grundkarte – Open Data Commons Open Database License 1.0 (ODbL-1.0); Landeshauptstadt Hannover – Geoinformation: Digitales Geländemodell DGM1 – Creative Commons Attribution 4.0 International (CC-BY-4.0); OpenStreetMap-Mitwirkende: OpenStreetMap-Straßengeometrien – Open Data Commons Open Database License 1.0 (ODbL-1.0)"
 }
