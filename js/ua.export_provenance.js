@@ -36,6 +36,7 @@
   "use strict";
 
   const SOURCE_ID = "accidents.de.unfallatlas";
+  const ROAD_PROFILE_QUALITY_LABELS = Object.freeze({high: 'hoch', medium: 'mittel', low: 'niedrig'});
   const SHA256 = /^[a-f0-9]{64}$/i;
   const CORE_FIELDS = Object.freeze([
     "lat",
@@ -300,6 +301,7 @@
     const points = cached?.activePoints || (UA?.AnalysisScope?.getActiveFilteredPoints
       ? UA.AnalysisScope.getActiveFilteredPoints(copyContext(ctx, { allPts: boundPoints })) : boundPoints);
     const groups = new Map();
+    const roadProfilesBySource = new Map();
     const sources = new Map();
     const safeUrl = value => {
       try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; }
@@ -356,6 +358,9 @@
           } else if (descriptor.horizontalCrs) {
             roadDetails.push(`Horizontales Koordinatenreferenzsystem ${descriptor.horizontalCrs}`);
           }
+          if (Object.hasOwn(descriptor, 'verticalDatum')) {
+            roadDetails.push(`Höhenbezug ${descriptor.verticalDatum || 'nicht dokumentiert'}`);
+          }
           if (descriptor.requiredAttribution) roadDetails.push(descriptor.requiredAttribution);
           if (descriptor.licenseId || descriptor.licenseUrl) {
             add(`${sourceName} – Lizenz${descriptor.licenseId ? ` ${descriptor.licenseId}` : ''}.`, descriptor.licenseUrl);
@@ -372,9 +377,42 @@
         const sourceUrl = usesRoad
           ? descriptor.datasetUrl || descriptor.distributionUrl || descriptor.url
           : descriptor.distributionUrl || descriptor.datasetUrl || descriptor.url;
-        add(label, sourceUrl || (knownSrtm ? 'https://registry.opendata.aws/terrain-tiles/' : null));
+        if (presentation.reliableForRoad && p.matched_way_id != null) {
+          const key = JSON.stringify([presentation.sourceId, p.road_slope_manifest_sha256,
+            p.road_slope_distribution_sha256, sourceUrl]);
+          if (!roadProfilesBySource.has(key)) {
+            roadProfilesBySource.set(key, {sourceName, sourceUrl, labels: new Set(), profiles: new Map()});
+          }
+          const group = roadProfilesBySource.get(key);
+          group.labels.add(label);
+          const details = [];
+          if (Object.hasOwn(ROAD_PROFILE_QUALITY_LABELS, p.road_slope_quality)) {
+            details.push('Profilqualität ' + ROAD_PROFILE_QUALITY_LABELS[p.road_slope_quality]);
+          }
+          if (Number.isFinite(p.road_slope_profile_window_m)) details.push(`Profilfenster ${p.road_slope_profile_window_m} m`);
+          if (Number.isInteger(p.road_slope_sample_count)) details.push(`${p.road_slope_sample_count} Stützstellen`);
+          const profileLabel = `OSM-Weg ${p.matched_way_id}. ${presentation.statement}` +
+            (details.length ? ' ' + details.join(', ') + '.' : '');
+          group.profiles.set(profileLabel, Math.abs(p.road_slope_percent));
+        } else {
+          add(label, sourceUrl || (knownSrtm ? 'https://registry.opendata.aws/terrain-tiles/' : null));
+        }
       }
       if (p.highway || p.osm_highway) add('OpenStreetMap-Straßenattribute (© OpenStreetMap-Mitwirkende, ODbL); keine Verkehrszählung.', 'https://www.openstreetmap.org/copyright');
+    }
+    for (const {sourceName, sourceUrl, profiles, labels} of roadProfilesBySource.values()) {
+      if (profiles.size === 1) {
+        for (const label of labels) add(label + ' ' + profiles.keys().next().value, sourceUrl);
+      } else {
+        // OSM ways may be digitised in opposite directions. Only the absolute
+        // gradients are comparable across different road profiles.
+        for (const label of labels) add(label, sourceUrl);
+        const magnitudes = [...profiles.values()];
+        const range = magnitudes.reduce(([min, max], n) => [Math.min(min, n), Math.max(max, n)], [Infinity, -Infinity]);
+        const percent = n => n.toFixed(1).replace('.', ',');
+        add(`${sourceName}: ${profiles.size} Straßenprofile mit Neigungsbeträgen von ` +
+          `${percent(range[0])} bis ${percent(range[1])} %. Vorzeichen und Richtung je OSM-Weg im Datenexport.`, sourceUrl);
+      }
     }
     const join = values => [...values].sort().join(', ');
     for (const group of groups.values()) {
