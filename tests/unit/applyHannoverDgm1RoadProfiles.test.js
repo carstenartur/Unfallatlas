@@ -134,9 +134,9 @@ function profileArtifact() {
   };
 }
 
-function prepareRoot() {
+function prepareRoot(artifact = profileArtifact()) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-dgm1-apply-'));
-  writeJson(path.join(root, '.build/context-provider/hannover-dgm1-road-profiles.json'), profileArtifact(), false);
+  writeJson(path.join(root, '.build/context-provider/hannover-dgm1-road-profiles.json'), artifact, false);
   writeJson(path.join(root, 'out/ways_hannover.json'), {
     schemaVersion: 3,
     coverage: 'full',
@@ -192,6 +192,8 @@ describe('apply-hannover-dgm1-road-profiles', () => {
       road_slope_confidence: 'high',
       road_slope_source_id: 'hannover.dgm1',
       road_slope_source: 'Digitales Geländemodell DGM1',
+      road_slope_manifest_sha256: 'a'.repeat(64),
+      road_slope_distribution_sha256: 'b'.repeat(64),
       road_slope_resolution_m: 1,
       road_slope_profile_window_m: 50,
       road_slope_reliable_for_road: true,
@@ -201,6 +203,8 @@ describe('apply-hannover-dgm1-road-profiles', () => {
     expect(tile.ways.W2.road_slope_class).toBeUndefined();
     expect(tile.ways.W2).toEqual(expect.objectContaining({
       road_slope_source_id: 'hannover.dgm1',
+      road_slope_manifest_sha256: 'a'.repeat(64),
+      road_slope_distribution_sha256: 'b'.repeat(64),
       road_slope_reliable_for_road: false,
       road_slope_missing_reason: 'bridge_surface_not_represented_by_dtm',
     }));
@@ -211,6 +215,12 @@ describe('apply-hannover-dgm1-road-profiles', () => {
       sourceId: 'hannover.dgm1',
       resolutionM: 1,
       licenseId: 'CC-BY-4.0',
+      acquisitionPeriod: '2010',
+      horizontalCrs: 'EPSG:25832',
+      horizontalTransformation: { from: 'EPSG:4326', to: 'EPSG:25832' },
+      verticalDatum: null,
+      manifestSha256: 'a'.repeat(64),
+      distributionSha256: 'b'.repeat(64),
       method: 'theil-sen-linear-profile-v1',
       windowsMeters: [20, 50],
     }));
@@ -220,6 +230,37 @@ describe('apply-hannover-dgm1-road-profiles', () => {
       failClosed: true,
     }));
   });
+
+  test('binds the standalone way index and context tile to the same source snapshot', () => {
+    const artifact = profileArtifact();
+    artifact.source.descriptor.verticalDatum = 'documented vertical reference';
+    root = prepareRoot(artifact);
+    const waysPath = path.join(root, 'out/ways_hannover.json');
+    const ways = readJson(waysPath);
+    ways.ways = { W1: { road_slope_manifest_sha256: 'c'.repeat(64), road_slope_distribution_sha256: 'd'.repeat(64) } };
+    writeJson(waysPath, ways);
+
+    adapter.applyHannoverDgm1RoadProfiles({ root });
+
+    const expectedPins = { road_slope_manifest_sha256: 'a'.repeat(64), road_slope_distribution_sha256: 'b'.repeat(64) };
+    expect(readJson(waysPath).ways.W1).toMatchObject(expectedPins);
+    expect(readJson(path.join(root, 'out/ctxtiles/hannover/4318/2688.json')).ways.W1).toMatchObject(expectedPins);
+    expect(readJson(path.join(root, 'out/output_all_years_hannover.enrichment.meta.json')).sources.roadSlope.verticalDatum)
+      .toBe('documented vertical reference');
+  });
+
+  test.each([['manifestSha256', undefined], ['distributionSha256', 'z'.repeat(64)]])(
+    'rejects an invalid %s before modifying runtime artifacts', (field, value) => {
+      const artifact = profileArtifact();
+      artifact.source[field] = value;
+      root = prepareRoot(artifact);
+      const tilePath = path.join(root, 'out/ctxtiles/hannover/4318/2688.json.gz');
+      const before = fs.readFileSync(tilePath);
+
+      expect(() => adapter.applyHannoverDgm1RoadProfiles({ root })).toThrow(new RegExp(`${field}.*SHA-256`));
+      expect(fs.readFileSync(tilePath)).toEqual(before);
+    },
+  );
 
   test('rolls every runtime artifact back when an atomic install step fails', () => {
     root = prepareRoot();

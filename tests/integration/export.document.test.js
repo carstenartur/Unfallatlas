@@ -616,10 +616,36 @@ describe('Document Export - Integration Tests', () => {
   test.each([['count',2024,'Gemessene Verkehrsbelastung'],['count18504',2024,'Gemessene Verkehrsbelastung'],['hourly',2024,'Gemessene Verkehrsbelastung'],['model',2025,'Verkehrsmodell'],['old',2019,'Älterer gemessener Verkehrswert'],['proxy',2026,'Verkehrsproxy'],['dgm',2026,'Straßenprofil']])('typed context %s reaches real DOCX XML and PDF bytes', async (kind, year, label) => {
     const api=require('../../js/ua.export_provenance');
     const typed=require('../fixtures/typed-traffic-evidence');
+    const dgmSource = {
+      sourceId: 'hannover.dgm1',
+      manifestSha256: 'a'.repeat(64),
+      distributionSha256: 'b'.repeat(64),
+      datasetUrl: 'https://example.org/dgm1',
+      distributionUrl: 'https://example.org/dgm1.zip',
+      licenseId: 'CC-BY-4.0',
+      licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+      requiredAttribution: 'Bereich Geoinformation Hannover',
+      acquisitionPeriod: 'Laserscannerbefliegung 2010',
+      horizontalCrs: 'EPSG:25832',
+      horizontalTransformation: { from: 'EPSG:4326', to: 'EPSG:25832' },
+      verticalDatum: null,
+      retrievedAt: '2026-11-11T09:31:38Z',
+      method: 'theil-sen-linear-profile-v1',
+    };
     const props=kind==='hourly' ? require('../fixtures/typed-hourly-traffic-evidence')() : kind==='proxy' ? {traffic_measurement_type:'proxy',traffic_proxy_class:'high'} : kind==='dgm'
-      ? {road_slope_percent:-4.4,road_slope_source:'DGM1 Prüfquelle',road_slope_source_id:'test.dgm1',road_slope_resolution_m:1,road_slope_reliable_for_road:true,road_slope_uncertainty_percent:0.7}
+      ? {
+        road_slope_percent: -4.4,
+        road_slope_source: 'DGM1 Prüfquelle',
+        road_slope_source_id: 'hannover.dgm1',
+        road_slope_resolution_m: 1,
+        road_slope_reliable_for_road: true,
+        road_slope_uncertainty_percent: 0.7,
+        road_slope_method: 'theil-sen-linear-profile-v1',
+        road_slope_manifest_sha256: 'a'.repeat(64),
+        road_slope_distribution_sha256: 'b'.repeat(64),
+      }
       : typed(['old','count18504'].includes(kind)?'count':kind,kind==='count18504'?18504:0,year);
-    const ctx={CITY_RAW:kind==='hourly'?'Düsseldorf':'Köln',allPts:[{lat:kind==='hourly'?51.22015:50.93,lon:kind==='hourly'?6.76712:6.95,props:{year:2024,...props}}],contextLayerState:{meta:{sources:{roadSlope:{sourceId:'test.dgm1',datasetUrl:'https://example.org/dgm1',retrievedAt:null}}}}};
+    const ctx={CITY_RAW:kind==='hourly'?'Düsseldorf':kind==='dgm'?'Hannover':'Köln',allPts:[{lat:kind==='hourly'?51.22015:kind==='dgm'?52.3630532:50.93,lon:kind==='hourly'?6.76712:kind==='dgm'?9.7059495:6.95,props:{year:2024,...props}}],contextLayerState:{meta:{sources:kind==='dgm'?{roadSlope:dgmSource}:{}}}};
     Object.assign(ctx, {map:makeCtx().map});
     UA.exportProvenance=api;
     UA.artifactProvenance=require('../../js/ua.artifact_provenance');
@@ -635,7 +661,14 @@ describe('Document Export - Integration Tests', () => {
     expect(wordText).toContain(label);
     const archive=await JSZip.loadAsync(await blob.arrayBuffer());
     const relationships=await archive.file('word/_rels/document.xml.rels').async('string');
-    expect(relationships).toContain(note.sources[0].url.replace(/&/g,'&amp;'));
+    const sourceUrl = kind === 'dgm' ? dgmSource.datasetUrl : note.sources[0].url;
+    expect(relationships).toContain(`Target="${sourceUrl.replace(/&/g,'&amp;')}"`);
+    if (kind === 'dgm') {
+      expect(relationships).toContain(`Target="${dgmSource.licenseUrl}"`);
+      expect(relationships).toContain(`Target="${dgmSource.distributionUrl}"`);
+      expect(wordResult.manifest.transformations.find(item => item.transformationId === 'context-evidence').parameters.sources.roadSlope)
+        .toMatchObject(dgmSource);
+    }
     const trafficSource=wordResult.manifest.sources.find(source=>source.role==='traffic_count');
     if(trafficSource) {
       if(kind!=='hourly') expect(wordResult.manifest.transformations.find(item=>item.transformationId==='context-evidence').parameters.observations[0].direction).toBe('A → B');
@@ -656,7 +689,11 @@ describe('Document Export - Integration Tests', () => {
     `],{cwd:path.resolve(__dirname,'../..'),input:Buffer.from(bytes),encoding:'utf8'});
     expect(linkProbe.status).toBe(0);
     const urls=JSON.parse(linkProbe.stdout);
-    expect(urls).toContain(note.sources[0].url);
+    expect(urls).toContain(sourceUrl);
+    if (kind === 'dgm') {
+      expect(urls).toContain(dgmSource.licenseUrl);
+      expect(urls).toContain(dgmSource.distributionUrl);
+    }
     if(trafficSource) {expect(urls).toContain(trafficSource.licenseUrl);expect(urls).toContain(trafficSource.datasetUrl);}
     if(kind==='hourly') {
       const stationUrl='https://opendata.duesseldorf.de/sites/default/files/Z%C3%A4hlstellen_2.csv';
@@ -683,7 +720,16 @@ describe('Document Export - Integration Tests', () => {
       if(kind==='count') expect(text).toContain('Originalwert: 0 Kfz/24 h');
       if(kind==='count18504') expect(text).toContain('Originalwert: 18.504 Kfz/24 h');
       if(kind==='hourly') {expect(text).toContain('Originalwert: 1 Fahrräder/Stunde');expect(text).toContain('Entfernung unbekannt');expect(text).toContain('01-01-2024 00:00:00');}
-      if(kind==='dgm') {expect(text).toContain('Abruf unbekannt');expect(text).toContain('1 m');}
+      if (kind === 'dgm') {
+        expect(text).toContain('Abruf 2026-11-11T09:31:38Z');
+        expect(text).toContain('Auflösung 1 m');
+        expect(text).toContain('Laserscannerbefliegung 2010');
+        expect(text).toMatch(/theil-\s*sen-\s*linear-\s*profile-\s*v1/);
+        expect(text).toContain('von EPSG:4326 nach EPSG:25832');
+        expect(text).toMatch(/Unsicherheit ±0[,.]7 Prozentpunkte/);
+        expect(text).toContain('Bereich Geoinformation Hannover');
+        expect(text).toMatch(/CC-\s*BY-\s*4\.0/);
+      }
       expect(text).not.toContain('keine gemessene Verkehrsdichte');
     }
     if(process.env.TRAFFIC_EXPORT_QA_DIR) {
@@ -691,6 +737,6 @@ describe('Document Export - Integration Tests', () => {
       fs.writeFileSync(path.join(process.env.TRAFFIC_EXPORT_QA_DIR,kind+'.docx'),Buffer.from(await blob.arrayBuffer()));
       fs.writeFileSync(path.join(process.env.TRAFFIC_EXPORT_QA_DIR,kind+'.pdf'),Buffer.from(bytes));
     }
-  });
+  }, 30000);
 
 });

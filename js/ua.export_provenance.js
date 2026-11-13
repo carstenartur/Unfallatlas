@@ -36,6 +36,7 @@
   "use strict";
 
   const SOURCE_ID = "accidents.de.unfallatlas";
+  const SHA256 = /^[a-f0-9]{64}$/i;
   const CORE_FIELDS = Object.freeze([
     "lat",
     "lon",
@@ -342,12 +343,36 @@
           : facts.dem || {};
         const descriptor = meta.source && typeof meta.source === 'object' ? meta.source : meta;
         const sourceName = presentation.source === 'Quelle nicht dokumentiert' ? 'Geländequelle nicht dokumentiert' : presentation.source;
+        const knownSrtm = presentation.sourceId === 'global.srtm30' || (!usesRoad && /SRTM/i.test(sourceName));
         const clock = descriptor.retrievedAt || meta.retrievedAt;
+        const roadDetails = [];
+        if (usesRoad && !knownSrtm) {
+          const method = p.road_slope_method || meta.method || descriptor.method;
+          const transformation = descriptor.horizontalTransformation || meta.horizontalTransformation;
+          if (method) roadDetails.push(`Methode ${method}`);
+          if (descriptor.acquisitionPeriod) roadDetails.push(`Erfassung ${descriptor.acquisitionPeriod}`);
+          if (transformation?.from && transformation.to) {
+            roadDetails.push(`Horizontale Transformation von ${transformation.from} nach ${transformation.to}`);
+          } else if (descriptor.horizontalCrs) {
+            roadDetails.push(`Horizontales Koordinatenreferenzsystem ${descriptor.horizontalCrs}`);
+          }
+          if (descriptor.requiredAttribution) roadDetails.push(descriptor.requiredAttribution);
+          if (descriptor.licenseId || descriptor.licenseUrl) {
+            add(`${sourceName} – Lizenz${descriptor.licenseId ? ` ${descriptor.licenseId}` : ''}.`, descriptor.licenseUrl);
+          }
+          if (descriptor.datasetUrl && descriptor.distributionUrl && descriptor.distributionUrl !== descriptor.datasetUrl) {
+            add(`${sourceName} – Datendownload.`, descriptor.distributionUrl);
+          }
+        }
         const label = `${presentation.reliableForRoad ? 'Straßenprofil' : 'Geländekontext (keine belastbare Fahrbahnneigung)'}: ${sourceName}` +
           `${presentation.sourceId ? ` [${presentation.sourceId}]` : ''}; Auflösung ${presentation.resolutionMeters == null ? 'unbekannt' : `${presentation.resolutionMeters} m`}; ` +
           `${clock ? `Abruf ${clock}` : 'Abruf unbekannt'}; ${presentation.uncertaintyPercent == null ? 'Unsicherheit nicht angegeben' : `Unsicherheit ±${presentation.uncertaintyPercent} Prozentpunkte`}` +
-          `${presentation.uncertaintyReasons.length ? `; Einschränkungen: ${presentation.uncertaintyReasons.join('; ')}` : ''}.`;
-        add(label, descriptor.distributionUrl || descriptor.datasetUrl || descriptor.url || (/SRTM/i.test(sourceName) ? 'https://registry.opendata.aws/terrain-tiles/' : null));
+          `${presentation.uncertaintyReasons.length ? `; Einschränkungen: ${presentation.uncertaintyReasons.join('; ')}` : ''}.` +
+          `${roadDetails.length ? ` ${roadDetails.join('. ')}.` : ''}`;
+        const sourceUrl = usesRoad
+          ? descriptor.datasetUrl || descriptor.distributionUrl || descriptor.url
+          : descriptor.distributionUrl || descriptor.datasetUrl || descriptor.url;
+        add(label, sourceUrl || (knownSrtm ? 'https://registry.opendata.aws/terrain-tiles/' : null));
       }
       if (p.highway || p.osm_highway) add('OpenStreetMap-Straßenattribute (© OpenStreetMap-Mitwirkende, ODbL); keine Verkehrszählung.', 'https://www.openstreetmap.org/copyright');
     }
@@ -395,9 +420,15 @@
   function roadSourceMatches(p, source) {
     if (!source || !p.road_slope_source_id) return false;
     if ((source.sourceId || source.source?.id) !== p.road_slope_source_id) return false;
-    if (p.road_slope_manifest_sha256 && source.manifestSha256 !== p.road_slope_manifest_sha256) return false;
-    if (p.road_slope_distribution_sha256 && source.distributionSha256 !== p.road_slope_distribution_sha256) return false;
-    return true;
+    const pins = [p.road_slope_manifest_sha256, p.road_slope_distribution_sha256];
+    const sourcePins = [source.manifestSha256, source.distributionSha256];
+    // Older single-pin rows can bind only to metadata with the same pin set.
+    return pins.some(pin => pin != null) && pins.every((pin, index) => {
+      const sourcePin = sourcePins[index];
+      if (pin == null) return sourcePin == null;
+      return typeof pin === 'string' && SHA256.test(pin) &&
+        typeof sourcePin === 'string' && pin.toLowerCase() === sourcePin.toLowerCase();
+    });
   }
 
   function contextSourceFacts(ctx, normalizedPoints) {
