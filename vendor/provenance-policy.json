@@ -98,6 +98,29 @@
         "spdx": "MIT",
         "path": "vendor/licenses/components/pdfmake-svg-to-pdfkit-MIT.txt",
         "sha256": "97a9a454169e8bb54afa875ba1741ac77f2a3b8cfac57e06c7e54f4467776ed8"
+      },
+      "brotliDecoder": {
+        "purl": "pkg:npm/brotli@1.3.3",
+        "lockPath": "node_modules/brotli",
+        "sourceRepository": "https://github.com/devongovett/brotli.js",
+        "sourceRef": "e36051345f6d27a56e5f39ea70d2f789b8574046",
+        "copyright": "Copyright 2013 Google Inc. All Rights Reserved.",
+        "headerBytes": 599,
+        "headerSha256": "e422ec4747a913fb1aa7aecf7826bb06bd49d1a0de0dca5ec55b6b06214af613",
+        "spdx": "Apache-2.0",
+        "licenseSource": "https://github.com/apache/www-site/blob/01b1be9fbc5cd93b6794f5653a58b9b863807f84/content/licenses/LICENSE-2.0.txt",
+        "licenseTextPath": "vendor/pdfmake-build/licenses/Apache-2.0.txt",
+        "licenseTextSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "path": "vendor/licenses/components/pdfmake-brotli-decoder-Apache-2.0.txt",
+        "sha256": "8e24f1c65700e86ec6fee22884d47873816e335f5782e365f7d046f4a1c8e450",
+        "files": {
+          "dec/bit_reader.js": "1c7488ebdbcb2dba8a61965f5458452fe8cac38c06c3db0cc5184408a5aacf77",
+          "dec/context.js": "5cd72c7ce643693ff902cd9c1ada003b45f70b4daec1bfb1a6a4a842efca811e",
+          "dec/decode.js": "f66d1fd1ea9e54c843b7f5f4bc02cf028f28fed69404f279f86869b097dace5e",
+          "dec/dictionary.js": "f7bd7462acad204047edc609009dfeb28239f14fe6f06ca42661f1d751382946",
+          "dec/prefix.js": "e65fb2183d6fc1058020ba55939ea08334d39ae33bf4832d952d9acab5db2d8a",
+          "dec/transform.js": "56c0ebea0ce70b4d7afa7225eca2e5c9e0046dbdc9a4d6b568c5d5f4b47f170b"
+        }
       }
     },
     "vendor/leaflet-image/leaflet-image.js": {
@@ -155,7 +178,7 @@
       "missingEvidence": [
         "two independently signed source-build attestations",
         "complete component and data inventory inside prebundled modules, including PDFKit and generated Unicode data",
-        "full copyright and license texts missing from the locked brotli, dfa and fontkit npm packages, including the Apache-2.0 Brotli decoder notice"
+        "full copyright and license texts for the Brotli npm wrapper and remaining shipped Brotli files, and for the locked dfa and fontkit npm packages"
       ],
       "migrationOptions": [
         "Rebuild pdfmake from its browser source with a checked-in npm lock, exact webpack configuration, source map and metafile-derived SBOM.",

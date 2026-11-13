@@ -165,10 +165,22 @@ der DOCX- und der PDF-Lock jeweils an ihrem Bundle.
 Fünf Lizenzdateien zu abweichend oder ausschließlich im Herstellerbuild
 installierten Versionen sind archiviert und werden beim Neuaufbau mit den
 installierten Originalen verglichen. Der exakte SVG-to-PDFKit-Fork besitzt
-eine eigene CycloneDX-Dateireferenz mit Quell- und Lizenzhash. Offene Punkte
-sind die vollständigen Nachweise für intern gebündelte Komponenten und
-Daten, die fehlenden Volltexte für brotli, dfa und fontkit sowie die
-unabhängigen, von der Policy anerkannten Build-Signaturen.
+eine eigene CycloneDX-Dateireferenz mit Quell- und Lizenzhash.
+
+Sechs Dateien aus `brotli@1.3.3` tragen denselben Apache-2.0-Lizenzhinweis
+mit Copyright von Google Inc. aus dem Jahr 2013. Der Seitenbuild vergleicht
+diese Dateien bytegenau mit den in der PDF-Source-Map enthaltenen Quellen.
+Der Hersteller-Lock fixiert das npm-Archiv und die Policy bindet die
+Quellhashes, den gemeinsamen Lizenzkopf und den unveränderten Lizenzvolltext
+der Apache Software Foundation. Notice und CycloneDX verknüpfen jede der
+sechs Dateien mit dem gemeinsamen Copyright- und Lizenztext unter
+`vendor/licenses/components/pdfmake-brotli-decoder-Apache-2.0.txt`.
+
+Offen bleiben der Volltext für die MIT-Deklaration im Brotli-NPM-Paket,
+die Lizenznachweise für die übrigen eingebetteten Brotli-Dateien, die
+fehlenden Volltexte für `dfa` und `fontkit`, die vollständigen Nachweise
+für intern gebündelte Komponenten und Daten sowie die unabhängigen,
+von der Policy anerkannten Build-Signaturen.
 
 Der Nachbau vergleicht die vier als Generator-Eingaben verwendeten TTF-Dateien
 mit den Originaldateien unter `web/static/` im Roboto-3.016-Release von

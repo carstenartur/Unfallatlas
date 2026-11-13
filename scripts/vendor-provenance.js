@@ -504,6 +504,81 @@ function collectEmbeddedSvgLicense(repoRoot, outputRoot, map, expected) {
   return { ...expected, asset: PDF_ASSET, copyrightIncluded: true };
 }
 
+function brotliDecoderRecords(expected) {
+  return Object.keys(expected.files).sort().map(file => ({
+    ref: `urn:unfallatlas:vendor-source:pdfmake:brotli-decoder:${path.posix.basename(file)}`,
+    component: `Brotli decoder ${file}`,
+    sourcePath: `${expected.lockPath}/${file}`,
+    sourceSha256: expected.files[file],
+    spdx: expected.spdx,
+    copyright: expected.copyright,
+    path: expected.path,
+    sha256: expected.sha256,
+  }));
+}
+
+function collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, expected) {
+  const component = pdfmake.components.find(item => item.purl === expected.purl && item.lockPath === expected.lockPath);
+  if (!component?.installedPath) {
+    throw new Error('[vendor-provenance] Missing installed Brotli archive matching the PDF build lock');
+  }
+  const installedRoot = path.join(repoRoot, component.installedPath);
+  const metadata = JSON.parse(fs.readFileSync(path.join(installedRoot, 'package.json'), 'utf8'));
+  if (metadata.name !== component.name || metadata.version !== component.version) {
+    throw new Error('[vendor-provenance] Installed Brotli package differs from the PDF build lock');
+  }
+
+  const records = brotliDecoderRecords(expected);
+  const mapPrefix = 'webpack://pdfmake/./';
+  const packagePrefix = `${mapPrefix}${expected.lockPath}/`;
+  const decoderSources = new Map();
+  for (const [index, name] of pdfmake.sourceMap.sources.entries()) {
+    if (!name.startsWith(packagePrefix)) continue;
+    const content = pdfmake.sourceMap.sourcesContent?.[index];
+    if (typeof content !== 'string') {
+      throw new Error(`[vendor-provenance] Missing Brotli source-map content: ${name}`);
+    }
+    const bytes = Buffer.from(content);
+    if (sha256Buffer(bytes.subarray(0, expected.headerBytes)) !== expected.headerSha256) continue;
+    const sourcePath = name.slice(mapPrefix.length);
+    if (decoderSources.has(sourcePath)) {
+      throw new Error(`[vendor-provenance] Duplicate Brotli decoder source-map path: ${sourcePath}`);
+    }
+    decoderSources.set(sourcePath, bytes);
+  }
+  if (decoderSources.size !== records.length || records.some(record => !decoderSources.has(record.sourcePath))) {
+    throw new Error('[vendor-provenance] Brotli decoder source-map paths differ from the verified notice scope');
+  }
+  for (const record of records) {
+    const file = record.sourcePath.slice(expected.lockPath.length + 1);
+    const source = fs.readFileSync(path.join(installedRoot, file));
+    if (sha256Buffer(source) !== record.sourceSha256 || !source.equals(decoderSources.get(record.sourcePath)) ||
+        !source.toString('utf8', 0, expected.headerBytes).startsWith(`/* ${expected.copyright}\n`)) {
+      throw new Error(`[vendor-provenance] Brotli decoder source differs from the delivered PDF bundle map: ${record.sourcePath}`);
+    }
+  }
+
+  const license = fs.readFileSync(path.join(repoRoot, expected.licenseTextPath));
+  if (sha256Buffer(license) !== expected.licenseTextSha256) {
+    throw new Error('[vendor-provenance] Brotli decoder Apache license differs from the pinned text');
+  }
+  const notice = Buffer.concat([Buffer.from([
+    `Brotli decoder files from ${component.name}@${component.version}`,
+    expected.copyright,
+    '',
+    'The following decoder files are included in the pdfmake browser bundle:',
+    ...Object.keys(expected.files).sort(),
+    '',
+  ].join('\n')), license]);
+  if (sha256Buffer(notice) !== expected.sha256) {
+    throw new Error('[vendor-provenance] Brotli decoder notice differs from the verified text');
+  }
+  const destination = path.join(outputRoot, expected.path);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, notice);
+  return records.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true }));
+}
+
 function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, discoveredByAsset) {
   const gapByPath = new Map();
   const gapKindById = new Map();
@@ -560,7 +635,7 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, d
   });
 }
 
-function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, svgLicense) {
+function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, embeddedSources) {
   const sbomComponents = components.map(component => ({
     type: 'library',
     'bom-ref': component.purl,
@@ -611,16 +686,18 @@ function writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, polic
       ],
     });
   }
-  // The modified fork has a source hash inside the pinned pdfmake archive.
-  sbomComponents.push({
-    type: 'file', 'bom-ref': svgLicense.ref, name: svgLicense.sourcePath,
-    hashes: [{ alg: 'SHA-256', content: svgLicense.sourceSha256 }],
-    licenses: [{ expression: svgLicense.spdx }],
-    properties: [
-      { name: 'unfallatlas:license-path', value: svgLicense.path },
-      { name: 'unfallatlas:license-sha256', value: svgLicense.sha256 },
-    ],
-  });
+  for (const source of embeddedSources) {
+    sbomComponents.push({
+      type: 'file', 'bom-ref': source.ref, name: source.sourcePath,
+      hashes: [{ alg: 'SHA-256', content: source.sourceSha256 }],
+      licenses: [{ expression: source.spdx }],
+      ...(source.copyright && { copyright: source.copyright }),
+      properties: [
+        { name: 'unfallatlas:license-path', value: source.path },
+        { name: 'unfallatlas:license-sha256', value: source.sha256 },
+      ],
+    });
+  }
   const dependencies = assets.map(asset => ({
     ref: `urn:unfallatlas:vendor-asset:${asset.path}`,
     dependsOn: [...asset.contains, ...asset.containsFiles].sort(),
@@ -686,22 +763,25 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
   if (!simpleheatLicense || simpleheat.licenseExpression !== 'BSD-2-Clause') {
     throw new Error('[vendor-provenance] Missing BSD-2-Clause license evidence for locked simpleheat');
   }
-  const svgLicense = collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource);
+  const embeddedSources = [
+    collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
+    ...collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, pdfInventory.brotliDecoder),
+  ];
   const supplementalLicenses = [{
     component: `simpleheat@${simpleheat.version}`,
     spdx: simpleheat.licenseExpression,
     ...simpleheatLicense,
-  }, svgLicense];
+  }, ...embeddedSources];
   const pdfBundle = assets.find(asset => asset.path === PDF_ASSET);
   if (!pdfBundle) throw new Error('[vendor-provenance] Missing delivered pdfmake bundle');
-  pdfBundle.containsFiles.push(svgLicense.ref);
+  pdfBundle.containsFiles = embeddedSources.map(source => source.ref).sort();
   const fontContainer = assets.find(asset => asset.path === 'vendor/export/pdfmake-fonts.js');
   if (!fontContainer) throw new Error('[vendor-provenance] Missing delivered pdfmake font container');
   fontContainer.containsFiles = fontEvidence
     .map(font => `urn:unfallatlas:font:${font.name}`)
     .sort();
   validateVerifiedBundleInventories({ assetAssessments: assets, components, dependencies, supplementalLicenses }, policy);
-  const sbom = writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, svgLicense);
+  const sbom = writeDiagnosticSbom(outputRoot, components, assets, fontEvidence, policy, embeddedSources);
   return {
     policy: {
       path: policyOutputPath,
@@ -732,7 +812,11 @@ function validateVerifiedBundleInventories(manifest, policy) {
     const purls = [...new Set([
       expected.owner, ...expected.components.map(component => component.purl), ...(expected.sourceMapPurls || []),
     ])].sort();
-    const fileRefs = expected.embeddedSource ? [expected.embeddedSource.ref] : [];
+    const embeddedSources = [
+      ...(expected.embeddedSource ? [expected.embeddedSource] : []),
+      ...(expected.brotliDecoder ? brotliDecoderRecords(expected.brotliDecoder) : []),
+    ];
+    const fileRefs = embeddedSources.map(source => source.ref).sort();
     const gaps = policy.unresolvedAssets.filter(gap => gap.paths.includes(assetPath)).map(gap => gap.id).sort();
     const rebuild = policy.verifiedSourceRebuilds?.[assetPath];
     if (asset?.sha256 !== expected.bundleSha256 || !Array.isArray(asset.contains) ||
@@ -764,11 +848,11 @@ function validateVerifiedBundleInventories(manifest, policy) {
         bundleComponentEvidenceSha256(components, asset.componentAttestations, ownerDependencies[0]) !== expected.componentEvidenceSha256) {
       throw new Error(`[vendor-provenance] Package and license evidence differs from the verified inventory: ${assetPath}`);
     }
-    if (expected.embeddedSource) {
-      knownSources.add(expected.embeddedSource.ref);
-      const evidence = supplementalLicenses.find(license => license.ref === expected.embeddedSource.ref);
+    for (const source of embeddedSources) {
+      knownSources.add(source.ref);
+      const evidence = supplementalLicenses.find(license => license.ref === source.ref);
       if (evidence?.asset !== assetPath || evidence.copyrightIncluded !== true ||
-          Object.entries(expected.embeddedSource).some(([key, value]) => evidence[key] !== value)) {
+          Object.entries(source).some(([key, value]) => evidence[key] !== value)) {
         throw new Error(`[vendor-provenance] Embedded source or license differs from the verified inventory: ${assetPath}`);
       }
     }

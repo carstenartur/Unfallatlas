@@ -82,6 +82,15 @@ CycloneDX reference and pinned source and MIT license hashes. `png-js@2.0.0`
 has an MIT license file in its npm archive. The distribution pins that file
 and records the SPDX expression even though the package metadata omits it.
 
+Six `brotli@1.3.3` decoder files in the PDF bundle carry the 2013 Google Inc.
+copyright and Apache-2.0 header. The site build compares their PDF source-map
+contents byte-for-byte with the npm sources matching the PDF build lock.
+The notice and CycloneDX list each decoder file by source path and SHA-256
+and link to one shared copyright notice and complete Apache-2.0 text.
+The npm package declares MIT in its metadata and ships without a license
+file. The full text for that declaration and the licensing of the other
+shipped Brotli files are still open.
+
 For Leaflet.heat, the build checks the Simpleheat source embedded in the global
 bundle's supplied source map against the locked Simpleheat source. The notice
 and SBOM record the matching component without claiming an independent rebuild.
@@ -91,7 +100,7 @@ and SBOM record the matching component without claiming an independent rebuild.
 | Asset | Missing proof | Supported resolution paths |
 |---|---|---|
 | `vendor/export/docx.js` | Generated-code attribution and two independently signed builds | Retain bundler evidence for generated code and attest the pinned supplier build |
-| `vendor/export/pdfmake.js` | Sources and data inside prebundled modules, missing license texts and two independently signed builds | Resolve each inner bundle and attest the pinned Webpack build |
+| `vendor/export/pdfmake.js` | Sources and data inside prebundled modules, full license evidence for the remaining Brotli files, `dfa` and `fontkit`, and two independently signed builds | Resolve each inner bundle and attest the pinned Webpack build |
 | `vendor/export/pdfmake-fonts.js` | Source-to-TTF build and independent signed VFS-generator evidence | Reproduce the typeface build from the pinned release sources and attest the result |
 | `vendor/leaflet.heat/leaflet-heat.js` | Independent source-build attestation for the global bundle | Rebuild Leaflet.heat and its locked Simpleheat dependency with a pinned toolchain |
 | `vendor/leaflet-image/leaflet-image.js` | Source-build attestation | Rebuild with locked `d3-queue@2.0.3`, or replace map capture with a maintained implementation |

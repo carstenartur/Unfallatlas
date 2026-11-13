@@ -139,7 +139,10 @@ function validateDiagnosticSbom(manifest, sbom, policy) {
   }
   const expectedRefs = new Set();
   const exactLicensePurls = new Set(Object.values(policy?.verifiedBundleInventories || {})
-    .flatMap(inventory => (inventory.browserifyModules || []).map(module => module.purl)));
+    .flatMap(inventory => [
+      ...(inventory.browserifyModules || []).map(module => module.purl),
+      ...(inventory.brotliDecoder ? [inventory.brotliDecoder.purl] : []),
+    ]));
 
   for (const component of manifest.components) {
     expectedRefs.add(component.purl);
@@ -165,7 +168,8 @@ function validateDiagnosticSbom(manifest, sbom, policy) {
     const properties = sbomSource ? propertiesMap(sbomSource, `source ${source.ref}`) : new Map();
     if (!sbomSource || sbomSource.type !== 'file' || sbomSource.name !== source.sourcePath ||
         hashValue(sbomSource, 'SHA-256') !== source.sourceSha256 ||
-        !sbomSource.licenses?.some(license => license.expression === source.spdx) ||
+        JSON.stringify(sbomSource.licenses) !== JSON.stringify([{ expression: source.spdx }]) ||
+        sbomSource.copyright !== source.copyright ||
         properties.get('unfallatlas:license-path')?.value !== source.path ||
         properties.get('unfallatlas:license-sha256')?.value !== source.sha256) {
       throw new Error(`[validate-vendor-provenance] SBOM embedded source evidence mismatch: ${source.ref}`);
