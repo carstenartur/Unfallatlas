@@ -17,6 +17,12 @@
         "SpecialCasing.txt": "22b1bff498f08633f72468d46eebb65e30dc325fbb6822dde319cb605af014c2",
         "UnicodeData.txt": "57913fdb1c1271fa9fd51dea08d49370f33d5bfda6bbaba348f44d90029ea11d",
         "extracted/DerivedNumericValues.txt": "73192b1b7662d9ea424b779bcda06ccbe57a4121bf28ed981a39a78aa5808d06"
+      },
+      "notice": {
+        "file": "UCD-12.0.0-ReadMe.txt",
+        "archivePath": "ReadMe.txt",
+        "sha256": "ecc46cb63f649b88a33746a2ef031ebbc0d028f4c89b81eacf1fca45307e052d",
+        "copyright": "© 2019 Unicode®, Inc."
       }
     },
     "ucd14": {
@@ -24,6 +30,12 @@
       "sha256": "033a5276b5d7af8844589f8e3482f3977a8385e71d107d375055465178c23600",
       "files": {
         "LineBreak.txt": "9e06e9f35c6959fb91dcc7993f90d58523c3079bc62c6b25f828b4cdebc5d70c"
+      },
+      "notice": {
+        "file": "UCD-14.0.0-ReadMe.txt",
+        "archivePath": "ReadMe.txt",
+        "sha256": "7316825946e47cdfb77f6c9037c611d74d58b2e55761ea0d6dfa162fa07a926a",
+        "copyright": "© 2021 Unicode®, Inc."
       }
     },
     "codepoints": {

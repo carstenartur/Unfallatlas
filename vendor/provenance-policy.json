@@ -114,7 +114,7 @@
       ]
     },
     "vendor/export/pdfmake.js": {
-      "unicodeDataManifestSha256": "319b4776ab8080973b39d8f570e3b35f8ea30b7e6cff0d3f9494411904afa584",
+      "unicodeDataManifestSha256": "696ffbbd56ed4c15b0c7dbeb02683b5c437fa5d7ae2c47102188cca869d6cf52",
       "owner": "pkg:npm/pdfmake@0.3.14",
       "bundleSha256": "e095e5b991dce0eb84f1989c42a2dbf7d0672fb8510ea3fe1c958920d6d3751d",
       "lockFile": "vendor/pdfmake-build/npm-lock.json",

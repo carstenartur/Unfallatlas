@@ -241,8 +241,13 @@ in `codepoints@1.3.0` die Dateien `data.trie` (9.696 Bytes) und `data.json`
 Generatoren mit den gepinnten Quellen. Der Seitenbuild prüft die drei Daten
 im installierten Paketmodul, in der pdfmake-Source-Map und im ausgelieferten
 minifizierten PDF-Bundle. Notice und SBOM binden für diese Daten die
-[Unicode-Lizenz](https://www.unicode.org/license.txt) ein. Die MIT-Lizenzen der
-JavaScript-Pakete gelten weiterhin für deren Software.
+[Unicode-Lizenz](https://www.unicode.org/license.txt) ein. Die zugehörigen
+Release-Readmes werden unverändert mitgeliefert. Sie nennen für UCD 12.0.0
+© 2019 Unicode®, Inc., für UCD 14.0.0 © 2021 Unicode®, Inc., und verweisen
+auf die [Nutzungsbedingungen für Unicode-Daten](https://www.unicode.org/copyright.html).
+Der am 13. November 2026 archivierte Lizenztext V3 trägt separat das
+Copyright 1991–2026. Der Wiederholungslauf prüft diese feste Kopie anhand
+ihres SHA-256. Die MIT-Lizenzen der JavaScript-Pakete gelten für deren Software.
 Der Herstellerprüflauf im Maven-Profil `vendor-upstream-rebuild` ruft das
 Skript auf. Es baut außerdem die drei Tries und zwei
 Zustandsmaschinen aus `fontkit@2.0.4` nach und findet die gleichen Bytes im

@@ -23,7 +23,10 @@ function unicodeDataRecords(expectedHash) {
     sourceSha256: item.sha256,
     sourceUrl: sources[item.ucd].url,
     spdx: license.spdx,
-    copyright: license.copyright,
+    copyright: sources[item.ucd].notice.copyright,
+    sourceNoticePath: 'vendor/licenses/components/' + sources[item.ucd].notice.file,
+    sourceNoticeSha256: sources[item.ucd].notice.sha256,
+    licenseCopyright: license.copyright,
     licenseUrl: license.url,
     path: 'vendor/licenses/components/' + license.file,
     sha256: license.sha256,
@@ -57,7 +60,17 @@ function collectUnicodeData(repo, out, outer, expectedHash) {
       throw new Error('Regenerated Unicode bytes differ from the delivered PDF: ' + item.file);
     }
   }
-  const terms = fs.readFileSync(path.join(repo, 'vendor/pdfmake-build/licenses', evidence.license.file));
+  const sourceLicenses = path.join(repo, 'vendor/pdfmake-build/licenses');
+  for (const source of Object.values(evidence.sources)) {
+    if (!source.notice) continue;
+    const { file, sha256: digest } = source.notice;
+    const bytes = fs.readFileSync(path.join(sourceLicenses, file));
+    if (sha256(bytes) !== digest) throw new Error('Unicode archive notice differs: ' + file);
+    const target = path.join(out, 'vendor/licenses/components', file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, bytes);
+  }
+  const terms = fs.readFileSync(path.join(sourceLicenses, evidence.license.file));
   if (sha256(terms) !== evidence.license.sha256) throw new Error('Unexpected Unicode data license');
   const destination = path.join(out, records[0].path);
   fs.mkdirSync(path.dirname(destination), { recursive: true });

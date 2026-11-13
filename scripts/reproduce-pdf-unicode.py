@@ -27,10 +27,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="pdf-unicode-") as temp:
         work = Path(temp)
         license = SPEC["license"]
-        with urlopen(license["url"], timeout=90) as response:
-            terms = verify(response.read(), license["sha256"], "Unicode license")
-        if terms != (ROOT / "vendor/pdfmake-build/licenses" / license["file"]).read_bytes():
-            raise ValueError("Archived Unicode license differs from the publisher bytes")
+        notices = ROOT / "vendor/pdfmake-build/licenses"
+        verify((notices / license["file"]).read_bytes(), license["sha256"], "archived Unicode license")
 
         for name, spec in SPEC["sources"].items():
             with urlopen(spec["url"], timeout=90) as src:
@@ -39,6 +37,10 @@ def main():
             directory.mkdir()
             if "files" in spec:
                 with ZipFile(io.BytesIO(archive)) as ucd:
+                    notice = spec["notice"]
+                    original = verify(ucd.read(notice["archivePath"]), notice["sha256"], notice["file"])
+                    if original != (notices / notice["file"]).read_bytes():
+                        raise ValueError(f"Archived release notice differs from the original: {name}")
                     for file, digest in spec["files"].items():
                         target = directory / file
                         target.parent.mkdir(parents=True, exist_ok=True)
