@@ -41,9 +41,12 @@ function canonicalUrl(raw) {
 }
 function reviewModelResponse(response, receipt, binding, councilEvidence) {
   const digestFields = ['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256'];
-  const verified = Boolean(receipt && ['provider', 'model', 'modelVersion', 'executedAt'].every(
+  const verified = Boolean(receipt && ['provider', 'model', 'modelVersion', 'promptVersion', 'executedAt'].every(
     key => typeof receipt[key] === 'string' && receipt[key].trim()
-  ) && Number.isFinite(Date.parse(receipt.executedAt))
+  ) && receipt.provider === binding.requestedProvider
+    && receipt.model === binding.requestedModel
+    && receipt.promptVersion === binding.promptVersion
+    && Number.isFinite(Date.parse(receipt.executedAt))
     && digestFields.every(key => /^[a-f0-9]{64}$/.test(receipt[key]) && receipt[key] === binding[key])
     && receipt.responseSha256 === hash(json(response)));
   const {evaluateProposalValueAdd}=require('../server/ai/proposalBriefValueAdd');
@@ -237,7 +240,7 @@ function prepareModelReview(raw,outDir,councilEvidence,mapHints) {
   const schema='server/ai/schema/proposalBrief.v1.schema.json',rubric='server/ai/proposalBriefValueAddCore.js';
   const receipt={status:'blocked',executedAt:null,providerConfigured:service.isAvailable(),requestedProvider:service.activeProviderName(),requestedModel:configuredModel(),actualModelVersion:null,responseSha256:null,...binding,promptVersion:PROMPT_VERSION,schemaSha256:fileHash(schema),rubricSha256:fileHash(rubric),
     rubricDimensions:['Methodentreue','Erhalt amtlicher Fakten','Zusätzlicher Erkenntniswert','Politische Anschlussfähigkeit','Maßnahmenqualität','Quellenauflösbarkeit'],
-    requiredProviderReceiptFields:['provider','model','modelVersion','executedAt','inputSha256','promptSha256','schemaSha256','rubricSha256','responseSha256'],
+    requiredProviderReceiptFields:['provider','model','modelVersion','promptVersion','executedAt','inputSha256','promptSha256','schemaSha256','rubricSha256','responseSha256'],
     blockingReasons:['This input receipt precedes provider execution.', councilEvidence
       ? 'The council-source comparison still requires model evaluation and independent map and subject review.'
       : 'No real positive political/map evidence exists for this generation.']};

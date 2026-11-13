@@ -251,6 +251,7 @@ test.each([
   }, 2) + '\n';
   const binding = Object.fromEntries(['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256']
     .map(key => [key, 'a'.repeat(64)]));
+  Object.assign(binding, {requestedProvider:'gemini', requestedModel:'test-model', promptVersion:'test-prompt-v1'});
   const receipt = {
     ...binding,
     provider: 'gemini',
@@ -507,6 +508,7 @@ test('review of researched Hbf evidence requires the bound sources and search tr
   Object.assign(proposal.filingReadinessVerdict, { status: 'blocked', politicalResearchStatus: 'complete' });
   const binding = Object.fromEntries(['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256']
     .map(key => [key, 'a'.repeat(64)]));
+  Object.assign(binding, {requestedProvider:'gemini', requestedModel:'unit-fixture', promptVersion:'test-prompt-v1'});
   const review = () => {
     const canonical = JSON.stringify(proposal, (_key, value) => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
