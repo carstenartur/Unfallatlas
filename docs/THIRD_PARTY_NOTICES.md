@@ -75,7 +75,9 @@ and records their paths and SHA-256 digests. For `leaflet-draw` and
 
 The build verifies three DOCX module paths against the exact, reproduced IIFE
 and the supplier lock. It publishes `fflate@0.8.3`, `nanoid@6.0.2` and their
-complete MIT notices. The PDF source map and PDF build lock identify 27
+complete MIT notices. The DOCX notice also lists nine generated modules from
+the pinned Rolldown and Oxc runtimes, including Oxc’s Babel attribution.
+The PDF source map and PDF build lock identify 27
 embedded npm packages, including the remapped `xmldoc` module. The PDF asset
 also contains the modified SVG-to-PDFKit source file, which has a stable
 CycloneDX reference and pinned source and MIT license hashes. `png-js@2.0.0`

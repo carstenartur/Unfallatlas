@@ -111,6 +111,15 @@ entpackten Hersteller-Locks und die unveränderten MIT-Texte. Notice und
 CycloneDX binden `fflate@0.8.3` und `nanoid@6.0.2` als enthaltene Komponenten
 an `vendor/export/docx.js`.
 
+Zusätzlich nennt das ausgelieferte IIFE neun virtuelle Laufzeitmodule.
+Rolldown 1.2.15 erzeugt den CommonJS-Helfer aus `runtime-base.js`; acht
+weitere Helfer stammen aus `@oxc-project/runtime@0.155.0`. Der Herkunftsnachweis
+verknüpft jeden Modulnamen mit dem Hash der unveränderten Quelldatei.
+Die Hashes beziehen sich auf die Quellen vor der Minifizierung. Der
+Herstellerbuild prüft diese Originaldateien und die ausgelieferten
+Lizenztexte einschließlich der von Rolldown und Oxc benannten Drittanbieter.
+Der separate Abgleich des vollständigen IIFE prüft die erzeugten Bytes.
+
 Nach `npm ci` im Repository reproduziert der folgende Befehl den Vergleich.
 Als optionales Argument akzeptiert er ein bereits heruntergeladenes
 Upstream-Quellarchiv. Die Prüfsummen für Archiv, Lockfile und Bundle werden
