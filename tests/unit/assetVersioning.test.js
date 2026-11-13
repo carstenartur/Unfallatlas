@@ -61,7 +61,7 @@ describe('Werkbank deployment asset versions', () => {
   });
 
   test('loads the published OSM road context for applications', () => {
-    expect(html).toContain('js/ua.context_layers.js?v=2026-11-11-osm-road-context"');
+    expect(html).toContain('js/ua.context_layers.js?v=2026-11-13-road-risk-quality"');
   });
 
   test('loads the documented cost model and the source-checked renderers', () => {
@@ -189,7 +189,7 @@ describe('Werkbank deployment asset versions', () => {
 test.each(['ua.popup_context',
   'ua.elevation_provider', 'ua.source_manifest', 'ua.traffic_provider'])('context semantics refreshes browser cache for %s', name => {
   const html = fs.readFileSync(path.resolve(__dirname, '../../werkbank_v2.html'), 'utf8');
-  const version = name === 'ua.elevation_provider' ? '2026-11-13-road-exclusions-display' : '2026-11-08-context';
+  const version = ['ua.elevation_provider', 'ua.popup_context'].includes(name) ? '2026-11-13-road-risk-quality' : '2026-11-08-context';
   expect(html.includes(`js/${name}.js?v=${version}`)).toBe(true);
 });
 test('dynamic export provenance invalidates the old accident-only implementation', () => {
