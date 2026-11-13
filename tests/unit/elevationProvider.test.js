@@ -427,3 +427,22 @@ describe('reviewed selected-way elevation evidence', () => {
     expect(elevation.projectSelectedWayEvidence({road_slope_percent:0}, {road_slope_percent:9,road_slope_source_id:'different'})).toEqual({road_slope_percent:0});
   });
 });
+
+test.each([
+  [{ road_slope_uncertainty_reasons: ['bridge_surface_not_represented_by_dtm,non_ground_osm_layer'] },
+    ['bridge_surface_not_represented_by_dtm', 'non_ground_osm_layer'], 'Brückenoberfläche'],
+  [{ road_slope_missing_reason: 'bridge_transition_surface_not_represented_by_dtm' },
+    ['bridge_transition_surface_not_represented_by_dtm'], 'Übergang an eine kartierte Brücke'],
+])('explains the published structural exclusion on its own and alongside a regional terrain value', (fields, reasons, label) => {
+  const excluded = { ...fields, road_slope_source_id: 'hannover.dgm1', road_slope_source: 'DGM1',
+    road_slope_resolution_m: 1, road_slope_reliable_for_road: false };
+  const missing = elevation.presentContext(excluded);
+  expect(missing.valuePresent).toBe(false);
+  expect(missing.uncertaintyReasons).toEqual(reasons);
+  expect(missing.statement).toContain(label);
+  expect(missing.statement).not.toMatch(/\d\s*%/);
+  const coarse = elevation.presentContext({ ...excluded, slope_percent: 3, slope_source: 'SRTM Local Tiles', slope_resolution_m: 30 });
+  expect(coarse.statement).toContain('2–4 %');
+  expect(coarse.statement).toContain(label);
+  expect(coarse.sourceId).toBe('global.srtm30');
+});

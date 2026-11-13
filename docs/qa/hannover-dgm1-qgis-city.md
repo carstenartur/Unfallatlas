@@ -1,6 +1,35 @@
-# Hannover – DGM1-Profile und Brückenübergänge am 11. November 2026
+# Hannover – DGM1-Profile und Brückenübergänge
 
 [Öffentliche Vergleichstabelle mit allen 292 interpolierten Geländehöhen](hannover-dgm1-profile.html)
+
+## Vergleich mit dem amtlichen Landes-DGM1 am 13. November 2026
+
+Für sechs OSM-Abschnitte wurden alle fünf kommunalen Originalarchive erneut mit ihren SHA-256-Prüfsummen abgeglichen. Die unabhängige QGIS-Auswertung reproduzierte alle 292 veröffentlichten Geländehöhen bytegenau. Vier zusätzlich geladene GeoTIFF-Kacheln des LGLN enthalten dieselben Abschnitte. Jede originale Kachel-XML nennt den 18.04.2016 im Feld `AKTUALITAET` und `DE_DHHN2016_NH` als vertikalen Bezug. Das Datum bezeichnet den Datenstand der Kachel. Ein genauer Flugtag ist in diesen Metadaten nicht ausgewiesen. Im kommunalen DGM1 der Befliegung 2010 ist der vertikale Bezug weiterhin offen. Die Neigung wird aus den Höhenunterschieden **innerhalb** eines Bestands berechnet. Ein absoluter Höhenversatz zwischen den Erhebungen lässt sich daraus nicht bestimmen. [Kommunales Produktblatt](https://www.hannover.de/content/download/641402/file/Produktblatt_DGM.pdf) · [Landes-DGM1](https://dgm.stac.lgln.niedersachsen.de/collections/dgm1) · [Kachel-URLs und Datei-Prüfsummen](../../config/hannover-dgm1-lgln-reference-tiles.json)
+
+| OSM-Weg | QGIS Stadt 2010 | QGIS Land 2016 | Öffentliche Hannover-Kacheln am 13.11., 07:15 UTC |
+|---|---:|---:|---|
+| Friedrichswall, 4697937 | +0,022 % | −0,042 % | 0,0 %, Qualität hoch |
+| Hardenbergstraße, 6138345 | +2,801 % | +2,963 % | +2,8 %, Qualität hoch |
+| Am Lindener Berge, 23101052 | −4,403 % | −4,520 % | −4,4 %, Qualität hoch |
+| Am Lindener Berge, 24855098 | −23,307 % | −15,128 % | −26,1 %, Qualität niedrig, Unsicherheit ±19,1 Prozentpunkte |
+| Friederikenbrücke, 24011492 | ≈ 0 % | −0,550 % | Fahrbahnzahl wegen Brücke ausgeschlossen |
+| B 6, 23838108 | +22,266 % | +7,044 % | Fahrbahnzahl wegen Brückenübergang ausgeschlossen |
+
+Die QGIS-Spalten verwenden dasselbe ±50-m-Fenster mit 1 m Abtastabstand, auf die vorhandene OSM-Linie begrenzt. Zusätzlich wurden beide Zeitstände in ±20 m und ±50 m mit 1, 2 und 5 m Abstand ausgewertet. Bei der Hardenbergstraße bleibt der Anstieg über diese Varianten zwischen +2,766 und +2,968 %. Beim kurzen Lindener Abschnitt reichen die Geländewerte über beide Zeitstände und alle Abstände von −33,944 bis −15,128 %. Die stabile Richtung allein trägt dort keine belastbare Angabe für die heutige Fahrbahn. Die zwei Geländemodelle liefern auch keine Messung der Brückendecks. Ein Vor-Ort-Aufmaß der heutigen Fahrbahn liegt für diese Fälle nicht vor. [292 Höhenpaare, 36 Varianten und Profilprüfsummen](hannover-dgm1-survey-comparison.json)
+
+Für jeden Weg enthält die Vergleichsdatei die Landes-Kachel-IDs, die 1-m-Reihe im großen Fenster und ihren SHA-256. Die Prüfsumme gilt für UTF-8-Zeilen `Wegstation,Stadthöhe,Landeshöhe` mit 3, 4 und 4 Dezimalstellen und je einem LF. Die getrennten Hashes für die beiden Quellenkataloge und beide Geometriedateien binden sämtliche Eingaben. Die vier Raster und XML-Begleitdateien des LGLN werden anhand der URLs im Katalog in ein lokales Verzeichnis geladen. Der folgende Aufruf prüft deren Hashes, Höhenbezug und Kacheldatenstand und erzeugt den Vergleich erneut.
+
+```sh
+/usr/bin/python3 scripts/qa-hannover-dgm1-qgis.py \
+  --archives /pfad/zu/kommunalen-originalarchiven \
+  --state-tiles /pfad/zu/lgln-originaldateien \
+  --comparison /tmp/hannover-dgm1-survey-comparison.json
+cmp /tmp/hannover-dgm1-survey-comparison.json docs/qa/hannover-dgm1-survey-comparison.json
+```
+
+Die öffentliche Metadatendatei, der Way-Index und die drei zuständigen Gzip-Kacheln waren beim HTTP-Abruf bytegleich mit dem Git-Stand `2b5a3bc6`. Für Straßenprofile nennt die Metadatendatei `hannover.dgm1`, 64.246 nutzbare von 81.678 Kachelzeilen und 79.158 eindeutige Wege. Wege an Kachelgrenzen können mehrfach vorkommen. `global.srtm30` beschreibt separat das Gelände im Umfeld. [Metadaten](https://carstenartur.github.io/Unfallatlas/out/output_all_years_hannover.enrichment.meta.json.gz) · [Index](https://carstenartur.github.io/Unfallatlas/out/ctxtiles/hannover/index.json.gz) · [Innenstadt](https://carstenartur.github.io/Unfallatlas/out/ctxtiles/hannover/4317/2692.json.gz) · [Lindener Berg](https://carstenartur.github.io/Unfallatlas/out/ctxtiles/hannover/4316/2692.json.gz) · [B 6](https://carstenartur.github.io/Unfallatlas/out/ctxtiles/hannover/4316/2691.json.gz)
+
+Landesgeländehöhen und abgeleitete Neigungen: Quelle: LGLN 2026, CC BY 4.0. Stadtgeländehöhen: Bereich Geoinformation – LH Hannover (2026), CC BY 4.0. Weggeometrien: © OpenStreetMap contributors, ODbL 1.0. Interpolation, Regressionsrechnung und Vergleich sind eigene Bearbeitungen.
 
 ## Unabhängige Berechnung mit QGIS
 

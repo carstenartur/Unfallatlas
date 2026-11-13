@@ -125,15 +125,17 @@ function clearSlopeFields(row) {
   for (const field of SLOPE_FIELDS) delete row[field];
 }
 
-function normalizedReason(record) {
-  if (!record || typeof record !== 'object') return null;
-  if (record.status === 'unavailable') return record.reasonCode || record.reason || 'unavailable';
+function exclusionReasons(record) {
+  if (!record || typeof record !== 'object') return [];
+  if (record.status === 'unavailable') return [record.reasonCode || record.reason || 'unavailable'];
   const result = record.result;
-  if (!result || result.usable !== false) return null;
-  const reasons = Array.isArray(result.uncertaintyReasons)
-    ? result.uncertaintyReasons.filter(Boolean)
-    : [];
-  return reasons.length ? reasons.join(',') : 'unusable';
+  if (!result || result.usable !== false) return [];
+  const reasons = Array.isArray(result.uncertaintyReasons) ? result.uncertaintyReasons.filter(Boolean) : [];
+  return reasons.length ? reasons : ['unusable'];
+}
+
+function normalizedReason(record) {
+  return exclusionReasons(record).join(',') || null;
 }
 
 function selectPrimaryProfile(profile) {
@@ -176,13 +178,10 @@ function applyProfileToRow(row, profile, descriptor) {
 
   const selected = selectPrimaryProfile(profile);
   if (!selected) {
-    const reasons = PRIMARY_WINDOWS
-      .map(windowMeters => normalizedReason(profile.windows[String(windowMeters)]))
-      .filter(Boolean);
-    row.road_slope_missing_reason = reasons.length
-      ? [...new Set(reasons)].join(';')
-      : 'no_usable_dgm1_profile';
-    row.road_slope_uncertainty_reasons = [...new Set(reasons)];
+    const windows = PRIMARY_WINDOWS.map(windowMeters => exclusionReasons(profile.windows[String(windowMeters)]));
+    const labels = [...new Set(windows.filter(reasons => reasons.length).map(reasons => reasons.join(',')))];
+    row.road_slope_missing_reason = labels.join(';') || 'no_usable_dgm1_profile';
+    row.road_slope_uncertainty_reasons = [...new Set(windows.flat())];
     return { applied: false, reason: row.road_slope_missing_reason };
   }
 
