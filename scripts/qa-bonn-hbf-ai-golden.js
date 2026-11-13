@@ -49,9 +49,17 @@ function reviewModelResponse(response, receipt, binding) {
   const {evaluateProposalValueAdd}=require('../server/ai/proposalBriefValueAdd');
   const rubric=evaluateProposalValueAdd(response);
   const schemaValidation=require('../server/ai/aiAssessmentServiceV2').validateAgainstMode(response,'proposal-brief',{normalizeProposal:false});
-  const blockerCasePassed = verified && schemaValidation.valid && rubric.valid && response?.filingReadinessVerdict?.status === 'blocked';
+  // The captured Bonn baseline has neither executed searches nor verified proceedings.
+  const politicalResearch = response?.politicalResearchLog;
+  const politicalBlockerMaintained = politicalResearch?.status === 'blocked'
+    && politicalResearch.sourceStatus === 'not-searched'
+    && Array.isArray(politicalResearch.documentedQueries) && politicalResearch.documentedQueries.length === 0
+    && Array.isArray(politicalResearch.evidenceRefs) && politicalResearch.evidenceRefs.length === 0;
+  const blockerCasePassed = verified && schemaValidation.valid && rubric.valid
+    && response?.filingReadinessVerdict?.status === 'blocked' && politicalBlockerMaintained;
   return {status:'blocked',providerReceiptVerified:verified,blockerCasePassed,schemaValidation,rubric,
     blockingReasons:[...(!verified?['Missing or mismatched actual provider receipt']:[]),
+      ...(!politicalBlockerMaintained ? ['The unsearched Golden requires blocked political research, an empty query log and no political evidence references.'] : []),
       'This case has no completed political research or four-mode live map inspection; it cannot establish positive release approval.'],
     receiptTrust:'Locally supplied receipt claims; provider execution is not independently authenticated by this offline harness.'};
 }

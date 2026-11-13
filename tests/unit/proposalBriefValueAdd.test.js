@@ -1,5 +1,7 @@
 'use strict';
 
+const { createHash } = require('node:crypto');
+const { reviewModelResponse } = require('../../scripts/qa-bonn-hbf-ai-golden.js');
 const proposalSchema = require('../../server/ai/schema/proposalBrief.v1.schema.json');
 const service = require('../../server/ai/aiAssessmentServiceV2.js');
 const valueAdd = require('../../server/ai/proposalBriefValueAdd.js');
@@ -213,6 +215,58 @@ function completeValueAddProposal() {
     },
   };
 }
+
+test.each([
+  ['honest blocker', {}, true],
+  ['completed research', {
+    status: 'complete',
+    documentedQueries: [{ query: 'Bonn Hauptbahnhof', source: 'Bonn RIS' }],
+    evidenceRefs: ['https://example.test/proceeding'],
+  }, false],
+  ['completed source status', { sourceStatus: 'complete' }, false],
+  ['unsupported reference', { evidenceRefs: ['https://example.test/proceeding'] }, false],
+  ['unsupported query', { documentedQueries: [{ query: 'Bonn Hauptbahnhof', source: 'Bonn RIS' }] }, false],
+])('Bonn Hbf Golden checks the political record for %s', (_name, research, expected) => {
+  const proposal = completeValueAddProposal();
+  proposal.politicalResearchLog = {
+    status: 'blocked',
+    sourceStatus: 'not-searched',
+    documentedQueries: [],
+    evidenceRefs: [],
+    comparisonToExistingActivity: 'Die politische Vorbefassung muss noch geprüft werden.',
+    remainingChecks: ['Das zuständige Ratsinformationssystem prüfen.'],
+    ...research,
+  };
+  proposal.filingReadinessVerdict = {
+    status: 'blocked',
+    analysisQaStatus: 'blocked',
+    politicalResearchStatus: proposal.politicalResearchLog.status,
+    reasoning: 'Die Kartenevidenz fehlt.',
+    blockingReasons: ['Vier Kartenmodi sind noch nicht geprüft.'],
+  };
+
+  const canonical = JSON.stringify(proposal, (_key, value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]));
+  }, 2) + '\n';
+  const binding = Object.fromEntries(['inputSha256', 'promptSha256', 'schemaSha256', 'rubricSha256']
+    .map(key => [key, 'a'.repeat(64)]));
+  const receipt = {
+    ...binding,
+    provider: 'gemini',
+    model: 'test-model',
+    modelVersion: 'test-version',
+    executedAt: '2026-11-13T00:00:00Z',
+    responseSha256: createHash('sha256').update(canonical).digest('hex'),
+  };
+
+  expect(reviewModelResponse(proposal, receipt, binding)).toMatchObject({
+    providerReceiptVerified: true,
+    schemaValidation: { valid: true },
+    rubric: { valid: true },
+    blockerCasePassed: expected,
+  });
+});
 
 const snapshotUrl = 'https://www.bonn.sitzung-online.de/public/vo020?VOLFDNR=456';
 const snapshotHash = 'b'.repeat(64);
