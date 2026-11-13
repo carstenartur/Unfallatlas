@@ -591,7 +591,8 @@ function buildOsmDataset(fc, ways, opts) {
   const dataset = {
     source:          o.source      || 'OpenStreetMap (Overpass)',
     producerVersion: o.producerVersion || PRODUCER_VERSION,
-    extractDate:     o.extractDate || new Date().toISOString().slice(0, 10),
+    ...(o.extractDate && { extractDate: o.extractDate }),
+    ...(o.osmBaseTimeRange && { osmBaseTimeRange: o.osmBaseTimeRange }),
     coverage:        'full',
     ...(o.retrievedAt && { retrievedAt: o.retrievedAt, distributionUrl: o.routeDistributionUrl }),
     ways:            wayTable,
@@ -800,8 +801,23 @@ async function produceCity(repoRoot, citySlug, opts) {
   // instead of (all raw responses) + merged copy + parsed copy.
   const wayMap = new Map();   // wayId (string) → slim way object
   let totalElements = 0;
+  let allTilesHaveBaseTime = true;
+  let earliestBaseTime;
+  let latestBaseTime;
 
   async function ingestTile(resp) {
+    // A retried or subdivided parent is never ingested. Only successful leaf
+    // responses contribute, including empty tiles. A partial range is unknown.
+    const timestamp = resp?.osm3s?.timestamp_osm_base;
+    const instant = typeof timestamp === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(timestamp)
+      ? Date.parse(timestamp) : NaN;
+    const iso = Number.isFinite(instant) ? new Date(instant).toISOString() : null;
+    if (!iso || iso.slice(0, 19) !== timestamp.slice(0, 19)) {
+      allTilesHaveBaseTime = false;
+    } else {
+      if (!earliestBaseTime || iso < earliestBaseTime) earliestBaseTime = iso;
+      if (!latestBaseTime || iso > latestBaseTime) latestBaseTime = iso;
+    }
     if (o.includeElevationStructureTags && (
       !Array.isArray(resp?.elements) || resp.remark || !resp.elements.every(isCompleteOverpassWay)
     )) {
@@ -828,9 +844,15 @@ async function produceCity(repoRoot, citySlug, opts) {
   const endpoint = new URL(o.endpoint || process.env.OVERPASS_ENDPOINT || DEFAULT_OVERPASS_ENDPOINT);
   const routeDistributionUrl = `${endpoint.origin}${endpoint.pathname}`;
 
+  const osmBaseTimeRange = allTilesHaveBaseTime && earliestBaseTime && {
+    from: earliestBaseTime, to: latestBaseTime,
+  };
+  const sameBaseDay = osmBaseTimeRange && earliestBaseTime.slice(0, 10) === latestBaseTime.slice(0, 10);
+
   const dataset = buildOsmDataset(fc, ways, {
     maxDistanceM: o.maxDistanceM,
-    extractDate:  o.extractDate || retrievedAt.slice(0, 10),
+    osmBaseTimeRange,
+    extractDate: sameBaseDay ? earliestBaseTime.slice(0, 10) : undefined,
     retrievedAt,
     includeTrafficRouteTags: o.includeTrafficRouteTags,
     includeElevationStructureTags: o.includeElevationStructureTags,

@@ -84,13 +84,18 @@ function buildTrafficDataset(osmWays, options) {
   const opts = options || {};
   const lookup = opts.proxyClassLookup || proxyClassFromHighway;
   const source = opts.source || DEFAULT_SOURCE;
+  const baseTime = opts.osmSnapshot?.osmBaseTimeRange;
+  const temporalCoverage = baseTime && (baseTime.from === baseTime.to
+    ? baseTime.from : baseTime.from + '/' + baseTime.to);
+  const extractDate = baseTime && baseTime.from.slice(0, 10) === baseTime.to.slice(0, 10)
+    ? baseTime.from.slice(0, 10) : opts.extractDate;
   const dataset = {
     schemaVersion: 2,
     measurementType: 'proxy',
     source,
     datasetVersion: opts.datasetVersion || PRODUCER_VERSION,
     producerVersion: PRODUCER_VERSION,
-    extractDate: opts.extractDate || new Date().toISOString().slice(0, 10),
+    ...(extractDate && { extractDate }),
     provenance: {
       sourceId: 'traffic.proxy.osm-highway-class',
       publisher: 'OpenStreetMap contributors',
@@ -98,7 +103,7 @@ function buildTrafficDataset(osmWays, options) {
       datasetUrl: 'https://www.openstreetmap.org/',
       ...(opts.osmSnapshot?.distributionUrl && { distributionUrl: opts.osmSnapshot.distributionUrl }),
       ...(opts.osmSnapshot?.retrievedAt && { retrievedAt: opts.osmSnapshot.retrievedAt }),
-      ...(opts.osmSnapshot?.extractDate && { temporalCoverage: opts.osmSnapshot.extractDate }),
+      ...(temporalCoverage && { temporalCoverage }),
       licenseId: 'ODbL-1.0',
       licenseName: 'Open Data Commons Open Database License 1.0',
       licenseUrl: 'https://opendatacommons.org/licenses/odbl/1-0/',
@@ -161,7 +166,6 @@ function produceCity(repoRoot, citySlug, options) {
     source: opts.source,
     datasetVersion: opts.datasetVersion,
     confidence: opts.confidence,
-    extractDate: osm.extractDate || opts.extractDate,
     proxyClassLookup: opts.proxyClassLookup,
   });
   fs.mkdirSync(outDir, { recursive: true });

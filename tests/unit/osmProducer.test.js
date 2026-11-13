@@ -312,10 +312,31 @@ describe('osm_producer — produceCity (end-to-end with stubbed Overpass)', () =
     expect(written.source).toBe('OpenStreetMap (Overpass)');
     expect(written.distributionUrl).toBe('https://replica.example.org/overpass');
     expect(Date.parse(written.retrievedAt)).toBeGreaterThan(0);
-    expect(written.extractDate).toBe('2026-05-07');
+    expect(written).not.toHaveProperty('extractDate');
+    expect(written).not.toHaveProperty('osmBaseTimeRange');
     expect(written.ways['100']).toEqual({ highway: 'residential', maxspeed: 30 });
     expect(written.index).toHaveLength(2);
     expect(written.index[0].way_id).toBe('100');
+  });
+
+  test.each([
+    ['delayed replica', Array(4).fill('2024-01-05T07:05:01Z'), '2024-01-05T07:05:01.000Z', '2024-01-05T07:05:01.000Z'],
+    ['different tiles', ['2024-01-05T00:01:00Z', '2024-01-04T23:58:01Z', '2024-01-05T00:07:03Z', '2024-01-05T00:02:00Z'],
+      '2024-01-04T23:58:01.000Z', '2024-01-05T00:07:03.000Z'],
+    ['missing tile timestamp', ['2024-01-05T07:05:01Z', null, '2024-01-05T07:05:01Z', '2024-01-05T07:05:01Z'], null, null],
+    ['invalid tile timestamp', ['2024-01-05T07:05:01Z', '2024-02-31T00:00:00Z', '2024-01-05T07:05:01Z', '2024-01-05T07:05:01Z'], null, null],
+  ])('uses source times from every successful tile (%s)', async (_label, times, from, to) => {
+    fs.writeFileSync(path.join(tmpRoot, 'out', 'output_all_years_bonn.geojson'), JSON.stringify(fc([pt(1, 7, 50)])));
+    let i = 0;
+    const fetchOverpass = async () => ({ osm3s: { timestamp_osm_base: times[i++] }, elements: [] });
+    const { outFile } = await osm.produceCity(tmpRoot, 'bonn', { outDir: tmpRoot, fetchOverpass });
+    const data = JSON.parse(fs.readFileSync(outFile));
+    expect(i).toBe(4);
+    expect(Date.parse(data.retrievedAt)).toBeGreaterThan(0);
+    if (from) expect(data.osmBaseTimeRange).toEqual({ from, to });
+    else expect(data).not.toHaveProperty('osmBaseTimeRange');
+    if (from && from.slice(0, 10) === to.slice(0, 10)) expect(data.extractDate).toBe(from.slice(0, 10));
+    else expect(data).not.toHaveProperty('extractDate');
   });
 
   test('skips cleanly when the city geojson is missing', async () => {

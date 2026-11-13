@@ -158,10 +158,12 @@ und eindeutige Parallel- und Richtungsbezüge erforderlich.
 Die [Düsseldorfer Radzählreihe](duesseldorf-bicycle-hourly-provider.md)
 ist auf den amtlichen Zählpunkt und seinen belegten Radweg begrenzt.
 
-Neue OSM-Abfragen speichern die verwendete Overpass-Adresse sowie den
-tatsächlichen Zeitpunkt nach Abschluss des letzten Teilabrufs. Ein neuer
-Verkehrsproxy übernimmt diese Angaben und den Stand des OSM-Abzugs. Werden
-ältere Dateien ohne Abrufnachweis einzeln verarbeitet, bleiben die
-fehlenden Herkunftsfelder offen. Für die Auslieferung dieser zusätzlichen
-Quellenangaben ist ein Kontextdatenlauf mit den neuen Erzeugerversionen
-erforderlich.
+Neue OSM-Abfragen speichern die verwendete Overpass-Adresse und den
+Abrufzeitpunkt nach der letzten erfolgreichen Kachelabfrage. Vom Abruf zu
+unterscheiden ist der Stand des OSM-Replikats. Der Erzeuger liest dafür
+`osm3s.timestamp_osm_base` aus jeder erfolgreichen Kachelantwort. Der
+Verkehrsproxy übernimmt den angegebenen Zeitpunkt bzw. die Spanne von der
+frühesten bis zur spätesten Quellzeit. Fehlt auch nur ein gültiger Zeitstempel,
+bleibt der Datenstand offen. Ein historisches `extractDate` ohne diese Nachweise
+liefert keinen Zeitraum. Für die Auslieferung dieser Quellenangaben ist ein
+neuer Kontextdatenlauf erforderlich.
