@@ -166,7 +166,6 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
       'readme-demo-candidate',
       'location-brief-golden',
       'document-render',
-      'word-compatibility-release',
       'context-data-e2e',
       'documentation-live',
       'release-site',
@@ -199,17 +198,27 @@ describe('GitHub Actions delegates repository build and QA to Maven', () => {
     expect(acceptance).toBeGreaterThan(commitRelease);
     expect(firstRemoteMutation).toBeGreaterThan(acceptance);
     expect(acceptanceStep).toContain("PLAYWRIGHT_INSTALL_SYSTEM_DEPS: '1'");
-    expect(acceptanceStep).toContain(
-      "WORD_COMPATIBILITY_PROFILE: ${{ !inputs.dry_run && ',word-compatibility-release' || '' }}"
-    );
-    expect(acceptanceStep).toContain(
-      '"-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render${WORD_COMPATIBILITY_PROFILE}"'
-    );
+    const profiles = 'release-site,pages,e2e,system-it,location-brief-golden,document-render';
+    expect(acceptanceStep).toContain(`-P${profiles}`);
+    expect(acceptanceStep).toContain(`profiles=${profiles}`);
+    expect(acceptanceStep).not.toContain('WORD_COMPATIBILITY_PROFILE');
     expect(acceptanceStep).toContain("'-Dfailsafe.includes=**/*IT.java'");
     expect(acceptanceStep).toContain('| tee out/qa/maven-release-acceptance.log');
     expect(acceptanceStep).not.toMatch(
       /\n\s+if:\s*\$\{\{\s*!?inputs\.dry_run\s*\}\}/
     );
+  });
+
+  test('the shared document gate runs automatic DOCX compatibility for both release modes', () => {
+    const runner = fs.readFileSync(path.join(ROOT, 'scripts/run-document-render-qa.js'), 'utf8');
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    const workflow = workflowSource('rendered-document-poppler.yml');
+
+    expect(runner).toContain("runNode('scripts/qa-docx-compatibility.js');");
+    expect(runner.indexOf("runNode('scripts/qa-docx-compatibility.js');"))
+      .toBeGreaterThan(runner.indexOf("runNode('scripts/qa-numbered-appendix-rendered.js');"));
+    expect(pom).not.toContain('<id>word-compatibility-release</id>');
+    expect(workflow).toContain('out/qa/docx-compatibility/');
   });
 
   test('release diagnostics survive failures and dry runs cannot mutate remote release state', () => {

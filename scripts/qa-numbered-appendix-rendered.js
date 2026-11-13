@@ -578,6 +578,34 @@ function addMapEvidence(model, contract, captionBindings) {
   }));
   return model;
 }
+
+async function auditAppendixPdf(file, format, observedSourceHash, contract, rows, outDir) {
+  const model = poppler.extractPopplerDocument(file, {
+    documentId: `release-numbered-${format}`,
+    contract,
+    verifiedSourceManifestHash: observedSourceHash,
+  });
+  const mapBindings = await verifyRenderedMapPixels(model, contract);
+  const captionBindings = verifyRenderedMapCaptions(model, contract, format);
+  addMapEvidence(model, contract, captionBindings);
+  const table = reconstructAppendixTables(model, rows);
+  writeJson(path.join(outDir, 'rendered-document.json'), model);
+  const report = audit.assertRenderedDocument(model);
+  writeJson(path.join(outDir, 'audit.json'), report);
+  const pages = libreOffice.renderPdfPages(file, path.join(outDir, 'pages'));
+  if (pages.length !== model.pages.length) throw new Error('Final page image count differs from independently extracted model');
+  return {
+    format,
+    sourceManifestHash: observedSourceHash,
+    pdfSha256: sha256(fs.readFileSync(file)),
+    pages: model.pages.length,
+    ...table,
+    mapBindings,
+    captionBindings,
+    audit: report,
+  };
+}
+
 async function runReleaseQa(options = {}) {
   const generated = await generateReleaseEvidence(options),
     {
@@ -589,34 +617,10 @@ async function runReleaseQa(options = {}) {
     wordFile = path.join(outDir, 'appendix.docx');
   const nativeHash = await verifyPdfManifest(nativeFile, contract.expectedSourceManifestHash),
     wordHash = await verifyDocxManifest(wordFile, contract.expectedSourceManifestHash);
-  const conversion = libreOffice.main(['--docx', wordFile, '--out-dir', path.join(outDir, 'docx'), '--document-id', 'release-numbered-bonn', '--no-audit']);
+  libreOffice.main(['--docx', wordFile, '--out-dir', path.join(outDir, 'docx'), '--document-id', 'release-numbered-bonn', '--no-audit']);
   const results = [];
   for (const [format, file, observed] of [['native-pdf', nativeFile, nativeHash], ['docx-pdf', path.join(outDir, 'docx', 'converted.pdf'), wordHash]]) {
-    const model = poppler.extractPopplerDocument(file, {
-      documentId: `release-numbered-${format}`,
-      contract,
-      verifiedSourceManifestHash: observed
-    });
-    const mapBindings = await verifyRenderedMapPixels(model, contract);
-    const captionBindings = verifyRenderedMapCaptions(model, contract, format);
-    addMapEvidence(model, contract, captionBindings);
-    const rows = reconstructAppendixTables(model, cohorts.completeEvidenceCohort.rows);
-    const dir = path.join(outDir, format);
-    writeJson(path.join(dir, 'rendered-document.json'), model);
-    const report = audit.assertRenderedDocument(model);
-    writeJson(path.join(dir, 'audit.json'), report);
-    const pages = libreOffice.renderPdfPages(file, path.join(dir, 'pages'));
-    if (pages.length !== model.pages.length) throw new Error('Final page image count differs from independently extracted model');
-    results.push({
-      format,
-      sourceManifestHash: observed,
-      pdfSha256: sha256(fs.readFileSync(file)),
-      pages: model.pages.length,
-      ...rows,
-      mapBindings,
-      captionBindings,
-      audit: report
-    });
+    results.push(await auditAppendixPdf(file, format, observed, contract, cohorts.completeEvidenceCohort.rows, path.join(outDir, format)));
   }
   const artifactHashes = Object.fromEntries(['appendix.docx', 'appendix.pdf', 'appendix.csv', 'appendix.geojson', 'appendix.zip', 'source-manifest.json', 'cohorts.json', 'maps.json', 'release-contract.json'].map(file => [file, sha256(fs.readFileSync(path.join(outDir, file)))]));
   const receipt = {
@@ -654,5 +658,6 @@ module.exports = {
   verifyRenderedMapPixels,
   verifyRenderedMapCaptions,
   addMapEvidence,
+  auditAppendixPdf,
   runReleaseQa
 };

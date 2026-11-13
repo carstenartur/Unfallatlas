@@ -96,6 +96,22 @@ describe('LibreOffice DOCX rendered-artifact adapter', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
+  test('saves a separate DOCX through the Writer OOXML filter', () => {
+    const original = writeDocx(directory);
+    const outDir = path.join(directory, 'saved');
+    const spawnSync = jest.fn((_command, args) => {
+      if (args.includes('--version')) return { status: 0, stdout: 'LibreOffice test' };
+      fs.copyFileSync(original, path.join(args[args.indexOf('--outdir') + 1], 'sample.docx'));
+      return { status: 0, stdout: 'Writer saved sample.docx' };
+    });
+
+    const result = adapter.saveDocxCopy(original, outDir, { spawnSync });
+
+    expect(result.docxPath).not.toBe(original);
+    expect(result.args).toEqual(expect.arrayContaining(['--convert-to', 'docx:Office Open XML Text']));
+    expect(fs.readFileSync(result.docxPath)).toEqual(fs.readFileSync(original));
+  });
+
   test('requires the DOCX and output directory arguments', () => {
     expect(() => adapter.parseArgs([])).toThrow(/--docx is required/);
     expect(() => adapter.parseArgs(['--docx', 'a.docx'])).toThrow(/--out-dir is required/);

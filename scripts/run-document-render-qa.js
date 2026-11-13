@@ -5,6 +5,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
+const DOCX_COMPATIBILITY_RECEIPT = path.join(ROOT, 'out', 'qa', 'docx-compatibility', 'report.json');
 const MODE = String(process.env.DOCUMENT_RENDER_MODE || 'all').trim().toLowerCase();
 const ALLOWED = new Set(['all', 'native-pdf', 'docx']);
 if (!ALLOWED.has(MODE)) {
@@ -42,6 +43,7 @@ function runFocusedDocxTests() {
     'tests/unit/documentGoldenMatrixLongReport.test.js',
     'tests/unit/documentGoldenMatrixRegression.test.js',
     'tests/unit/documentGoldenRenderedSemantics.test.js',
+    'tests/unit/docxCompatibility.test.js',
     'tests/unit/docxPagination.test.js',
     'tests/unit/docxSourceLinks.test.js',
     'tests/unit/enrichRenderedDocumentTables.test.js',
@@ -88,11 +90,13 @@ function runDocx() {
   runNode('scripts/render-document-golden-matrix.js');
   runNode('scripts/verify-document-golden-rendered-semantics.js');
   runNode('scripts/qa-numbered-appendix-rendered.js');
+  runNode('scripts/qa-docx-compatibility.js');
   if (process.env.WORD_REVIEW_SOURCE_COMMIT) {
     runNode('scripts/validate-word-compatibility-evidence.js', ['--prepare-review', process.env.WORD_REVIEW_SOURCE_COMMIT]);
   }
 }
 
+if (MODE !== 'native-pdf') fs.rmSync(DOCX_COMPATIBILITY_RECEIPT, { force: true });
 if (MODE === 'all' || MODE === 'native-pdf') runNativePdf();
 if (MODE === 'all' || MODE === 'docx') runDocx();
 

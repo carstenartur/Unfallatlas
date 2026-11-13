@@ -135,7 +135,7 @@ function resolveConvertedPdf(conversionDir, source, diagnostics = '') {
   );
 }
 
-function convertDocxToPdf(docxPath, outDir, options = {}) {
+function convertDocx(docxPath, outDir, filter, options) {
   const source = assertDocx(docxPath);
   const absoluteOutDir = path.resolve(outDir);
   const conversionDir = path.join(absoluteOutDir, 'libreoffice-output');
@@ -155,14 +155,17 @@ function convertDocxToPdf(docxPath, outDir, options = {}) {
     '--nofirststartwizard',
     `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
     '--convert-to',
-    'pdf:writer_pdf_Export',
+    filter,
     '--outdir',
     conversionDir,
     source,
   ];
   const processResult = run(binary, args, options);
   const diagnostics = `${processResult.stdout}\n${processResult.stderr}`.trim();
-  if (/corrupt|damaged|repair(?:ed|ing)?|format error|general input\/output error/i.test(diagnostics)) {
+  // Writer echoes the full source/output paths in successful conversion logs.
+  // A checkout directory name must not be mistaken for a repair diagnostic.
+  const warningText = diagnostics.split(source).join('[source]').split(conversionDir).join('[output]');
+  if (/corrupt|damaged|repair(?:ed|ing)?|format error|general input\/output error/i.test(warningText)) {
     fail('libreoffice_repair_warning', 'LibreOffice reported a repair or format problem', {
       diagnostics: diagnostics.slice(-4000),
     });
@@ -170,7 +173,6 @@ function convertDocxToPdf(docxPath, outDir, options = {}) {
 
   return {
     source,
-    pdfPath: resolveConvertedPdf(conversionDir, source, diagnostics),
     binary,
     version,
     args,
@@ -178,6 +180,17 @@ function convertDocxToPdf(docxPath, outDir, options = {}) {
     profileDir,
     conversionDir,
   };
+}
+
+function convertDocxToPdf(docxPath, outDir, options = {}) {
+  const result = convertDocx(docxPath, outDir, 'pdf:writer_pdf_Export', options);
+  return { ...result, pdfPath: resolveConvertedPdf(result.conversionDir, result.source, result.diagnostics) };
+}
+
+function saveDocxCopy(docxPath, outDir, options = {}) {
+  const result = convertDocx(docxPath, outDir, 'docx:Office Open XML Text', options);
+  const copy = path.join(result.conversionDir, `${path.basename(result.source, path.extname(result.source))}.docx`);
+  return { ...result, docxPath: assertDocx(copy) };
 }
 
 function pngDimensions(buffer) {
@@ -362,6 +375,7 @@ module.exports = {
   conversionDirectoryEntries,
   resolveConvertedPdf,
   convertDocxToPdf,
+  saveDocxCopy,
   pngDimensions,
   renderPdfPages,
   loadContract,

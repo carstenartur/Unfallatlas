@@ -257,7 +257,6 @@ jobs:
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_SYSTEM_DEPS: '1'
-          WORD_COMPATIBILITY_PROFILE: ${{ !inputs.dry_run && ',word-compatibility-release' || '' }}
         run: |
           set -euo pipefail
           mkdir -p out/qa
@@ -266,16 +265,15 @@ jobs:
             echo "release_base_commit=$(git rev-parse HEAD^)"
             echo "release_version=${{ steps.versions.outputs.release }}"
             echo "dry_run=${{ inputs.dry_run }}"
-            echo "profiles=release-site,pages,e2e,system-it,location-brief-golden,document-render${WORD_COMPATIBILITY_PROFILE}"
+            echo "profiles=release-site,pages,e2e,system-it,location-brief-golden,document-render"
             echo "failsafe.includes=**/*IT.java"
             echo "pages_output_dir=.build/release-pages-qa"
             echo "release_site_dir=_site"
           } > out/qa/release-acceptance-contract.txt
           git status --short > out/qa/release-worktree-before-qa.txt
 
-          export WORD_REVIEW_SOURCE_COMMIT="$(git rev-parse HEAD)"
           mvn -B -ntp clean verify \
-            "-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render${WORD_COMPATIBILITY_PROFILE}" \
+            -Prelease-site,pages,e2e,system-it,location-brief-golden,document-render \
             '-Dfailsafe.includes=**/*IT.java' \
             | tee out/qa/maven-release-acceptance.log
 

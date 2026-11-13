@@ -44,7 +44,7 @@ echten `UA.exportToWord`-Produktivrenderer und erhält eine eigene DOCX-Datei.
 - Dateiname, Größe und SHA-256 jedes DOCX,
 - die erwarteten Karten-, Tabellen- und Mindestseitenverträge,
 - den tatsächlich erreichten automatischen Evidenzstatus,
-- den weiterhin offenen manuellen Microsoft-Word-Status.
+- den Status der optionalen Desktop-Microsoft-Word-Prüfung.
 
 Der Gesamtabdruck `matrixFingerprint` ist deterministisch aus Szenariovertrag
 und Artefakthashes abgeleitet. Die Ausgabe wird zunächst in einem temporären
@@ -66,18 +66,7 @@ LibreOffice/Poppler gerendert noch als in Microsoft Word geprüft erscheinen,
 solange die jeweiligen nachgelagerten Gates keine passende Evidenz geliefert
 haben.
 
-Der bestehende Bonn-Endartefaktpfad und der mit #520 eingeführte
-Word-Kompatibilitätsbeleg bleiben unverändert maßgeblich. Ein echter Release
-benötigt weiterhin einen aktuellen, fingerprintgebundenen Word-Beleg durch eine
-reale Prüfung; die Matrix ersetzt diese manuelle Freigabe nicht.
-
-## Noch offen in #415
-
-Dieser Slice schafft das reproduzierbare Matrixfundament und reale
-Produktiv-DOCX-Dateien. Für den vollständigen Abschluss fehlen noch:
-
-- LibreOffice-/Poppler-Renderlauf für alle fünf Matrixartefakte;
-- Befüllung und Prüfung der beobachteten Seitenzahlen;
-- semantische Karten- und Tabellenrekonstruktion je Szenario;
-- zusätzliche Verträge für echte Tabellenfortsetzungen im Langbericht;
-- ein aktueller manueller Microsoft-Word-Beleg für den Releasekandidaten.
+Der vollständige Dokumentlauf ergänzt die Matrix um die
+[gerenderte Semantikprüfung](document-golden-rendered-semantics.md) und die
+automatische [DOCX-Kompatibilitätsprüfung](word-compatibility-release-check.md)
+für den Standardbericht und den nummerierten Anhang.
