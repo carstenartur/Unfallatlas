@@ -2,8 +2,8 @@
 
 `scripts/providers/duesseldorf_bicycle_hourly_provider.js` liest die vollständige
 amtliche **Mannesmannufer-IN/OUT-Distribution 2024** aus kontrollierten lokalen
-Originaldateien. Sie ist eine zusätzliche kommunale Zählquelle neben Köln,
-kein stadtweiter Vollbestand und keine Produktionsaktivierung.
+Originaldateien. Die Karte bietet die Messreihe am amtlichen Stationspunkt an.
+Ihre räumliche Abdeckung ist auf diese eine Zählstelle begrenzt.
 
 ## Quellenauswahl und getrennte Lizenzen
 
@@ -126,7 +126,8 @@ vollständige Lader akzeptiert den kleinen Testausschnitt nicht als Distribution
 Unbekannte Spalten, ungültige Werte/Koordinaten, doppelte oder ungültige Zeitlabels,
 Pfadflucht, Symlinks und fehlende echte Abrufuhren führen zum Fehler. Es erfolgen
 keine Liveabfragen. Ein falscher Ort oder fehlender/falscher Modus aktiviert den
-Provider nicht. Standardkonfiguration, Renderer und Word-Eingaben bleiben unverändert.
+Provider nicht. Unfallbezogene Verkehrswerte und Word-Eingaben verwenden weiterhin
+ihre eigenen Zuordnungen.
 
 Für die CI liegt die vollständige unveränderte Zählungsdatei verlustfrei als
 `mannesmannufer2024-original.csv.gz` bei. Der echte Produktionslader prüft beide
@@ -178,3 +179,27 @@ die beiden Richtungskanäle und sämtliche Originalbeobachtungen mit `wayId` und
 Wegbindung beschreibt den Messquerschnitt der Station. Ihre Verwendung für
 Unfallpunkte oder räumlich und zeitlich aggregierte Expositionswerte erfordert
 eine gesonderte fachliche Prüfung.
+
+## Stundenwerte in der Unfallwerkbank
+
+In der Düsseldorfer Kartenansicht öffnet **Karte → Mobilität → Radzählstelle
+Mannesmannufer (2024) → Zählstelle anzeigen** den amtlichen Stationspunkt.
+Datum und Stunde wählen ein originales Zeitlabel. Das Popup zeigt beide
+Fahrtrichtungen mit ihren Einzelwerten, einschließlich gemeldeter Nullen.
+Für den 31. März um 02 Uhr meldet es die Datenlücke. Die drei Quellen und
+ihre jeweiligen Lizenzen sind im Popup verlinkt.
+
+`node scripts/build-duesseldorf-station-map.js` erzeugt die komprimierte
+Kartendatei erneut. Der Generator liest die archivierten Originaldistributionen
+mit dem regulären Provider und übernimmt den geprüften Stationskontext. Die
+Karte lädt die Datei erst beim Einschalten der Ebene. Die Prüfung der ausgelieferten Kartendatei
+vergleicht jedes der 8.783 Zeitlabels und beide Werte mit der amtlichen CSV.
+
+Im [Düsseldorfer Datenstand vom 13. November 2026](https://github.com/carstenartur/Unfallatlas/blob/2b5a3bc6e4f54e144dc5e6365dec3c4d56d6dd51/out/output_all_years_duesseldorf.geojson.gz)
+enthalten 832 der 15.897 Unfallpunkte eine Fahrradbeteiligung im Messjahr
+2024. Für keinen dieser 832 Punkte ist der geprüfte Weg 1219366607 im Feld
+`matched_way_id` eingetragen. Die veröffentlichten Zeitfelder enthalten
+Jahr, Monat, Wochentag und Stunde. Für eine Zuordnung zum Stationswert
+einer konkreten Stunde fehlen das Kalenderdatum, eine belegte gemeinsame
+Zeitbasis und die Fahrtrichtung des beteiligten Fahrrads. Die Stundenwerte
+werden daher ausschließlich am Stationspunkt angeboten.
