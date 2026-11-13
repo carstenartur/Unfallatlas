@@ -12,7 +12,7 @@ const riskProducer = require('./osm_elevation_risk_producer');
 
 const SCHEMA_VERSION = 1;
 const ARTIFACT_TYPE = 'hannover-dgm1-road-profiles';
-const PRODUCER_VERSION = '1.1.0';
+const PRODUCER_VERSION = '1.1.1';
 const WINDOWS_METERS = Object.freeze([20, 50]);
 const UNAVAILABLE_CODES = Object.freeze(new Set([
   'insufficient_geometry',

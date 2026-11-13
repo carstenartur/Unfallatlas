@@ -220,6 +220,9 @@
         if (!manifest) manifest = await fetchManifest(slug, manifestUrl);
       }
 
+      if (ways && !manifest) {
+        ways = Object.fromEntries(Object.entries(ways).map(([id, row]) => [id, limitStoredRoadQuality(row)]));
+      }
       manifest = attachTileIndexes(manifest, slug);
       const dicts = (manifest && manifest.dicts) || fallbackDicts;
       return {
@@ -251,6 +254,10 @@
     });
   }
 
+  function limitStoredRoadQuality(row) {
+    return UA.elevationProvider?.limitStoredRoadQuality?.(row) || row;
+  }
+
   function resolveWay(state, wayId) {
     const row = state && state.ways && state.ways[wayId];
     if (!row) return null;
@@ -278,7 +285,7 @@
     if (!state.ways || typeof state.ways !== 'object') state.ways = {};
     if (!state.geometries || typeof state.geometries !== 'object') state.geometries = {};
     for (const [wayId, row] of Object.entries(tile.ways || {})) {
-      if (!(wayId in state.ways)) state.ways[wayId] = row;
+      if (!(wayId in state.ways)) state.ways[wayId] = limitStoredRoadQuality(row);
     }
     for (const [wayId, geometry] of Object.entries(tile.geometries || {})) {
       if (!(wayId in state.geometries)) state.geometries[wayId] = geometry;

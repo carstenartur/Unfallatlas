@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
+const { limitStoredRoadQuality } = require('../js/ua.elevation_provider');
 const profileProducer = require('./producers/hannover_dgm1_road_profile_producer');
 const { slugify } = require('./lib/static-data-validation');
 
@@ -207,6 +208,7 @@ function applyProfileToRow(row, profile, descriptor) {
   row.road_slope_uncertainty_reasons = Array.isArray(result.uncertaintyReasons)
     ? result.uncertaintyReasons.slice()
     : [];
+  Object.assign(row, limitStoredRoadQuality(row));
   return { applied: true, windowMeters };
 }
 

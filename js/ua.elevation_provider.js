@@ -475,6 +475,26 @@
       return reasons;
     }
 
+    const ROAD_PROFILE_LIMITATIONS = new Set([
+      "non_ground_osm_layer", "embankment_may_differ_from_terrain", "cutting_may_differ_from_terrain",
+      "low_road_match_quality", "accident_point_far_from_matched_road",
+    ]);
+
+    function hasRoadProfileLimitation(reasons) {
+      return Array.isArray(reasons) && reasons.some(reason => typeof reason === "string" &&
+        reason.split(/[,;]/).some(code => ROAD_PROFILE_LIMITATIONS.has(code.trim())));
+    }
+
+    // Older profiles can retain strong sampling scores at known structural or matching risks.
+    function limitStoredRoadQuality(row) {
+      if (!row || (row.road_slope_quality !== "high" && row.road_slope_confidence !== "high") ||
+          !hasRoadProfileLimitation(row.road_slope_uncertainty_reasons)) return row;
+      const result = { ...row };
+      if (result.road_slope_quality === "high") result.road_slope_quality = "medium";
+      if (result.road_slope_confidence === "high") result.road_slope_confidence = "medium";
+      return result;
+    }
+
     function qualityFor(
       descriptor,
       sampleCount,
@@ -499,7 +519,7 @@
       // Source resolution and sample count cannot compensate for a poor fit.
       // Reuse the residual bands above as confidence ceilings, not new cutoffs.
       if (residualMadMeters > 0.75) return "low";
-      if (score >= 9 && residualMadMeters <= 0.25) return "high";
+      if (score >= 9 && residualMadMeters <= 0.25 && !hasRoadProfileLimitation(reasons)) return "high";
       if (score >= 6) return "medium";
       return "low";
     }
@@ -787,7 +807,7 @@
       for (const key of SELECTED_WAY_FIELDS) {
         if (!present(merged[key]) && present(way[key])) merged[key] = copy(way[key]);
       }
-      return merged;
+      return limitStoredRoadQuality(merged);
     }
 
     // Presentation adapter for persisted enrichment fields; does not estimate
@@ -864,6 +884,7 @@
       computeRoadGradient,
       presentContext,
       projectSelectedWayEvidence,
+      limitStoredRoadQuality,
       SELECTED_WAY_FIELDS,
       createHannoverDgm1Descriptor,
       createGlobalFallbackDescriptor,

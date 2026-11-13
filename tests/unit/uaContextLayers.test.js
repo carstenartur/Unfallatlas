@@ -15,6 +15,7 @@ function loadModule() {
   evaluate('../../js/ua.spatial-grid.js', win);
   evaluate('../../js/ua.data-budget.js', win);
   evaluate('../../js/ua.context_layers.js', win);
+  evaluate('../../js/ua.elevation_provider.js', win);
   return win.UA;
 }
 
@@ -238,7 +239,8 @@ describe('v3 context tile loading through DataResources', () => {
     UA.fetchJsonGz = jest.fn(async url => {
       if (url.endsWith('/4280/2730.json.gz')) {
         return {
-          ways: { W1: { highway: 0, maxspeed: 30 } },
+          ways: { W1: { highway: 0, maxspeed: 30, road_slope_quality: 'high', road_slope_confidence: 'high',
+            road_slope_uncertainty_reasons: ['non_ground_osm_layer'] } },
           geometries: { W1: [50, 7, 50.001, 7.001] },
         };
       }
@@ -252,7 +254,7 @@ describe('v3 context tile loading through DataResources', () => {
       'out/ctxtiles/bonn/4280/2730.json.gz',
       expect.objectContaining({ cache: 'force-cache' })
     );
-    expect(merged.ways.W1).toBeDefined();
+    expect(merged.ways.W1).toMatchObject({road_slope_quality: 'medium', road_slope_confidence: 'medium'});
     expect(merged.ways.W2).toBeUndefined();
 
     await UA.contextLayers.loadTilesForBbox(state, bounds);

@@ -76,3 +76,43 @@ test('residual confidence never overrides bridge rejection', async () => {
     'bridge_surface_not_represented_by_dtm', 'elevated_profile_residual',
   ]);
 });
+
+test.each([
+  [{layer: 1}, 'non_ground_osm_layer'],
+  [{embankment: 'yes'}, 'embankment_may_differ_from_terrain'],
+  [{cutting: 'yes'}, 'cutting_may_differ_from_terrain'],
+])('bounds dense DGM1 profiles with a single structural risk %j', async (tags, reason) => {
+  const result = await profile(0, 1, tags);
+  expect(result.uncertaintyReasons).toContain(reason);
+  expect(result.quality).toBe('medium');
+  expect(result.gradientPercent).toBe(0);
+  const row = {};
+  adapter.applyProfileToRow(row, {
+    windows: { '50': {status: 'computed', result: {...result, quality: 'high'}} },
+  }, result.source);
+  expect(row.road_slope_confidence).toBe('medium');
+  expect(row.road_slope_quality).toBe('medium');
+});
+
+test.each([
+  ['low', anchor, 'low_road_match_quality'],
+  ['high', {...anchor, lat: anchor.lat + 0.0003}, 'accident_point_far_from_matched_road'],
+])('bounds dense profiles with a known match risk %s', async (matchQuality, point, reason) => {
+  const result = await elevation.computeRoadGradient(residualProvider(0), geometry, point, {
+    windowMeters: 50, spacingMeters: 1, matchQuality,
+  });
+  expect(result.uncertaintyReasons).toContain(reason);
+  expect(result.quality).not.toBe('high');
+});
+
+test.each(['feature', 'way'])('retains stored %s evidence at the quality allowed by its reasons', origin => {
+  const row = {
+    road_slope_percent: -3.4, road_slope_quality: 'high', road_slope_confidence: 'high',
+    road_slope_uncertainty_reasons: ['embankment_may_differ_from_terrain,non_ground_osm_layer'],
+  };
+  const feature = origin === 'feature' ? row : {};
+  const way = origin === 'way' ? row : {};
+  const result = elevation.projectSelectedWayEvidence(feature, way);
+  expect(result).toEqual({...row, road_slope_quality: 'medium', road_slope_confidence: 'medium'});
+  expect(row.road_slope_quality).toBe('high');
+});
