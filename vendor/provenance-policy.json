@@ -204,12 +204,12 @@
       "paths": [
         "vendor/leaflet.heat/leaflet-heat.js"
       ],
-      "kind": "supplier-bundle-without-source-rebuild",
+      "kind": "source-rebuild-without-independent-signatures",
       "missingEvidence": [
-        "independent source-build attestation for the Leaflet.heat global bundle"
+        "two independently signed source-build attestations"
       ],
       "migrationOptions": [
-        "Rebuild Leaflet.heat and its locked Simpleheat dependency with a pinned, deterministic build toolchain."
+        "Have independent trusted builders sign the matching output of the pinned Leaflet rebuild."
       ]
     },
     {
@@ -217,13 +217,12 @@
       "paths": [
         "vendor/leaflet-image/leaflet-image.js"
       ],
-      "kind": "opaque-supplier-bundle",
+      "kind": "source-rebuild-without-independent-signatures",
       "missingEvidence": [
-        "source-build attestation for leaflet-image plus d3-queue@2.0.3"
+        "two independently signed source-build attestations"
       ],
       "migrationOptions": [
-        "Rebuild leaflet-image from its source and locked d3-queue@2.0.3 using a pinned browser bundler.",
-        "Replace leaflet-image with a maintained map-capture implementation whose dependencies expose complete license files."
+        "Have independent trusted builders sign the matching output of the pinned Leaflet rebuild."
       ]
     }
   ],
@@ -239,6 +238,14 @@
     "vendor/export/pdfmake-fonts.js": {
       "sha256": "f3db5ac36ce8c9a6a3f55d5d00c2a0e21a3d7698db149dff22f4e670ffcfd5c4",
       "command": "bash scripts/verify-pdfmake-upstream.sh"
+    },
+    "vendor/leaflet.heat/leaflet-heat.js": {
+      "sha256": "cd0ff2333ddad23a2b8192e0791b2cf80fee759cb33412122bde5eb7bbfd6c4a",
+      "command": "bash scripts/verify-leaflet-upstream.sh"
+    },
+    "vendor/leaflet-image/leaflet-image.js": {
+      "sha256": "3bea1a52386fbe87d581290e79b66b324ddbff620431f4e1a0b289262f82ac5f",
+      "command": "bash scripts/verify-leaflet-upstream.sh"
     }
   }
 }

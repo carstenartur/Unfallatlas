@@ -93,7 +93,9 @@ shipped Brotli files are still open.
 
 For Leaflet.heat, the build checks the Simpleheat source embedded in the global
 bundle's supplied source map against the locked Simpleheat source. The notice
-and SBOM record the matching component without claiming an independent rebuild.
+and SBOM record the matching component. The upstream rebuild compares the
+global script and source map, and the Leaflet-image Browserify bundle,
+byte-for-byte to the released packages.
 
 ## Open architecture decisions
 
@@ -102,8 +104,8 @@ and SBOM record the matching component without claiming an independent rebuild.
 | `vendor/export/docx.js` | Generated-code attribution and two independently signed builds | Retain bundler evidence for generated code and attest the pinned supplier build |
 | `vendor/export/pdfmake.js` | Sources and data inside prebundled modules, full license evidence for the remaining Brotli files, `dfa` and `fontkit`, and two independently signed builds | Resolve each inner bundle and attest the pinned Webpack build |
 | `vendor/export/pdfmake-fonts.js` | Independent signed font and VFS-generator evidence | Attest the source rebuilds for the four verified TTFs and their VFS container |
-| `vendor/leaflet.heat/leaflet-heat.js` | Independent source-build attestation for the global bundle | Rebuild Leaflet.heat and its locked Simpleheat dependency with a pinned toolchain |
-| `vendor/leaflet-image/leaflet-image.js` | Source-build attestation | Rebuild with locked `d3-queue@2.0.3`, or replace map capture with a maintained implementation |
+| `vendor/leaflet.heat/leaflet-heat.js` | Independent signatures for the reproduced global bundle | Attest the matching Rolldown build |
+| `vendor/leaflet-image/leaflet-image.js` | Independent signatures for the reproduced Browserify bundle | Attest the matching build with locked `d3-queue@2.0.3` |
 
 The normative version of this table is `vendor/provenance-policy.json`; this
 documentation is explanatory and is not a substitute for legal review.
