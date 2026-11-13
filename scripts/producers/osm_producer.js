@@ -818,13 +818,11 @@ async function produceCity(repoRoot, citySlug, opts) {
       if (!earliestBaseTime || iso < earliestBaseTime) earliestBaseTime = iso;
       if (!latestBaseTime || iso > latestBaseTime) latestBaseTime = iso;
     }
-    if (o.includeElevationStructureTags && (
-      !Array.isArray(resp?.elements) || resp.remark || !resp.elements.every(isCompleteOverpassWay)
-    )) {
+    // Overpass can return a partial set of ways with HTTP 200 and a timeout remark.
+    if (!Array.isArray(resp?.elements) || resp.remark || !resp.elements.every(isCompleteOverpassWay)) {
       const detail = resp?.remark ? `: ${resp.remark}` : '';
       throw new Error(`Incomplete Overpass road geometry or structure tags${detail}`);
     }
-    if (!resp || !Array.isArray(resp.elements)) return;
     totalElements += resp.elements.length;
     const slim = parseOverpassResponse(resp);
     for (const w of slim) {

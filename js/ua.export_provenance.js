@@ -302,6 +302,7 @@
       ? UA.AnalysisScope.getActiveFilteredPoints(copyContext(ctx, { allPts: boundPoints })) : boundPoints);
     const groups = new Map();
     const roadProfilesBySource = new Map();
+    let includesTrafficProxy = false;
     const sources = new Map();
     const safeUrl = value => {
       try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; }
@@ -335,7 +336,7 @@
             source.distributionUrl || source.datasetUrl);
         }
       } else if (['high','medium','low','very_high'].includes(p.traffic_proxy_class) && (!p.traffic_measurement_type || p.traffic_measurement_type === 'proxy')) {
-        add('Verkehrsproxy aus OSM-Straßenklasse; qualitative Expositionsklasse, keine Verkehrszählung und kein numerischer Verkehrswert. © OpenStreetMap-Mitwirkende, ODbL.', 'https://www.openstreetmap.org/copyright');
+        includesTrafficProxy = true;
       }
       if (Object.keys(p).some(key => /^(elevation_m$|slope_|road_slope_)/.test(key) && p[key] != null)) {
         const presentation = elevation.presentContext(p);
@@ -399,6 +400,18 @@
         }
       }
       if (p.highway || p.osm_highway) add('OpenStreetMap-Straßenattribute (© OpenStreetMap-Mitwirkende, ODbL); keine Verkehrszählung.', 'https://www.openstreetmap.org/copyright');
+    }
+    if (includesTrafficProxy) {
+      const proxy = facts.traffic?.provenance;
+      const source = proxy?.sourceId === 'traffic.proxy.osm-highway-class' ? proxy : {};
+      const clock = source.retrievedAt ? `Abgerufen am ${source.retrievedAt}` : 'Abrufzeitpunkt unbekannt';
+      const credit = source.requiredAttribution || '© OpenStreetMap-Mitwirkende';
+      add(`Verkehrsproxy aus OSM-Straßenklasse. Qualitative Expositionsklasse, keine Verkehrszählung. ` +
+        `OSM-Datenstand ${source.temporalCoverage || 'unbekannt'}. ${clock}. ${credit}, ODbL.`,
+        safeUrl(source.distributionUrl) || 'https://www.openstreetmap.org/copyright');
+      if (safeUrl(source.distributionUrl)) {
+        add('Lizenz und Namensnennung für die OSM-Straßenklassen.', 'https://www.openstreetmap.org/copyright');
+      }
     }
     for (const {sourceName, sourceUrl, profiles, labels} of roadProfilesBySource.values()) {
       if (profiles.size === 1) {
