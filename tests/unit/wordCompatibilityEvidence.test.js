@@ -267,6 +267,31 @@ describe('Microsoft Word compatibility evidence', () => {
     ])).toThrow(/document_id_mismatch/);
   });
 
+  test('prepares both review forms from exact candidate bytes with all observations left open', () => {
+    const sample = 'out/qa/rendered-document/docx/source.docx';
+    const appendix = 'out/qa/release-document/appendix.docx';
+    for (const [index, file] of [sample, appendix].entries()) {
+      fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+      fs.writeFileSync(path.join(root, file), Buffer.alloc(2048 + index, index));
+    }
+    const commit = 'a'.repeat(40);
+    validator.main(['--root', root, '--prepare-review', commit]);
+    for (const [file, form, id] of [
+      [sample, 'word-compatibility.json', 'ci-docx-sample'],
+      [appendix, 'word-compatibility-appendix.json', 'release-numbered-docx'],
+    ]) {
+      const actual = fs.readFileSync(path.join(root, file));
+      const receipt = JSON.parse(fs.readFileSync(path.join(root, 'out/qa/word-review', form)));
+      expect(receipt.inputFingerprint).toBe(validator.computeInputEvidence(root).fingerprint);
+      expect(receipt.artifact).toMatchObject({ filename: path.basename(file), documentId: id,
+        bytes: actual.length, sha256: require('crypto').createHash('sha256').update(actual).digest('hex') });
+      expect(receipt.sourceCommit).toBe(commit);
+      expect(receipt.testedAt).toBe('');
+      expect(receipt.observedPageCount).toBe(0);
+      expect(Object.values(receipt.checks).every(value => value === false)).toBe(true);
+    }
+  });
+
   test('the appendix template requires layout checks specific to the numbered appendix', () => {
     validator.main([
       '--root', root, '--write-template', 'appendix.json', '--document-id', 'release-numbered-docx',
