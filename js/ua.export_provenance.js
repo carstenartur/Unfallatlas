@@ -367,7 +367,7 @@
         const label = `${presentation.reliableForRoad ? 'Straßenprofil' : 'Geländekontext (keine belastbare Fahrbahnneigung)'}: ${sourceName}` +
           `${presentation.sourceId ? ` [${presentation.sourceId}]` : ''}; Auflösung ${presentation.resolutionMeters == null ? 'unbekannt' : `${presentation.resolutionMeters} m`}; ` +
           `${clock ? `Abruf ${clock}` : 'Abruf unbekannt'}; ${presentation.uncertaintyPercent == null ? 'Unsicherheit nicht angegeben' : `Unsicherheit ±${presentation.uncertaintyPercent} Prozentpunkte`}` +
-          `${presentation.uncertaintyReasons.length ? `; Einschränkungen: ${presentation.uncertaintyReasons.join('; ')}` : ''}.` +
+          `${presentation.uncertaintyReasons.length ? `; Einschränkungen: ${presentation.uncertaintyReasonLabels.join('; ')}` : ''}.` +
           `${roadDetails.length ? ` ${roadDetails.join('. ')}.` : ''}`;
         const sourceUrl = usesRoad
           ? descriptor.datasetUrl || descriptor.distributionUrl || descriptor.url

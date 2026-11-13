@@ -848,7 +848,9 @@
       }
       return Object.freeze({ semanticType, valuePresent: value !== null, reliableForRoad,
         source, sourceId: usesRoad ? p.road_slope_source_id || null : (/SRTM/i.test(source) ? "global.srtm30" : null), resolutionMeters,
-        uncertaintyPercent, uncertaintyReasons: Object.freeze(uncertaintyReasons), direction, statement });
+        uncertaintyPercent, uncertaintyReasons: Object.freeze(uncertaintyReasons),
+        uncertaintyReasonLabels: Object.freeze(uncertaintyReasons.map(reason => REASON_LABELS_DE[reason] || reason)),
+        direction, statement });
     }
 
     return Object.freeze({
