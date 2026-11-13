@@ -219,6 +219,8 @@ code { background: rgba(243,243,243,.92); padding: 1px 4px; border-radius: 6px; 
 }
 .progressLine{ margin: 10px 0; font-size: 12px; color:#333; }
 
+#exportHtml li { overflow-wrap: anywhere; }
+#exportHtml svg { max-width: 100%; height: auto; }
 table.report{ width:100%; border-collapse:collapse; margin-top:6px; font-size:13px; }
 table.report th, table.report td{ padding:6px 6px; border-bottom:1px solid rgba(0,0,0,.08); vertical-align: top; }
 table.report thead th{ border-bottom:1px solid rgba(0,0,0,.15); text-align:left; }
