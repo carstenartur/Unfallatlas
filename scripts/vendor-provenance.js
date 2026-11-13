@@ -547,7 +547,7 @@ function brotliDecoderRecords(expected) {
 }
 
 // Fontkit's npm bundle has its own source map inside the pdfmake source map.
-function collectFontkitDecoder(repoRoot, outputRoot, pdfmake, expected) {
+function collectFontkitSources(repoRoot, outputRoot, pdfmake, expected) {
   const fontkit = pdfmake.components.find(item => item.lockPath === 'node_modules/fontkit');
   if (!fontkit?.installedPath) throw new Error('Fontkit is missing from the PDF build lock');
   const root = path.join(repoRoot, fontkit.installedPath);
@@ -560,22 +560,25 @@ function collectFontkitDecoder(repoRoot, outputRoot, pdfmake, expected) {
       pdfmake.sourceMap.sourcesContent[outer] !== bundle.toString('utf8') || sha256Buffer(mapBytes) !== expected.mapSha256) {
     throw new Error('Fontkit browser module or source map differs from the PDF exporter');
   }
-  const source = fs.readFileSync(path.join(root, 'src/utils.js'), 'utf8');
   const map = JSON.parse(mapBytes);
-  const index = map.sources.indexOf('src/utils.js');
-  const marker = '// Based on https://github.com/niklasvh/base64-arraybuffer. MIT license.';
-  const start = source.indexOf(marker);
-  const record = expected.record;
-  if (index < 0 || map.sources.lastIndexOf('src/utils.js') !== index || map.sourcesContent[index] !== source ||
-      start < 0 || source.lastIndexOf(marker) !== start || sha256Buffer(source.slice(start)) !== record.sourceSha256) {
-    throw new Error('Fontkit Base64 decoder differs from its attributed source');
-  }
-  const license = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses/base64-arraybuffer-MIT.txt'));
-  if (sha256Buffer(license) !== record.sha256) throw new Error('Fontkit Base64 decoder license differs');
-  const destination = path.join(outputRoot, record.path);
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  fs.writeFileSync(destination, license);
-  return { ...record, asset: PDF_ASSET, copyrightIncluded: true };
+  return expected.sections.map(({ file, start, end, licenseFile, record }) => {
+    const source = fs.readFileSync(path.join(root, file), 'utf8');
+    const index = map.sources.indexOf(file);
+    const begin = source.indexOf(start);
+    const endAt = end ? source.indexOf(end, begin + start.length) : source.length;
+    const section = source.slice(begin, end ? endAt + end.length : endAt);
+    if (index < 0 || map.sources.lastIndexOf(file) !== index || map.sourcesContent[index] !== source ||
+        begin < 0 || begin !== source.lastIndexOf(start) || endAt < 0 ||
+        sha256Buffer(section) !== record.sourceSha256) {
+      throw new Error('Fontkit attributed source differs: ' + file);
+    }
+    const license = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses', licenseFile));
+    if (sha256Buffer(license) !== record.sha256) throw new Error('Fontkit source license differs: ' + file);
+    const destination = path.join(outputRoot, record.path);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, license);
+    return { ...record, asset: PDF_ASSET, copyrightIncluded: true };
+  });
 }
 
 function collectBrotliDictionary(repoRoot, outputRoot, sourceMap, installedRoot, expected) {
@@ -848,7 +851,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
   const embeddedSources = [
     ...collectDocxRuntimes(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
     ...collectUnicodeData(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.unicodeDataManifestSha256),
-    collectFontkitDecoder(repoRoot, outputRoot, pdfmake, pdfInventory.fontkitDecoder),
+    ...collectFontkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.fontkitSources),
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
     ...collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, pdfInventory.brotliDecoder),
     ...collectPdfkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.nestedPdfkitSources),
@@ -902,7 +905,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
     const embeddedSources = [
       ...docxRuntimeRecords(expected.generatedRuntimes || []),
       ...(expected.unicodeDataManifestSha256 ? unicodeDataRecords(expected.unicodeDataManifestSha256) : []),
-      ...(expected.fontkitDecoder ? [expected.fontkitDecoder.record] : []),
+      ...(expected.fontkitSources?.sections.map(section => section.record) || []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
       ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), expected.brotliDecoder.dictionary] : []),
       ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),

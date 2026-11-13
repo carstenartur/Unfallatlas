@@ -16,6 +16,7 @@ on:
       - 'vendor/build-lock.recipe.json'
       - 'scripts/verify-*-upstream.sh'
       - 'scripts/verify-docx-runtime-sources.py'
+      - 'scripts/verify-fontkit-shaping.py'
       - 'scripts/reproduce-pdf-unicode.py'
       - 'scripts/pdf-unicode-data.js'
   workflow_dispatch:

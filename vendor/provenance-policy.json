@@ -205,21 +205,68 @@
           "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"
         }
       },
-      "fontkitDecoder": {
+      "fontkitSources": {
         "mapSha256": "312af373c0db0d3c36e425b3b791e7e7cf23ac4b6d1fb58725f16cfa00e574b3",
-        "record": {
-          "ref": "urn:unfallatlas:vendor-source:fontkit:base64-decoder",
-          "component": "Base64 decoder adapted from base64-arraybuffer in fontkit@2.0.4",
-          "sourcePath": "node_modules/fontkit/src/utils.js#decodeBase64",
-          "sourceSha256": "bb78c97f3bdd227e1a7226b19d626771ff7ff11dfea805493787b0b80b5da843",
-          "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/utils.js#L30-L62",
-          "upstreamReferenceUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/src/index.ts",
-          "licenseUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/LICENSE",
-          "copyright": "Copyright (c) 2012 Niklas von Hertzen",
-          "spdx": "MIT",
-          "path": "vendor/licenses/components/fontkit-base64-arraybuffer-MIT.txt",
-          "sha256": "f3eca6ff762533fa5a77caf954a143e48afa204668cf97dce758c45a9e006be3"
-        }
+        "sections": [
+          {
+            "file": "src/utils.js",
+            "start": "// Based on https://github.com/niklasvh/base64-arraybuffer. MIT license.",
+            "licenseFile": "base64-arraybuffer-MIT.txt",
+            "record": {
+              "ref": "urn:unfallatlas:vendor-source:fontkit:base64-decoder",
+              "component": "Base64 decoder adapted from base64-arraybuffer in fontkit@2.0.4",
+              "sourcePath": "node_modules/fontkit/src/utils.js#decodeBase64",
+              "sourceSha256": "bb78c97f3bdd227e1a7226b19d626771ff7ff11dfea805493787b0b80b5da843",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/utils.js#L30-L62",
+              "upstreamReferenceUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/src/index.ts",
+              "licenseUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/LICENSE",
+              "copyright": "Copyright (c) 2012 Niklas von Hertzen",
+              "spdx": "MIT",
+              "path": "vendor/licenses/components/fontkit-base64-arraybuffer-MIT.txt",
+              "sha256": "f3eca6ff762533fa5a77caf954a143e48afa204668cf97dce758c45a9e006be3"
+            }
+          },
+          {
+            "file": "src/opentype/shapers/ArabicShaper.js",
+            "start": "const STATE_TABLE = [",
+            "end": "\n];",
+            "licenseFile": "HarfBuzz-arabic.txt",
+            "record": {
+              "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-arabic",
+              "component": "HarfBuzz Arabic shaping state table adapted in fontkit@2.0.4",
+              "sourcePath": "node_modules/fontkit/src/opentype/shapers/ArabicShaper.js#STATE_TABLE",
+              "sourceSha256": "9d624b2a89a70d07f842914aadc36320738141c8c966f5bcb73756410000ec5b",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/ArabicShaper.js#L30-L52",
+              "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/7e2da035f68e46ce8f4759b67b4ed3a1b211d793/src/hb-ot-shape-complex-arabic.cc",
+              "upstreamFileSha256": "d09e1a548570d0d39e6256b8ce7362e32b323a0e7252c6aec358d1945ee34074",
+              "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/7e2da035f68e46ce8f4759b67b4ed3a1b211d793/src/hb-ot-shape-complex-arabic.cc#L1-L25",
+              "copyright": "Copyright © 2010,2012  Google, Inc.",
+              "spdx": "MIT-Modern-Variant",
+              "path": "vendor/licenses/components/fontkit-HarfBuzz-arabic.txt",
+              "sha256": "e77a1bd517f4ecee2d247e092c72d9a39e49b7db723b7f0403690173fbe7cb71"
+            }
+          },
+          {
+            "file": "src/opentype/shapers/indic-data.js",
+            "start": "export const INDIC_CONFIGS = {",
+            "end": "\n};",
+            "licenseFile": "HarfBuzz-indic.txt",
+            "record": {
+              "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-indic",
+              "component": "HarfBuzz Indic script configurations adapted in fontkit@2.0.4",
+              "sourcePath": "node_modules/fontkit/src/opentype/shapers/indic-data.js#INDIC_CONFIGS",
+              "sourceSha256": "723f4a88caf0de337cfc1cdf0f431e9cdf5783a3a8de32a4954bf2130c52309b",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/indic-data.js#L56-L165",
+              "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/85630996b8afa699f7b5d19346cdf5c72fcd6e2d/src/hb-ot-shape-complex-indic.cc",
+              "upstreamFileSha256": "8fd42fde574ebb25956b57aaa9d07f336d6f7d6211d6f5265d0ce70c66ec9923",
+              "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/85630996b8afa699f7b5d19346cdf5c72fcd6e2d/src/hb-ot-shape-complex-indic.cc#L1-L25",
+              "copyright": "Copyright © 2011,2012  Google, Inc.",
+              "spdx": "MIT-Modern-Variant",
+              "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
+              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
+            }
+          }
+        ]
       },
       "nestedPdfkitSources": {
         "packagePath": "node_modules/@noble/hashes",
