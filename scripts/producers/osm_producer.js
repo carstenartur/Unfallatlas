@@ -60,7 +60,7 @@ const { applyStructureTags, structureRecord } = require('./osm_structure_produce
 //         the front-end full-network slope/traffic overlay has data for
 //         the entire visible road network. Cache key bumps so the first
 //         CI run after the bump re-fetches every city.
-const PRODUCER_VERSION = '1.3.0';
+const PRODUCER_VERSION = '1.3.1';
 const TRAFFIC_ROUTE_TAGS_VERSION = 1;
 const TRAFFIC_ROUTE_KEYS = ['ref', 'oneway', 'oneway:conditional', 'oneway:vehicle', 'oneway:vehicle:conditional',
   'oneway:motor_vehicle', 'oneway:motor_vehicle:conditional', 'oneway:motorcar', 'oneway:motorcar:conditional',
