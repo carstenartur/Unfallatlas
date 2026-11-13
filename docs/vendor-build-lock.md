@@ -189,6 +189,15 @@ Releasearchiv, die vier Pfade, SHA-256, PostScript-Namen und Versionsfelder.
 Der normale Seitenbuild prüft die dekodierten VFS-Dateien gegen dieselben
 Hash- und Namensangaben und veröffentlicht den Archivnachweis je Schrift.
 
+Der PDF-Herstellercheck baut außerdem alle vier Web-Schriften aus den UFO-
+und Designspace-Quellen des Tags `v3.016` von Google Fonts. Er verwendet
+Python 3.11, hashgebundene Buildwerkzeuge und den Hinting-, Subsetting-
+und Instanziierungspfad des Herstellers. Für die Zeitfelder dienen die
+Originalzeitstempel der jeweiligen Schrift aus dem gehashten Release.
+Der Vergleich umfasst die vollständigen neu erzeugten TTF-Dateien.
+Der separate Aufruf lautet `bash scripts/verify-roboto-upstream.sh Roboto_v3.016.zip`.
+Mit `ROBOTO_PYTHON` lässt sich der Pfad zu Python 3.11 angeben.
+
 Der PDF-Quellverweis `webpack://pdfmake/../xmldoc.ts` entsteht aus der
 Source Map des ES-Modul-Einstiegs von `xmldoc@2.0.3`. Der Hersteller liefert
 die TypeScript-Datei im Git-Quellarchiv. Die unabhängige Prüfung übersetzt

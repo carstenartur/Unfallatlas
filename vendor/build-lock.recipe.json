@@ -44,6 +44,6 @@
   "knownGaps": [
     "The exact-copy pilot proves package archive, source path and delivered bytes but does not yet enumerate every transitive module bundled upstream into docx or pdfmake.",
     "The pdfmake source map is retained as build evidence but a complete source-to-module CycloneDX contains graph remains follow-up work.",
-    "The four Roboto TTF inputs are bound to the delivered VFS container; upstream font build tooling is not yet independently reproduced."
+    "The four Roboto TTF inputs are bound to the delivered VFS container; their source-to-TTF and VFS builds still require independent trusted signatures."
   ]
 }

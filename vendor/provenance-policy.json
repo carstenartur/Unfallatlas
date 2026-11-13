@@ -192,11 +192,10 @@
       ],
       "kind": "embedded-font-container",
       "missingEvidence": [
-        "reproduction of the source-to-TTF typeface build",
         "independently signed VFS generator attestations"
       ],
       "migrationOptions": [
-        "Use the pinned, verified typeface-release archive to reproduce and attest the source-to-TTF step.",
+        "Sign the verified source-to-TTF and VFS rebuilds with independent trusted builders.",
         "Use a checked-in OFL font family with deterministic subsetting and VFS generation."
       ]
     },
