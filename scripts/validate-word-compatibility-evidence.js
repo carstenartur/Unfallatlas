@@ -358,8 +358,9 @@ function validateReceipt(value, inputEvidence, options = {}) {
   const platform = nonEmptyString(receipt.environment.platform, 'environment.platform');
   const desktopVersion = /\b(?:Windows|macOS|Mac OS X|OS X)\s+[\p{L}\d]/iu.test(platform);
   const browserEdition = /\b(?:web|online|browser)\b/i.test(version + ' ' + platform);
-  const observedBuild = /\d+[.]\d+/.test(version);
-  if (!desktopVersion || !observedBuild || browserEdition || /[<>]/.test(platform + version)) {
+  // A Microsoft 365 subscription name alone does not identify a Word release.
+  const observedVersion = /\d/.test(version.replace(/\b365\b/g, ''));
+  if (!desktopVersion || !observedVersion || browserEdition || /[<>]/.test(platform + version)) {
     fail('invalid_word_environment', 'Record the desktop Word version/build and Windows or macOS version', {
       version, platform,
     });

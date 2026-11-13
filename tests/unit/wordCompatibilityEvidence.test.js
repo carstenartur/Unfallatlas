@@ -149,11 +149,16 @@ describe('Microsoft Word compatibility evidence', () => {
     expect(() => validator.validateReceipt(receipt, input, { now })).toThrow(/invalid_word_environment/);
   });
 
-  test.each(['macOS Sonoma 14.6', 'macOS Sonoma'])('accepts an observed Word build on %s', (platform) => {
+  test.each([
+    ['16.90 (24101387)', 'macOS Sonoma 14.6'],
+    ['16.90 (24101387)', 'macOS Sonoma'],
+    ['Microsoft 365 Version 2609 (Build 19231.20194)', 'Windows 11'],
+    ['Version 2410 (Build 18129)', 'Windows 11'],
+    ['Word 2021', 'macOS 15'],
+  ])('accepts observed Word version %s on %s', (version, platform) => {
     const input = validator.computeInputEvidence(root);
     const receipt = validReceipt(input, now);
-    receipt.environment.version = '16.90 (24101387)';
-    receipt.environment.platform = platform;
+    Object.assign(receipt.environment, {version, platform});
     expect(validator.validateReceipt(receipt, input, { now }).passed).toBe(true);
   });
 
