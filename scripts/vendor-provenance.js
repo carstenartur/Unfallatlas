@@ -9,6 +9,7 @@ const { assertCompleteLicenseText } = require('./validate-vendor-license-evidenc
 const POLICY_RELATIVE_PATH = 'vendor/provenance-policy.json';
 const LEAFLET_HEAT_ASSET = 'vendor/leaflet.heat/leaflet-heat.js';
 const LEAFLET_HEAT_SOURCE = 'dist/leaflet-heat-global.js';
+const LEAFLET_IMAGE_ASSET = 'vendor/leaflet-image/leaflet-image.js';
 const DOCX_ASSET = 'vendor/export/docx.js';
 const DOCX_BUILD_LOCK = 'vendor/docx-build/npm-lock.json.gz';
 const PDF_ASSET = 'vendor/export/pdfmake.js';
@@ -227,6 +228,60 @@ function pinnedLicense(repoRoot, component, expected, installedPath) {
   return { licenseExpression: expected.spdx, archivedLicense: license, upstreamLicenseName: expected.licenseFile };
 }
 
+function verifyLeafletImageModules(repoRoot, inventory) {
+  const bundle = fs.readFileSync(path.join(repoRoot, 'node_modules/leaflet-image/leaflet-image.js'));
+  if (sha256Buffer(bundle) !== inventory?.bundleSha256) {
+    throw new Error('[vendor-provenance] Leaflet-image bundle SHA-256 differs from the pinned npm asset');
+  }
+  const modules = inventory.browserifyModules;
+  if (!Array.isArray(modules) || modules.length !== 2 || modules[0]?.purl !== inventory.owner ||
+      modules[1]?.purl !== inventory.components?.[0]?.purl) {
+    throw new Error('[vendor-provenance] Invalid Leaflet-image Browserify module inventory');
+  }
+
+  // The pinned Browserify table maps the first module's d3-queue import to module 2.
+  // Compare the raw module bodies without running the bundle or normalizing whitespace.
+  const first = Buffer.from('({1:[function(require,module,exports){\n');
+  const second = Buffer.from('\n},{"d3-queue":2}],2:[function(require,module,exports){\n');
+  const end = Buffer.from('\n},{}]},{},[1])(1)\n});');
+  const firstOffset = bundle.indexOf(first);
+  const secondOffset = bundle.indexOf(second, firstOffset + first.length);
+  const endOffset = bundle.length - end.length;
+  if (firstOffset < 0 || secondOffset < 0 || secondOffset + second.length >= endOffset ||
+      !bundle.subarray(endOffset).equals(end)) {
+    throw new Error('[vendor-provenance] Unexpected Leaflet-image Browserify module table');
+  }
+  const bodies = [
+    bundle.subarray(firstOffset + first.length, secondOffset),
+    bundle.subarray(secondOffset + second.length, endOffset),
+  ];
+  return new Map(modules.map(({ purl, path: sourcePath, sha256 }, index) => {
+    const source = fs.readFileSync(path.join(repoRoot, sourcePath));
+    if (!source.equals(bodies[index]) || sha256Buffer(source) !== sha256) {
+      throw new Error(`[vendor-provenance] Leaflet-image Browserify module differs from the pinned source: ${sourcePath}`);
+    }
+    return [purl, { path: sourcePath, sha256 }];
+  }));
+}
+
+function leafletImageSourcePackages(repoRoot, lockComponents, inventory) {
+  const moduleSources = verifyLeafletImageModules(repoRoot, inventory);
+  const [expected] = inventory.components;
+  const queue = lockComponents.byName.get('d3-queue')?.find(component => component.lockPath === expected.lockPath);
+  if (!queue || queue.purl !== expected.purl || queue.licenseExpression !== expected.spdx) {
+    throw new Error('[vendor-provenance] Leaflet-image d3-queue lock entry differs from the pinned component');
+  }
+  return {
+    components: [{
+      ...queue,
+      lockFile: inventory.lockFile,
+      ...pinnedLicense(repoRoot, queue, expected, queue.lockPath),
+    }],
+    unresolved: [],
+    moduleSources,
+  };
+}
+
 function firstLicenseFiles(packageRoot) {
   if (!fs.existsSync(packageRoot) || !fs.statSync(packageRoot).isDirectory()) return [];
   return fs.readdirSync(packageRoot)
@@ -241,11 +296,12 @@ function npmLockAttestation(component) {
     type: 'npm-package-lock-integrity',
     value: component.integrity,
     lockPath: component.lockPath,
-    ...(component.lockFile ? { lockFile: component.lockFile, lockSha256: component.lockSha256 } : {}),
+    ...(component.lockFile && { lockFile: component.lockFile }),
+    ...(component.lockSha256 && { lockSha256: component.lockSha256 }),
   };
 }
 
-function copyComponentLicenseEvidence(repoRoot, outputRoot, component) {
+function copyComponentLicenseEvidence(repoRoot, outputRoot, component, directLicense) {
   const packageRoot = path.join(repoRoot, component.installedPath || component.lockPath);
   let metadata = null;
   const metadataPath = path.join(packageRoot, 'package.json');
@@ -265,6 +321,11 @@ function copyComponentLicenseEvidence(repoRoot, outputRoot, component) {
       sha256: sha256Buffer(contents),
       copyrightIncluded: /copyright|\(c\)|©/i.test(contents.toString('utf8')),
     });
+  }
+  if (!licenseTexts.length && directLicense?.licenseTextPath) {
+    const contents = fs.readFileSync(path.join(outputRoot, directLicense.licenseTextPath));
+    assertCompleteLicenseText(contents.toString('utf8'), expression, component.purl);
+    licenseTexts.push({ path: directLicense.licenseTextPath, sha256: sha256Buffer(contents), copyrightIncluded: true });
   }
   return {
     name: component.name,
@@ -443,7 +504,7 @@ function collectEmbeddedSvgLicense(repoRoot, outputRoot, map, expected) {
   return { ...expected, asset: PDF_ASSET, copyrightIncluded: true };
 }
 
-function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, docx, pdfmake) {
+function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, discoveredByAsset) {
   const gapByPath = new Map();
   const gapKindById = new Map();
   for (const gap of policy.unresolvedAssets) {
@@ -461,19 +522,10 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, d
     directComponents.set(asset.package, component);
   }
 
-  const discoveredByAsset = new Map([
-    [DOCX_ASSET, { components: docx, unresolved: [] }],
-    [PDF_ASSET, pdfmake],
-  ]);
-
   return copiedAssets.map(asset => {
     const detected = discoveredByAsset.get(asset.path);
     const bundledComponents = [directComponents.get(asset.package), ...(detected?.components || [])];
     const contains = new Set(bundledComponents.map(component => component.purl));
-    if (asset.path === 'vendor/leaflet-image/leaflet-image.js') {
-      const d3Queue = (lockComponents.byName.get('d3-queue') || [])[0];
-      if (d3Queue) contains.add(d3Queue.purl);
-    }
     if (asset.path === LEAFLET_HEAT_ASSET) {
       contains.add(verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents).purl);
     }
@@ -492,11 +544,15 @@ function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, d
       contains: [...contains].sort(),
       containsFiles: [],
       ...(detected && {
-        componentAttestations: bundledComponents.map(component => ({
-          purl: component.purl,
-          lockFile: 'package-lock.json',
-          ...npmLockAttestation(component),
-        })),
+        componentAttestations: bundledComponents.map(component => {
+          const source = detected.moduleSources?.get(component.purl);
+          return {
+            purl: component.purl,
+            lockFile: 'package-lock.json',
+            ...npmLockAttestation(component),
+            ...(source && { source }),
+          };
+        }),
       }),
       unresolvedDetectedComponents: [...new Set(detected?.unresolved || [])].sort(),
       gaps,
@@ -605,16 +661,25 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
   const docx = docxSourcePackages(repoRoot, policy.verifiedBundleInventories?.[DOCX_ASSET]);
   const pdfInventory = policy.verifiedBundleInventories?.[PDF_ASSET];
   const pdfmake = pdfmakeSourcePackages(repoRoot, lockComponents, pdfInventory);
-  const assets = buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, docx, pdfmake);
+  const leafletImageInventory = policy.verifiedBundleInventories?.[LEAFLET_IMAGE_ASSET];
+  const leafletImage = leafletImageSourcePackages(repoRoot, lockComponents, leafletImageInventory);
+  const discoveredByAsset = new Map([
+    [PDF_ASSET, pdfmake],
+    [DOCX_ASSET, { components: docx, unresolved: [] }],
+    [LEAFLET_IMAGE_ASSET, leafletImage],
+  ]);
+  const assets = buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, discoveredByAsset);
   const requiredPurls = new Set(assets.flatMap(asset => asset.contains));
   const selected = [];
   for (const candidates of lockComponents.byName.values()) {
     for (const candidate of candidates) if (requiredPurls.has(candidate.purl)) selected.push(candidate);
   }
-  selected.push(...pdfmake.components, ...docx);
+  for (const { components } of discoveredByAsset.values()) selected.push(...components);
+  const leafletImageLicense = dependencies.find(dependency => dependency.package === 'leaflet-image');
   const components = [...new Map(selected.map(component => [component.purl, component])).values()]
     .sort((left, right) => left.purl.localeCompare(right.purl))
-    .map(component => copyComponentLicenseEvidence(repoRoot, outputRoot, component));
+    .map(component => copyComponentLicenseEvidence(repoRoot, outputRoot, component,
+      component.purl === leafletImageInventory.owner ? leafletImageLicense : undefined));
   const fontEvidence = collectFontEvidence(repoRoot, outputRoot);
   const simpleheat = components.find(component => component.attestation.lockPath === 'node_modules/simpleheat');
   const simpleheatLicense = simpleheat?.licenseTexts.find(license => license.copyrightIncluded);
@@ -674,7 +739,8 @@ function validateVerifiedBundleInventories(manifest, policy) {
         JSON.stringify([...asset.contains].sort()) !== JSON.stringify(purls) ||
         JSON.stringify(asset.containsFiles) !== JSON.stringify(fileRefs) ||
         JSON.stringify(asset.gaps) !== JSON.stringify(gaps) || asset.unresolvedDetectedComponents?.length !== 0 ||
-        rebuild?.sha256 !== expected.bundleSha256 || asset.reproducible !== true || asset.reproductionMethod !== rebuild.command) {
+        (rebuild ? rebuild.sha256 !== expected.bundleSha256 : !expected.browserifyModules) ||
+        asset.reproducible !== Boolean(rebuild) || asset.reproductionMethod !== (rebuild?.command ?? null)) {
       throw new Error(`[vendor-provenance] Asset differs from the verified component inventory: ${assetPath}`);
     }
     for (const entry of expected.components) {
@@ -935,4 +1001,5 @@ module.exports = {
   sriSha512Hex,
   validateCompletenessClaims,
   validateVerifiedBundleInventories,
+  verifyLeafletImageModules,
 };

@@ -99,6 +99,35 @@
         "path": "vendor/licenses/components/pdfmake-svg-to-pdfkit-MIT.txt",
         "sha256": "97a9a454169e8bb54afa875ba1741ac77f2a3b8cfac57e06c7e54f4467776ed8"
       }
+    },
+    "vendor/leaflet-image/leaflet-image.js": {
+      "owner": "pkg:npm/leaflet-image@0.4.0",
+      "bundleSha256": "3bea1a52386fbe87d581290e79b66b324ddbff620431f4e1a0b289262f82ac5f",
+      "lockFile": "package-lock.json",
+      "componentEvidenceSha256": "7246395530f4da65d4f12670d3f97731c3de460bb0d83fab0fac915e64fbfa84",
+      "browserifyModules": [
+        {
+          "purl": "pkg:npm/leaflet-image@0.4.0",
+          "path": "node_modules/leaflet-image/index.js",
+          "sha256": "c3bb8b9abfb441bc07da76f5951b00eb27920fd7ee3fb2f2e5688c018b2b36b5"
+        },
+        {
+          "purl": "pkg:npm/d3-queue@2.0.3",
+          "path": "node_modules/d3-queue/build/d3-queue.js",
+          "sha256": "ebcbfbced3793cfa6dfc0469c216770618c4b493f261bdb79bff58a82e4f50a4"
+        }
+      ],
+      "components": [
+        {
+          "purl": "pkg:npm/d3-queue@2.0.3",
+          "lockPath": "node_modules/d3-queue",
+          "resolved": "https://registry.npmjs.org/d3-queue/-/d3-queue-2.0.3.tgz",
+          "integrity": "sha512-ejbdHqZYEmk9ns/ljSbEcD6VRiuNwAkZMdFf6rsUb3vHROK5iMFd8xewDQnUVr6m/ba2BG63KmR/LySfsluxbg==",
+          "spdx": "BSD-3-Clause",
+          "licenseFile": "LICENSE",
+          "licenseSha256": "f037f99927dd7415275d1d14a4f4c7e162861594583ef255b1a28cb0716e1cfe"
+        }
+      ]
     }
   },
   "unresolvedAssets": [

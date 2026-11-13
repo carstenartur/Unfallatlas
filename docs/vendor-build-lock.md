@@ -184,3 +184,18 @@ sie mit TypeScript 5.9.3 und vergleicht das JavaScript und seine Source Map
 byteweise mit den tatsächlich für pdfmake installierten Dateien. Der
 Seitenbuild prüft die beiden Hashes und ordnet den Eintrag dem exakten
 PDF-Build-Lock und dem MIT-Lizenztext zu.
+
+## Eingebettete Leaflet-image-Module
+
+Der Seitenbuild vergleicht die beiden Browserify-Modulkörper in
+`vendor/leaflet-image/leaflet-image.js` bytegenau mit `index.js` aus
+`leaflet-image@0.4.0` und `build/d3-queue.js` aus `d3-queue@2.0.3`. Die
+Policy bindet den Bundle-Hash, die Quellpfade und ihre SHA-256-Werte an die
+Paketversionen und Archivintegritäten aus `package-lock.json`.
+
+Notice und CycloneDX geben die Quellpfade und Hashes am ausgelieferten
+Bundle an. Der Lizenznachweis bindet den archivierten Mapbox-Lizenztext und
+die mit `d3-queue` gelieferte BSD-3-Clause-Lizenz. Die Artefaktprüfung
+vergleicht das Inventar und die Lizenzhashes mit der eingecheckten Policy.
+Für den vollständigen Nachweis fehlt weiterhin ein unabhängiger Nachbau
+mit gepinntem Browserify und signierter Build-Attestierung.
