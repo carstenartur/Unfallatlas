@@ -203,7 +203,23 @@ function snapshotFromRuntime(raw) {
       verifiedDirectProceedings:[],positiveCaseEvidence:'blocked: real motions, resolutions, administrative answers, trials and plans have not been verified'},
     modelRelease:{status:'blocked',actualProviderRun:false,providerReceipt:null,positiveAcceptance:false,required:['Configured provider run on exact facts/prompt','Exact model version and timestamp','Production schema and value-add rubric evaluation','Completed source-linked political research','Four-mode live map inspection']}};
 }
-function prepareModelReview(raw,outDir,councilEvidence) {
+function reviewedMapHints(snapshot) {
+  const directory = 'docs/qa/bonn-hbf-map-views';
+  const capture = require('../docs/qa/bonn-hbf-map-views/capture.json');
+  if (capture.caseId !== snapshot.case.id || capture.mapInputsFingerprint !== snapshot.inputs.mapInputsFingerprint
+      || capture.views.length !== snapshot.inputs.mapViews.length) throw new Error('Map observation case or inputs changed.');
+  for (const expected of snapshot.inputs.mapViews) {
+    const view = capture.views.find(entry => entry.mode === expected.mapMode);
+    if (!view || view.url !== expected.url || json(view.bounds) !== json(snapshot.case.bounds)
+        || view.selected !== snapshot.facts.totalAccidents || fileHash(path.join(directory, view.file)) !== view.fileSha256) {
+      throw new Error('Map observation or preview changed for ' + expected.mapMode);
+    }
+  }
+  return {sourceType:'visual_context', source:{layerName:'Öffentliche Bonner Kartenansichten',
+    provider:'© OpenStreetMap-Mitwirkende und Geobasis NRW', mapModeLabel:'Standard, Hybrid, Orthofoto, Analyse'},
+    hints:capture.observations, recommendation:capture.limits, views:capture.views, build:capture.build};
+}
+function prepareModelReview(raw,outDir,councilEvidence,mapHints) {
   const {deriveFeatures}=require('../server/ai/features/deriveFeatures');
   const {preselectMeasures}=require('../server/ai/scoring/preselectMeasures');
   const service=require('../server/ai/aiAssessmentServiceV2');
@@ -211,9 +227,11 @@ function prepareModelReview(raw,outDir,councilEvidence) {
   const structured = councilEvidence ? {...raw.structured,
     politicalContextResearch: {status:'results-found', queries:councilEvidence.queries},
     politicalReferences: councilEvidence.references,
+    visualContextHints: mapHints,
   } : raw.structured;
-  const features=deriveFeatures(structured),preselected=preselectMeasures(features,{citySlug:'bonn'});
-  const input=service.buildAiInputV2(structured,features,preselected);
+  const contextHints = councilEvidence ? {notes:councilEvidence.authorities} : undefined;
+  const features=deriveFeatures(structured, contextHints),preselected=preselectMeasures(features,{citySlug:'bonn'});
+  const input=service.buildAiInputV2(structured,features,preselected,contextHints);
   const prompt = service.buildProviderPrompt(input, 'proposal-brief');
   const binding={inputSha256:hash(json(input)),promptSha256:hash(json(prompt))};
   const schema='server/ai/schema/proposalBrief.v1.schema.json',rubric='server/ai/proposalBriefValueAddCore.js';
@@ -285,7 +303,7 @@ async function main(args=process.argv.slice(2)) {
   const councilEvidence = require('../tests/fixtures/bonn-hbf-political-research.json');
   if (councilEvidence.caseId !== snapshot.case.id) throw new Error('Council research belongs to a different case.');
   const councilDir = path.join(outDir, 'council-research');
-  const council = prepareModelReview(raw, councilDir, councilEvidence);
+  const council = prepareModelReview(raw, councilDir, councilEvidence, reviewedMapHints(snapshot));
   if (runModel) {
     // Each case must retain its own response even if the other one fails its rubric.
     const errors = [];
@@ -298,4 +316,4 @@ async function main(args=process.argv.slice(2)) {
   console.log(`[bonn-hbf-ai] PASS: ${snapshot.facts.totalAccidents} selected / ${snapshot.facts.completeAreaCount} complete area; reproducible facts, model/political/map release remains blocked.`);
 }
 if(require.main===module)main().catch(e=>{console.error(e.stack);process.exitCode=1;});
-module.exports={BOUNDS,AREA,PLACES,canonicalUrl,compareSnapshots,snapshotFromRuntime,reviewModelResponse,runBoundModelReview,captureRuntime,main};
+module.exports={BOUNDS,AREA,PLACES,canonicalUrl,compareSnapshots,snapshotFromRuntime,reviewModelResponse,runBoundModelReview,captureRuntime,reviewedMapHints,main};

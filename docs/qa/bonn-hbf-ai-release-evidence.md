@@ -126,6 +126,8 @@ review remain external release gates.
 
 ## Reviewed council sources for the same 37 crashes, 13 November 2026
 
+The proposal addresses the Bezirksvertretung Bonn. For the ZOB design, the city council commissioned the administration to plan and reserved a later construction decision. The SWB supervisory board speaks for the transport operator. The district body can request the status from the administration and the competent council committee. The three-metre request concerns walking next to a cycle lane. The 37 bicycle–car crashes span the whole selection and require case-level route checks before attributing them to that conflict.
+
 The second reference input uses the same browser capture and six primary-source
 records. The published [research record](../../tests/fixtures/bonn-hbf-political-research.json)
 contains the executed queries, retrieval date and SHA-256 of each HTTP response
@@ -144,7 +146,19 @@ reviewed evidence, production input and prompt, and binding receipt. The
 original unsearched case retains its own evidence and verdict. `--run-model`
 submits both prompts and saves each actual answer independently. A researched
 answer is checked against the six source URLs and four recorded queries.
-Both cases still lack a case-bound independent map assessment for filing.
+Four [public map observations](bonn-hbf-map-views/capture.json) bind the exact Golden view URLs,
+selection bounds and population to the observed public deployment and image hashes.
+Each [standard](bonn-hbf-map-views/standard.webp), [hybrid](bonn-hbf-map-views/hybrid.webp),
+[orthophoto](bonn-hbf-map-views/orthophoto.webp) and [analysis](bonn-hbf-map-views/analysis.webp)
+preview records the actual Chromium view at 1440 × 900. Credit for the maps:
+© OpenStreetMap contributors (ODbL) and Geobasis NRW (Datenlizenz Deutschland – Namensnennung 2.0).
+Rendering was checked after all visible tiles loaded and reached full opacity. The
+four screenshots were visually inspected. The stable public build manifest was
+checked before and after capture. The research input includes those visual
+observations. They do not establish individual vehicle trajectories, priority,
+sight lines, aerial acquisition date or injury counts. The model adapter sends
+textual observations, not the raster images. The images are available for
+independent traffic-engineering assessment.
 
 On 13 November the Node 26.13.1 / Chromium run reproduced the 37/312
 case with zero Golden differences. Both inputs had the same geometry and
@@ -156,7 +170,7 @@ therefore still require a configured provider run.
 For independent review of an actual answer, record the answer SHA-256, reviewer
 and review date. Check the difference interval and denominator against the
 facts above, and check the 37 cases and their severity against the captured
-report. Record the sections that add insight, distinguish competing explanations,
+report. The categories count crashes by their most severe outcome. Record the sections that add insight, distinguish competing explanations,
 compare the council decisions, and identify a responsible body, timeframe and
 measurable result. Verify each source against the claim it supports and record
 any incorrect or unsupported statement. Automated trace matching cannot assess

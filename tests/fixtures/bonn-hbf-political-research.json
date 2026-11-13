@@ -11,17 +11,92 @@
     "access": "Der indexierte Volltext enthält den Beschlusswortlaut. Der frühere städtische PDF-Link lieferte beim direkten Abruf HTTP 404. Die drei getrennten Abstimmungsergebnisse waren im öffentlichen OParl-Original abrufbar."
   },
   "queries": [
-    { "query": "Bonn Hauptbahnhof ZOB 232044 232044-02 AA Beschluss Verkehrsversuch Maximilianstraße Münsterplatz Thomas-Mann-Straße Zentraler Omnibusbahnhof Bonn Umsetzung Rat", "source": "Ratsniederschrift und OParl der Bundesstadt Bonn", "sourceType": "manual-primary-source-review", "url": "https://www.bonn.sitzung-online.de/oparl/meetings/2002940" },
-    { "query": "Bonn Cityring Kaiserstraße Verkehrsversuch 2020 Mobilitätskonzept Evaluation Straße Am Hauptbahnhof Bundesstadt Bonn Stadtrat Drucksache 2019 Bonn Verkehrsflächen Am Hauptbahnhof Verkehrsversuch 191", "source": "Beteiligungsarchiv der Bundesstadt Bonn", "sourceType": "manual-primary-source-review", "url": "https://bonn-macht-mit.de/archiv/node/4321.html" },
-    { "query": "Bonn ZOB Vorschläge Beteiligung werden geprüft 9. Mai 2025 Maximilianstraße Gehfläche der Rat Stellungsnahme Verwaltung geprüft 232044-01 ST Rad Gehbahn 3 Meter", "source": "Bundesstadt Bonn", "sourceType": "manual-primary-source-review", "url": "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php" },
-    { "query": "ZOB Bonn Bonner Hauptbahnhof Oktober November 2026 Zukunft Umbau Oktober Stadtwerke Priorität Planung Bundesstadt Bonn November 2026 Busbahnhof Oberbürgermeister Finanzierung konkretes Planungsverfahren", "source": "SWB Bus und Bahn", "sourceType": "manual-primary-source-review", "url": "https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/" }
+    {
+      "query": "Bonn Hauptbahnhof ZOB 232044 232044-02 AA Beschluss Verkehrsversuch Maximilianstraße Münsterplatz Thomas-Mann-Straße Zentraler Omnibusbahnhof Bonn Umsetzung Rat",
+      "source": "Ratsniederschrift und OParl der Bundesstadt Bonn",
+      "sourceType": "manual-primary-source-review",
+      "url": "https://www.bonn.sitzung-online.de/oparl/meetings/2002940"
+    },
+    {
+      "query": "Bonn Cityring Kaiserstraße Verkehrsversuch 2020 Mobilitätskonzept Evaluation Straße Am Hauptbahnhof Bundesstadt Bonn Stadtrat Drucksache 2019 Bonn Verkehrsflächen Am Hauptbahnhof Verkehrsversuch 191",
+      "source": "Beteiligungsarchiv der Bundesstadt Bonn",
+      "sourceType": "manual-primary-source-review",
+      "url": "https://bonn-macht-mit.de/archiv/node/4321.html"
+    },
+    {
+      "query": "Bonn ZOB Vorschläge Beteiligung werden geprüft 9. Mai 2025 Maximilianstraße Gehfläche der Rat Stellungsnahme Verwaltung geprüft 232044-01 ST Rad Gehbahn 3 Meter",
+      "source": "Bundesstadt Bonn",
+      "sourceType": "manual-primary-source-review",
+      "url": "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php"
+    },
+    {
+      "query": "ZOB Bonn Bonner Hauptbahnhof Oktober November 2026 Zukunft Umbau Oktober Stadtwerke Priorität Planung Bundesstadt Bonn November 2026 Busbahnhof Oberbürgermeister Finanzierung konkretes Planungsverfahren",
+      "source": "SWB Bus und Bahn",
+      "sourceType": "manual-primary-source-review",
+      "url": "https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/"
+    }
   ],
   "references": [
-    { "title": "City-Ring und Kaiserstraße", "type": "Verkehrsversuch", "date": "2019-08-28", "source": "Bundesstadt Bonn", "url": "https://bonn-macht-mit.de/archiv/node/4321.html", "snippet": "Für den Versuch vom September 2019 bis März 2020 kündigte die Stadt die Öffnung der Zufahrt vom Kaiserplatz in die Maximilianstraße an. Der Versuch belegt keine Unfallwirkung.", "bodySha256": "dea6bfb50116f22fa0e145da7b65223667da6ff639eda8f0d57c5bc3bda013d8" },
-    { "title": "Neuplanung ZOB Bonn", "type": "Ratsbeschluss", "number": "232044", "date": "2024-03-14", "source": "Rat der Bundesstadt Bonn", "url": "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056676", "snippet": "Der Rat beschloss die Vorlage in geänderter Fassung. Er beauftragte die weiteren Planungsphasen 3 bis 5. Den Baubeschluss sollten die Gremien später gesondert fassen.", "bodySha256": "bbb513fb7a2c19fb85559146bdd4e168b80360ea2cfed9439196354cac70c7b5" },
-    { "title": "Stellungnahme der Verwaltung zur Neuplanung ZOB", "type": "Stellungnahme", "number": "232044-01 ST", "date": "2024-03-14", "source": "Rat der Bundesstadt Bonn", "url": "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056677", "snippet": "Der Rat nahm die Stellungnahme der Verwaltung zur Kenntnis. Der Planungsauftrag steht im gesonderten Beschluss 232044.", "bodySha256": "d41b4a7a6f486c2e68329efd7464e06be7a044571ab5559709d34a980ab7dcfe" },
-    { "title": "Fußverkehrsbreiten an der Maximilianstraße", "type": "Änderungsantrag", "number": "232044-02 AA", "date": "2024-03-14", "source": "Rat der Bundesstadt Bonn", "url": "https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295", "snippet": "Eine separate Abstimmung entfiel. Der geänderte Hauptbeschluss enthält die Prüfung einer mindestens drei Meter breiten Gehfläche nördlich des Radstreifens.", "bodySha256": "7d2fae14fd9695c08528ff9ad515bd60c49f163a8b9b7f67b557ec468ac5afed" },
-    { "title": "Beratung der Vorschläge aus der ZOB-Beteiligung", "type": "Weitere Planung", "date": "2025-05-09", "source": "Bundesstadt Bonn", "url": "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php", "snippet": "Nach dem Ratsbeschluss vom 8. Mai 2025 werden Querungen, Zebrastreifen und eine Langsamfahr- oder Fußgängerzone im weiteren Planungsverfahren geprüft.", "bodySha256": "ed9754af4e8a69f64bced15d023c8f14932b53e18fdb65e21f03dd0dc1b8288e" },
-    { "title": "Vorstoß des Aufsichtsrats zum ZOB", "type": "Position des Verkehrsunternehmens", "date": "2026-09-30", "source": "SWB Bus und Bahn", "url": "https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/", "snippet": "Der SWB-Aufsichtsrat fordert einen Ablauf- und Umsetzungsplan zum ersten Sitzungsturnus 2027. Ein Ratsbeschluss oder Baubeginn ergibt sich daraus nicht.", "bodySha256": "44e326cf0d25766b50707f47943aec7dc65095d676999313a6011f6819ec8602" }
+    {
+      "title": "City-Ring und Kaiserstraße",
+      "type": "Verkehrsversuch",
+      "date": "2019-08-28",
+      "source": "Bundesstadt Bonn",
+      "url": "https://bonn-macht-mit.de/archiv/node/4321.html",
+      "snippet": "Für den Versuch vom September 2019 bis März 2020 kündigte die Stadt die Öffnung der Zufahrt vom Kaiserplatz in die Maximilianstraße an. Der Versuch belegt keine Unfallwirkung.",
+      "bodySha256": "dea6bfb50116f22fa0e145da7b65223667da6ff639eda8f0d57c5bc3bda013d8"
+    },
+    {
+      "title": "Neuplanung ZOB Bonn",
+      "type": "Ratsbeschluss",
+      "number": "232044",
+      "date": "2024-03-14",
+      "source": "Rat der Bundesstadt Bonn",
+      "url": "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056676",
+      "snippet": "Der Rat beschloss die Vorlage in geänderter Fassung. Er beauftragte die weiteren Planungsphasen 3 bis 5. Den Baubeschluss sollten die Gremien später gesondert fassen.",
+      "bodySha256": "bbb513fb7a2c19fb85559146bdd4e168b80360ea2cfed9439196354cac70c7b5"
+    },
+    {
+      "title": "Stellungnahme der Verwaltung zur Neuplanung ZOB",
+      "type": "Stellungnahme",
+      "number": "232044-01 ST",
+      "date": "2024-03-14",
+      "source": "Rat der Bundesstadt Bonn",
+      "url": "https://www.bonn.sitzung-online.de/oparl/agendaItems/2056677",
+      "snippet": "Der Rat nahm die Stellungnahme der Verwaltung zur Kenntnis. Der Planungsauftrag steht im gesonderten Beschluss 232044.",
+      "bodySha256": "d41b4a7a6f486c2e68329efd7464e06be7a044571ab5559709d34a980ab7dcfe"
+    },
+    {
+      "title": "Fußverkehrsbreiten an der Maximilianstraße",
+      "type": "Änderungsantrag",
+      "number": "232044-02 AA",
+      "date": "2024-03-14",
+      "source": "Rat der Bundesstadt Bonn",
+      "url": "https://www.bonn.sitzung-online.de/oparl/agendaItems/2057295",
+      "snippet": "Eine separate Abstimmung entfiel. Der geänderte Hauptbeschluss enthält die Prüfung einer mindestens drei Meter breiten Gehfläche nördlich des Radstreifens.",
+      "bodySha256": "7d2fae14fd9695c08528ff9ad515bd60c49f163a8b9b7f67b557ec468ac5afed"
+    },
+    {
+      "title": "Beratung der Vorschläge aus der ZOB-Beteiligung",
+      "type": "Weitere Planung",
+      "date": "2025-05-09",
+      "source": "Bundesstadt Bonn",
+      "url": "https://www.bonn.de/pressemitteilungen/mai/umgestaltung-zob-vorschlaege-aus-beteiligung-werden-auf-umsetzung-geprueft.php",
+      "snippet": "Der Rat ließ am 8. Mai 2025 die Radführung an der Maximilianstraße mit Schutz für den Fußverkehr weiterplanen. Die Fachplanung prüft Querungshilfen und reduzierte Geschwindigkeiten.",
+      "bodySha256": "ed9754af4e8a69f64bced15d023c8f14932b53e18fdb65e21f03dd0dc1b8288e"
+    },
+    {
+      "title": "Vorstoß des Aufsichtsrats zum ZOB",
+      "type": "Position des Verkehrsunternehmens",
+      "date": "2026-09-30",
+      "source": "SWB Bus und Bahn",
+      "url": "https://www.swb-busundbahn.de/aktuelle-meldungen/details/gemeinsamer-vorstoss-fuer-tragfaehige-loesung-am-zob/",
+      "snippet": "Der SWB-Aufsichtsrat fordert einen Ablauf- und Umsetzungsplan zum ersten Sitzungsturnus 2027. Ein Ratsbeschluss oder Baubeginn ergibt sich daraus nicht.",
+      "bodySha256": "44e326cf0d25766b50707f47943aec7dc65095d676999313a6011f6819ec8602"
+    }
+  ],
+  "authorities": [
+    "Der Rat beauftragte die Stadtverwaltung mit der ZOB-Planung (232044). Einen späteren Baubeschluss trifft das zuständige kommunale Gremium.",
+    "Adressat des Prüfauftrags ist die Bezirksvertretung Bonn. Das Verkehrsunternehmen SWB hat einen Ablaufplan angeregt. Einen Baubeschluss der Stadt belegt seine Resolution nicht."
   ]
 }

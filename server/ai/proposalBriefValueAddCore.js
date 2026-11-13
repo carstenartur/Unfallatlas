@@ -352,7 +352,7 @@ function buildProposalValueAddPrompt(aiInput) {
     '=== VERBINDLICHER DETERMINISTIK-VS.-KI-MEHRWERTVERTRAG ===',
     `Vertrag: ${contract.schemaVersion || AI_COMPARISON_CONTRACT_VERSION}`,
     `Deterministische Baseline: ${digest.schemaVersion || DETERMINISTIC_DIGEST_VERSION}`,
-    `Amtlicher Tatsachenkern: ${facts.total ?? 'unbekannt'} Unfälle; ${facts.fatal ?? 'unbekannt'} Getötete; ${facts.serious ?? 'unbekannt'} Schwerverletzte; ${facts.slight ?? 'unbekannt'} Leichtverletzte.`,
+    `Amtlicher Tatsachenkern: ${facts.total ?? 'unbekannt'} Unfälle. Unfälle nach schwerster Folge: ${facts.fatal ?? 'unbekannt'} mit Getöteten, ${facts.serious ?? 'unbekannt'} mit Schwerverletzten, ${facts.slight ?? 'unbekannt'} mit Leichtverletzten.`,
     `Politischer Recherchestatus der Baseline: ${political.status || 'not-searched'}.`,
     ...(!aiInput?.risSnapshotContext?.search && ['complete', 'results-found'].includes(political.status) && political.queries?.length
       ? [aiInput?.risSnapshotContext ? 'Vom Snapshot getrennt dokumentierte amtliche Recherche:' : 'Dokumentierte politische Recherche:',
