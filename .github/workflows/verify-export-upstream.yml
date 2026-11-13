@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'pom.xml'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/verify-export-upstream.yml'
       - 'vendor/docx-build/**'
       - 'vendor/pdfmake-build/**'

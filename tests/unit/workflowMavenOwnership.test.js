@@ -63,6 +63,21 @@ function stepSection(source, stepName) {
 }
 
 describe('GitHub Actions delegates repository build and QA to Maven', () => {
+  test('rechecks upstream bundles when the Maven profile, npm scripts or locked inputs change', () => {
+    const workflow = workflowSource('verify-export-upstream.yml');
+    const scripts = require('../../package.json').scripts;
+    const pom = fs.readFileSync(path.join(ROOT, 'pom.xml'), 'utf8');
+    for (const input of ['pom.xml', 'package.json', 'package-lock.json', 'vendor/leaflet-build/**']) {
+      expect(workflow).toContain(`- '${input}'`);
+    }
+    const profile = pom.split('<profile>').find(section => section.includes('<id>vendor-upstream-rebuild</id>'));
+    expect(profile.split('</profile>')[0]).toContain('<arguments>run qa:vendor-upstream-rebuild</arguments>');
+    expect(scripts['qa:vendor-upstream-rebuild'].split(' && ')).toEqual([
+      'bash scripts/verify-docx-upstream.sh', 'bash scripts/verify-pdfmake-upstream.sh',
+      'bash scripts/verify-leaflet-upstream.sh',
+    ]);
+  });
+
   test('build and QA workflow YAML contains no direct Node, npm, Jest, Playwright or JS-Testcontainers orchestration', () => {
     const forbidden = [
       { label: 'npm command', pattern: /\bnpm\s+(?:ci|install|run|test|exec)\b/ },
