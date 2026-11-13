@@ -149,7 +149,9 @@
 
     function activeMapDescriptor(UA, ctx) {
       const overlays = activeContextOverlays(ctx);
-      if (overlays.length) {
+      const slopeOnly = overlays.length === 1 && overlays[0] === 'slope' &&
+        ctx.contextLayerState?.meta?.sources?.roadSlope?.sourceId === 'hannover.dgm1';
+      if (overlays.length && !slopeOnly) {
         fail(
           "unsupported_context_source_provenance",
           "Active context overlays do not yet expose complete renderer provenance",
@@ -180,18 +182,18 @@
       }
       return Object.freeze({
         mode: "standard",
-        layerIds: Object.freeze(["standard-osm"]),
+        layerIds: Object.freeze(slopeOnly ? ["standard-osm", "slope"] : ["standard-osm"]),
       });
     }
 
-    function osmSource(manifest) {
+    function osmSource(manifest, roads = false) {
       return {
         sourceId: OSM_SOURCE_ID,
         role: "basemap",
         publisher: "OpenStreetMap-Mitwirkende",
         datasetTitle: "OpenStreetMap Standard-Grundkarte",
         datasetUrl: "https://www.openstreetmap.org/",
-        distributionUrl: "https://tile.openstreetmap.org/",
+        ...(roads ? {} : { distributionUrl: "https://tile.openstreetmap.org/" }),
         licenseId: "ODbL-1.0",
         licenseName: "Open Data Commons Open Database License 1.0",
         licenseUrl: "https://opendatacommons.org/licenses/odbl/1-0/",
@@ -212,6 +214,35 @@
       };
     }
 
+    function visibleSlopeProfiles(UA, ctx) {
+      const state = ctx.contextLayerState;
+      const source = state.meta.sources.roadSlope;
+      const group = ctx.contextOverlays.layers?.slope;
+      const lines = group?.getLayers?.() || [];
+      const validPin = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+      if (!lines.length || !ctx.map?.hasLayer(group) || !validPin(source.manifestSha256) ||
+          !validPin(source.distributionSha256) || !source.acquisitionPeriod || !source.horizontalTransformation?.to) {
+        fail('unverified_slope_overlay', 'Geländeschicht oder belegte Profilquelle fehlt.');
+      }
+      const profiles = lines.map(line => {
+        const row = line.feature?.properties;
+        if (!row || row.road_slope_source_id !== source.sourceId ||
+            row.road_slope_manifest_sha256 !== source.manifestSha256 ||
+            row.road_slope_distribution_sha256 !== source.distributionSha256) {
+          fail('unverified_slope_overlay', 'Weg und DGM-Quelldateien stimmen nicht überein.');
+        }
+        return { wayId: row.way_id, class: row.class, statement: row.slope_statement || null,
+          gradientPercent: row.road_slope_percent ?? null, quality: row.road_slope_quality || null,
+          uncertaintyPercent: row.road_slope_uncertainty_percent ?? null,
+          uncertaintyReasons: row.road_slope_uncertainty_reasons || [], windowMeters: row.road_slope_profile_window_m ?? null,
+          samples: row.road_slope_sample_count ?? null };
+      }).sort((a, b) => a.wayId.localeCompare(b.wayId));
+      const popup = ctx.contextOverlays.slopePopup;
+      const selectedWayId = profiles.some(profile => profile.wayId === popup?.slopeWayId) ? popup.slopeWayId : null;
+      return { source, profiles, selectedWayId, debugLabels: UA.qGet?.('debugSlope', '') === '1',
+        osmExtractDate: state.tileIndex?.extractDate || state.meta.sources.osm?.extractDate || null };
+    }
+
     async function buildStaticMapManifest(manifestValue, UA, ctx) {
       requireDependencies();
       const base = await artifactProvenance.normalizeAndHash(manifestValue);
@@ -219,6 +250,25 @@
       const copy = JSON.parse(JSON.stringify(base.manifest));
       if (!copy.sources.some((source) => source.sourceId === OSM_SOURCE_ID)) {
         copy.sources.push(osmSource(copy));
+      }
+      const slope = descriptor.layerIds.includes('slope') ? visibleSlopeProfiles(UA, ctx) : null;
+      if (slope) {
+        const { source } = slope;
+        const roadGeometry = {
+          ...osmSource(copy, true), sourceId: 'road-context.openstreetmap', role: 'road_context',
+          datasetTitle: 'OpenStreetMap-Straßengeometrien',
+          temporalCoverage: slope.osmExtractDate || 'Datenstand unbekannt',
+          retrievedAt: ctx.contextLayerState?.tileIndex?.generatedAt || copy.generatedAt,
+          changeNotice: 'OSM-Wege wurden vereinfacht und nach Geländeprofil eingefärbt.',
+        };
+        copy.sources.push(roadGeometry, {
+          sourceId: source.sourceId, role: 'elevation', publisher: source.publisher, datasetTitle: source.source,
+          datasetUrl: source.datasetUrl, licenseId: source.licenseId, licenseName: source.licenseName,
+          licenseUrl: source.licenseUrl, requiredAttribution: source.requiredAttribution,
+          temporalCoverage: source.acquisitionPeriod, spatialCoverage: copy.scenario.city, retrievedAt: source.retrievedAt,
+          contentHash: source.distributionSha256, changedOrDerived: true,
+          changeNotice: 'Geländehöhen wurden entlang der OpenStreetMap-Wege interpoliert und als Profilklassen eingefärbt.',
+        });
       }
       const transformationId = "render-static-map-png";
       if (
@@ -242,6 +292,7 @@
         parameters: {
           mapMode: descriptor.mode,
           layerIds: descriptor.layerIds,
+          ...(slope ? { slopeOverlay: slope } : {}),
           renderer: "leaflet-image",
           visibleSourceStrip: true,
         },
@@ -418,7 +469,7 @@
         context,
         opts.visibleNotice,
         maxTextWidth,
-        3,
+        Number.POSITIVE_INFINITY,
       );
       context.font = `400 ${Math.max(
         11,
@@ -510,13 +561,16 @@
       requireDependencies();
       const opts = options || {};
       const normalized = await artifactProvenance.normalizeAndHash(opts.manifest);
+      const slope = normalized.manifest.transformations.find(item => item.transformationId === 'render-static-map-png')
+        ?.parameters?.slopeOverlay;
+      const selected = slope?.profiles.find(profile => profile.wayId === slope.selectedWayId);
+      const profileLabel = selected ? `OSM-Weg ${selected.wayId} · ${selected.statement} ` : '';
+      const prefix = slope
+        ? `${profileLabel}DGM1 · ${slope.source.resolutionM} m · ${slope.source.acquisitionPeriod} · ${slope.source.requiredAttribution} · OSM-Wege © OpenStreetMap-Mitwirkende (ODbL). Quellen`
+        : opts.noticeOptions?.prefix;
       const noticeOptions = {
-        maxCharacters:
-          Number(opts.noticeOptions?.maxCharacters) ||
-          DEFAULT_NOTICE_CHARACTERS,
-        ...(opts.noticeOptions?.prefix
-          ? { prefix: opts.noticeOptions.prefix }
-          : {}),
+        maxCharacters: Number(opts.noticeOptions?.maxCharacters) || (slope ? 1300 : DEFAULT_NOTICE_CHARACTERS),
+        ...(prefix ? { prefix } : {}),
       };
       const visibleNotice = artifactProvenance.compactSourceNotice(
         normalized.manifest,
@@ -674,10 +728,43 @@
 
       const baseBefore = await createManifest(ctx, { UA, root: rootValue });
       const before = await buildStaticMapManifest(baseBefore, UA, ctx);
-      const sourceDataUrl = await UA.captureExportMapImage(ctx, {
+      const hasSlope = before.manifest.transformations.find(item => item.transformationId === 'render-static-map-png')
+        .parameters.layerIds.includes('slope');
+      const capture = await UA.captureExportMapImage(ctx, {
+        ...(hasSlope ? { returnCanvasForLabels: true } : {}),
         heatmapExportOpacity:
           options.heatmapExportOpacity ?? heatmapExportOpacity(rootValue),
       });
+      let sourceDataUrl = capture;
+      if (hasSlope) {
+        const map = ctx.map;
+        const roadCanvas = ctx.contextOverlays.renderer?._container;
+        const firstCanvas = map.getPane('overlayPane')?.querySelector('canvas');
+        if (!roadCanvas || !firstCanvas || typeof capture?.getContext !== 'function') {
+          fail('missing_slope_pixels', 'Der Kartenrenderer liefert keine DGM-Ebene.');
+        }
+        const context = capture.getContext('2d');
+        const mapRect = map.getContainer().getBoundingClientRect();
+        if (firstCanvas !== roadCanvas) {
+          // leaflet-image captures only the first overlay canvas. Leaflet's road
+          // renderer uses a separate padded canvas and supports retina scaling.
+          const rect = roadCanvas.getBoundingClientRect();
+          context.drawImage(roadCanvas, rect.left - mapRect.left, rect.top - mapRect.top, rect.width, rect.height);
+        }
+        for (const line of ctx.contextOverlays.layers.slope.getLayers()) {
+          const label = line.getTooltip?.()?.getElement?.();
+          if (!label || !label.classList.contains('context-road-debug-tooltip')) continue;
+          const rect = label.getBoundingClientRect();
+          const x = rect.left - mapRect.left, y = rect.top - mapRect.top;
+          context.fillStyle = '#ffffff';
+          context.fillRect(x, y, rect.width, rect.height);
+          context.fillStyle = '#111827';
+          context.font = rootValue.getComputedStyle(label).font || '12px sans-serif';
+          context.textBaseline = 'middle';
+          context.fillText(label.textContent, x + 6, y + rect.height / 2);
+        }
+        sourceDataUrl = capture.toDataURL('image/png');
+      }
       const baseAfter = await createManifest(ctx, { UA, root: rootValue });
       const after = await buildStaticMapManifest(baseAfter, UA, ctx);
       if (before.sha256 !== after.sha256) {

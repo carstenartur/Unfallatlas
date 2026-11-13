@@ -272,7 +272,7 @@
           weight: opts.weight,
           opacity: opts.opacity,
           dashArray,
-          interactive: isSpeed,
+          interactive: isSpeed || kind === 'slope',
         }));
         const properties = { way_id: String(wayId), class: featureClass, kind };
         if (isSpeed) {
@@ -315,15 +315,34 @@
         }
         line.feature = { type: 'Feature', properties, geometry: null };
 
-        const percent = attrs && Number.isFinite(attrs.road_slope_percent)
-          ? attrs.road_slope_percent : null;
-        if (kind === 'slope' && opts.debug && opts.debug.showPercent &&
-            typeof line.bindTooltip === 'function' && percent !== null) {
-          try {
-            line.bindTooltip(`${percent} %`, {
-              permanent: true, direction: 'center', className: 'context-road-debug-tooltip',
+        if (kind === 'slope' && properties.slope_statement && attrs?.road_slope_source_id) {
+          const source = state.meta?.sources?.roadSlope;
+          const bound = source?.sourceId === attrs.road_slope_source_id &&
+            typeof source.manifestSha256 === 'string' && typeof source.distributionSha256 === 'string' &&
+            source.manifestSha256 === attrs.road_slope_manifest_sha256 &&
+            source.distributionSha256 === attrs.road_slope_distribution_sha256;
+          const quality = { high: 'hoch', medium: 'mittel', low: 'niedrig', unusable: 'nicht nutzbar' }[confidence];
+          if (opts.openPopup && typeof line.on === 'function') {
+            line.on('click', event => {
+              const detail = document.createElement('div');
+              detail.textContent = [properties.slope_statement, quality && `Qualität ${quality}.`,
+                bound && source.acquisitionPeriod].filter(Boolean).join(' ');
+              opts.openPopup(event.latlng, detail, properties.way_id);
             });
-          } catch (_) { /* unsupported tooltip options */ }
+          }
+          if (bound && opts.debug?.showPercent && Number.isFinite(attrs.road_slope_percent) &&
+              typeof line.bindTooltip === 'function') {
+            const label = document.createElement('span');
+            const value = new Intl.NumberFormat('de-DE', { signDisplay: 'exceptZero' }).format(attrs.road_slope_percent);
+            label.textContent = properties.slope_semantic_type === 'road_gradient'
+              ? `${value} % · ${source.sourceId === 'hannover.dgm1' ? 'DGM1' : source.source} · ${quality || 'Qualität offen'}` : properties.slope_statement;
+            line.bindTooltip(label, { permanent: true, direction: 'center', className: 'context-road-debug-tooltip' });
+          }
+        } else if (kind === 'slope' && opts.debug?.showPercent && Number.isFinite(attrs?.road_slope_percent) &&
+                   typeof line.bindTooltip === 'function') {
+          line.bindTooltip(properties.slope_statement || `${attrs.road_slope_percent} % · Quelle nicht dokumentiert`, {
+            permanent: true, direction: 'center', className: 'context-road-debug-tooltip',
+          });
         }
         group.addLayer(line);
       } catch (_) { /* malformed line */ }

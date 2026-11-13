@@ -1,0 +1,62 @@
+{
+  "standard": {
+    "browser": "Chromium 158",
+    "generatedAt": "2026-11-13T08:14:35.235Z",
+    "mapScene": {
+      "city": "Hannover",
+      "center": [
+        52.367148,
+        9.734014
+      ],
+      "zoom": 19,
+      "mapLayer": "slope",
+      "debugSlope": 0
+    },
+    "mapTilesLoaded": 35,
+    "popup": "Straßenlängsneigung: +2,8 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m). Qualität hoch. Laserscannerbefliegung 2010",
+    "roadCanvasPixels": 149628,
+    "gentleClassPixels": 4566,
+    "visibleDebugLabelCount": 0,
+    "wayAnchorPixel": [
+      641,
+      488
+    ],
+    "pngBytes": 628449,
+    "pngSha256": "c0737a841e55ad1952ff3fec3f16af4c23180ce6eccf0940600b7eda0571fe05",
+    "sidecarSha256": "40b983a5bfc72fcf88da654b51c09d7a4d8267290a78a92b17ceac3eb9f62909",
+    "manifestSha256": "a6fc5ca74355d5134bc3df6cd18510ca18197da310b512fe8634f07b3b9a72e9",
+    "buildManifestSha256": "bd6d7b5890f1b2b91724869859fd00db4282e7e614ce01b3791d789f98f4d11b",
+    "buildFingerprint": "baaec9287d757897fa831ea00e800032f5a8835e471b56d54189fcfb7e6f4ceb",
+    "applicationFingerprint": "b0e7c3d77c56253f92d2d3418cd28bf4b38ef5cf2a5c83c332b26df835fa3b09"
+  },
+  "debug": {
+    "browser": "Chromium 158",
+    "generatedAt": "2026-11-13T08:14:41.317Z",
+    "mapScene": {
+      "city": "Hannover",
+      "center": [
+        52.367148,
+        9.734014
+      ],
+      "zoom": 19,
+      "mapLayer": "slope",
+      "debugSlope": 1
+    },
+    "mapTilesLoaded": 35,
+    "popup": "Straßenlängsneigung: +2,8 %; bergauf entlang der Way-Geometrie; Unsicherheit ±0,2 Prozentpunkte; Digitales Geländemodell DGM1 (1 m). Qualität hoch. Laserscannerbefliegung 2010",
+    "roadCanvasPixels": 149628,
+    "gentleClassPixels": 4566,
+    "visibleDebugLabelCount": 32,
+    "wayAnchorPixel": [
+      641,
+      488
+    ],
+    "pngBytes": 602174,
+    "pngSha256": "bb9926bf5301aea1fe7a6dae4a386f1a8f178f641ea5b5811eaefefe16f39fb7",
+    "sidecarSha256": "794b07a7d4ee808fb3d6567ea9dc2def482b3bf499e6d355124d592fe81a647c",
+    "manifestSha256": "926a499bb8f0277ca7854ed0aabc18b8f78969e7b233258e7b87b201ec954f45",
+    "buildManifestSha256": "bd6d7b5890f1b2b91724869859fd00db4282e7e614ce01b3791d789f98f4d11b",
+    "buildFingerprint": "baaec9287d757897fa831ea00e800032f5a8835e471b56d54189fcfb7e6f4ceb",
+    "applicationFingerprint": "b0e7c3d77c56253f92d2d3418cd28bf4b38ef5cf2a5c83c332b26df835fa3b09"
+  }
+}

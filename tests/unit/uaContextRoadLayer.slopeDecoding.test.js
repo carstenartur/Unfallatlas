@@ -174,17 +174,15 @@ describe('UA.contextRoadLayer.buildSlopeLayer — debug.showPercent tooltip', ()
     };
   }
 
-  test('binds a permanent "<n> %" tooltip per polyline when debug.showPercent is true', () => {
+  test('marks values without a documented source in the permanent tooltip per polyline when debug.showPercent is true', () => {
     const { UA, polylineCalls } = loadModule();
     UA.contextRoadLayer.buildSlopeLayer(fakeState(), { debug: { showPercent: true } });
-    // Every polyline with a numeric road_slope_percent must carry a
-    // tooltip whose text is "<percent> %".
     const byId = {};
     for (const p of polylineCalls) byId[p.feature.properties.way_id] = p;
     expect(byId.W1._tooltip).toBeTruthy();
-    expect(byId.W1._tooltip.text).toBe('3.4 %');
+    expect(byId.W1._tooltip.text).toBe('3.4 % · Quelle nicht dokumentiert');
     expect(byId.W1._tooltip.opts.permanent).toBe(true);
-    expect(byId.W2._tooltip.text).toBe('-0.7 %');
+    expect(byId.W2._tooltip.text).toBe('-0.7 % · Quelle nicht dokumentiert');
   });
 
   test('no tooltip when debug.showPercent is omitted (default)', () => {

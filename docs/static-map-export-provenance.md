@@ -18,7 +18,9 @@ A static map uses more sources than a tabular accident export. The live accident
 
 The first supported renderer source is the default **OpenStreetMap Standard** layer. Its ODbL licence, attribution, distribution URL, retrieval timestamp and rasterisation change notice are included in the same manifest as the accident source.
 
-Orthophoto, hybrid and enriched context overlays are deliberately rejected until their provider definitions expose complete canonical licence/provenance records. The export must not create an apparently complete sidecar while silently omitting a visible map source. This limitation is visible in the export dialog and remains part of the provider-wide work tracked by issue #414.
+The Hannover slope layer supports PNG export on the standard basemap when every rendered way carries the matching DGM1 manifest and distribution hashes. Selecting a slope line adds its profile to the visible source strip. Debug mode includes the permanent numeric labels. The sidecar retains the visible ways, local uncertainty, source date, resolution, transformation and both hashes. [Standard and debug PNGs with their sidecars](qa/hannover-dgm1-karten/README.md)
+
+Orthophoto, hybrid and other context overlays are rejected until their provider definitions expose complete canonical licence/provenance records. The export must not create an apparently complete sidecar while silently omitting a visible map source. This limitation is visible in the export dialog and remains part of the provider-wide work tracked by issue #414.
 
 ## Visible source strip
 
