@@ -2,7 +2,7 @@
 
 > **Wo häufen sich Unfälle? Welche Beteiligten sind betroffen? Liegen auffällige Stellen an Schulen, Kitas oder bestimmten Straßenabschnitten?**
 >
-> Die Unfallwerkbank macht amtliche Unfallatlas-Daten als interaktive Karte nutzbar. Eine Analyse lässt sich direkt im Browser öffnen, als reproduzierbarer Link weitergeben und als Daten- oder Dokumentexport sichern.
+> Die Unfallwerkbank verknüpft amtliche Unfallorte mit Straßenmerkmalen, Verkehrszählungen, Luftbildern und kommunalen Ratsvorgängen. Eine Analyse lässt sich direkt im Browser öffnen, als reproduzierbarer Link weitergeben und als Daten- oder Dokumentexport sichern.
 
 [![CI](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/carstenartur/Unfallatlas/actions/workflows/test.yml)
 [![Release](https://img.shields.io/github/v/release/carstenartur/Unfallatlas?sort=semver&label=Release)](https://github.com/carstenartur/Unfallatlas/releases/latest)
@@ -128,9 +128,23 @@ Weitere fachliche und technische Dokumente sind unter [`docs/`](docs/) abgelegt.
 
 ---
 
-## Datenquelle und Lizenz
+<a id="datenquelle-und-lizenz"></a>
 
-Die Unfalldaten stammen aus dem [Unfallatlas des Statistikportals der deutschen Bundesländer](https://unfallatlas.statistikportal.de/) und werden unter der [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0) verwendet. Karten- und POI-Inhalte können Daten von OpenStreetMap-Mitwirkenden enthalten.
+## Datenquellen und Lizenzen
+
+Das [Quellenverzeichnis mit dem veröffentlichten Bestand](https://carstenartur.github.io/Unfallatlas/data-status/#quellen) zeigt Umfang, räumliche Abdeckung, Zeitbezug, Herausgeber und Nutzungsbedingungen je Datenbestand. Für Ratsvorgänge weist es aus, wie viele Dokumente recherchierbar sind und wie viele davon einen Kartenbezug haben.
+
+| Daten | Was die Werkbank daraus macht | Quellen |
+|---|---|---|
+| Unfälle mit Personenschaden | Orts- und merkmalsbezogene Auswertung der polizeilich erfassten Unfälle. Die verfügbaren Jahre unterscheiden sich je Stadt. | Statistische Ämter des Bundes und der Länder · [Jahresdateien](https://www.opengeodata.nrw.de/produkte/transport_verkehr/unfallatlas/) · [DL-DE-BY 2.0](https://www.govdata.de/dl-de/by-2-0) |
+| Straßen, Querungen, Schulen und Kitas | OSM-Geometrien und -Attribute liefern Straßenumfeld, POIs und einen qualitativen Verkehrsproxy. Im Hannoveraner Prüfregister werden Abschnitte, Knoten und Querungen mit Unfällen verknüpft. | [© OpenStreetMap-Mitwirkende, ODbL](https://www.openstreetmap.org/copyright) · [Herkunft des Netzregisters](docs/review-network.md) |
+| Verkehrszählungen | Historische richtungsbezogene Kfz-Zählungen in Köln, Jahreswerte an einer BASt-Zählstelle in Hamburg und stündliche Radzählungen am Mannesmannufer in Düsseldorf. Die Zuordnung zu Unfallorten und die Einheiten sind je Quelle unterschiedlich. | [Stadt Köln, Kfz-Zählstellen und Werte](https://offenedaten-koeln.de/dataset/kfz-zaehlstellen-und-werte-koeln) · [BASt-Dauerzählstellen](https://data.gov.de/suche/daten/automatische-zahlstellen-auf-autobahnen-und-bundesstrassen) · [Landeshauptstadt Düsseldorf, Stundenwerte](https://opendata.duesseldorf.de/sites/default/files/Mannesmannufer_IN_OUT_2024_0.csv) |
+| Gelände und Luftbilder | Höhenraster liefern Geländekontext und in Hannover DGM1-Profile entlang von Straßen. Die Karte lädt verfügbare Orthofotos bei den jeweiligen Anbietern. Aufnahmejahr, Abruf und Berechnung haben unterschiedliche Bedeutungen. | [Geländedaten und Verfahren](docs/osm-elevation-context-chain.md) · [DGM1 Hannover](docs/hannover-dgm1-road-profiles.md) · [Bilddienste und Bildnachweise](https://carstenartur.github.io/Unfallatlas/data-status/#quellen) |
+| Ratsvorgänge und parlamentarische Dokumente | Vorlagen, Beratungsgänge, Beziehungen und belegte Ortsbezüge aus Bonn sowie aus Stadt und Region Hannover, ergänzt um einen Teilbestand des Niedersächsischen Landtags. Die Kataloge verknüpfen die Vorgänge mit den verfügbaren Originalunterlagen. | [Bonn OParl](https://opendata.bonn.de/dataset/ratsinformationssystem-oparl-api) · [Hannover SIM](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular) · [Region Hannover ALLRIS](https://ris.hannit.de/public/vo040) · [Landtagsdokumentation](https://www.landtag-niedersachsen.de/dokumentensuche/) |
+| Kommunale Fachdaten | In Hannover ergänzen Stadtbezirke, aus OSM abgeleitete Tempo-30-Abschnitte, Schulwegpläne, Stadtbahnlinien und dokumentierte Änderungen an Prüfstellen die Ortsanalyse. | [Landeshauptstadt Hannover, Stadtbezirksgrenzen](https://www.hannover.de/content/download/887881/file/SKH5_Statistische_Gliederung.zip) · [LGLN, ATKIS Basis-DLM](https://numis.niedersachsen.de/trefferanzeige?docuuid=121cf327-48f5-4ecd-b3db-aabd023eb3df) · [Quellen je kommunaler Ebene](https://carstenartur.github.io/Unfallatlas/data-status/#quellen) |
+| Unfallkosten und Maßnahmen | Die Werkbank schätzt einen Modellwert mit Kostensätzen je Person. Bei den Wirkungsspannen der Maßnahmen fehlen teilweise zitierfähige Einzelfundstellen. | [Kostensätze und Fundstelle](data/cost_factors_de.json) · [Maßnahmenkatalog mit Literaturangaben](data/measures_catalog.json) |
+
+Die [servergestützte Recherche in weiteren Ratsportalen](server/political-context/README.md) ergänzt die beiden statisch veröffentlichten Kataloge. Hannoveraner Radzählungen der VMZ lassen sich als [vom Nutzer geladene GeoJSON-Datei](https://www.vmz-niedersachsen.de/geojson/region-hannover-radzaehler.geojson) einblenden. Der lokale Dateiimport fließt in keine veröffentlichte Bestandszahl ein. Bonn gibt die OParl-Textinformationen unter CC0 frei. Für angehängte und extern verlinkte Dokumente gelten eigene Bedingungen.
 
 - Projektlizenz: [Apache License 2.0](LICENSE)
 - Credits und Drittkomponenten: [docs/credits.md](docs/credits.md)

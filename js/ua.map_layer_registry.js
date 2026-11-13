@@ -1,5 +1,5 @@
 (() => {
-  const UA = (window.UA = window.UA || {});
+  const UA = typeof window === 'undefined' ? {} : (window.UA = window.UA || {});
 
   const MAP_MODE_LABELS = Object.freeze({
     standard: 'Standardkarte',
@@ -283,4 +283,9 @@
   UA.getExportSuitableOrthophotoProviders = function getExportSuitableOrthophotoProviders() {
     return LAYER_DEFINITIONS.filter(def => def.layerType === 'orthophoto' && def.officialForExport === true);
   };
+
+  // The data-status build uses the same active providers as the interactive map.
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { getMapLayerRegistry: UA.getMapLayerRegistry };
+  }
 })();

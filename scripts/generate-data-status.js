@@ -8,13 +8,17 @@ const zlib = require('node:zlib');
 const { readCitiesFile, slugify } = require('./lib/static-data-validation');
 const { readJsonMaybeGz } = require('./lib/read-json-maybe-gz');
 
+const { buildBaseDataSources } = require('./lib/base-data-sources');
+const { buildMobilityDataSources } = require('./lib/mobility-data-status');
+const { buildMunicipalDataSources } = require('./lib/municipal-data-status');
+
 const FAMILY_ORDER = Object.freeze(['accidents', 'poi', 'roads', 'slope', 'traffic']);
 const FAMILY_LABELS = Object.freeze({
   accidents: 'Unfalldaten',
   poi: 'Schulen & Kitas',
   roads: 'Straßenkontext',
   slope: 'Steigung',
-  traffic: 'Verkehr',
+  traffic: 'Verkehrsproxy',
 });
 const LEVEL_COLORS = Object.freeze({
   success: '#2da44e',
@@ -228,28 +232,76 @@ function dateCell(date) {
     : '<span class="unknown">unbekannt</span>';
 }
 
-function renderHtml(status) {
-  const badges = FAMILY_ORDER.map((key) =>
-    `<a href="#${key}"><img src="../status/${key}.svg" alt="${escapeXml(status.families[key].label)}"></a>`
-  ).join('\n');
-  const summaries = FAMILY_ORDER.map((key) => {
-    const item = status.families[key];
-    return `<tr id="${key}"><th>${escapeXml(item.label)}</th><td>${item.present}/${item.total}</td><td>${escapeXml(item.message)}</td><td>${escapeXml(item.level)}</td></tr>`;
-  }).join('\n');
-  const rows = status.cities.map((row) => {
-    const years = row.accidents.years;
-    const yearText = years.length ? `${years[0]}–${years.at(-1)}` : 'vorhanden; Jahre unbekannt';
-    return `<tr><th>${escapeXml(row.name)}</th>` +
-      `<td>${row.accidents.present ? escapeXml(yearText) : 'fehlt'}</td>` +
-      `<td>${row.poi.present ? `${row.poi.features} POIs; ${dateCell(row.poi.observedAt)}` : 'fehlt'}</td>` +
-      `<td>${row.roads.present ? dateCell(row.roads.observedAt) : 'fehlt'}</td>` +
-      `<td>${row.slope.present ? `${Number.isFinite(row.slope.coveragePercent) ? `${formatDecimal(row.slope.coveragePercent)} %; ` : ''}${dateCell(row.slope.observedAt)}` : 'fehlt'}</td>` +
-      `<td>${row.traffic.present ? `${escapeXml(row.traffic.source || 'Quelle unbekannt')}; ${dateCell(row.traffic.observedAt)}` : 'fehlt'}</td></tr>`;
-  }).join('\n');
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Datenstatus – Unfallwerkbank</title><style>body{font-family:system-ui,sans-serif;max-width:1200px;margin:2rem auto;padding:0 1rem;color:#24292f}a{color:#0969da}.badges{display:grid;gap:.35rem;justify-items:start;margin:1rem 0 2rem}table{border-collapse:collapse;width:100%;margin:1rem 0 2rem}th,td{border:1px solid #d0d7de;padding:.45rem;text-align:left;vertical-align:top}thead th{background:#f6f8fa}.unknown{color:#6e7781}.note{background:#fff8c5;border:1px solid #d4a72c;padding:.75rem}</style></head><body><h1>Datenstatus der Unfallwerkbank</h1><p>Die Angaben werden aus dem Maven-erzeugten <code>data-manifest.json</code> und den ausgelieferten Quellenmetadaten abgeleitet. Unbekannte Zeitstände werden nicht aus Datei-Zeitstempeln geraten.</p><div class="badges">${badges}</div><h2>Zusammenfassung</h2><table><thead><tr><th>Datenfamilie</th><th>Abdeckung</th><th>Stand</th><th>Statusklasse</th></tr></thead><tbody>${summaries}</tbody></table><p class="note">„Stand“ bezeichnet je nach Datenfamilie das Unfalljahr, den Quellenabruf oder den Zeitpunkt der Kontextanreicherung. POI-Dateien ohne eingebettete Abrufmetadaten werden ausdrücklich als unbekannt ausgewiesen.</p><h2>Stadtmatrix</h2><table><thead><tr><th>Stadt</th><th>Unfalldaten</th><th>Schulen &amp; Kitas</th><th>Straßenkontext</th><th>Steigung</th><th>Verkehr</th></tr></thead><tbody>${rows}</tbody></table><p><a href="../werkbank_v2.html">Zur Unfallwerkbank</a></p><script>document.querySelectorAll('[data-relative-date]').forEach(function(el){var d=new Date(el.dateTime+'T00:00:00Z');if(!Number.isFinite(d.getTime()))return;var days=Math.floor((Date.now()-d.getTime())/86400000);if(days>=0)el.append(' (vor '+days+' Tagen)');});</script></body></html>\n`;
+function sourceLink(source) {
+  const label = escapeXml(source.label);
+  return /^https?:\/\//i.test(source.url) ? `<a href="${escapeXml(source.url)}">${label}</a>` : label;
 }
 
-async function buildCityRows(siteRoot, manifest, configuredCities) {
+function renderSourceGroup(group) {
+  if (!group.entries.length) return '';
+  const entries = group.entries.map(entry => `<article>
+    <h4>${escapeXml(entry.label)}</h4>
+    <p><strong>${escapeXml(entry.coverage)}</strong></p>
+    <p>${escapeXml(entry.description)}</p>
+    <p class="terms">${escapeXml(entry.license)}</p>
+    <ul>${entry.sources.map(source => `<li>${sourceLink(source)}</li>`).join('')}</ul>
+  </article>`).join('\n');
+  return `<section id="${escapeXml(group.id)}"><h3>${escapeXml(group.label)}</h3><div class="sources">${entries}</div></section>`;
+}
+
+function formatYearRanges(years) {
+  const spans = [];
+  for (const year of years) {
+    const last = spans.at(-1);
+    if (last && last[1] === year - 1) last[1] = year;
+    else spans.push([year, year]);
+  }
+  return spans.map(([start, end]) => start === end ? String(start) : `${start}–${end}`).join(', ');
+}
+
+function renderHtml(status) {
+  const format = new Intl.NumberFormat('de-DE');
+  const badges = FAMILY_ORDER.map(key =>
+    `<a href="#${key}"><img src="../status/${key}.svg" alt="${escapeXml(status.families[key].label + ' · ' + status.families[key].message)}"></a>`
+  ).join('\n');
+  const rows = status.cities.map(row => {
+    const years = formatYearRanges(row.accidents.years) || 'Jahre unbekannt';
+    return `<tr><th scope="row">${escapeXml(row.name)}</th>` +
+      `<td>${row.accidents.present ? `${format.format(row.accidents.features)} Unfälle · ${years}` : 'fehlt'}</td>` +
+      `<td>${row.poi.present ? `${format.format(row.poi.features)} POIs · ${dateCell(row.poi.observedAt)}` : 'fehlt'}</td>` +
+      `<td>${row.roads.present ? dateCell(row.roads.observedAt) : 'fehlt'}</td>` +
+      `<td>${row.slope.present ? `${Number.isFinite(row.slope.coveragePercent) ? `${formatDecimal(row.slope.coveragePercent)} % · ` : ''}${dateCell(row.slope.observedAt)}` : 'fehlt'}</td>` +
+      `<td>${row.traffic.present ? `${escapeXml(row.traffic.source || 'Quelle unbekannt')} · ${dateCell(row.traffic.observedAt)}` : 'fehlt'}</td></tr>`;
+  }).join('\n');
+  return `<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Datenstatus und Quellen – Unfallwerkbank</title>
+<style>
+*{box-sizing:border-box}body{font-family:system-ui,sans-serif;line-height:1.5;max-width:76rem;margin:2rem auto;padding:0 1rem;color:#24292f}
+a{color:#09599d}h1,h2,h3,h4{line-height:1.2}h2{margin-top:2rem}h3{margin:1.5rem 0 .8rem}h4{margin:0}
+nav,.badges{display:flex;gap:.65rem 1rem;flex-wrap:wrap}.badges a,.badges img{max-width:100%;height:auto}
+.sources{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:.85rem}
+article{border:1px solid #c5ced7;border-radius:.4rem;padding:1rem;overflow-wrap:anywhere}article p,article ul{margin:.55rem 0 0}article ul{padding-left:1.2rem}
+.terms{font-size:.9rem}.matrix{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{border:1px solid #c5ced7;padding:.5rem;text-align:left;vertical-align:top}thead th{background:#eef3f7}.unknown{color:#555}
+</style></head><body><main><h1>Datenstatus der Unfallwerkbank</h1>
+<nav aria-label="Seitennavigation"><a href="#quellen">Quellenverzeichnis</a><a href="#staedte">Stadtmatrix</a><a href="status.json">Datenstatus als JSON</a><a href="../werkbank_v2.html">Zur Werkbank</a></nav>
+<h2 id="quellen">Quellenverzeichnis</h2>
+<ul>${status.sourceGroups.filter(group => group.entries.length).map(group =>
+    `<li><a href="#${escapeXml(group.id)}">${escapeXml(group.label)}</a></li>`).join('')}</ul>
+${status.sourceGroups.map(renderSourceGroup).join('\n')}
+<p>Weitere Quellen stehen je nach Betriebsart zur Verfügung. Hannoveraner Radzählungen können als <a href="https://www.vmz-niedersachsen.de/geojson/region-hannover-radzaehler.geojson">VMZ-Datei</a> im Browser geöffnet werden. Die <a href="https://github.com/carstenartur/Unfallatlas/tree/main/server/political-context">servergestützte Ratsrecherche</a> kann zusätzliche Portale abfragen. Die Bestandszahlen oben beziehen sich auf die Daten dieser Ausgabe.</p>
+<h2 id="staedte">Stadtmatrix für Unfälle und Straßenumfeld</h2>
+<p>Die Jahrgänge beziehen sich auf die erfassten Unfälle. Bei den POIs steht das Datum aus den Dateimetadaten, beim Straßenkontext das Datum des OSM-Auszugs, soweit belegt. Bei Steigung und Verkehrsproxy steht der Zeitpunkt der Berechnung. Erhebungsjahre und Messzeiträume einzelner Quellen stehen im Verzeichnis.</p>
+<div class="badges">${badges}</div><div class="matrix" tabindex="0" role="region" aria-label="Stadtmatrix"><table><thead><tr><th>Stadt</th><th id="accidents">Unfälle und Jahrgänge</th><th id="poi">Schulen &amp; Kitas</th><th id="roads">OSM-Auszug</th><th id="slope">Steigung · Abdeckung und Berechnung</th><th id="traffic">Verkehrsproxy</th></tr></thead><tbody>${rows}</tbody></table></div>
+</main><script>
+document.querySelectorAll('[data-relative-date]').forEach(function(el) {
+  var days = Math.floor((Date.now() - Date.parse(el.dateTime + 'T00:00:00Z')) / 86400000);
+  if (days >= 0) el.append(' (vor ' + days + ' Tagen)');
+});
+</script></body></html>\n`;
+}
+
+async function buildCityRows(siteRoot, manifest, configuredCities, metadataByCity = new Map()) {
   const rows = [];
   for (const name of configuredCities) {
     const slug = slugify(name);
@@ -265,6 +317,7 @@ async function buildCityRows(siteRoot, manifest, configuredCities) {
     const metaPath = city.enrichment && resolveManifestPath(siteRoot, city.enrichment.metaPath);
     const poi = readOptionalJson(poiPath);
     const meta = readOptionalJson(metaPath);
+    metadataByCity.set(slug, meta);
     const generatedAt = normalizeDate(meta && meta.generatedAt);
     const osm = meta && meta.sources && meta.sources.osm;
     const dem = meta && meta.sources && meta.sources.dem;
@@ -286,7 +339,7 @@ async function buildCityRows(siteRoot, manifest, configuredCities) {
       },
       roads: {
         present: !!city.enrichment && Number(city.enrichment.contextTiles || 0) > 0,
-        observedAt: normalizeDate(osm && osm.extractDate) || generatedAt,
+        observedAt: normalizeDate(osm && osm.extractDate),
         source: osm && osm.source || null,
       },
       slope: {
@@ -314,12 +367,18 @@ async function generateDataStatus(options = {}) {
   const manifestPath = path.join(siteRoot, 'out', 'data-manifest.json');
   if (!fs.existsSync(manifestPath)) throw new Error(`[data-status] Missing manifest: ${manifestPath}`);
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const cities = await buildCityRows(siteRoot, manifest, readCitiesFile(citiesFile));
+  const metadataByCity = new Map();
+  const cities = await buildCityRows(siteRoot, manifest, readCitiesFile(citiesFile), metadataByCity);
   const status = {
     schemaVersion: 1,
     configuredCities: cities.length,
     dataMode: manifest.dataMode || null,
     families: aggregateStatus(cities),
+    sourceGroups: [
+      { id: 'unfall-und-kartendaten', label: 'Unfalldaten, Straßen und Karten', entries: buildBaseDataSources(siteRoot, cities, manifest, metadataByCity) },
+      { id: 'rats-und-kommunaldaten', label: 'Ratsvorgänge und kommunale Daten', entries: buildMunicipalDataSources(siteRoot) },
+      { id: 'zaehlungen-und-bewertung', label: 'Verkehrszählungen und Bewertungsgrundlagen', entries: buildMobilityDataSources(siteRoot, manifest, metadataByCity) },
+    ],
     cities,
   };
   fs.mkdirSync(outputDir, { recursive: true });

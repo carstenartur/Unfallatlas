@@ -32,8 +32,12 @@ describe('user-first README data-status routing', () => {
   });
 
   test('keeps the precise official open-data licence in the user-facing source section', () => {
-    const block = section(readme, '## Datenquelle und Lizenz');
-    expect(block).toContain('https://www.govdata.de/dl-de/by-2-0');
+    const block = section(readme, '## Datenquellen und Lizenzen');
+    for (const source of [
+      'https://www.govdata.de/dl-de/by-2-0', 'https://opendata.bonn.de/dataset/ratsinformationssystem-oparl-api',
+      'https://ris.hannit.de/public/vo040', 'https://offenedaten-koeln.de/dataset/kfz-zaehlstellen-und-werte-koeln',
+      'https://www.openstreetmap.org/copyright', 'https://carstenartur.github.io/Unfallatlas/data-status/#quellen',
+    ]) expect(block).toContain(source);
   });
 });
 

@@ -128,6 +128,15 @@ describe('dataset status report', () => {
 
     const html = fs.readFileSync(path.join(root, 'site', 'data-status', 'index.html'), 'utf8');
     expect(html).toContain('Datenstatus der Unfallwerkbank');
+    expect(html).toContain('Quellenverzeichnis');
+    expect(html).toContain('status.json');
+    expect(html).toContain('openstreetmap.org/copyright');
+    expect(html).toContain('2 Unfälle');
+    expect(status.sourceGroups.flatMap(group => group.entries)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sources: expect.arrayContaining([
+        expect.objectContaining({ url: expect.stringContaining('unfallatlas') }),
+      ]) }),
+    ]));
     expect(html).toContain('Alpha');
     expect(html).toContain('Beta');
     expect(html).toContain('data-relative-date');
