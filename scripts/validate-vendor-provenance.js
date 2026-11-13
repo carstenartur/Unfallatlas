@@ -524,6 +524,10 @@ function verifyDiagnosticEvidenceFiles(artifactRoot, manifest) {
   }
   for (const license of manifest.supplementalLicenses || []) {
     verifyEvidenceFile(artifactRoot, license, `supplemental license text for ${license.component}`);
+    if (license.sourceNoticePath) {
+      verifyEvidenceFile(artifactRoot, { path: license.sourceNoticePath, sha256: license.sourceNoticeSha256 },
+        `original source notice for ${license.component}`);
+    }
   }
 }
 

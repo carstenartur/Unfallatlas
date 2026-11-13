@@ -9,6 +9,8 @@ if (( $# > 2 )); then
   echo "Usage: bash scripts/verify-pdfmake-upstream.sh [local-source-archive [local-roboto-archive]]" >&2
   exit 2
 fi
+# Reproduce the embedded UCD and shaper data against the app lock installed by Maven.
+python3 "$repo_root/scripts/reproduce-pdf-unicode.py"
 build_dir=$(mktemp -d)
 trap 'rm -rf -- "$build_dir"' EXIT
 archive="$build_dir/source.tar.gz"

@@ -12,6 +12,7 @@ const LEAFLET_HEAT_SOURCE = 'dist/leaflet-heat-global.js';
 const LEAFLET_IMAGE_ASSET = 'vendor/leaflet-image/leaflet-image.js';
 const DOCX_ASSET = 'vendor/export/docx.js';
 const DOCX_BUILD_LOCK = 'vendor/docx-build/npm-lock.json.gz';
+const { collectUnicodeData, unicodeDataRecords } = require('./pdf-unicode-data');
 const PDF_ASSET = 'vendor/export/pdfmake.js';
 const { collectPdfkitSources, pdfkitSourceRecords } = require('./pdfkit-nested-sources');
 const COMPLETE_INVENTORY_SCOPE = 'delivered-assets-component-level';
@@ -793,6 +794,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
   }
   const embeddedSources = [
     ...collectDocxRuntimes(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
+    ...collectUnicodeData(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.unicodeDataManifestSha256),
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
     ...collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, pdfInventory.brotliDecoder),
     ...collectPdfkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.nestedPdfkitSources),
@@ -845,6 +847,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
     ])].sort();
     const embeddedSources = [
       ...docxRuntimeRecords(expected.generatedRuntimes || []),
+      ...(expected.unicodeDataManifestSha256 ? unicodeDataRecords(expected.unicodeDataManifestSha256) : []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
       ...(expected.brotliDecoder ? brotliDecoderRecords(expected.brotliDecoder) : []),
       ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),

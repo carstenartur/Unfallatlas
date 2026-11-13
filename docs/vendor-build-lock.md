@@ -252,3 +252,28 @@ Rolldown 1.2.16, die Global-Einstiegsdatei und die Build-Konfiguration.
 Der Nachbau setzt das Jahr im Copyright-Banner auf das Veröffentlichungsjahr
 2026. Er vergleicht Global-Bundle und Source Map byteweise mit dem npm-Paket.
 Für beide Kartenbibliotheken stehen die unabhängigen Signaturen aus.
+
+## Generierte Unicode-Daten des PDF-Exporters
+
+Drei generierte Unicode-Ressourcen des PDF-Exporters sind aus Originaldaten
+reproduziert. `unicode-properties@1.4.1` erzeugt aus den 13 UCD-12.0.0-Dateien
+in `codepoints@1.3.0` die Dateien `data.trie` (9.696 Bytes) und `data.json`
+(2.516 Bytes). `linebreak@1.1.0` erzeugt aus `LineBreak.txt` von UCD 14.0.0
+`classes.trie` (3.870 Bytes). Nach `npm ci` wiederholt
+`python3 scripts/reproduce-pdf-unicode.py` die beiden ursprünglichen
+Generatoren mit den gepinnten Quellen. Der Seitenbuild prüft die drei Daten
+im installierten Paketmodul, in der pdfmake-Source-Map und im ausgelieferten
+minifizierten PDF-Bundle. Notice und SBOM binden für diese Daten die
+[Unicode-Lizenz](https://www.unicode.org/license.txt) ein. Die zugehörigen
+Release-Readmes werden unverändert mitgeliefert. Sie nennen für UCD 12.0.0
+© 2019 Unicode®, Inc., für UCD 14.0.0 © 2021 Unicode®, Inc., und verweisen
+auf die [Nutzungsbedingungen für Unicode-Daten](https://www.unicode.org/copyright.html).
+Der am 13. November 2026 archivierte Lizenztext V3 trägt separat das
+Copyright 1991–2026. Der Wiederholungslauf prüft diese feste Kopie anhand
+ihres SHA-256. Die MIT-Lizenzen der JavaScript-Pakete gelten für deren Software.
+Der Herstellerprüflauf im Maven-Profil `vendor-upstream-rebuild` ruft das
+Skript auf. Es baut außerdem die drei Tries und zwei
+Zustandsmaschinen aus `fontkit@2.0.4` nach und findet die gleichen Bytes im
+ausgelieferten PDF-Bundle. In diese Ressourcen gehen zusätzliche Shaper-Regeln
+ein. Ihre Lizenzherkunft ist weiterhin offen. Originaladressen und Prüfsummen stehen im
+[Quellenmanifest](../vendor/pdfmake-build/unicode-data.json).
