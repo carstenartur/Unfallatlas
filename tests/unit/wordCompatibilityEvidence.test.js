@@ -135,6 +135,27 @@ describe('Microsoft Word compatibility evidence', () => {
       .toThrow(/input_fingerprint_mismatch/);
   });
 
+  test.each([
+    ['version', '<Word version and build>'],
+    ['platform', '<Windows or macOS version>'],
+    ['platform', 'Linux 6.8'],
+    ['platform', 'Windows'],
+    ['version', 'Word Online 16.0.1'],
+  ])('rejects unobserved or non-desktop environment metadata: %s = %s', (field, value) => {
+    const input = validator.computeInputEvidence(root);
+    const receipt = validReceipt(input, now);
+    receipt.environment[field] = value;
+    expect(() => validator.validateReceipt(receipt, input, { now })).toThrow(/invalid_word_environment/);
+  });
+
+  test.each(['macOS Sonoma 14.6', 'macOS Sonoma'])('accepts an observed Word build on %s', (platform) => {
+    const input = validator.computeInputEvidence(root);
+    const receipt = validReceipt(input, now);
+    receipt.environment.version = '16.90 (24101387)';
+    receipt.environment.platform = platform;
+    expect(validator.validateReceipt(receipt, input, { now }).passed).toBe(true);
+  });
+
   test('accepts recent evidence with every required manual Word check', () => {
     const input = validator.computeInputEvidence(root);
     const report = validator.validateReceipt(validReceipt(input, now), input, {
