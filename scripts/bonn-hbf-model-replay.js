@@ -71,9 +71,14 @@ function politicalFitMatches(response, councilEvidence, localGate) {
       && log.documentedQueries.length === 0 && log.evidenceRefs.length === 0
       && political.includes('keine ausgeführte recherche') && verdict.blockingReasons.length > 0;
   }
+  const amendmentClaims = [political, ...['sachverhalt', 'begruendung', 'longVersion', 'shortVersion', 'beschlussvorschlag', 'pruefauftrag']
+    .map(field => normalize(response[field]))].flatMap(text => text.split(/(?<=[.!?])\s+/))
+    .filter(sentence => sentence.includes('232044-02 aa'));
+  const separateVote = /(?:separat(?:e[rsn]?)?|gesondert(?:e[rsn]?)?|eigenständig(?:e[rsn]?)?)\b.{0,45}\b(?:beschlossen|angenommen|verabschiedet|abgestimmt|abstimmung fand statt|abstimmung erfolgte)/;
   return localGate?.filingReady === true && localGate.passed === true && localGate.filingReadinessStatus === 'ready'
     && verdict.status === 'ready' && verdict.analysisQaStatus === 'ready' && verdict.politicalResearchStatus === 'complete'
     && log.status === 'complete' && log.sourceStatus === 'results-found'
+    && amendmentClaims.every(sentence => !separateVote.test(sentence))
     && [
       /ratsbeschluss 232044 beauftragte die planung.{0,65}gesonderten baubeschluss/,
       /stellungnahme 232044-01 st wurde zur kenntnis genommen/,

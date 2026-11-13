@@ -110,7 +110,9 @@ statistics and their limits, additional decision value, political outcomes,
 measurable verification and traceable sources. Read the two `model-replay/`
 directories in the QA artifact for the raw responses, request bindings and
 results. Each receipt records `actualProviderRun: false`. Each review records
-`releaseApproval: false`.
+`releaseApproval: false`. These checks cover specific claims and known
+regressions in the two fixed answers. A reviewer must assess the full prose
+and new claims in any new answer.
 
 If the prompt or provider schema changes, inspect the new browser-generated
 input and prompt against the original evidence before refreshing a response

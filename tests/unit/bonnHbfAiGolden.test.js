@@ -158,6 +158,11 @@ test.each([
   ['officialFacts', proposal => { proposal.sachverhalt = proposal.sachverhalt.replace('312 Unfälle', '1.926 Unfälle').replace('1.926 Unfälle unter', '312 Unfälle unter'); }],
   ['method', proposal => { proposal.begruendung = proposal.begruendung.replace('−6,8', '+0,8'); }],
   ['politicalFit', proposal => { proposal.politicalResearchLog.comparisonToExistingActivity = proposal.politicalResearchLog.comparisonToExistingActivity.replace('entfiel die separate Abstimmung', 'fand die separate Abstimmung statt'); }],
+  ['politicalFit', proposal => {
+    const inventedVote = 'Der Änderungsantrag 232044-02 AA wurde separat einstimmig beschlossen.';
+    proposal.longVersion += ' ' + inventedVote;
+    proposal.begruendung += ' ' + inventedVote;
+  }],
   ['sourceResolution', proposal => { proposal.crossLayerInsights[0].evidenceRefs[0] = 'https://www.bonn.de/falscher-vorgang'; }],
   ['measureQuality', proposal => { proposal.measureDecisionMatrix[0].successCriteria = ['Sicherheit verbessern']; }],
   ['addedValue', proposal => { proposal.competingHypotheses[0].hypotheses[1] = proposal.competingHypotheses[0].hypotheses[0]; }],
