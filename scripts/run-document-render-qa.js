@@ -88,6 +88,9 @@ function runDocx() {
   runNode('scripts/render-document-golden-matrix.js');
   runNode('scripts/verify-document-golden-rendered-semantics.js');
   runNode('scripts/qa-numbered-appendix-rendered.js');
+  if (process.env.WORD_REVIEW_SOURCE_COMMIT) {
+    runNode('scripts/validate-word-compatibility-evidence.js', ['--prepare-review', process.env.WORD_REVIEW_SOURCE_COMMIT]);
+  }
 }
 
 if (MODE === 'all' || MODE === 'native-pdf') runNativePdf();

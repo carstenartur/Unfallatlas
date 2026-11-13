@@ -273,6 +273,7 @@ jobs:
           } > out/qa/release-acceptance-contract.txt
           git status --short > out/qa/release-worktree-before-qa.txt
 
+          export WORD_REVIEW_SOURCE_COMMIT="$(git rev-parse HEAD)"
           mvn -B -ntp clean verify \
             "-Prelease-site,pages,e2e,system-it,location-brief-golden,document-render${WORD_COMPATIBILITY_PROFILE}" \
             '-Dfailsafe.includes=**/*IT.java' \

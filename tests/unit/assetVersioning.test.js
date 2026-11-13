@@ -30,7 +30,8 @@ describe('Werkbank deployment asset versions', () => {
   test.each([
     'js/ua.context_road_layer.js', 'js/ua.map_scene_url_codec.js', 'js/ua.tour.js',
   ])('%s refreshes the mobility layers and compact map controls', asset => {
-    expect(html).toContain(`${asset}?v=2026-11-09-mobility"`);
+    const revision = asset === 'js/ua.context_road_layer.js' ? '2026-11-13-dgm1' : '2026-11-09-mobility';
+    expect(html).toContain(`${asset}?v=${revision}"`);
   });
 
   test('refreshes the map registry with the verified LGLN imagery layer', () => {
@@ -72,7 +73,7 @@ describe('Werkbank deployment asset versions', () => {
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
     expect(html).toContain('js/ua.state.js?v=2026-11-11-evidence-links"');
-    expect(html).toContain(`js/ua.data_paths.js?v=${patternComparisonVersion}"`);
+    expect(html).toContain('js/ua.data_paths.js?v=2026-11-13-radzaehlung"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-kartenlesbarkeit');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
@@ -95,7 +96,7 @@ describe('Werkbank deployment asset versions', () => {
   test('loads the current discovery app and orthophoto fallback', () => {
     expect(html).toContain('js/ua.app_v2.js?v=2026-11-11-kartenlesbarkeit"');
     expect(html).toContain('js/ua.site_discovery_ui.js?v=2026-11-11-kartenlesbarkeit"');
-    expect(html).toContain('js/ua.map_v2.js?v=2026-11-11-kartenlesbarkeit"');
+    expect(html).toContain('js/ua.map_v2.js?v=2026-11-13-dgm1-radzaehlung"');
   });
 
   test('loads the matching evidence map controls and marker styles', () => {
@@ -115,8 +116,8 @@ describe('Werkbank deployment asset versions', () => {
 
   test('refreshes the loader for versioned document provenance', () => {
     const legacy = fs.readFileSync(path.resolve(__dirname, '../../werkbank.html'), 'utf8');
-    expect(html).toContain('js/ua.core.js?v=2026-11-13-dgm1-provenance"');
-    expect(legacy).toContain('js/ua.core.js?v=2026-11-13-dgm1-provenance"');
+    expect(html).toContain('js/ua.core.js?v=2026-11-13-dgm1-png"');
+    expect(legacy).toContain('js/ua.core.js?v=2026-11-13-dgm1-png"');
   });
 
   test.each(['js/ua.context_measures.js', 'js/ua.osm_context.js'])
@@ -162,6 +163,9 @@ describe('Werkbank deployment asset versions', () => {
     expect(scripts.indexOf('js/ua.ris-sources.js')).toBeLessThan(scripts.indexOf('js/ua.ris-catalogue.js'));
     expect(scripts.indexOf('js/ua.ris-partitions.js')).toBeLessThan(scripts.indexOf('js/ua.ris-catalogue.js'));
     expect(scripts.indexOf('js/ua.political-context.js')).toBeLessThan(scripts.indexOf('js/ua.app_v2.js'));
+    expect(html).toContain('js/ua.duesseldorf_bike_counts.js?v=2026-11-13-radzaehlung"');
+    expect(scripts.indexOf('js/ua.duesseldorf_bike_counts.js')).toBeGreaterThan(scripts.indexOf('js/ua.data_paths.js'));
+    expect(scripts.indexOf('js/ua.duesseldorf_bike_counts.js')).toBeLessThan(scripts.indexOf('js/ua.map_v2.js'));
     expect(scripts.indexOf('js/ua.hannover_layers.js')).toBeGreaterThan(scripts.indexOf('js/ua.data_paths.js'));
     expect(scripts.indexOf('js/ua.hannover_layers.js')).toBeLessThan(scripts.indexOf('js/ua.map_v2.js'));
   });

@@ -55,6 +55,7 @@ function parseArgs(argv) {
     documentId: null,
     report: null,
     writeTemplate: null,
+    prepareReview: null,
     printFingerprint: false,
     maxAgeDays: DEFAULT_MAX_AGE_DAYS,
   };
@@ -66,6 +67,7 @@ function parseArgs(argv) {
     else if (arg === '--document-id') options.documentId = nonEmptyString(argv[++index], '--document-id');
     else if (arg === '--report') options.report = argv[++index];
     else if (arg === '--write-template') options.writeTemplate = argv[++index];
+    else if (arg === '--prepare-review') options.prepareReview = nonEmptyString(argv[++index], '--prepare-review');
     else if (arg === '--print-fingerprint') options.printFingerprint = true;
     else if (arg === '--max-age-days') options.maxAgeDays = Number(argv[++index]);
     else fail('unknown_argument', `Unknown argument: ${arg}`);
@@ -435,6 +437,27 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+// File hashes identify what the reviewer opens; both forms stay incomplete until the Word session.
+function prepareReview(root, inputEvidence, commit) {
+  if (!/^[a-f0-9]{40}$/.test(commit)) fail('invalid_commit', '--prepare-review needs the full source commit SHA');
+  const documents = [
+    [SAMPLE_DOCUMENT_ID, 'out/qa/rendered-document/docx/source.docx', 'word-compatibility.json'],
+    [APPENDIX_DOCUMENT_ID, 'out/qa/release-document/appendix.docx', 'word-compatibility-appendix.json'],
+  ];
+  const forms = documents.map(([documentId, candidate, filename]) => {
+    const file = resolveInsideRoot(root, candidate, 'Word candidate');
+    const bytes = fs.readFileSync(file);
+    const form = templateFor(inputEvidence, Date.now(), documentId);
+    form.artifact.bytes = bytes.length;
+    form.artifact.sha256 = sha256(bytes);
+    form.sourceCommit = commit;
+    form.testedAt = '';
+    const output = resolveInsideRoot(root, `out/qa/word-review/${filename}`, 'Word review form');
+    return { output, form };
+  });
+  for (const { output, form } of forms) writeJson(output, form);
+}
+
 function displayPath(value) {
   return typeof value === 'string' ? value.replace(/\\/g, '/') : value;
 }
@@ -462,6 +485,13 @@ function main(argv) {
 
   try {
     inputEvidence = computeInputEvidence(absoluteRoot, options.config);
+    if (options.prepareReview) {
+      if (options.evidence || templatePath || reportPath || options.documentId || options.printFingerprint) {
+        fail('conflicting_arguments', '--prepare-review prepares both files and must be used on its own');
+      }
+      prepareReview(absoluteRoot, inputEvidence, options.prepareReview);
+      return;
+    }
     if (options.printFingerprint) process.stdout.write(`${inputEvidence.fingerprint}\n`);
     if (templatePath) {
       writeJson(templatePath, templateFor(inputEvidence, Date.now(), options.documentId ?? undefined));
