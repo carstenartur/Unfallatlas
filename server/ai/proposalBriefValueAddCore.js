@@ -336,7 +336,16 @@ function buildComparisonContract(structured, features, digest) {
 
 function buildProposalEvidenceContracts(structured, features) {
   const digest = buildDeterministicDigest(structured, features);
+  const cohorts = structured?.evidenceCohorts;
+  const counts = {
+    discovery: cohorts?.discoveryCohort?.count,
+    completeArea: cohorts?.completeEvidenceCohort?.count,
+    reference: cohorts?.referenceCohort?.count,
+  };
+  const hasCohorts = Object.values(counts).every(count => Number.isSafeInteger(count) && count >= 0)
+    && counts.discovery <= counts.completeArea;
   return {
+    ...(hasCohorts ? { evidenceCohortCounts: counts } : {}),
     analysisMethodology: structured?.analysisMethodology || features?.analysisMethodology || null,
     deterministicAnalysisDigest: digest,
     aiAnalysisComparisonContract: buildComparisonContract(structured, features, digest),
@@ -353,6 +362,11 @@ function buildProposalValueAddPrompt(aiInput) {
     `Vertrag: ${contract.schemaVersion || AI_COMPARISON_CONTRACT_VERSION}`,
     `Deterministische Baseline: ${digest.schemaVersion || DETERMINISTIC_DIGEST_VERSION}`,
     `Amtlicher Tatsachenkern: ${facts.total ?? 'unbekannt'} Unfälle. Unfälle nach schwerster Folge: ${facts.fatal ?? 'unbekannt'} mit Getöteten, ${facts.serious ?? 'unbekannt'} mit Schwerverletzten, ${facts.slight ?? 'unbekannt'} mit Leichtverletzten.`,
+    ...(aiInput.evidenceCohortCounts ? [
+      `Gebietsabgrenzung: ${aiInput.evidenceCohortCounts.discovery} ausgewählte Unfälle, ${aiInput.evidenceCohortCounts.completeArea} Unfälle im vollständigen Gebiet, ${aiInput.evidenceCohortCounts.reference} Fälle in der Referenz.`,
+      'Übernimm die drei Fallzahlen außerdem unter evidenceCohortCounts in discovery, completeArea und reference, in dieser Reihenfolge.',
+      'Nenne die drei Kollektive mit ihren Fallzahlen im Sachverhalt. Bewerte, welche übrigen Gebietsunfälle der Prüfauftrag berücksichtigt und welche Fragen offenbleiben.',
+    ] : []),
     `Politischer Recherchestatus der Baseline: ${political.status || 'not-searched'}.`,
     ...(!aiInput?.risSnapshotContext?.search && ['complete', 'results-found'].includes(political.status) && political.queries?.length
       ? [aiInput?.risSnapshotContext ? 'Vom Snapshot getrennt dokumentierte amtliche Recherche:' : 'Dokumentierte politische Recherche:',

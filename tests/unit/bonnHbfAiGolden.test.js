@@ -80,12 +80,16 @@ test('a documented council search reaches the model with its queries and differe
     politicalReferences: evidence.references,
     politicalContextResearch: { status: 'results-found', queries: evidence.queries },
   };
+  structured.evidenceCohorts = {
+    discoveryCohort: { count: 37 }, completeEvidenceCohort: { count: 312 }, referenceCohort: { count: 1926 }
+  };
   const input = service.buildAiInputV2(structured, {}, []);
   const research = input.deterministicAnalysisDigest.politicalResearch;
   expect(research.status).toBe('results-found');
   expect(research.queries).toEqual(evidence.queries);
   const { user } = service.buildProviderPrompt(input, 'proposal-brief');
   expect(user).toContain('Unfälle nach schwerster Folge: 0 mit Getöteten, 1 mit Schwerverletzten, 36 mit Leichtverletzten');
+  expect(user).toContain('37 ausgewählte Unfälle, 312 Unfälle im vollständigen Gebiet, 1926 Fälle in der Referenz');
   for (const ref of evidence.references) {
     expect(user).toContain(ref.url);
     expect(user).toContain(ref.snippet);

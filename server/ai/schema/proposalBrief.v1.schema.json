@@ -33,6 +33,17 @@
       "type": "string",
       "const": "proposalBrief.v1"
     },
+    "evidenceCohortCounts": {
+      "type": "object",
+      "description": "Fallzahlen der drei vorgegebenen Kollektive. Nur bei vorliegendem Kohortenvertrag ausgeben.",
+      "required": ["discovery", "completeArea", "reference"],
+      "additionalProperties": false,
+      "properties": {
+        "discovery": {"type": "integer", "minimum": 0},
+        "completeArea": {"type": "integer", "minimum": 0},
+        "reference": {"type": "integer", "minimum": 0}
+      }
+    },
     "title": {
       "type": "string",
       "description": "Vorgeschlagener Antragstitel"
