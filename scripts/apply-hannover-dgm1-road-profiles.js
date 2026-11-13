@@ -147,7 +147,7 @@ function selectPrimaryProfile(profile) {
     const result = record && record.result;
     if (record && record.status === 'computed'
         && result && result.usable === true
-        && result.semanticType === 'road_longitudinal_gradient'
+        && (result.semanticType === 'road_longitudinal_gradient' || result.semanticType === 'terrain_context')
         && Number.isFinite(result.gradientPercent)
         && result.source && result.source.id === SOURCE_ID) {
       return { windowMeters, record, result };
@@ -202,7 +202,7 @@ function applyProfileToRow(row, profile, descriptor) {
   row.road_slope_profile_window_m = windowMeters;
   row.road_slope_direction = result.direction;
   row.road_slope_quality = result.quality;
-  row.road_slope_reliable_for_road = true;
+  row.road_slope_reliable_for_road = result.semanticType === 'road_longitudinal_gradient';
   row.road_slope_residual_mad_m = result.residualMadMeters;
   row.road_slope_uncertainty_percent = result.uncertaintyPercent;
   row.road_slope_uncertainty_reasons = Array.isArray(result.uncertaintyReasons)
@@ -238,9 +238,10 @@ function validateProfiles(value) {
 
 function applyProfilesToWaysPayload(payload, profiles, descriptor, observed, rowSourcePins) {
   const ways = payload && payload.ways;
-  if (!ways || typeof ways !== 'object' || Array.isArray(ways)) return { rows: 0, applied: 0 };
+  if (!ways || typeof ways !== 'object' || Array.isArray(ways)) return { rows: 0, applied: 0, terrainOnly: 0 };
   let rows = 0;
   let applied = 0;
+  let terrainOnly = 0;
   for (const [wayId, row] of Object.entries(ways)) {
     const profile = profiles[wayId];
     if (!profile) fail(`runtime context contains way ${wayId} without a DGM1 profile`);
@@ -248,9 +249,12 @@ function applyProfilesToWaysPayload(payload, profiles, descriptor, observed, row
     Object.assign(row, rowSourcePins);
     observed.add(wayId);
     rows += 1;
-    if (result.applied) applied += 1;
+    if (result.applied) {
+      applied += 1;
+      if (!row.road_slope_reliable_for_road) terrainOnly += 1;
+    }
   }
-  return { rows, applied };
+  return { rows, applied, terrainOnly };
 }
 
 function loadRuntimeArtifacts(outputDir, slug) {
@@ -299,14 +303,15 @@ function updateMetadata(meta, artifact, stats) {
     windowsMeters: artifact.windowsMeters,
   };
   meta.counts = meta.counts || {};
-  meta.counts.withDgm1RoadSlope = stats.applied;
+  meta.counts.withDgm1RoadSlope = stats.applied - stats.terrainOnly;
   meta.roadSlope = {
     sourceId: descriptor.id,
     method: artifact.method,
     windowsMeters: artifact.windowsMeters,
     primaryWindowOrder: PRIMARY_WINDOWS,
     runtimeWayRows: stats.rows,
-    runtimeWayRowsWithUsableGradient: stats.applied,
+    runtimeWayRowsWithUsableGradient: stats.applied - stats.terrainOnly,
+    runtimeWayRowsWithTerrainProfile: stats.terrainOnly,
     uniqueWaysObserved: stats.uniqueWaysObserved,
     coverage: artifact.coverage,
     failClosed: true,
@@ -331,23 +336,26 @@ function applyHannoverDgm1RoadProfiles(options = {}) {
   const observed = new Set();
   let rows = 0;
   let applied = 0;
+  let terrainOnly = 0;
 
   for (const artifact of runtime.artifacts) {
     if (artifact === runtime.meta) continue;
     const result = applyProfilesToWaysPayload(artifact.value, validated.profiles, descriptor, observed, rowSourcePins);
     rows += result.rows;
     applied += result.applied;
+    terrainOnly += result.terrainOnly;
   }
 
   const missing = validated.ids.filter(wayId => !observed.has(wayId));
   if (missing.length) {
     fail(`${missing.length} validated DGM1 profile ways are absent from runtime context tiles; first=${missing[0]}`);
   }
-  if (!rows || !applied) fail('DGM1 adapter produced no usable runtime road gradients');
+  if (!rows || applied <= terrainOnly) fail('DGM1 adapter produced no usable runtime road gradients');
 
   updateMetadata(runtime.meta.value, profileArtifact, {
     rows,
     applied,
+    terrainOnly,
     uniqueWaysObserved: observed.size,
   });
   writeArtifactsAtomically(runtime.artifacts, options);

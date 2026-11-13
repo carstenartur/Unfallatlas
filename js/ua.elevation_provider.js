@@ -485,13 +485,21 @@
         reason.split(/[,;]/).some(code => ROAD_PROFILE_LIMITATIONS.has(code.trim())));
     }
 
-    // Older profiles can retain strong sampling scores at known structural or matching risks.
+    function hasLowRoadProfileQuality(row) {
+      return row.road_slope_quality === 'low' || row.road_slope_confidence === 'low';
+    }
+
+    // Normalize profiles produced before the current quality and reliability rules.
     function limitStoredRoadQuality(row) {
-      if (!row || (row.road_slope_quality !== "high" && row.road_slope_confidence !== "high") ||
-          !hasRoadProfileLimitation(row.road_slope_uncertainty_reasons)) return row;
+      if (!row) return row;
+      const limitQuality = (row.road_slope_quality === 'high' || row.road_slope_confidence === 'high') &&
+        hasRoadProfileLimitation(row.road_slope_uncertainty_reasons);
+      const limitReliability = row.road_slope_reliable_for_road === true && hasLowRoadProfileQuality(row);
+      if (!limitQuality && !limitReliability) return row;
       const result = { ...row };
-      if (result.road_slope_quality === "high") result.road_slope_quality = "medium";
-      if (result.road_slope_confidence === "high") result.road_slope_confidence = "medium";
+      if (limitQuality && result.road_slope_quality === 'high') result.road_slope_quality = 'medium';
+      if (limitQuality && result.road_slope_confidence === 'high') result.road_slope_confidence = 'medium';
+      if (limitReliability) result.road_slope_reliable_for_road = false;
       return result;
     }
 
@@ -558,7 +566,18 @@
         "Höhenprofil weicht deutlich von der linearen Anpassung ab",
     });
 
-    function displayStatement(result) {
+    function signedPercent(value) {
+      return `${value > 0 ? '+' : ''}${value.toFixed(1).replace('.', ',')}`;
+    }
+
+    function terrainProfileStatement(value, uncertaintyPercent, sourceText) {
+      const uncertainty = uncertaintyPercent === null ? ''
+        : `; Unsicherheit ±${String(uncertaintyPercent).replace('.', ',')} Prozentpunkte`;
+      return `Geländeprofil entlang des OSM-Wegs: ${signedPercent(value)} % in Wegrichtung${uncertainty}; ` +
+        `${sourceText}; für die Fahrbahn nicht belastbar.`;
+    }
+
+    function displayStatement(result, coarseTerrain) {
       if (!result.usable) {
         const reasons = result.uncertaintyReasons
           .map(
@@ -573,6 +592,10 @@
         ? ` ${REASON_LABELS_DE.elevated_profile_residual}.`
         : "";
       if (result.semanticType === "terrain_context") {
+        if (!coarseTerrain) {
+          return terrainProfileStatement(result.gradientPercent, result.uncertaintyPercent,
+            `${result.source.datasetTitle} (${result.source.resolutionMeters} m)`) + residualWarning;
+        }
         const range = result.gradientRangePercent;
         return (
           `Geländeneigung im Umfeld: ungefähr ${range[0]}–${range[1]} %, ` +
@@ -681,16 +704,15 @@
       // Explain the observed fit residual without diagnosing its physical cause
       // or counting the same fit limitation again in the metadata score.
       if (fit.residualMadMeters > 0.25) reasons.push("elevated_profile_residual");
-      const semanticType =
+      const coarseTerrain =
         provider.descriptor.resolutionMeters >= 20 ||
-        provider.descriptor.modelType !== "DTM"
-          ? "terrain_context"
-          : "road_longitudinal_gradient";
-      if (semanticType === "terrain_context") quality = degradeQuality(quality);
+        provider.descriptor.modelType !== "DTM";
+      if (coarseTerrain) quality = degradeQuality(quality);
+      const semanticType = coarseTerrain || quality === 'low' ? 'terrain_context' : 'road_longitudinal_gradient';
       const unusable = quality === "unusable";
       const gradientPercent = unusable
         ? null
-        : semanticType === "terrain_context"
+        : coarseTerrain
           ? Math.round(rawGradientPercent)
           : Math.round(rawGradientPercent * 10) / 10;
       const range = unusable
@@ -719,7 +741,7 @@
         source: provider.descriptor,
         method: "theil-sen-linear-profile-v1",
       };
-      result.statement = displayStatement(result);
+      result.statement = displayStatement(result, coarseTerrain);
       return Object.freeze(result);
     }
 
@@ -813,7 +835,7 @@
     // Presentation adapter for persisted enrichment fields; does not estimate
     // new uncertainty or upgrade coarse terrain samples to road measurements.
     function presentContext(properties) {
-      const p = properties || {};
+      const p = limitStoredRoadQuality(properties) || {};
       const finite = value => typeof value === "number" && Number.isFinite(value);
       const usesRoad = finite(p.road_slope_percent);
       const value = usesRoad ? p.road_slope_percent
@@ -843,10 +865,12 @@
       const sourceText = `${source}${resolutionMeters == null ? "" : ` (${resolutionMeters} m)`}`;
       let statement = "Neigungsangabe nicht verfügbar.";
       if (value !== null && reliableForRoad) {
-        const signed = `${value > 0 ? '+' : ''}${value.toFixed(1).replace(".", ",")}`;
-        statement = `Straßenlängsneigung: ${signed} %; ${directionLabels[direction] || 'bezogen auf die Way-Geometrie'}` +
+        statement = `Straßenlängsneigung: ${signedPercent(value)} %; ${directionLabels[direction] || 'bezogen auf die Way-Geometrie'}` +
           (uncertaintyPercent === null ? "" : `; Unsicherheit ±${String(uncertaintyPercent).replace(".", ",")} Prozentpunkte`) +
           `; ${sourceText}.`;
+      } else if (usesRoad && hasLowRoadProfileQuality(p) && resolutionMeters > 0 && resolutionMeters < 20 &&
+                 p.road_slope_source_id && !/SRTM/i.test(source)) {
+        statement = terrainProfileStatement(value, uncertaintyPercent, sourceText);
       } else if (value !== null) {
         const magnitude = Math.abs(value);
         const range = magnitude <= 2 ? "0–2" : magnitude <= 4 ? "2–4"

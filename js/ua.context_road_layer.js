@@ -244,9 +244,11 @@
       const attrs = resolveAttrs(wayId);
       const rule = isSpeed ? opts.speedRules?.ways?.[wayId] : null;
       const cls = classifier(attrs, rule);
-      const confidence = kind === 'slope' && attrs && typeof attrs.road_slope_confidence === 'string'
-        ? attrs.road_slope_confidence : null;
-      const lowConfidence = kind === 'slope' && confidence === 'low';
+      const lowConfidence = kind === 'slope' &&
+        (attrs?.road_slope_quality === 'low' || attrs?.road_slope_confidence === 'low');
+      const confidence = kind === 'slope'
+        ? (lowConfidence ? 'low' : attrs?.road_slope_confidence || attrs?.road_slope_quality || null)
+        : null;
       let color;
       let featureClass;
       if (cls && lowConfidence) {
@@ -312,6 +314,7 @@
           properties.slope_resolution_m = presentation.resolutionMeters;
           properties.slope_semantic_type = presentation.semanticType;
           properties.slope_statement = presentation.statement;
+          if (attrs?.road_slope_source_id) properties.road_slope_reliable_for_road = presentation.reliableForRoad;
         }
         line.feature = { type: 'Feature', properties, geometry: null };
 

@@ -235,7 +235,8 @@ describe("provenance-bound static PNG export", () => {
     };
     const row = { way_id: '6138345', class: 'gentle', road_slope_source_id: source.sourceId,
       road_slope_manifest_sha256: HASH_A, road_slope_distribution_sha256: HASH_B, road_slope_percent: 2.8,
-      road_slope_quality: 'high', road_slope_uncertainty_percent: 0.2, slope_statement: 'Straßenlängsneigung +2,8 %.' };
+      road_slope_quality: 'high', road_slope_uncertainty_percent: 0.2, slope_semantic_type: 'road_gradient',
+      slope_statement: 'Straßenlängsneigung +2,8 %.' };
     const group = { getLayers: () => [{ feature: { properties: row } }] };
     const ctx = { map: { hasLayer: layer => layer === group }, contextOverlays: {
       active: { slope: true }, layers: { slope: group }, slopePopup: { slopeWayId: row.way_id } },
@@ -244,8 +245,16 @@ describe("provenance-bound static PNG export", () => {
     const result = await build();
     const transformation = result.manifest.transformations.find(item => item.transformationId === 'render-static-map-png');
     expect(transformation.parameters.slopeOverlay).toMatchObject({ selectedWayId: '6138345', debugLabels: true,
-      profiles: [{ wayId: '6138345', gradientPercent: 2.8, uncertaintyPercent: 0.2, quality: 'high' }] });
+      profiles: [{ wayId: '6138345', gradientPercent: 2.8, uncertaintyPercent: 0.2, quality: 'high', reliableForRoad: true }] });
     expect(result.manifest.sources.map(source => source.sourceId)).toEqual(expect.arrayContaining(['hannover.dgm1','road-context.openstreetmap']));
+    Object.assign(row, {way_id: '24855098', road_slope_quality: 'low', road_slope_percent: -26.1,
+      road_slope_uncertainty_percent: 19.1, road_slope_reliable_for_road: true, slope_semantic_type: 'terrain_context',
+      slope_statement: 'Geländeprofil −26,1 %. Für die Fahrbahn nicht belastbar.'});
+    ctx.contextOverlays.slopePopup.slopeWayId = row.way_id;
+    const terrain = await build();
+    expect(terrain.manifest.transformations.find(item => item.transformationId === 'render-static-map-png')
+      .parameters.slopeOverlay).toMatchObject({selectedWayId: '24855098', profiles: [{wayId: '24855098',
+        semanticType: 'terrain_context', reliableForRoad: false, gradientPercent: -26.1, uncertaintyPercent: 19.1, quality: 'low'}]});
     row.road_slope_distribution_sha256 = HASH_A;
     await expect(build()).rejects.toMatchObject({ code: 'unverified_slope_overlay' });
     delete row.road_slope_distribution_sha256;

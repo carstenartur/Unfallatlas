@@ -149,8 +149,15 @@ function countDgm1Rows(stats, payload) {
     stats.wayIds.add(id);
     if (row?.road_slope_source_id !== HANNOVER_DGM1 || row.road_slope_resolution_m !== 1) {
       stats.invalid++;
-    } else if (row.road_slope_reliable_for_road === true && Number.isFinite(row.road_slope_percent)) {
-      stats.usable++;
+    } else if (Number.isFinite(row.road_slope_percent)) {
+      const low = row.road_slope_quality === 'low' || row.road_slope_confidence === 'low';
+      if (row.road_slope_reliable_for_road !== !low || Object.hasOwn(row, 'road_slope_missing_reason')) {
+        stats.invalid++;
+      } else if (low) {
+        stats.terrainOnly++;
+      } else {
+        stats.usable++;
+      }
     } else if (row.road_slope_reliable_for_road !== false || Object.hasOwn(row, 'road_slope_percent')
         || typeof row.road_slope_missing_reason !== 'string' || !row.road_slope_missing_reason.trim()) {
       stats.invalid++;
@@ -171,6 +178,7 @@ function checkDgm1Evidence(meta, stats, problems) {
   }
   if (stats.invalid > 0 || stats.usable === 0 || stats.rows !== roadSlope?.runtimeWayRows
       || stats.usable !== roadSlope?.runtimeWayRowsWithUsableGradient
+      || stats.terrainOnly !== (roadSlope?.runtimeWayRowsWithTerrainProfile ?? 0)
       || stats.usable !== meta.counts?.withDgm1RoadSlope || stats.wayIds.size !== roadSlope?.uniqueWaysObserved) {
     problems.push('Hannover DGM1 runtime way rows do not match the published profile summary');
   }
@@ -179,7 +187,7 @@ function checkDgm1Evidence(meta, stats, problems) {
 function _validateV3City(repoRoot, slug, meta) {
   const problems = [];
   const dgm1 = slug === 'hannover' && Boolean(meta.roadSlope || meta.sources?.roadSlope);
-  const dgm1Stats = dgm1 ? { rows: 0, usable: 0, invalid: 0, wayIds: new Set() } : null;
+  const dgm1Stats = dgm1 ? { rows: 0, usable: 0, terrainOnly: 0, invalid: 0, wayIds: new Set() } : null;
   const outDir = path.join(repoRoot, 'out');
   // `_toLocalPath` always returns a repo-root-relative path (with the
   // `out/` prefix re-added when the input — like meta.tileIndexPath —

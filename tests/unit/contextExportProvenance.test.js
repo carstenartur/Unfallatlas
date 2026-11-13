@@ -277,6 +277,25 @@ describe('visible typed context sources use the exported evidence population', (
     expect(profiles[0]).toContain('35 Stützstellen');
   });
 
+  test('documents and data retain a pinned low-confidence terrain fit with no reliable road value', async () => {
+    const {ctx, env} = selectedDgmContext();
+    const way = ctx.contextLayerState.ways['23101052'];
+    Object.assign(way, {road_slope_percent: -26.1, road_slope_quality: 'low', road_slope_uncertainty_percent: 19.1,
+      road_slope_profile_window_m: 50, road_slope_sample_count: 27, road_slope_uncertainty_reasons: ['elevated_profile_residual']});
+    const source = ctx.contextLayerState.meta.sources.roadSlope;
+    source.datasetUrl = 'https://example.org/dgm1';
+    source.licenseUrl = 'https://creativecommons.org/licenses/by/4.0/';
+    const manifest = await api.createManifest(ctx, env);
+    const bound = api.bindExportContext(env.UA, ctx, manifest);
+    const { sources } = api.buildContextNote(env.UA, bound);
+    expect(sources).toEqual(expect.arrayContaining([
+      {url: source.datasetUrl, label: expect.stringMatching(/Geländekontext.*OSM-Weg 23101052.*-26,1 %.*19,1 Prozentpunkte.*Profilqualität niedrig.*27 Stützstellen/)},
+      {url: source.licenseUrl, label: expect.stringContaining('Lizenz')},
+    ]));
+    expect(bound.allPts[0].props).toMatchObject({road_slope_percent: -26.1, road_slope_reliable_for_road: false,
+      road_slope_quality: 'low', road_slope_manifest_sha256: way.road_slope_manifest_sha256});
+  });
+
   test('mixed signs across ways report only the absolute range, without a mean travel direction', () => {
     const {ctx, env} = selectedDgmContext();
     ctx.allPts.push({...ctx.allPts[0], props: {...ctx.allPts[0].props, matched_way_id: '2'}});
