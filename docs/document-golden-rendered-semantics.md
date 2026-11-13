@@ -66,11 +66,12 @@ zweite, nur in GitHub vorhandene Semantiklogik.
 
 ## Verbleibende Grenze
 
-Die Semantikmatrix setzt `microsoftWordEvidenceVerified` weiterhin auf `false`.
-LibreOffice und Poppler können keinen aktuellen Microsoft-Word-Build ersetzen.
-Der externe Word-Beleg muss separat mit Dateihash, Word-Build, Betriebssystem,
-Seitenzahl, Seitenbildern und Prüfergebnis eingereicht und anschließend durch
-den bestehenden Receipt-Validator gebunden werden.
+Die Semantikmatrix setzt `microsoftWordEvidenceVerified` auf `false`. Der
+vollständige Dokumentlauf prüft zusätzlich die OOXML-Pakete des Standardberichts
+und des nummerierten Anhangs sowie das Speichern und erneute Öffnen in
+LibreOffice. Beobachtungen aus Desktop-Microsoft-Word können separat als
+optionale Evidenz erfasst werden.
+[DOCX-Kompatibilitätsprüfung](word-compatibility-release-check.md)
 
 ## Zusätzlicher Release-Vertrag für nummerierte Beweisanlagen
 

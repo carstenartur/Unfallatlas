@@ -67,9 +67,11 @@ The strict case can be run alone with:
 node scripts/qa-numbered-appendix-rendered.js
 ```
 
-Microsoft Word remains an external review gate. The receipt explicitly keeps
-`microsoftWordEvidenceVerified: false`; no LibreOffice result or synthetic map
-fixture substitutes for a current, fingerprint-matching real Word review.
+The full document runner also validates the original DOCX packages and repeats
+the standard-report and numbered-appendix render audits after LibreOffice saves
+and reopens each copy. The [compatibility report](word-compatibility-release-check.md)
+binds each artifact by SHA-256. The rendered receipts keep
+`microsoftWordEvidenceVerified: false` because the renderer is LibreOffice.
 
 ## Current fa545 local revision and visual coverage
 

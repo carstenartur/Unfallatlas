@@ -1,10 +1,46 @@
-# Microsoft Word compatibility release check
+# DOCX compatibility release check
 
-LibreOffice and Poppler provide the automated final-page gate for every change. They do not replace a release-candidate check in Microsoft Word, because Word may paginate, repair, render fonts or interpret DOCX relationships differently.
+The `document-render` Maven profile runs automated DOCX compatibility QA on the
+standard report and the numbered appendix. Both release modes run the same
+gate before any remote repository write. Run it locally with LibreOffice Writer,
+Poppler and the repository's locked npm dependencies installed.
 
-A publication run requires recent Microsoft Word receipts for the standard report and the numbered appendix. The release workflow validates both receipts against the candidate's renderer fingerprint before it pushes the release commit or creates the tag.
+```bash
+npm run qa:document-render
+```
 
-## What the receipt is bound to
+The gate performs the following checks for both candidates.
+
+- Reads the original ZIP and validates entry integrity, XML well-formedness,
+  OPC content types, relationship targets and references, and the
+  WordprocessingML document body.
+- Uses LibreOffice Writer to save a separate DOCX copy using the Office Open
+  XML Text filter. Reopens the saved copy and renders it to PDF. A reported
+  repair or format error fails the check.
+- Compares paragraph and table cell text, repeated header and row-splitting
+  settings, heading keep-with-next, page sizes, hyperlink targets, and the
+  embedded image bytes and display dimensions.
+- Repeats the final-page audits with Poppler. The standard report checks table
+  rows and the placement of the `Top-Abweichungen` heading. The numbered
+  appendix checks its embedded source manifest, the actual maps and captions,
+  all accident table rows, and repeated continuation headers. Both checks
+  verify page counts, orientation, and rendered link targets. The table rows
+  may move between pages when each rendered table still passes its contract.
+
+`out/qa/docx-compatibility/report.json` records the checkout, renderer input
+fingerprint, library and LibreOffice versions, and SHA-256 hashes of both
+originals, saved copies, and PDFs. The release and document CI artifacts include
+the report, the saved copies, and the reopened render evidence. The evidence
+identifies LibreOffice as the renderer and keeps
+`microsoftWordEvidenceVerified: false`.
+
+## Optional desktop Microsoft Word evidence
+
+The receipt tools remain available to record an observed result from desktop
+Microsoft Word for Windows or macOS when that environment is available. These
+receipts describe a separate inspection and are optional for publication.
+
+### What the desktop receipt is bound to
 
 The validator does **not** compare the raw DOCX hash with a newly generated file. DOCX is a ZIP container and may contain runtime metadata that changes without changing the visible document.
 
@@ -29,7 +65,7 @@ These records are not Microsoft Word receipts.
 
 The receipt still records the SHA-256 of the exact DOCX opened in Word for traceability. That artifact hash is evidence of what was tested; the input fingerprint decides whether the evidence is still applicable.
 
-## Creating a candidate and receipt
+### Creating a candidate and desktop receipt
 
 Run the **Release Workflow** with `dry_run: true` to generate the candidates. Download `release-acceptance-evidence` and use these files from the archive:
 
@@ -38,7 +74,13 @@ Run the **Release Workflow** with `dry_run: true` to generate the candidates. Do
 | `ci-docx-sample` | `out/qa/rendered-document/docx/source.docx` | `out/qa/rendered-document/docx/converted.pdf` | `docs/release-evidence/word-compatibility.json` |
 | `release-numbered-docx` | `out/qa/release-document/appendix.docx` | `out/qa/release-document/docx/converted.pdf` | `docs/release-evidence/word-compatibility-appendix.json` |
 
-The release artifact includes two prefilled JSON forms in `out/qa/word-review/`.
+Prepare two prefilled JSON forms in `out/qa/word-review/` from a local checkout
+after rendering the candidates:
+
+```bash
+npm run validate:word-compatibility -- --prepare-review "$(git rev-parse HEAD)"
+```
+
 Each form carries the renderer fingerprint, exact candidate commit, DOCX size
 and SHA-256 for its corresponding file. Keep the downloaded DOCX as the
 original and use a copy for the save-and-reopen check.
@@ -49,16 +91,10 @@ page count and the results below. Copy the completed forms to the receipt paths
 in the table. The generated forms have an empty inspection time and every
 observation starts as `false`.
 
-To prepare the same forms from a local checkout after rendering both candidates:
-
-```bash
-npm run validate:word-compatibility -- --prepare-review "$(git rev-parse HEAD)"
-```
-
 Use the commit that actually produced the two DOCX files. For a release
 candidate it is `release_commit` in `out/qa/release-acceptance-contract.txt`.
 
-## Mandatory manual checks
+### Desktop receipt checks
 
 The receipt accepts only explicit `true` values for all checks:
 
@@ -88,7 +124,7 @@ Also record:
 - observed page count;
 - notes for any benign renderer difference.
 
-## Local validation
+### Local validation
 
 After completing the receipt:
 
@@ -113,7 +149,7 @@ The command fails closed when:
 - the artifact, commit, reviewer or environment metadata is malformed;
 - extra undeclared fields try to bypass the fixed schema.
 
-## GitHub Actions validation
+### GitHub Actions validation
 
 Run **Actions → Microsoft Word Compatibility Evidence** on the exact release-candidate branch or tag.
 
@@ -124,9 +160,10 @@ Use:
 
 Repeat the validation with `docs/release-evidence/word-compatibility-appendix.json` for the appendix. Each run checks out the selected candidate, recomputes its fingerprint, validates the receipt and uploads `word-compatibility-report.json` for release review.
 
-The real release requires both completed receipts to be committed to `main` and revalidates them with a 30-day age limit. A dry run remains available to generate new candidates for the next review. The example file at `docs/release-evidence/word-compatibility.example.json` is intentionally incomplete and can never pass validation.
+The example file at `docs/release-evidence/word-compatibility.example.json` is
+intentionally incomplete and can never pass validation.
 
-## When evidence must be repeated
+### When desktop evidence must be repeated
 
 Repeat the Word check whenever:
 

@@ -5,11 +5,13 @@ const path = require('path');
 const libreOffice = require('./libreoffice-rendered-document');
 const tables = require('./enrich-rendered-document-tables');
 
-function paths(root = path.resolve(__dirname, '..')) {
-  const outDir = path.join(root, 'out', 'qa', 'rendered-document', 'docx');
+function paths(root = path.resolve(__dirname, '..'), {
+  outDir = path.join(root, 'out', 'qa', 'rendered-document', 'docx'),
+  docx = path.join(root, 'out', 'ci-render-gate.docx'),
+} = {}) {
   return {
     root,
-    docx: path.join(root, 'out', 'ci-render-gate.docx'),
+    docx,
     contract: path.join(root, 'tests', 'fixtures', 'rendered-document', 'ci-docx-contract.json'),
     outDir,
     model: path.join(outDir, 'poppler', 'rendered-document.json'),
@@ -19,7 +21,7 @@ function paths(root = path.resolve(__dirname, '..')) {
 }
 
 function main(runtimeOptions = {}) {
-  const resolved = paths(runtimeOptions.root);
+  const resolved = paths(runtimeOptions.root, runtimeOptions);
   const conversion = (runtimeOptions.libreOfficeMain || libreOffice.main)([
     '--docx', resolved.docx,
     '--out-dir', resolved.outDir,

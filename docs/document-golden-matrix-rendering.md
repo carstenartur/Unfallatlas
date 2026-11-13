@@ -62,9 +62,9 @@ geprüften und noch offenen Aussagen:
 
 Der Matrixlauf beweist daher reale Endseiten und Mindestseitenzahlen, aber noch
 nicht, dass für **jedes** Szenario alle Karten- und Tabellenrollen semantisch
-rekonstruiert wurden. Ebenso ersetzt LibreOffice keine manuelle Prüfung in
-Microsoft Word. Die bereits vorhandene hashgebundene Word-Receipt-Pipeline
-bleibt für reale Releases erforderlich.
+rekonstruiert wurden. Die nachgelagerte Semantikprüfung und die automatische
+[DOCX-Kompatibilitätsprüfung](word-compatibility-release-check.md) dokumentieren
+den weiteren Prüfumfang.
 
 ## Verbleibender Umfang in #415
 
@@ -74,6 +74,4 @@ Nach diesem Slice bleiben insbesondere:
   Kartenrollen;
 - szenariospezifische Tabellenverträge einschließlich Langtabellen und
   Fortsetzungsseiten;
-- visuelle Regions-Golden-Regressionen für die fünf Fälle;
-- eine aktuelle, fingerprint-passende Microsoft-Word-Abnahme des konkreten
-  Releasekandidaten.
+- visuelle Regions-Golden-Regressionen für die fünf Fälle.
