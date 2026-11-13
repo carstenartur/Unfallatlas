@@ -188,7 +188,10 @@ describe('public Pages distribution profile', () => {
     const assessment = notice.assetAssessments.find(asset => asset.path === HEAT_ASSET);
     expect(assessment.contains).toContain(purl);
     expect(assessment.unresolvedDetectedComponents).toEqual([]);
-    expect(assessment.provenanceComplete).toBe(false);
+    expect(assessment).toMatchObject({
+      reproducible: true, provenanceComplete: false,
+      reproductionMethod: 'bash scripts/verify-leaflet-upstream.sh',
+    });
     const sbom = readJson('vendor/sbom.cdx.json');
     expect(sbom.dependencies.find(entry => entry.ref === `urn:unfallatlas:vendor-asset:${HEAT_ASSET}`)
       .dependsOn).toContain(purl);

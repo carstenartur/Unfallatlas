@@ -209,5 +209,14 @@ Notice und CycloneDX geben die Quellpfade und Hashes am ausgelieferten
 Bundle an. Der Lizenznachweis bindet den archivierten Mapbox-Lizenztext und
 die mit `d3-queue` gelieferte BSD-3-Clause-Lizenz. Die Artefaktprüfung
 vergleicht das Inventar und die Lizenzhashes mit der eingecheckten Policy.
-Für den vollständigen Nachweis fehlt weiterhin ein unabhängiger Nachbau
-mit gepinntem Browserify und signierter Build-Attestierung.
+Der Maven-Profilaufruf `vendor-upstream-rebuild` prüft auch die zwei Kartenbibliotheken.
+`bash scripts/verify-leaflet-upstream.sh` baut Leaflet-image 0.4.0 aus dem
+bei npm angegebenen Git-Commit. Das separate npm-Lock unter
+`vendor/leaflet-build/` fixiert Browserify 13.0.1, browser-pack 6.0.2,
+umd 3.0.1 und d3-queue 2.0.3. Diese Werkzeuge laufen nur beim Nachbau.
+
+Für Leaflet.heat 1.0.0 liefert das gehashte Quellarchiv das npm-Lock,
+Rolldown 1.2.16, die Global-Einstiegsdatei und die Build-Konfiguration.
+Der Nachbau setzt das Jahr im Copyright-Banner auf das Veröffentlichungsjahr
+2026. Er vergleicht Global-Bundle und Source Map byteweise mit dem npm-Paket.
+Für beide Kartenbibliotheken stehen die unabhängigen Signaturen aus.
