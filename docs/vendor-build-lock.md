@@ -23,6 +23,16 @@ Provenienzmodells verwendet werden. Er darf aber nicht als Ersatz für dessen
 strengeren Vertrag oder als Nachweis eines vollständigen reproduzierbaren
 Upstream-Builds behandelt werden.
 
+Der vollständige Lock führt jeden eingebetteten Quelldatensatz mit einem
+`ref` aus `supplementalLicenses` als Quelle vom Typ `file`. `attestation`
+bindet die Quelle und `licenseAttestation` ihren vollständigen Lizenztext.
+Die erzeugende Build-Anweisung nennt beide gehashten Eingaben und gegebenenfalls
+den ursprünglichen Copyright-Hinweis. Beide DSSE-Signaturen binden diese
+Eingaben und die nach `ref` sortierten Quelldatensätze unter
+`externalParameters.supplementalSources` an das ausgelieferte Asset.
+`component.buildAttestation` kann den vollständigen Lock ergänzend zur
+bestehenden npm-Archivbindung `component.attestation` referenzieren.
+
 ## Was der Pilot beweist
 
 Die eingecheckte Recipe `vendor/build-lock.recipe.json` bindet für jedes

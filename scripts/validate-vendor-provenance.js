@@ -12,6 +12,7 @@ const {
   VENDOR_BUILD_LOCK_TYPE,
   sriSha512Hex,
   validateCompletenessClaims,
+  validateCompleteSupplementalSources,
   validateVerifiedBundleInventories,
 } = require('./vendor-provenance');
 
@@ -325,6 +326,11 @@ function validateCompleteSbom(manifest, sbom) {
       throw new Error(`[validate-vendor-provenance] Complete SBOM omits font: ${font.name}`);
     }
   }
+  for (const source of (manifest.supplementalLicenses || []).filter(record => record.ref)) {
+    if (!componentRefs.has(source.ref)) {
+      throw new Error(`[validate-vendor-provenance] Complete SBOM omits supplemental source: ${source.ref}`);
+    }
+  }
   const dependencyByRef = new Map((sbom.dependencies || []).map(dependency => [dependency.ref, dependency]));
   const expectedAssemblies = [];
   for (const asset of manifest.assetAssessments) {
@@ -622,12 +628,12 @@ function registerExpectedLockSource(expected, reference, descriptor) {
   expected.set(reference, descriptor);
 }
 
-function expectedBuildLockSources(manifest, lock) {
+function expectedBuildLockSources(manifest, lock, supplementalSources) {
   const expected = new Map();
   for (const component of manifest.components) {
     registerExpectedLockSource(
       expected,
-      validateLockReference(component.attestation, lock, `component ${component.purl}`),
+      validateLockReference(component.buildAttestation ?? component.attestation, lock, `component ${component.purl}`),
       { type: 'component', owner: component }
     );
     for (const license of component.licenseTexts) {
@@ -652,6 +658,18 @@ function expectedBuildLockSources(manifest, lock) {
         { type: 'license', ownerRef: fontRef, owner: font, license }
       );
     }
+  }
+  for (const source of supplementalSources.values()) {
+    registerExpectedLockSource(
+      expected,
+      validateLockReference(source.attestation, lock, `supplemental source ${source.ref}`),
+      { type: 'file', owner: source }
+    );
+    registerExpectedLockSource(
+      expected,
+      validateLockReference(source.licenseAttestation, lock, `supplemental license ${source.path}`),
+      { type: 'license', ownerRef: source.ref, owner: source, license: source, supplemental: true }
+    );
   }
   return expected;
 }
@@ -784,6 +802,23 @@ function validateLockSource(source, descriptor, inputs) {
     }
     return { ...source, upstreamInput: input };
   }
+  if (source.type === 'file') {
+    const record = descriptor.owner;
+    assertExactObjectKeys(source.subject, ['type', 'ref', 'path', 'sha256'], `file source subject ${source.id}`);
+    if (source.subject.type !== 'file' || source.subject.ref !== record.ref ||
+        source.subject.path !== record.sourcePath || source.subject.sha256 !== record.sourceSha256 ||
+        source.upstream.type !== 'source-file' ||
+        (record.sourceUrl && source.upstream.locator !== record.sourceUrl)) {
+      throw new Error(`[validate-vendor-provenance] Supplemental source binding mismatch: ${source.id}`);
+    }
+    const input = validateUpstreamBinding(source.upstream, inputs, `file source ${source.id}`, {
+      inputTypes: new Set(['source-file']),
+    });
+    if (source.upstream.digest.algorithm !== 'sha256' || source.upstream.digest.value !== record.sourceSha256) {
+      throw new Error(`[validate-vendor-provenance] Supplemental source hash mismatch: ${source.id}`);
+    }
+    return { ...source, upstreamInput: input };
+  }
   const { license } = descriptor;
   assertExactObjectKeys(
     source.subject,
@@ -792,7 +827,8 @@ function validateLockSource(source, descriptor, inputs) {
   );
   if (source.subject.type !== 'license' || source.subject.ownerRef !== descriptor.ownerRef ||
       source.subject.path !== license.path || source.subject.sha256 !== license.sha256 ||
-      source.subject.copyrightIncluded !== true || source.upstream.type !== 'source-file') {
+      source.subject.copyrightIncluded !== true || source.upstream.type !== 'source-file' ||
+      (descriptor.supplemental && license.licenseUrl && source.upstream.locator !== license.licenseUrl)) {
     throw new Error(`[validate-vendor-provenance] License upstream binding mismatch: ${source.id}`);
   }
   const input = validateUpstreamBinding(source.upstream, inputs, `license source ${source.id}`, {
@@ -804,17 +840,17 @@ function validateLockSource(source, descriptor, inputs) {
   }
   assertFullLicenseAndCopyrightContents(
     fs.readFileSync(input.absolutePath, 'utf8'),
-    descriptor.owner.licenseExpression,
+    descriptor.supplemental ? license.spdx : descriptor.owner.licenseExpression,
     `license source ${source.id}`
   );
   return { ...source, upstreamInput: input };
 }
 
-function validateLockSources(manifest, lock, inputs) {
+function validateLockSources(manifest, lock, inputs, supplementalSources) {
   if (!Array.isArray(lock.sources) || lock.sources.length === 0) {
     throw new Error('[validate-vendor-provenance] Vendor build lock requires typed upstream sources');
   }
-  const expected = expectedBuildLockSources(manifest, lock);
+  const expected = expectedBuildLockSources(manifest, lock, supplementalSources);
   const declaredSources = toUniqueMap(lock.sources, 'id', 'vendor source id');
   assertExactStringSet(declaredSources.keys(), expected.keys(), 'vendor build-lock source refs');
   const sources = new Map();
@@ -876,17 +912,53 @@ function validateLockCommands(lock, inputs, tools) {
   return commands;
 }
 
-function requiredBuildInputRefs(asset, sources, tools) {
+function requiredBuildInputRefs(asset, sources, tools, supplementalSources, inputsByPath) {
   const required = new Set([...tools.values()].map(tool => tool.upstream.inputRef));
   const subjectRefs = new Set([...asset.contains, ...asset.containsFiles]);
   for (const source of sources.values()) {
     if (source.type === 'component' && subjectRefs.has(source.subject.purl)) {
       required.add(source.upstream.inputRef);
-    } else if (source.type === 'font' && subjectRefs.has(source.subject.ref)) {
+    } else if ((source.type === 'font' || source.type === 'file') && subjectRefs.has(source.subject.ref)) {
+      required.add(source.upstream.inputRef);
+    } else if (source.type === 'license' && supplementalSources.has(source.subject.ownerRef) &&
+        subjectRefs.has(source.subject.ownerRef)) {
       required.add(source.upstream.inputRef);
     }
   }
+  for (const ref of asset.containsFiles) {
+    const source = supplementalSources.get(ref);
+    if (!source?.sourceNoticePath) continue;
+    const notice = inputsByPath.get(source.sourceNoticePath);
+    if (notice?.type !== 'license-file' || notice.sha256 !== source.sourceNoticeSha256) {
+      throw new Error(`[validate-vendor-provenance] Supplemental source notice binding mismatch: ${ref}`);
+    }
+    required.add(notice.id);
+  }
   return required;
+}
+
+function supplementalAttestationRecords(fileRefs, supplementalSources, sources) {
+  return [...fileRefs].sort().filter(ref => supplementalSources.has(ref)).map(ref => {
+    const record = supplementalSources.get(ref);
+    const source = sources.get(record.attestation.lockRef);
+    const license = sources.get(record.licenseAttestation.lockRef);
+    return {
+      ref,
+      sourcePath: record.sourcePath,
+      sourceSha256: record.sourceSha256,
+      sourceLocator: source.upstream.locator,
+      sourceInput: source.upstreamInput.path,
+      ...(record.sourcePurl && { sourcePurl: record.sourcePurl }),
+      spdx: record.spdx,
+      licensePath: record.path,
+      licenseSha256: record.sha256,
+      licenseLocator: license.upstream.locator,
+      ...(record.sourceNoticePath && {
+        sourceNoticePath: record.sourceNoticePath,
+        sourceNoticeSha256: record.sourceNoticeSha256,
+      }),
+    };
+  });
 }
 
 function canonicalJson(value) {
@@ -935,7 +1007,7 @@ function expectedResolvedDependencies(command, inputs) {
 }
 
 function validateSignedSlsaStatement(statement, context) {
-  const { lock, output, command, inputs, tools, builder } = context;
+  const { lock, output, command, inputs, tools, builder, supplemental } = context;
   assertExactObjectKeys(statement, ['_type', 'subject', 'predicateType', 'predicate'], 'in-toto statement');
   if (statement._type !== IN_TOTO_STATEMENT_TYPE || statement.predicateType !== SLSA_PROVENANCE_TYPE ||
       !Array.isArray(statement.subject) || statement.subject.length !== 1) {
@@ -962,6 +1034,13 @@ function validateSignedSlsaStatement(statement, context) {
     cwd: command.cwd,
     argv: command.argv,
   };
+  if (supplemental.length > 0) {
+    const declared = definition.externalParameters?.supplementalSources;
+    if (!Array.isArray(declared) || canonicalJson(declared) !== canonicalJson(supplemental)) {
+      throw new Error(`[validate-vendor-provenance] Signed provenance supplemental source mismatch: ${output.id}`);
+    }
+    expectedExternal.supplementalSources = supplemental;
+  }
   const expectedInternal = { toolchain: expectedAttestedToolchain(command, tools) };
   const expectedDependencies = expectedResolvedDependencies(command, inputs);
   if (canonicalJson(definition.externalParameters) !== canonicalJson(expectedExternal) ||
@@ -1026,7 +1105,7 @@ function verifyDsseSlsaProvenance(input, rebuild, context, trustedBuilders) {
   return validateSignedSlsaStatement(statement, { ...context, builder });
 }
 
-function validateLockOutputs(artifactRoot, manifest, lock, inputs, commands, sources, tools, trustedBuilders) {
+function validateLockOutputs(artifactRoot, manifest, lock, inputs, commands, sources, tools, trustedBuilders, supplementalSources) {
   if (!Array.isArray(lock.outputs) || lock.outputs.length === 0) {
     throw new Error('[validate-vendor-provenance] Vendor build lock requires exact outputs');
   }
@@ -1054,6 +1133,7 @@ function validateLockOutputs(artifactRoot, manifest, lock, inputs, commands, sou
   assertExactStringSet(producedBy.keys(), outputs.keys(), 'vendor command output coverage');
   const usedProvenanceInputs = new Set();
   const invocationIds = new Set();
+  const inputsByPath = new Map([...inputs.values()].map(input => [input.path, input]));
 
   for (const [outputId, output] of outputs) {
     const asset = assetsByOutput.get(outputId);
@@ -1074,7 +1154,8 @@ function validateLockOutputs(artifactRoot, manifest, lock, inputs, commands, sou
     assertExactStringSet(output.contains, asset.contains, `vendor output contains for ${outputId}`);
     assertExactStringSet(output.containsFiles, asset.containsFiles, `vendor output containsFiles for ${outputId}`);
     const command = commands.get(output.commandRef);
-    const requiredInputs = requiredBuildInputRefs(asset, sources, tools);
+    const requiredInputs = requiredBuildInputRefs(asset, sources, tools, supplementalSources, inputsByPath);
+    const supplemental = supplementalAttestationRecords(asset.containsFiles, supplementalSources, sources);
     for (const inputRef of requiredInputs) {
       if (!command.inputRefs.includes(inputRef)) {
         throw new Error(`[validate-vendor-provenance] Output command omits source/toolchain input: ${outputId} -> ${inputRef}`);
@@ -1100,7 +1181,7 @@ function validateLockOutputs(artifactRoot, manifest, lock, inputs, commands, sou
       const verified = verifyDsseSlsaProvenance(
         provenanceInput,
         rebuild,
-        { lock, output, command, inputs, tools },
+        { lock, output, command, inputs, tools, supplemental },
         trustedBuilders
       );
       if (builderIds.has(verified.builderId) || invocationIds.has(verified.invocationId)) {
@@ -1137,9 +1218,10 @@ function validateVendorBuildLock(artifactRoot, manifest, lock, policy) {
     throw new Error('[validate-vendor-provenance] Unsupported or mismatched vendor build-lock schema');
   }
   assertNonEmptyString(lock.lockId, 'vendor build lock id');
+  const supplementalSources = validateCompleteSupplementalSources(manifest);
   const inputs = validateLockInputs(artifactRoot, lock);
   const tools = validateLockToolchain(lock, inputs);
-  const sources = validateLockSources(manifest, lock, inputs);
+  const sources = validateLockSources(manifest, lock, inputs, supplementalSources);
   const commands = validateLockCommands(lock, inputs, tools);
   const trustedBuilders = validateTrustedVendorBuilders(policy, { requireTwo: true });
   const outputs = validateLockOutputs(
@@ -1150,7 +1232,8 @@ function validateVendorBuildLock(artifactRoot, manifest, lock, policy) {
     commands,
     sources,
     tools,
-    trustedBuilders
+    trustedBuilders,
+    supplementalSources
   );
   validateNoOrphanLockInputs(inputs, tools, commands, sources, outputs);
   return { lock, inputs, tools, sources, commands, outputs, trustedBuilders };
@@ -1173,7 +1256,14 @@ function assertFullLicenseAndCopyrightContents(contents, expression, label) {
     throw new Error(`[validate-vendor-provenance] ${label} is not a full license and copyright text`);
   }
   const knownMarkers = [];
-  if (/\bMIT\b/i.test(expression)) knownMarkers.push(/permission is hereby granted[\s\S]+software is provided/i);
+  if (expression === 'MIT-Modern-Variant') {
+    knownMarkers.push(/permission is hereby granted[\s\S]+specifically disclaims any warranties[\s\S]+on an "as is" basis/i);
+  } else if (/\bMIT\b/i.test(expression)) {
+    knownMarkers.push(/permission is hereby granted[\s\S]+software is provided/i);
+  }
+  if (expression === 'LicenseRef-ICC-Profile') {
+    knownMarkers.push(/may be copied, distributed, embedded, made, used, and sold without restriction[\s\S]+shall not be misrepresented/i);
+  }
   if (/BSD-[23]-Clause/i.test(expression)) knownMarkers.push(/redistribution and use[\s\S]+this list of conditions/i);
   if (/OFL-1\.1/i.test(expression)) knownMarkers.push(/SIL OPEN FONT LICENSE[\s\S]+permission & conditions/i);
   if (/Apache-2\.0/i.test(expression)) knownMarkers.push(/Apache License[\s\S]+terms and conditions/i);

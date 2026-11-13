@@ -1050,6 +1050,39 @@ function validateCompleteLicenseRecord(license, ownerRef, lockId) {
   assertBuildLockReference(license.attestation, lockId, `license ${license.path}`);
 }
 
+function validateCompleteSupplementalSources(manifest) {
+  const lockId = manifest.vendorBuildLock.lockId;
+  const records = manifest.supplementalLicenses ?? [];
+  if (!Array.isArray(records) || records.some(record => !isPlainObject(record))) {
+    throw new Error('[vendor-provenance] Invalid supplemental source inventory');
+  }
+  const sources = new Map();
+  const assets = new Map(manifest.assetAssessments.map(asset => [asset.path, asset]));
+  for (const source of records.filter(record => Object.hasOwn(record, 'ref'))) {
+    if (typeof source.ref !== 'string' || !/^urn:unfallatlas:vendor-source:[^\s]+$/.test(source.ref) ||
+        sources.has(source.ref) || typeof source.sourcePath !== 'string' || !source.sourcePath.trim() ||
+        typeof source.spdx !== 'string' || !source.spdx.trim()) {
+      throw new Error('[vendor-provenance] Invalid or duplicate supplemental source');
+    }
+    assertHash(source.sourceSha256, `source SHA-256 for ${source.ref}`);
+    assertBuildLockReference(source.attestation, lockId, `supplemental source ${source.ref}`);
+    validateCompleteLicenseRecord({ ...source, attestation: source.licenseAttestation }, source.ref, lockId);
+    if (Object.hasOwn(source, 'sourceNoticePath') || Object.hasOwn(source, 'sourceNoticeSha256')) {
+      if (typeof source.sourceNoticePath !== 'string' || !source.sourceNoticePath.trim()) {
+        throw new Error(`[vendor-provenance] Missing original notice path for ${source.ref}`);
+      }
+      assertHash(source.sourceNoticeSha256, `original notice SHA-256 for ${source.ref}`);
+    }
+    const asset = assets.get(source.asset);
+    if (!asset?.containsFiles?.includes(source.ref) ||
+        (source.sourcePurl && !asset.contains?.includes(source.sourcePurl))) {
+      throw new Error(`[vendor-provenance] Supplemental source is not bound to its delivered container: ${source.ref}`);
+    }
+    sources.set(source.ref, source);
+  }
+  return sources;
+}
+
 function validateCompletenessClaims(manifest) {
   if (manifest.complete !== true) throw new Error('[vendor-provenance] complete must be true');
   if (manifest.inventoryScope !== COMPLETE_INVENTORY_SCOPE) {
@@ -1097,7 +1130,7 @@ function validateCompletenessClaims(manifest) {
     }
     componentByNameVersion.set(nameVersion, component);
     const componentLockRef = assertBuildLockReference(
-      component.attestation,
+      component.buildAttestation ?? component.attestation,
       lockId,
       `component ${component.purl}`
     );
@@ -1180,10 +1213,11 @@ function validateCompletenessClaims(manifest) {
   }
   const assetsByPath = new Map(manifest.assetAssessments.map(asset => [asset.path, asset]));
   const fontRefs = new Set(manifest.fontEvidence.map(font => `urn:unfallatlas:font:${font.name}`));
+  const supplementalSources = validateCompleteSupplementalSources(manifest);
   const fileOwners = new Map();
   for (const asset of manifest.assetAssessments) {
     for (const fileRef of asset.containsFiles) {
-      if (!fontRefs.has(fileRef)) {
+      if (!fontRefs.has(fileRef) && !supplementalSources.has(fileRef)) {
         throw new Error(`[vendor-provenance] Asset contains unknown file component: ${asset.path} -> ${fileRef}`);
       }
       if (fileOwners.has(fileRef)) {
@@ -1217,6 +1251,7 @@ module.exports = {
   parseTrueTypeNameTable,
   sriSha512Hex,
   validateCompletenessClaims,
+  validateCompleteSupplementalSources,
   validateVerifiedBundleInventories,
   verifyLeafletImageModules,
 };
