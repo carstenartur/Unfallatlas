@@ -129,7 +129,7 @@
     "leaflet": "1.9.4",
     "leaflet-draw": "1.0.4",
     "leaflet-image": "0.4.0",
-    "leaflet.heat": "1.0.0",
+    "leaflet.heat": "1.0.1",
     "leaflet.markercluster": "1.5.3",
     "pdfmake": "0.3.14",
     "proj4": "2.23.0"

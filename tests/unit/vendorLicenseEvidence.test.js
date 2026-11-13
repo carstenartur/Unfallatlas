@@ -53,7 +53,7 @@ describe('vendor plugin licence evidence', () => {
     }));
     expect(report.records.map(record => `${record.package}@${record.version}`)).toEqual([
       'leaflet-draw@1.0.4',
-      'leaflet.heat@1.0.0',
+      'leaflet.heat@1.0.1',
       'simpleheat@1.0.0',
       'leaflet-image@0.4.0',
       'd3-queue@2.0.3',
