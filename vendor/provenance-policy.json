@@ -241,7 +241,7 @@
               "upstreamFileSha256": "d09e1a548570d0d39e6256b8ce7362e32b323a0e7252c6aec358d1945ee34074",
               "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/7e2da035f68e46ce8f4759b67b4ed3a1b211d793/src/hb-ot-shape-complex-arabic.cc#L1-L25",
               "copyright": "Copyright © 2010,2012  Google, Inc.",
-              "spdx": "LicenseRef-HarfBuzz-Google",
+              "spdx": "MIT-Modern-Variant",
               "path": "vendor/licenses/components/fontkit-HarfBuzz-arabic.txt",
               "sha256": "e77a1bd517f4ecee2d247e092c72d9a39e49b7db723b7f0403690173fbe7cb71"
             }
@@ -261,7 +261,7 @@
               "upstreamFileSha256": "8fd42fde574ebb25956b57aaa9d07f336d6f7d6211d6f5265d0ce70c66ec9923",
               "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/85630996b8afa699f7b5d19346cdf5c72fcd6e2d/src/hb-ot-shape-complex-indic.cc#L1-L25",
               "copyright": "Copyright © 2011,2012  Google, Inc.",
-              "spdx": "LicenseRef-HarfBuzz-Google",
+              "spdx": "MIT-Modern-Variant",
               "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
               "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
             }
