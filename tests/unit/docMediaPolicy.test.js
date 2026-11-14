@@ -421,7 +421,7 @@ describe('documentation media policy', () => {
   test('documentation screenshots use their reviewed scenario dimensions', () => {
     const scenarioDimensions = {
       'docs/screenshots/14-export-filterkontext.png': { width: 1774, height: 887 },
-      'docs/screenshots/26-hannover-mitte-stellensuche.png': { width: 580, height: 960 },
+      'docs/screenshots/26-hannover-mitte-stellensuche.png': { width: 580, height: 1040 },
       'docs/screenshots/27-hannover-fall-wirkungskontrolle.png': { width: 1040, height: 760 },
     };
     for (const asset of manifest.assets.filter(entry => entry.kind === 'screenshot')) {

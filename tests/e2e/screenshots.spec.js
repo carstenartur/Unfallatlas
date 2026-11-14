@@ -637,7 +637,7 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
 
   test('26 Mobile Stellensuche nach wiederkehrenden Mustern in Hannover-Mitte', async ({ page }) => {
     const path = 'docs/screenshots/26-hannover-mitte-stellensuche.png';
-    await page.setViewportSize({ width: 580, height: 960 });
+    await page.setViewportSize({ width: 580, height: 1040 });
     await loadPage(page, '?' + new URLSearchParams(documentationLinks.SCREENSHOT_SCENARIOS[path].query));
     const panel = page.locator('#siteDiscoveryPanel');
     await expect(panel.locator('#siteDiscoveryDistrict')).toHaveValue('Mitte');

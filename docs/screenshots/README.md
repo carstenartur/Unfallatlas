@@ -7,7 +7,7 @@ werden automatisiert geprüft.
 
 ## Verbindliche Regeln
 
-1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Das Hbf-Kartenbild `13` folgt diesem Standard und wird zusätzlich durch ein Sichtbarkeits-Gate geschützt; die Dialog- und Doppelseitenmedien `14` und `15` verwenden **1774 × 887 px**. Die Bezirksliste `26` zeigt die Telefonansicht mit **580 × 960 px**. Das Fallblatt `27` zeigt Karte und Quellenbeleg bei **1040 × 760 px**.
+1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Das Hbf-Kartenbild `13` folgt diesem Standard und wird zusätzlich durch ein Sichtbarkeits-Gate geschützt; die Dialog- und Doppelseitenmedien `14` und `15` verwenden **1774 × 887 px**. Die Bezirksliste `26` zeigt die Telefonansicht mit **580 × 1040 px**. Das Fallblatt `27` zeigt Karte und Quellenbeleg bei **1040 × 760 px**.
 2. Die gerenderte PDF-Gesamtvorschau `15` zeigt eine geprüfte Doppelseite mit **1774 × 887 px**.
 3. Jedes eingecheckte Medium unter `docs/` ist in
    [`docs/media-manifest.json`](../media-manifest.json) deklariert.

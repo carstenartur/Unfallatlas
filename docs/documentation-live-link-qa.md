@@ -6,7 +6,7 @@ User-facing screenshots and action links may point to the public Unfallwerkbank 
 
 `scripts/documentation-deeplink-contract.cjs` reads both user-facing documents and validates every embedded PNG/GIF and every canonical application URL.
 
-For the 14 documented application-screenshot scenarios it requires:
+Every documented application screenshot must satisfy these checks.
 
 - every displayed medium is clickable;
 - every screenshot path has one declared canonical scenario;
