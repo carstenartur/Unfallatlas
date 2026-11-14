@@ -12,11 +12,11 @@
   "trustedVendorBuilders": [],
   "verifiedBundleInventories": {
     "vendor/export/docx.js": {
-      "owner": "pkg:npm/docx@9.15.3",
-      "bundleSha256": "262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e",
+      "owner": "pkg:npm/docx@9.15.4",
+      "bundleSha256": "5d3091bf1e4cb622f0f6cdf4a552db8664e3f3a7524205709b52ba20313255d2",
       "lockFile": "vendor/docx-build/npm-lock.json.gz",
-      "lockSha256": "d9d2c3ff7648ef7f7d173f8e97cc0078b1a02ff3f87dd55073c0ec7e13af62f6",
-      "componentEvidenceSha256": "156a211bb5060cc3e27c9c4da78c0ed4d34e8cc858bea55564e3938c9ce5a95e",
+      "lockSha256": "e3454d37dfbc33e77160559f7e1afffbc685d72f19f42869b8f72e7c81d17ad9",
+      "componentEvidenceSha256": "4ea0602cf9a656a0f0c2a68723dbfa1c0db9a44f33179b1f4b797df85e72f3a7",
       "modules": [
         "node_modules/fflate/esm/browser.js",
         "node_modules/nanoid/non-secure/index.js",
@@ -44,9 +44,9 @@
       ],
       "generatedRuntimes": [
         {
-          "component": "rolldown@1.2.15",
-          "sourceArchive": "https://registry.npmjs.org/rolldown/-/rolldown-1.2.15.tgz",
-          "sourceIntegrity": "sha512-6odND+fel5zVw3I4Yc2e69gvguDnX0CAAGiNDZSq4ik5WUcaLrkD2GLuog0XcODbor31hZ5ayEMgVDno+KPV5g==",
+          "component": "rolldown@1.2.18",
+          "sourceArchive": "https://registry.npmjs.org/rolldown/-/rolldown-1.2.18.tgz",
+          "sourceIntegrity": "sha512-C1uuT3UR60SShuCaPQFAAZyefJCWZlAKB02BV3BuPE2Rs4fevRQltEKoFO2tV5W9/eJhU5RieV6vJj3euulfNQ==",
           "spdx": "MIT",
           "licenseFile": "vendor/docx-build/rolldown-runtime-notices.txt",
           "path": "vendor/licenses/components/docx-rolldown-runtime-notices.txt",
@@ -58,54 +58,54 @@
               "sourceSha256": "dce431abd7483c7b92a675b41958d6a2a2c8b13d2b13ee546a34935da7c7676d"
             }
           ],
-          "sourceUrl": "https://raw.githubusercontent.com/rolldown/rolldown/89d821ca07cf9ccd84dd92bd3f48af0f579ab21a/crates/rolldown/src/runtime/runtime-base.js"
+          "sourceUrl": "https://raw.githubusercontent.com/rolldown/rolldown/f9a49d6adff486e21b3cec60db4d291f1fa4d8f2/crates/rolldown/src/runtime/runtime-base.js"
         },
         {
-          "component": "@oxc-project/runtime@0.155.0",
-          "sourceArchive": "https://registry.npmjs.org/@oxc-project/runtime/-/runtime-0.155.0.tgz",
-          "sourceIntegrity": "sha512-VbW9raczGS5ZZ1FMunUBYHe4uV/R684qlQCoMdE3n5JT1PcqQsvmFpMYkF8AD+W04fBLGAq6Tr7YsTk0jjvDBA==",
+          "component": "@oxc-project/runtime@0.156.0",
+          "sourceArchive": "https://registry.npmjs.org/@oxc-project/runtime/-/runtime-0.156.0.tgz",
+          "sourceIntegrity": "sha512-6C8Bl8OZJJKYJFbo2l9Qjn8WGi0OW1mmiErR0b+n8684ZLXegZZ2Ul4LW5aoapIX0a2ri2nIDz4RpCgRleb04w==",
           "spdx": "MIT",
           "licenseFile": "vendor/docx-build/oxc-runtime-notices.txt",
           "path": "vendor/licenses/components/docx-oxc-runtime-notices.txt",
           "sha256": "0e80fa6ef13ae6db0622b1a23c1b6053cb6273a6cabaf349a38a50bc9b6b55b1",
           "modules": [
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/typeof.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/typeof.js",
               "sourcePath": "src/helpers/esm/typeof.js",
               "sourceSha256": "928bcbbdf74fe24ed7486e7f982c4389c1859886b3ed904ebd2677f22193b57a"
             },
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/toPrimitive.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/toPrimitive.js",
               "sourcePath": "src/helpers/esm/toPrimitive.js",
               "sourceSha256": "9660291e71923cb5ff9aaaa1de354515c26e3220cba56ac5d21b806f23875545"
             },
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/toPropertyKey.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/toPropertyKey.js",
               "sourcePath": "src/helpers/esm/toPropertyKey.js",
               "sourceSha256": "7f0000acc9c9cf7594b412095be66cdc59066b25458a16fe1434fd00cff478e7"
             },
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/defineProperty.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/defineProperty.js",
               "sourcePath": "src/helpers/esm/defineProperty.js",
               "sourceSha256": "2bad7c96ee851cf2cfe1320a54fd88dd5f769a7faf8bd92d60c9f2e6d1e381dd"
             },
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectSpread2.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/objectSpread2.js",
               "sourcePath": "src/helpers/esm/objectSpread2.js",
               "sourceSha256": "d03a134abca2a223a82172030d7d79a4b779ab3ee7df91391fb62cad74586284"
             },
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectWithoutPropertiesLoose.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/objectWithoutPropertiesLoose.js",
               "sourcePath": "src/helpers/esm/objectWithoutPropertiesLoose.js",
               "sourceSha256": "625b5d223cee76c6883bac69a573ac5512414c2174b2c4bde50d1543e71d97a1"
             },
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/objectWithoutProperties.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/objectWithoutProperties.js",
               "sourcePath": "src/helpers/esm/objectWithoutProperties.js",
               "sourceSha256": "f0d056e4c8fec80fe2fe09364c7f30ae67e3f2e2818e76f8d967544f6335bb98"
             },
             {
-              "label": "\\0@oxc-project+runtime@0.155.0/helpers/esm/asyncToGenerator.js",
+              "label": "\\0@oxc-project+runtime@0.156.0/helpers/esm/asyncToGenerator.js",
               "sourcePath": "src/helpers/esm/asyncToGenerator.js",
               "sourceSha256": "d08e6edc7ad01f1116fcbfbd11da76fd9ca700fc17b6e2d1067d16f55564fde3"
             }
@@ -162,7 +162,7 @@
       "lockFile": "vendor/pdfmake-build/npm-lock.json",
       "lockSha256": "03de6b450be5877a0036dae5f66115b1cfb06b70645c5c2ea5177707d3625ffe",
       "sourceMapSha256": "e93f2be331afd8c8849a8113f0d4e672156e45a9b1b972846db43dd0b933942e",
-      "componentEvidenceSha256": "512e7147bbbf7f42be4d59effe2a01f23b7fcee95e22c74e442fbd88f647430f",
+      "componentEvidenceSha256": "8425941fd3b64117bdbcbb3b616194f091f0ab60cf0c83e4579cfc9404705e6a",
       "sourceMapPurls": [
         "pkg:npm/%40noble/ciphers@1.3.0",
         "pkg:npm/%40noble/hashes@1.8.0",
@@ -576,7 +576,7 @@
   ],
   "verifiedSourceRebuilds": {
     "vendor/export/docx.js": {
-      "sha256": "262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e",
+      "sha256": "5d3091bf1e4cb622f0f6cdf4a552db8664e3f3a7524205709b52ba20313255d2",
       "command": "bash scripts/verify-docx-upstream.sh"
     },
     "vendor/export/pdfmake.js": {

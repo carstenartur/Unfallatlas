@@ -84,7 +84,7 @@ Publication remains blocked by the acceptance items in
   and the Analysis Service JAR from its tested release commit.
 - The reviewed npm security group [#722](https://github.com/carstenartur/Unfallatlas/pull/722)
   updates vulnerable dependency versions while retaining strict audit enforcement.
-  Word/PDF export uses docx 9.15.3 and pdfmake 0.3.14;
+  Word/PDF export uses docx 9.15.4 and pdfmake 0.3.14;
   pdfjs-dist 6.5.438 validates exported PDFs in QA.
   Playwright packages and the Docker browser runtime are aligned at 1.65.0.
   The build uses pinned npm 11.21.2, and complete audit evidence remains available alongside compact CI
