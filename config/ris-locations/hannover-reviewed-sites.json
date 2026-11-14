@@ -519,6 +519,20 @@
       "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
       "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1142-2007"
     },
+    "fred-grube-platz": {
+      "kind": "place",
+      "label": "Fred-Grube-Platz vor dem Freizeitheim Linden (Orientierungspunkt, keine Platzgrenze)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          9.6998024,
+          52.37537
+        ]
+      },
+      "attribution": "Punkt-Linden (Ortskoordinate); Stadt Hannover (Benennung und Einrichtungsbezug), Punkt als Orientierung",
+      "sourceUrl": "https://punkt-linden.de/strassen/fred-grube-platz/",
+      "corroborationUrl": "https://www.hannover.de/UNESCO-City-of-Music/Media/02-GIS-Objekte/Lokationsdatenbank/Landeshauptstadt-Hannover/Kultur-und-Freizeit/Freizeitheime/Freizeitheim-Linden"
+    },
     "glocksee-gruen": {
       "label": "Grünfläche an der Glockseestraße zwischen Braunstraße und enercity-Zufahrt (Orientierungspunkt)",
       "kind": "place",
@@ -1043,6 +1057,20 @@
       },
       "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
       "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "lister-dreieck": {
+      "kind": "place",
+      "label": "Lister Dreieck, damaliges Grundstück (Orientierung am heutigen Gebäude, keine Flächengrenze)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          9.7419194,
+          52.3792389
+        ]
+      },
+      "attribution": "Wikimedia Commons (Ortsreferenz 2019), © OpenStreetMap-Mitwirkende (Kartendaten ODbL 1.0); historische Grundstücksfläche nicht übernommen",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/Category:Lister_Dreieck",
+      "corroborationUrl": "https://feldhaus.de/projekte/lister-dreieck"
     },
     "marien-hoerung": {
       "kind": "street",
@@ -2046,6 +2074,18 @@
         }
       ]
     },
+    "hannover-sim:1454-2013": {
+      "source": "hannover-sim",
+      "title": "Antrag der SPD-Fraktion zu einer Anhörung \"Lister Dreieck\"",
+      "sites": [
+        {
+          "site": "lister-dreieck",
+          "text": "Vor einer Beschlussfassung über die Drucksache 1085/2013 sollen die Verwertungs- und Nutzungsoptionen des Grundstücks insbesondere vor dem Hintergrund der Lagegunst in unmittelbarer Nähe zum Hauptbahnhof grundlegend ausgelotet werden.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1454-2013",
+          "source": "document"
+        }
+      ]
+    },
     "hannover-sim:1493-2012": {
       "source": "hannover-sim",
       "title": "Bebauungsplan Nr. 1150, 1. Änderung – Nördlich Echternfeld – Bebauungsplan der Innenentwicklung Aufstellungsbeschluss, Beschluss zur frühzeitigen Beteiligung der Öffentlichkeit",
@@ -2297,6 +2337,18 @@
           "site": "fiedelerplatz",
           "text": "Döhrener Jazz-Festivals auf dem Fiedelerplatz",
           "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0504-2012"
+        }
+      ]
+    },
+    "hannover-sim:15-0632-2005N1S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUNG: Benennung eines Platzes nach Fred Grube",
+      "sites": [
+        {
+          "site": "fred-grube-platz",
+          "text": "Der Bezirksrat regt an, den Platzbereich nördlich des FZH Linden nach Herrn Fred Grube zu benennen.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0632-2005N1",
+          "source": "document"
         }
       ]
     },
