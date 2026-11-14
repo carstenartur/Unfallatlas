@@ -1,0 +1,304 @@
+{
+  "sample": [
+    {
+      "city": "hannover",
+      "id": "hannover-sim:H-0105-2025",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1129-2019S1",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:2089-2025",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2008-2010",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0808-2019",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1004967",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1002860",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1863-2020",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:0385-2022",
+      "round": 1
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2019761",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1185-2024N1",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2450-2006",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:0328-2013",
+      "round": 1
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2001730",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1005125",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:2004292",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1003494",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:2522-2024",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1801-2007",
+      "round": 1
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2027967",
+      "round": 1
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2392-2017",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0141-2002N1",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1035-2016",
+      "round": 2
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2020588",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:2007208",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1408-2005",
+      "round": 2
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2026355",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1311-2019F1",
+      "round": 2
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2003206",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0021-2000S1",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0273-2008",
+      "round": 2
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2005418",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-3237-2022N1S1",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:0451-2007",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:2043",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1155-2004",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0123-2023F1",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0778-2016F1",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0374-2024",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:0491-2013",
+      "round": 2
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0253-2016",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1021-2013S1",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:2095-2026",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2491-2020S1",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1002066",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2450-2005",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2484-2012S1",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0110-2020",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:0920-2006",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1007347",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:2124-2010",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1649-2021F1",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1620-2024F1",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1784-2021",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0135-2024",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2529-2015F1",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0178-2007",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1886-2008",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1979-2012",
+      "round": 3
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1548-2007",
+      "round": 3
+    }
+  ]
+}
