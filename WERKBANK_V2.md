@@ -1,13 +1,10 @@
-# Unfallwerkbank V2 - POI und Bezugsdokumente
+# Unfallwerkbank V2 – Funktionen und technische Grundlagen
 
 ## Überblick
 
-Die Unfallwerkbank V2 (`werkbank_v2.html`) erweitert die ursprüngliche Unfallwerkbank um zwei neue Funktionen:
+Die Unfallwerkbank verbindet Unfalldaten, Karten und kommunale Unterlagen. Dieses Dokument beschreibt die technischen Grundlagen der Kartenebenen, Schulen und Kitas, Bezugsdokumente und des Word- und PDF-Exports.
 
-1. **POI-Integration (Points of Interest)**: Schulen, Kindergärten und Kitas
-2. **Bezugsdokumente**: Verweise auf relevante Dokumente und Konzepte
-
-Die ursprüngliche `werkbank.html` bleibt unverändert und voll funktionsfähig.
+Für die Bedienung auf dem iPhone oder Desktop folgen Sie dem Weg vom Stadtbezirk über die Fallansicht zum Antragsentwurf und zur Wirkungskontrolle. [Schritt für Schritt in der Nutzungsanleitung](docs/DOKUMENTATION.md#eine-stelle-im-bezirk-untersuchen)
 
 ## Architektur
 
@@ -450,6 +447,7 @@ Im Export-Dialog können folgende Optionen ausgewählt werden:
 - ☑ **Kartenausschnitt**: Fügt eine Karte des Unfallbereichs ein
 - ☑ **POIs (Schulen/Kitas)**: Integriert POI-Analyse
 - ☑ **Referenzdokumente**: Fügt fachliche Bezüge hinzu
+- ☑ **Maßnahmenvorschläge** ergänzt passende Einträge aus dem Maßnahmenkatalog mit fachlicher Fundstelle und Prüffrage für die Ortsbesichtigung.
 
 ### Technische Details
 
