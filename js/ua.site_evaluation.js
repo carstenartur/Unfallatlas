@@ -5,17 +5,17 @@
   const maxYears = 3;
   const openTrafficViews = new WeakMap();
 
-  function secureSource(value) {
+  function sourceAddress(value) {
     try {
       const url = new URL(value);
-      return url.protocol === 'https:' && !url.username && !url.password && url.href.length <= 2048;
+      return url.protocol === 'https:' && !url.username && !url.password && url.href.length <= 2048 ? url.href : null;
     } catch {
-      return false;
+      return null;
     }
   }
 
   function isImplementation(event) {
-    if (!event || !['in-service', 'implemented'].includes(event.kind) || !secureSource(event.url)
+    if (!event || !['in-service', 'implemented'].includes(event.kind) || !sourceAddress(event.url)
         || !['month', 'day'].includes(event.precision) || typeof event.date !== 'string') return false;
     const day = event.precision === 'month' ? event.date + '-01' : event.date;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
@@ -32,7 +32,7 @@
     const search = new URLSearchParams(window.location.search);
     if (search.get('siteEvalPlace') !== keyFor(ctx, selection)) return null;
     const event = {kind: 'in-service', date: search.get('siteEvalMonth'), precision: 'month',
-      url: search.get('siteEvalSource'), label: 'Vom Nutzer angegebener Umsetzungsbeleg'};
+      url: sourceAddress(search.get('siteEvalSource'))};
     return isImplementation(event) ? event : null;
   }
 
@@ -248,6 +248,30 @@
     return input;
   }
 
+  function showUserSource(info, address) {
+    const value = element('span', address);
+    value.style.overflowWrap = 'anywhere';
+    value.dir = 'ltr';
+    const copy = element('button', 'Quellenadresse kopieren');
+    copy.type = 'button';
+    const status = element('span');
+    status.setAttribute('role', 'status');
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(address);
+        status.textContent = 'Quellenadresse kopiert.';
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(value);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        status.textContent = 'Quellenadresse markiert. Bitte manuell kopieren.';
+      }
+    });
+    info.append('Vom Nutzer angegebener Umsetzungsbeleg ', value, ' ', copy, ' ', status);
+  }
+
   function render(container, {ctx,selection,implementation}) {
     if (!container || !selection?.bounds) return;
     const documented = isImplementation(implementation) ? implementation : null;
@@ -258,12 +282,16 @@
     box.append(element('summary','Wirkungskontrolle'));
     container.append(box);
     if (active) {
-      const link = element('a',active.label || 'Umsetzungsbeleg');
-      link.href = active.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
       const info = element('p','In Betrieb seit ' + active.date + ' · ');
-      info.append(link);
+      if (documented) {
+        const link = element('a', documented.label || 'Umsetzungsbeleg');
+        link.href = documented.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        info.append(link);
+      } else {
+        showUserSource(info, userEvent.url);
+      }
       box.append(info);
       const output = element('div');
       box.append(output);
@@ -316,7 +344,9 @@
     if (userEvent) {
       const remove = element('button','Eigenen Beleg entfernen');
       remove.type = 'button';
-      remove.addEventListener('click',() => refresh({siteEvalPlace:null,siteEvalMonth:null,siteEvalSource:null}));
+      remove.addEventListener('click', () => {
+        if (localEvent(ctx, selection)) refresh({siteEvalPlace:null,siteEvalMonth:null,siteEvalSource:null});
+      });
       form.append(remove);
     }
     box.append(form);

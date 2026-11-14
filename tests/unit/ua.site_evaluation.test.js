@@ -156,21 +156,72 @@ test('a source submitted in the case survives sharing and reloading only at this
   const win = app(), s = state(win), panel = win.document.querySelector('main');
   win.UA.SiteEvaluation.render(panel, {...s, implementation:null});
   panel.querySelector('input[type="month"]').value = '2022-12';
-  panel.querySelector('input[type="url"]').value = 'https://stadt.test/freigabe';
+  const submitted = 'https://belege.test/Ratsdokument?antrag=123&seite=2#grundriss';
+  panel.querySelector('input[type="url"]').value = submitted;
   panel.querySelector('form').dispatchEvent(new win.Event('submit', {cancelable:true}));
   await tick();
   expect(panel.querySelector('.site-evaluation').open).toBe(true);
   expect(panel.querySelector('table')).not.toBeNull();
+  expect(panel.textContent).toContain(submitted);
+  expect(panel.querySelector('a')).toBeNull();
   const shared = win.UA.SiteCase.permalink(s.ctx, s.selection);
   const next = app(shared), current = state(next), details = next.document.querySelector('main');
   next.UA.SiteEvaluation.render(details,{...current, implementation:null});
-  expect(details.querySelector('a').href).toBe('https://stadt.test/freigabe');
+  expect(details.textContent).toContain(submitted);
+  expect(details.querySelector('a')).toBeNull();
+  const clipboard = {writeText:jest.fn().mockResolvedValue(undefined)};
+  Object.defineProperty(next.navigator, 'clipboard', {value:clipboard});
+  const copy = Array.from(details.querySelectorAll('button')).find(b => b.textContent === 'Quellenadresse kopieren');
+  copy.click();
+  await tick();
+  expect(clipboard.writeText).toHaveBeenCalledWith(submitted);
+  expect(details.textContent).toContain('Quellenadresse kopiert');
+  clipboard.writeText.mockRejectedValueOnce(new Error('not available'));
+  copy.click();
+  await tick();
+  expect(next.getSelection().toString()).toBe(submitted);
+  expect(details.textContent).toContain('manuell kopieren');
   const other = next.document.createElement('div');
   const selection = {...current.selection, bounds:{...current.selection.bounds, north:53}};
   next.UA.SiteEvaluation.render(other,{...current, selection, implementation:null});
-  expect(other.querySelector('a')).toBeNull();
+  expect(other.textContent).not.toContain(submitted);
+  expect(other.textContent).not.toContain('Eigenen Beleg entfernen');
+  const official = next.document.createElement('div');
+  next.UA.SiteEvaluation.render(official,current);
+  const link = official.querySelector('a');
+  expect(link.href).toBe(event.url);
+  expect(link.textContent).toBe(event.label);
+  expect(link.rel).toContain('noopener');
+  expect(official.textContent).not.toContain(submitted);
   Array.from(details.querySelectorAll('button')).find(b => b.textContent === 'Eigenen Beleg entfernen').click();
   await tick();
   expect(details.textContent).toContain('fehlt ein belegter Zeitpunkt');
-  expect(new URL(next.location.href).searchParams.has('siteEvalSource')).toBe(false);
+  expect(details.textContent).not.toContain(submitted);
+  for (const key of ['siteEvalSource','siteEvalPlace','siteEvalMonth']) {
+    expect(new URL(next.location.href).searchParams.has(key)).toBe(false);
+  }
 });
+
+test('a stale open case cannot delete a source from another place', () => {
+  const win = app(), s = state(win), panel = win.document.querySelector('main');
+  const submitted = 'https://belege.test/protokoll';
+  const place = ['Test','area','',bounds.south,bounds.west,bounds.north,bounds.east].join('|');
+  win.UA.setQS({siteEvalPlace:place,siteEvalMonth:event.date,siteEvalSource:submitted});
+  win.UA.SiteEvaluation.render(panel,{...s,implementation:null});
+  const remove = Array.from(panel.querySelectorAll('button')).find(b => b.textContent === 'Eigenen Beleg entfernen');
+  win.UA.setQS({siteEvalPlace:'anderer Ort'});
+  remove.click();
+  expect(new URL(win.location.href).searchParams.get('siteEvalSource')).toBe(submitted);
+});
+
+test.each(['http://stadt.test/bericht','https://user:pass@stadt.test/bericht','unvollständig'])(
+  'shared addresses without validated HTTPS evidence do not create an implementation', value => {
+    const win = app(), s = state(win), panel = win.document.querySelector('main');
+    const place = ['Test','area','',bounds.south,bounds.west,bounds.north,bounds.east].join('|');
+    win.UA.setQS({siteEvalPlace:place,siteEvalMonth:event.date,siteEvalSource:value});
+    win.UA.SiteEvaluation.render(panel,{...s,implementation:null});
+    expect(panel.textContent).toContain('fehlt ein belegter Zeitpunkt');
+    expect(panel.textContent).not.toContain(value);
+    expect(panel.querySelector('a')).toBeNull();
+  }
+);

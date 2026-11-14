@@ -96,7 +96,7 @@ describe('Werkbank deployment asset versions', () => {
     const modules = ['district_discovery','site_evaluation','site_case','export_v2','report_v2','measures','ris-layer'];
     const consumer = html.indexOf('src="js/ua.site_discovery_ui.js');
     for (const name of modules) {
-      const version = name === 'site_evaluation' ? '2026-11-14-jahresabdeckung' : '2026-11-14-fallansicht';
+      const version = name === 'site_evaluation' ? '2026-11-14-belegadresse' : '2026-11-14-fallansicht';
       const script = html.indexOf('src="js/ua.' + name + '.js?v=' + version + '"');
       expect(script).toBeGreaterThan(0);
       expect(script).toBeLessThan(consumer);
