@@ -8,7 +8,7 @@
     {
       "lockRef": "export.docx.iife",
       "package": "docx",
-      "expectedVersion": "9.15.3",
+      "expectedVersion": "9.15.4",
       "sourcePath": "dist/index.iife.js",
       "outputPath": "vendor/export/docx.js",
       "method": "byte-for-byte-copy"

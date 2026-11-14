@@ -30,12 +30,12 @@ def main():
     policy = json.loads((ROOT / "vendor/provenance-policy.json").read_text())
     runtimes = policy["verifiedBundleInventories"]["vendor/export/docx.js"]["generatedRuntimes"]
     for runtime in runtimes:
-        if runtime["component"] == "rolldown@1.2.15":
+        if runtime["component"] == "rolldown@1.2.18":
             licenses = npm_files(
                 runtime["sourceArchive"], runtime["sourceIntegrity"], ["LICENSE", "THIRD-PARTY-LICENSE"]
             )
             sources = {runtime["modules"][0]["sourcePath"]: download(runtime["sourceUrl"])}
-        elif runtime["component"] == "@oxc-project/runtime@0.155.0":
+        elif runtime["component"] == "@oxc-project/runtime@0.156.0":
             paths = [module["sourcePath"] for module in runtime["modules"]]
             sources = npm_files(
                 runtime["sourceArchive"], runtime["sourceIntegrity"], ["LICENSE", "README.md", *paths]
