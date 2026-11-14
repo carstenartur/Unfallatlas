@@ -18,7 +18,7 @@ WORKDIR /toolchain
 COPY package.json ./
 RUN npm install --global --no-audit --no-fund "$(node -p 'require("./package.json").packageManager')"
 
-FROM mcr.microsoft.com/playwright:v1.65.0-noble
+FROM mcr.microsoft.com/playwright:v1.65.1-noble
 
 # ffmpeg erzeugt GIF, WebP und APNG. ImageMagick/libwebp übernimmt ausschließlich
 # die formatgerechte Nachprüfung animierter WebP-Dateien und das Reservieren der
