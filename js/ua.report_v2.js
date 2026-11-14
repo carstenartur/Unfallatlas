@@ -2721,7 +2721,6 @@
           && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
           && !sectionGuard("EMPFOHLENE MASSNAHMEN")) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
-        const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         children.push(new Paragraph({
           text: "EMPFOHLENE MASSNAHMEN",
           heading: HeadingLevel.HEADING_2,
@@ -2745,9 +2744,17 @@
           if (m.description) {
             children.push(new Paragraph({ text: m.description, spacing: { after: 40 } }));
           }
-          const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
-          const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
+          const meta = `Kostenrahmen: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Vorlauf: ${m.leadTime || "—"}`;
           children.push(new Paragraph({ text: meta, spacing: { after: 40 } }));
+          if (item.guidance) {
+            const { scope, finding, check, sourceLabel, url } = item.guidance;
+            for (const text of [`Geltungsbereich: ${scope}`, `Fachlicher Befund: ${finding}`, `Vor Ort prüfen: ${check}`]) {
+              children.push(new Paragraph({ text, spacing: { after: 40 } }));
+            }
+            children.push(new Paragraph({ children: [linkedWordRun({ text: sourceLabel, href: url })], spacing: { after: 80 } }));
+          } else {
+            children.push(new Paragraph({ text: 'Eine maßnahmenspezifische Fundstelle ist im verwendeten Katalog offen.' }));
+          }
           // Goldstandard Items 5–6: explizite Cross-Reference auf den
           // URSACHEN-Block, damit der Leser sofort sieht, *warum* diese
           // Maßnahme empfohlen wird.
@@ -2757,13 +2764,6 @@
                 new TextRun({ text: "Abgeleitet aus auffälligem Muster: ", italics: true }),
                 new TextRun({ text: item.derivedFrom.map(d => d.label).join(" · "), italics: true })
               ],
-              spacing: { after: 40 }
-            }));
-          }
-          if (item.amortisation && item.amortisation.years) {
-            const [best, worst] = item.amortisation.years;
-            children.push(new Paragraph({
-              text: `Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre.`,
               spacing: { after: 40 }
             }));
           }
@@ -4916,7 +4916,6 @@
           && UA.hasRecommendationsOrFiltered(sd.recommendedMeasures)
           && !sectionGuard("EMPFOHLENE MASSNAHMEN")) {
         const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
-        const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
         docDefinition.content.push({ text: "EMPFOHLENE MASSNAHMEN", style: "subheader" });
         const cov = osmCoverageNoteDocx(sd.recommendedMeasures.osmCoverage, formalMotion);
         if (cov) {
@@ -4931,9 +4930,17 @@
           const m = item.measure;
           docDefinition.content.push({ text: `${i}. ${m.label}`, bold: true, margin: [0, 6, 0, 2] });
           if (m.description) docDefinition.content.push({ text: m.description, style: "normal" });
-          const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
-          const meta = `Kosten: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Reduktion: ${fmtRed(m.effect && m.effect.expectedReductionPct)}${ev ? " · " + ev : ""} · Vorlauf: ${m.leadTime || "—"}`;
+          const meta = `Kostenrahmen: ${fmtCost(m.costRange)} pro ${m.perUnit || "Einheit"} · Vorlauf: ${m.leadTime || "—"}`;
           docDefinition.content.push({ text: meta, style: "normal" });
+          if (item.guidance) {
+            const { scope, finding, check, sourceLabel, url } = item.guidance;
+            for (const text of [`Geltungsbereich: ${scope}`, `Fachlicher Befund: ${finding}`, `Vor Ort prüfen: ${check}`]) {
+              docDefinition.content.push({ text, style: "normal" });
+            }
+            docDefinition.content.push({ text: sourceLabel, link: url, color: 'blue', decoration: 'underline', margin: [0, 0, 0, 4] });
+          } else {
+            docDefinition.content.push({ text: 'Eine maßnahmenspezifische Fundstelle ist im verwendeten Katalog offen.', style: 'normal' });
+          }
           // Goldstandard Items 5–6: explizite Cross-Reference auf den
           // URSACHEN-Block (analog DOCX/HTML/TEXT).
           if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
@@ -4942,10 +4949,6 @@
               italics: true, fontSize: 10, color: "#555555",
               margin: [0, 0, 0, 2]
             });
-          }
-          if (item.amortisation && item.amortisation.years) {
-            const [best, worst] = item.amortisation.years;
-            docDefinition.content.push({ text: `Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre.`, style: "normal" });
           }
           if (Array.isArray(m.considerations)) {
             for (const c of m.considerations) {

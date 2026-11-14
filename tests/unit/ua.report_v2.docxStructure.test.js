@@ -339,16 +339,22 @@ describe('UA.report_v2 – DOCX structural QA gate', () => {
       kurzfristig:    ['Markierung erneuern'],
       mittelfristig:  ['Knoten umbauen']
     };
+    const {measures} = require('../../data/measures_catalog.json');
+    const measure = measures.find(item => item.id === 'tempo_30');
     reportData.structured.recommendedMeasures = {
-      measures: [
-        { measure: { label: 'Tempo 30', leadTime: '0–3 Monate' } }
-      ],
+      measures: [{ measure, guidance: measure.guidance }],
       filteredOut: []
     };
 
     const zip = await exportAndUnzip(makeFixtureCtx(), reportData, { includeMap: false });
     const documentXml = await readText(zip, 'word/document.xml');
     const visibleTexts = [...documentXml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(t => t[1]);
+
+    const relationships = await readText(zip, 'word/_rels/document.xml.rels');
+    expect(relationships).toContain(measure.guidance.url);
+    expect(visibleTexts).toContain(measure.guidance.sourceLabel);
+    expect(visibleTexts).toContain(`Vor Ort prüfen: ${measure.guidance.check}`);
+    expect(visibleTexts).toContain(`Fachlicher Befund: ${measure.guidance.finding}`);
 
     // Sektion + Disclaimer + Bucket-Headings vorhanden
     expect(visibleTexts).toContain('ORTS- UND MUSTERBEZOGENE EMPFEHLUNGEN');

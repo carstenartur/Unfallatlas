@@ -39,8 +39,8 @@ describe('UA.measures', () => {
       expect(m.label).toBeDefined();
       expect(m.costRange).toHaveLength(2);
       expect(m.effect.targetPatterns).toBeDefined();
-      expect(m.effect.expectedReductionPct).toHaveLength(2);
-      expect(['A','B','C']).toContain(m.effect.evidenceLevel);
+      expect(m.guidance.url).toMatch(/^https:/);
+      expect(m.effect.expectedReductionPct).toBeUndefined();
     });
   });
 
@@ -185,16 +185,9 @@ describe('UA.measures', () => {
       expect(r.sources).toEqual(catalog.sources);
     });
 
-    test('attaches amortisation when economicImpact is provided', () => {
-      const r = UA.measures.recommendMeasures([6], catalog, {
-        economicImpact: { annual: 380000 }
-      });
-      const mittelinsel = r.measures.find(x => x.measure.id === 'mittelinsel');
-      expect(mittelinsel.amortisation).toBeDefined();
-      expect(mittelinsel.amortisation.lowYears).toBeGreaterThan(0);
-      expect(mittelinsel.amortisation.highYears).toBeGreaterThan(0);
-      // best-case (lowYears) should be faster than worst-case (highYears)
-      expect(mittelinsel.amortisation.lowYears).toBeLessThanOrEqual(mittelinsel.amortisation.highYears);
+    test('legacy ranges cannot turn total local crash costs into a payback prediction', () => {
+      const result = UA.measures.recommendMeasures([6], catalog, { economicImpact: { annual: 380000 } });
+      expect(result.measures.every(item => !item.amortisation)).toBe(true);
     });
 
     test('does not attach amortisation when no economicImpact', () => {
@@ -203,7 +196,7 @@ describe('UA.measures', () => {
     });
 
     test('falls back to FALLBACK when catalog is invalid', () => {
-      const r = UA.measures.recommendMeasures([1], null);
+      const r = UA.measures.recommendMeasures([5], null);
       expect(r.measures.length).toBeGreaterThan(0);
       expect(r.disclaimer).toBeDefined();
     });
@@ -601,6 +594,22 @@ describe('UA.measures', () => {
     const fs = require('fs');
     const path = require('path');
     const REAL_CATALOG = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../data/measures_catalog.json'), 'utf8'));
+
+    test('each published recommendation points to its own evidence and a concrete field check', () => {
+      for (const measure of REAL_CATALOG.measures) {
+        const [pattern] = measure.effect.targetPatterns;
+        const result = UA.measures.recommendMeasures([pattern], { ...REAL_CATALOG, measures: [measure] });
+        const guidance = result.measures[0].guidance;
+        expect(new URL(guidance.url).protocol).toBe('https:');
+        for (const key of ['sourceLabel', 'scope', 'finding', 'check']) {
+          expect(guidance[key].length).toBeGreaterThan(15);
+        }
+        expect(measure.effect.expectedReductionPct).toBeUndefined();
+      }
+      const tempo30 = REAL_CATALOG.measures.find(m => m.id === 'tempo_30');
+      expect(UA.measures.scoreMeasure(tempo30, [1]).score).toBe(0);
+      expect(tempo30.guidance.finding).toMatch(/25 %.*10 %/);
+    });
 
     test('tempo_30 has currentSpeedLimitGt prerequisite', () => {
       const t30 = REAL_CATALOG.measures.find(m => m.id === 'tempo_30');

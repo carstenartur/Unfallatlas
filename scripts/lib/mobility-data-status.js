@@ -101,11 +101,16 @@ function buildMobilityDataSources(siteRoot, manifest = readDelivered(siteRoot, '
   }
   const catalog = readDelivered(siteRoot, 'data/measures_catalog.json');
   if (catalog?.measures?.length) {
-    const sources = catalog.sources.map(source => ({label: source.title, url: source.url}));
+    const sources = catalog.measures.filter(m => m.guidance?.url).map(m => ({
+      label: m.guidance.sourceLabel, url: m.guidance.url,
+    }));
+    for (const source of catalog.sources || []) {
+      if (!sources.some(entry => entry.url === source.url)) sources.push({label: source.title, url: source.url});
+    }
     rows.push({
       label: 'Maßnahmenkatalog',
       coverage: count(catalog.measures.length) + ' Maßnahmen · Katalogversion ' + catalog.version,
-      description: 'Maßnahmen mit Kosten- und Wirkungsspannen für die Planung. Die Spannen dienen der Orientierung. Für die BASt-Berichte verweist der Katalog auf das Publikationsverzeichnis, eine genaue Fundstelle je Wirkungsspanne fehlt.',
+      description: 'Prüfoptionen mit Quellenbezug je Maßnahme, Geltungsbereich und konkreter Frage für die Ortsbesichtigung. Kosten und Vorlauf sind Orientierungswerte.',
       sources,
       license: 'Keine separate Datenlizenz im Katalog angegeben',
     });
