@@ -299,6 +299,106 @@
       "city": "hannover",
       "id": "hannover-sim:1548-2007",
       "round": 3
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2025002",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:2004050",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0706-2004",
+      "round": 4
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2003161",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2279-2008F1",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:2001056",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0632-2005N1S1",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1005775",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1454-2013",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1041-2025",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1699-2011",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:0471-2009",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0609-2011",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:H-0385-2019",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:2005915",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1479-2024S1",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0605-2022",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:2828-2014",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0851-2026",
+      "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1000138",
+      "round": 4
     }
   ]
 }
