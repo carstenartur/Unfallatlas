@@ -20,7 +20,7 @@ function hashSourceRecords(expected) {
 }
 
 function pdfkitSourceRecords(expected) {
-  return [...hashSourceRecords(expected), expected.colorProfile];
+  return [...hashSourceRecords(expected), expected.colorProfile, expected.pathParser];
 }
 
 // PDFKit bundles part of @noble/hashes before pdfmake runs its own Webpack build.
@@ -76,7 +76,20 @@ function collectPdfkitSources(repoRoot, outputRoot, pdfmake, expected) {
   const destination = path.join(outputRoot, profile.path);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, notice);
-  return [...hashes, profile].map(record => ({ ...record, asset: pdfAsset, copyrightIncluded: true }));
+  const parserId = '../lib/path.js';
+  const parserIndex = map.sources.indexOf(parserId);
+  const source = map.sourcesContent[parserIndex];
+  const start = source?.indexOf('const parse = function (path) {') ?? -1;
+  const end = start < 0 ? -1 : source.indexOf('\n};', start);
+  const parser = expected.pathParser;
+  if (parserIndex < 0 || map.sources.lastIndexOf(parserId) !== parserIndex || end < 0 ||
+      hash(source.slice(start, end + 3)) !== parser.sourceSha256) {
+    throw new Error('PDFKit SVG path parser differs from its attributed source');
+  }
+  const parserNotice = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses/SVGO-MIT.txt'));
+  if (hash(parserNotice) !== parser.sha256) throw new Error('Changed SVGO original notice');
+  fs.writeFileSync(path.join(outputRoot, parser.path), parserNotice);
+  return [...hashes, profile, parser].map(record => ({ ...record, asset: pdfAsset, copyrightIncluded: true }));
 }
 
 module.exports = { collectPdfkitSources, pdfkitSourceRecords };

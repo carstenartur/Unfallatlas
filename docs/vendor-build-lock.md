@@ -121,6 +121,15 @@ entpackten Hersteller-Locks und die unveränderten MIT-Texte. Notice und
 CycloneDX binden `fflate@0.8.3` und `nanoid@6.0.2` als enthaltene Komponenten
 an `vendor/export/docx.js`.
 
+Die 356 im IIFE markierten DOCX-Quelldateien sind im Herstellerarchiv enthalten.
+Beim Packer liegt unter dem Marker `src/export/packer/stream.ts` auch der
+`events@3.3.0`-Polyfill. Das Modul importiert den EventEmitter und übernimmt die
+benötigte Pipe-Implementierung aus `stream-browserify@3.0.0`. Beide stammen aus
+dem Hersteller-Lock. Der Prüflauf gleicht Quelldateien, die 18 Ereignisbindungen
+der Pipe und die vollständigen Originalhinweise für James Halliday, Joyent und
+weitere Node-Mitwirkende ab. Die Bytebereiche im ausgelieferten IIFE und ihre
+Lizenztexte sind einzeln in den Notices und in CycloneDX verzeichnet.
+
 Zusätzlich nennt das ausgelieferte IIFE neun virtuelle Laufzeitmodule.
 Rolldown 1.2.18 erzeugt den CommonJS-Helfer aus `runtime-base.js`; acht
 weitere Helfer stammen aus `@oxc-project/runtime@0.156.0`. Der Herkunftsnachweis
@@ -207,6 +216,14 @@ und dem Hersteller-Hash. Notice und SBOM binden den eigenen Lizenztext
 des ICC an diese Datei. Der Abschnitt zu den Unicode-Daten beschreibt die
 reproduzierten Ressourcen und die offenen Nachweise für die Shaper-Regeln.
 
+PDFKit schreibt seinen SVG-Pfadparser ausdrücklich SVGO zu. Der Hersteller
+[dokumentiert die Übernahme](https://github.com/foliojs/pdfkit/pull/1679).
+Der Vergleich der Funktionskörper prüft die nach Umbenennungen, JSDoc-Cast und
+einer umgestellten Bedingung verbleibenden Token. Der Quellabschnitt in der
+inneren PDFKit-Map trägt den MIT-Originalhinweis von Kir Belevich. Die separat
+von PDFKit als Inkscape-`svgtopdf` bezeichnete Bogenumwandlung hat einen
+eigenen ausstehenden Herkunfts- und Lizenznachweis.
+
 `fontkit@2.0.4` nennt in `src/utils.js` das Projekt `base64-arraybuffer`
 als Quelle seines angepassten Base64-Decoders. Der Seitenbuild prüft den
 markierten Quellabschnitt aus dem npm-Archiv gegen die innere Fontkit-Map
@@ -228,6 +245,24 @@ sich mit `python3 scripts/verify-fontkit-shaping.py node_modules/fontkit`
 wiederholen. Weitere Shaper-Algorithmen, Generatorregeln und die Lizenz des
 Fontkit-Pakets selbst bleiben getrennte Nachweisaufgaben.
 
+Für die Positionierung kombinierender Zeichen nennt Fontkit den HarfBuzz-Fallback
+als Vorlage. Der Vergleich mit der C++-Referenz von 2014 bestätigt 51 gemeinsame
+Fallzuordnungen. Für eine weitere Zuordnung verwendet Fontkit 2.0.4 U+0E3D,
+HarfBuzz U+0E4D. Fontkit hat das Zeichen im Oktober 2026 [upstream korrigiert](https://github.com/foliojs/fontkit/commit/ed87e83d97851d984558f9c219b830917f9993a5).
+Die Inventur bindet die tatsächlich ausgelieferte Fassung an den Originalhinweis.
+
+Die Silbengrammatiken der indischen Schriften und der Universal Shaping Engine
+haben eigene Herkunftsnachweise. Von 20 indischen Regeldefinitionen entsprechen
+19 den HarfBuzz-Ausdrücken. Fontkit kürzt den Silbenauslaut. Von zwölf
+USE-Definitionen stimmen elf überein. Fontkit lässt im unabhängigen Cluster
+die Kategorie `Rsv` aus. Der Herstellerlauf vergleicht die Definitionen mit
+zeitgenössischen, hashgebundenen HarfBuzz-Quellen und baut die Zustandsmaschinen
+mit 617 bzw. 55 Zuständen aus den Fontkit-Eingaben nach. Der Seitenbuild
+prüft die Grammatik, die generierten JSON-Dateien, die innere Source Map und die
+eingebetteten JSON-Bytes im PDF-Bundle. Notice und SBOM ordnen die Lizenz der
+jeweiligen Grammatik zu. Der USE-Originalhinweis nennt Mozilla und Google.
+Die Unicode-Kategorien und -Zerlegungen in `use.json` haben eigenen Ursprung.
+
 Sechs Dateien aus `brotli@1.3.3` tragen denselben Apache-2.0-Lizenzhinweis
 mit Copyright von Google Inc. aus dem Jahr 2013. Der Seitenbuild vergleicht
 diese Dateien bytegenau mit den in der PDF-Source-Map enthaltenen Quellen.
@@ -236,6 +271,15 @@ Quellhashes, den gemeinsamen Lizenzkopf und den unveränderten Lizenzvolltext
 der Apache Software Foundation. Notice und CycloneDX verknüpfen jede der
 sechs Dateien mit dem gemeinsamen Copyright- und Lizenztext unter
 `vendor/licenses/components/pdfmake-brotli-decoder-Apache-2.0.txt`.
+
+Im [ersten manuellen JavaScript-Port](https://github.com/foliojs/brotli.js/commit/0dcb0a7394bda3e72ed7c9a8da8e22b592cc7ca8)
+von Juli 2015 verweist das Submodul `vendor` auf [Googles Originalrevision](https://github.com/google/brotli/tree/d9a74803fa884559879e3205cfe6f257a2d85519/brotli/dec).
+Deren C-Quellen für die Huffman-Dekodiertabelle und Speicherstreams tragen den
+Google-Copyrightvermerk und Apache-2.0. Der Herstellercheck kompiliert diese
+C-Dateien und vergleicht die erzeugten Huffman-Tabelleneinträge sowie die Lese-
+und Schreiboperationen mit den JavaScript-Umsetzungen aus dem npm-Archiv.
+Die Source Map bindet beide JS-Dateien. Der eigene ausgelieferte Hinweis
+ordnet den Google-Text den übernommenen C-Anteilen zu.
 
 Das aus `dec/dictionary.bin.js` dekodierte Wörterbuch ist mit den 122.784
 Bytes von `c/common/dictionary.bin` im Original-Release 1.1.0 des
@@ -320,5 +364,5 @@ Der Herstellerprüflauf im Maven-Profil `vendor-upstream-rebuild` ruft das
 Skript auf. Es baut außerdem die drei Tries und zwei
 Zustandsmaschinen aus `fontkit@2.0.4` nach und findet die gleichen Bytes im
 ausgelieferten PDF-Bundle. In diese Ressourcen gehen zusätzliche Shaper-Regeln
-ein. Ihre Lizenzherkunft ist weiterhin offen. Originaladressen und Prüfsummen stehen im
+ein. Ihre Lizenzherkunft ist weiterhin offen. Die Nachweise für die indische und die USE-Silbengrammatik stehen oben. Originaladressen und Prüfsummen stehen im
 [Quellenmanifest](../vendor/pdfmake-build/unicode-data.json).

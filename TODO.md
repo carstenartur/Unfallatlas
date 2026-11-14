@@ -43,6 +43,16 @@ Die öffentliche Werkbank verwendet das städtische DGM1 und kennzeichnet unsich
       geschrieben würde (Unit‑Test in
       `tests/unit/enrichGeojson.tiles.test.js`).
 
+## Browser-Exportbibliotheken und unabhängige Build-Nachweise
+
+Stand 14. November 2026 zu [#406](https://github.com/carstenartur/Unfallatlas/issues/406).
+Die [Policy](vendor/provenance-policy.json) führt die Lücken je ausgelieferter Datei.
+Das strikte Release-Gate bleibt bei `complete: false`.
+
+- [ ] Releasebezogene vollständige Lizenz-/Copyrighttexte für [Fontkit 2.0.4](https://github.com/foliojs/fontkit/issues/255), [DFA 1.2.0](https://github.com/foliojs/dfa/issues/7) sowie den JavaScript-Anteil von [Brotli 1.3.3](https://github.com/foliojs/brotli.js/issues/57) mit den jeweiligen Originalpaketen verbinden. Die offenen Versionsrückfragen und der nachträglich in Fontkit aufgenommene MIT-Text sind im Herstellerverlauf dokumentiert.
+- [ ] Für die fünf in der Policy genannten Assets zwei unabhängige, vom Projekt anerkannte Builder mit öffentlichen Ed25519-Schlüsseln belegen. Beide müssen tatsächlich bauen und die vom Release-Prüfer verlangten Dateien, Eingaben, Ausgaben und Lizenzbelege signieren. Die npm-SLSA-Belege für [DOCX 9.15.4](https://registry.npmjs.org/-/npm/v1/attestations/docx@9.15.4), pdfmake 0.3.14 und Leaflet.heat 1.0.1 nennen einen GitHub-gehosteten Builder und das jeweilige npm-Paket als Gegenstand.
+- [ ] Die unabhängige Prüfung der Codezuordnung in DOCX und des transitiven Code- und Datengraphen im PDF-Exporter mit den Herstellerunterlagen abgleichen. Dazu gehören die Brotli-JavaScript-Eigenanteile und der Wörterbuch-Browserwrapper, die einzelnen Quellen von zusammengesetzten Fontkit-Ressourcen und die von PDFKit als Inkscape-svgtopdf bezeichnete Bogenumwandlung. Für Letztere fehlt eine genaue Originalrevision mit zugehörigem Lizenznachweis. Der [Buildvertrag](docs/vendor-build-lock.md) nennt die bereits reproduzierten Module, Grammatiken und Daten. Anschließend die vollständigen Beziehungen in CycloneDX und die strikte Freigabe für die konkreten Ausgabehashes prüfen.
+
 ## 1. Generische API‑Smoke‑Tests (`/api/health`, `/api/ai-assessment-available`, `/api/political-context/supported`)
 
 **Status:** ausgeklammert.

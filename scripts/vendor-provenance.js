@@ -234,6 +234,24 @@ function collectDocxRuntimes(repoRoot, outputRoot, inventory) {
   return records.map(record => ({ ...record, asset: DOCX_ASSET, copyrightIncluded: true }));
 }
 
+function collectDocxSections(repoRoot, outputRoot, inventory) {
+  const bundle = fs.readFileSync(path.join(repoRoot, 'node_modules/docx/dist/index.iife.js'), 'utf8');
+  return inventory.attributedSections.map(({ start, end, licenseFile, record }) => {
+    const first = bundle.indexOf(start);
+    const last = bundle.indexOf(end, first + start.length);
+    if (first < 0 || first !== bundle.lastIndexOf(start) || last < 0 ||
+        sha256Buffer(bundle.slice(first, last)) !== record.emittedSha256) {
+      throw new Error('DOCX attributed section differs: ' + record.component);
+    }
+    const notice = fs.readFileSync(path.join(repoRoot, licenseFile));
+    if (sha256Buffer(notice) !== record.sha256) throw new Error('Changed DOCX source notice: ' + record.component);
+    const target = path.join(outputRoot, record.path);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, notice);
+    return { ...record, asset: DOCX_ASSET, copyrightIncluded: true };
+  });
+}
+
 function docxSourcePackages(repoRoot, inventory) {
   const bundle = fs.readFileSync(path.join(repoRoot, 'node_modules/docx/dist/index.iife.js'));
   if (sha256Buffer(bundle) !== inventory?.bundleSha256) {
@@ -597,7 +615,7 @@ function collectFontkitSources(repoRoot, outputRoot, pdfmake, expected) {
     throw new Error('Fontkit browser module or source map differs from the PDF exporter');
   }
   const map = JSON.parse(mapBytes);
-  return expected.sections.map(({ file, start, end, licenseFile, record }) => {
+  const inputs = expected.sections.map(({ file, start, end, licenseFile, record }) => {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     const index = map.sources.indexOf(file);
     const begin = source.indexOf(start);
@@ -608,6 +626,23 @@ function collectFontkitSources(repoRoot, outputRoot, pdfmake, expected) {
         sha256Buffer(section) !== record.sourceSha256) {
       throw new Error('Fontkit attributed source differs: ' + file);
     }
+    return { file, licenseFile, record };
+  });
+  const deliveredPath = path.join(outputRoot, PDF_ASSET);
+  const delivered = fs.readFileSync(fs.existsSync(deliveredPath)
+    ? deliveredPath : path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.min.js'), 'utf8');
+  for (const input of expected.grammarInputs) {
+    const grammar = fs.readFileSync(path.join(root, input.file));
+    const generated = fs.readFileSync(path.join(root, input.generatedFile), 'utf8');
+    const index = map.sources.indexOf(input.generatedFile);
+    if (sha256Buffer(grammar) !== input.record.sourceSha256 || sha256Buffer(generated) !== input.record.generatedSha256 ||
+        index < 0 || map.sources.lastIndexOf(input.generatedFile) !== index || map.sourcesContent[index] !== generated ||
+        delivered.indexOf(generated) < 0 || delivered.indexOf(generated) !== delivered.lastIndexOf(generated)) {
+      throw new Error('Fontkit grammar or embedded state machine differs: ' + input.file);
+    }
+    inputs.push(input);
+  }
+  return inputs.map(({ file, licenseFile, record }) => {
     const license = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses', licenseFile));
     if (sha256Buffer(license) !== record.sha256) throw new Error('Fontkit source license differs: ' + file);
     const destination = path.join(outputRoot, record.path);
@@ -696,8 +731,23 @@ function collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, expected) {
   const destination = path.join(outputRoot, expected.path);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, notice);
+  const port = expected.cPort;
+  const portNotice = fs.readFileSync(path.join(repoRoot, port.licenseFile));
+  const portRecords = port.records.map(record => {
+    const file = record.sourcePath.slice(expected.lockPath.length + 1);
+    const source = fs.readFileSync(path.join(installedRoot, file));
+    const id = mapPrefix + record.sourcePath;
+    const index = pdfmake.sourceMap.sources.indexOf(id);
+    if (index < 0 || index !== pdfmake.sourceMap.sources.lastIndexOf(id) ||
+        !source.equals(Buffer.from(pdfmake.sourceMap.sourcesContent[index])) || sha256Buffer(source) !== record.sourceSha256 ||
+        sha256Buffer(portNotice) !== record.sha256) {
+      throw new Error('Brotli C port or notice differs: ' + record.sourcePath);
+    }
+    fs.writeFileSync(path.join(outputRoot, record.path), portNotice);
+    return { ...record, asset: PDF_ASSET, copyrightIncluded: true };
+  });
   const decoder = records.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true }));
-  return [...decoder, collectBrotliDictionary(repoRoot, outputRoot, pdfmake.sourceMap, installedRoot, expected.dictionary)];
+  return [...decoder, ...portRecords, collectBrotliDictionary(repoRoot, outputRoot, pdfmake.sourceMap, installedRoot, expected.dictionary)];
 }
 
 function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, discoveredByAsset) {
@@ -874,11 +924,13 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
     for (const candidate of candidates) if (requiredPurls.has(candidate.purl)) selected.push(candidate);
   }
   for (const { components } of discoveredByAsset.values()) selected.push(...components);
-  const leafletImageLicense = dependencies.find(dependency => dependency.package === 'leaflet-image');
+  const directLicenses = new Map(dependencies.map(dependency => [
+    `pkg:npm/${dependency.package}@${dependency.version}`, dependency,
+  ]));
   const components = [...new Map(selected.map(component => [component.purl, component])).values()]
     .sort((left, right) => left.purl.localeCompare(right.purl))
     .map(component => copyComponentLicenseEvidence(repoRoot, outputRoot, component,
-      component.purl === leafletImageInventory.owner ? leafletImageLicense : undefined));
+      directLicenses.get(component.purl)));
   const fontEvidence = collectFontEvidence(repoRoot, outputRoot);
   const simpleheat = components.find(component => component.attestation.lockPath === 'node_modules/simpleheat');
   const simpleheatLicense = simpleheat?.licenseTexts.find(license => license.copyrightIncluded);
@@ -887,6 +939,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
   }
   const embeddedSources = [
     ...collectDocxRuntimes(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
+    ...collectDocxSections(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
     ...collectUnicodeData(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.unicodeDataManifestSha256),
     ...collectFontkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.fontkitSources),
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
@@ -942,10 +995,12 @@ function validateVerifiedBundleInventories(manifest, policy) {
     ])].sort();
     const embeddedSources = [
       ...docxRuntimeRecords(expected.generatedRuntimes || []),
+      ...(expected.attributedSections || []).map(section => section.record),
       ...(expected.unicodeDataManifestSha256 ? unicodeDataRecords(expected.unicodeDataManifestSha256) : []),
       ...(expected.fontkitSources?.sections.map(section => section.record) || []),
+      ...(expected.fontkitSources?.grammarInputs?.map(input => input.record) || []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
-      ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), expected.brotliDecoder.dictionary] : []),
+      ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), ...expected.brotliDecoder.cPort.records, expected.brotliDecoder.dictionary] : []),
       ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),
       ...(expected.webpackRuntime ? pdfmakeWebpackRecords(expected) : []),
     ];
