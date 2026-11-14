@@ -105,6 +105,13 @@ describe('site discovery', () => {
     });
   });
 
+  test('accepts a precise date of a documented opening without reinterpreting a report or an invalid calendar date', () => {
+    const change = {kind:'in-service',label:'Freigabe',date:'2024-02-29',precision:'day',url:'https://example.test/eroeffnung'};
+    expect(discovery.validChange(change)).toBe(true);
+    expect(discovery.validChange({...change,kind:'council-decision'})).toBe(false);
+    expect(discovery.validChange({...change,date:'2025-02-29'})).toBe(false);
+  });
+
   test('rejects oversized or invalid cluster geometry', () => {
     expect(discovery.boundsForPoints([{ lat: 52.36, lon: 9.75 }, { lat: 52.365, lon: 9.75 }])).toBeNull();
     expect(discovery.boundsForPoints([{ lat: 52.36, lon: 9.75 }, { lat: 52.361, lon: 9.75 }], {

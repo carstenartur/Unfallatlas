@@ -3,6 +3,7 @@
 import argparse
 import gzip
 import hashlib
+import heapq
 import json
 import re
 from collections import Counter, defaultdict
@@ -79,12 +80,66 @@ def summarize(manifest_path, sample_size, seed):
     }
 
 
+def draw_round(manifests, size, seed, prior_rounds=()):
+    """Rank the combined unlocated population and exclude records already reviewed."""
+    if size < 1:
+        raise ValueError('A sampling round needs at least one record')
+    excluded = set()
+    for path in prior_rounds:
+        for row in json.loads(path.read_bytes())['sample']:
+            excluded.add((row['city'], row['id']))
+    populations = {}
+
+    def candidates():
+        for path in manifests:
+            raw = path.read_bytes()
+            manifest = json.loads(raw)
+            city = manifest['city']
+            if city in populations:
+                raise ValueError(f'Duplicate city: {city}')
+            seen = set()
+            unmapped = 0
+            for row in records(manifest['roots']['records'], path.parent, city):
+                identifier = row['id']
+                if identifier in seen:
+                    raise ValueError(f'Duplicate record: {city} {identifier}')
+                seen.add(identifier)
+                status = row['locationAssessment']['status']
+                if status in ('mapped', 'partial'):
+                    continue
+                if status not in ('unresolved', 'unavailable'):
+                    raise ValueError(f'Unknown assessment: {identifier} ({status})')
+                unmapped += 1
+                if (city, identifier) in excluded:
+                    continue
+                digest = hashlib.sha256(f'{seed}\n{city}\n{identifier}'.encode()).digest()
+                yield digest, city, identifier, {k: row[k] for k in ('id', 'title', 'source', 'url')}
+            if len(seen) != manifest['recordCount'] or len(seen) - unmapped != manifest['mappedRecordCount']:
+                raise ValueError(f'Record totals disagree with {path}')
+            populations[city] = {'manifestSha256': hashlib.sha256(raw).hexdigest(),
+                                 'generation': manifest['generation'], 'recordCount': len(seen), 'unmapped': unmapped}
+
+    drawn = heapq.nsmallest(size, candidates(), key=lambda item: item[:3])
+    if len(drawn) < size:
+        raise ValueError(f'Only {len(drawn)} eligible records for a sample of {size}')
+    return {'sampleSeed': seed, 'populations': populations,
+            'sample': [dict(row, city=city) for _, city, _, row in drawn]}
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manifest', type=Path, help='path to the manifest beside its record partitions')
     parser.add_argument('--sample-size', type=int, default=0)
     parser.add_argument('--seed', default='hannover-unmapped-all-sources-2026-11-10')
+    parser.add_argument('--include-manifest', type=Path, action='append', default=[],
+                        help='draw one joint sample across the supplied city manifests')
+    parser.add_argument('--exclude-round', type=Path, action='append', default=[],
+                        help='skip all IDs in a previous joint sample JSON')
     args = parser.parse_args()
     if args.sample_size < 0:
         parser.error('--sample-size must be non-negative')
-    print(json.dumps(summarize(args.manifest, args.sample_size, args.seed), indent=2, ensure_ascii=False, sort_keys=True))
+    if args.include_manifest or args.exclude_round:
+        report = draw_round([args.manifest, *args.include_manifest], args.sample_size, args.seed, args.exclude_round)
+    else:
+        report = summarize(args.manifest, args.sample_size, args.seed)
+    print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))

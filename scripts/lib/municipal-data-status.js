@@ -126,6 +126,7 @@ function mobilityRows(siteRoot) {
   const speeds = load(data, 'hannover-speed30.json');
   const tram = load(data, 'hannover-tram-context.json');
   const districts = load(data, 'hannover-stadtbezirke.geojson');
+  const bonnDistricts = load(data, 'bonn-stadtbezirke.geojson');
   const schools = load(data, 'hannover-school-plans.json');
   const sites = load(data, 'hannover-discovery-sites.json');
   const labels = load(data, 'road-labels/bonn.json');
@@ -145,6 +146,14 @@ function mobilityRows(siteRoot) {
       label: 'Stadtbezirke Hannover', coverage: Array.isArray(districts?.features) ? `${number(districts.features.length)} Stadtbezirke` : NOT_SHIPPED,
       description: districts?.metadata?.changes || 'Bezirksgrenzen aus der statistischen Gliederung der Landeshauptstadt Hannover.',
       sources: [link('Statistische Gliederung SKH5', districts?.source?.url || SKH5), link('Lizenz', CC_BY)], license: districts?.metadata?.attribution || 'Landeshauptstadt Hannover, CC BY 4.0.'
+    },
+    {
+      label: 'Stadtbezirke Bonn', coverage: bonnDistricts?.features?.length ? number(bonnDistricts.features.length) + ' Stadtbezirke' : NOT_SHIPPED,
+      description: 'Amtliche Grenzen für die Bezirkssuche und die Zuordnung zur Bezirksvertretung. Stand der verwendeten Kopie: ' + (bonnDistricts?.metadata?.sourceDate || 'unbekannt') + '.',
+      sources: [link('Bundesstadt Bonn · Flächen der Stadtbezirke', bonnDistricts?.source?.url || 'https://opendata.bonn.de/dataset/fl%C3%A4chen-der-stadtbezirke'),
+        ...(bonnDistricts?.metadata?.snapshotUrl ? [link('Eingabedatei im Ratsatlas Bonn', bonnDistricts.metadata.snapshotUrl)] : []),
+        link('Lizenz', 'https://creativecommons.org/publicdomain/zero/1.0/')],
+      license: 'Bundesstadt Bonn, CC0 1.0.'
     },
     {
       label: 'Schulwegpläne Hannover', coverage: Array.isArray(schools?.schools) ? `${number(schools.schools.length)} Schulen` : NOT_SHIPPED,

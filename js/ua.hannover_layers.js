@@ -265,6 +265,7 @@
       state.fileReading = false;
       refresh(ctx, state);
       UA.SiteDiscoveryUI?.exposureChanged?.(ctx);
+      UA.SiteEvaluation?.refreshTraffic?.(ctx);
     };
     if (file.size > maxFileSize) {
       state.fileError = 'Die Datei ist größer als 2 MB.';

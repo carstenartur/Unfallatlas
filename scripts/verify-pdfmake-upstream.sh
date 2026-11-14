@@ -58,7 +58,9 @@ npm --version
 npm ci --legacy-peer-deps --no-audit --no-fund
 bash "$repo_root/scripts/verify-xmldoc-upstream.sh" "$PWD/node_modules/xmldoc"
 bash "$repo_root/scripts/verify-brotli-dictionary-upstream.sh" "$PWD/node_modules/brotli"
+python3 "$repo_root/scripts/verify-brotli-c-port.py" "$PWD/node_modules/brotli"
 python3 "$repo_root/scripts/verify-fontkit-shaping.py" "$PWD/node_modules/fontkit"
+python3 "$repo_root/scripts/verify-pdfkit-parser.py" "$PWD/node_modules/pdfkit"
 # Compare each archived notice against every package that supplies it.
 node - "$repo_root/vendor/pdfmake-build" <<'NODE'
 const fs = require('node:fs');

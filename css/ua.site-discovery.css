@@ -157,3 +157,63 @@
     min-height: 44px;
   }
 }
+
+.site-discovery-criteria > label {
+  min-width: 0;
+}
+
+.site-discovery-criteria select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.site-discovery-filters > summary {
+  cursor: pointer;
+  padding-block: 6px;
+}
+
+@media (max-width: 640px) {
+  .site-discovery-criteria select,
+  .site-discovery-results button {
+    min-height: 44px;
+  }
+}
+
+.site-discovery-detail details,
+.site-discovery-detail li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-evaluation table {
+  width: 100%;
+  margin-block: 0.6rem;
+  border-collapse: collapse;
+}
+
+.site-evaluation caption,
+.site-evaluation th,
+.site-evaluation td {
+  padding: 0.3rem;
+  text-align: start;
+  vertical-align: top;
+}
+
+.site-evaluation th,
+.site-evaluation td {
+  border-bottom: 1px solid #c2d3e7;
+}
+
+.site-evaluation form {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+
+.site-evaluation input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+}

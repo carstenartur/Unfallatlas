@@ -1,0 +1,3398 @@
+{
+  "sites": {
+    "aha-billung": {
+      "kind": "place",
+      "label": "Betriebsstätte der Straßenreinigung, Billungstraße (Betriebsgelände)",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.7045995, 52.3668576],
+            [9.7053192, 52.3669781],
+            [9.7053813, 52.3668504],
+            [9.7053723, 52.3668485],
+            [9.7055033, 52.3665805],
+            [9.7055126, 52.366579],
+            [9.7056281, 52.3663425],
+            [9.7049201, 52.3662111],
+            [9.7045995, 52.3668576]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/1442822673/history/2"
+    },
+    "aha-hansa": {
+      "kind": "place",
+      "label": "Wertstoffhof Hansastraße 7",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.679958, 52.42153]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.aha-region.de/fileadmin/Bilder/6_%C3%9Cber_uns/6.6_Infomaterial/2024-05-16_Trennen_leicht_gemacht_2024_Web.pdf"
+    },
+    "aha-lahe": {
+      "kind": "place",
+      "label": "Deponie Lahe (Orientierung am Standort Moorwaldweg 312)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.857564, 52.410938]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.aha-region.de/fileadmin/Bilder/6_%C3%9Cber_uns/6.6_Infomaterial/2024-05-16_Trennen_leicht_gemacht_2024_Web.pdf"
+    },
+    "aha-nordstadt": {
+      "kind": "place",
+      "label": "Wertstoffhof Gertrud-Knebusch-Straße 2",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.728193, 52.388017]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.aha-region.de/fileadmin/Bilder/6_%C3%9Cber_uns/6.6_Infomaterial/2024-05-16_Trennen_leicht_gemacht_2024_Web.pdf"
+    },
+    "bertha-suttner-schilder": {
+      "kind": "street",
+      "label": "Bertha-von-Suttner-Platz (Straßenachsen zur Orientierung für die vier Schilder)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.758177, 52.359346],
+            [9.758179, 52.359409]
+          ],
+          [
+            [9.758177, 52.359346],
+            [9.758229, 52.359292],
+            [9.758285, 52.359269],
+            [9.758328, 52.359282]
+          ],
+          [
+            [9.758179, 52.359409],
+            [9.758553, 52.359509]
+          ],
+          [
+            [9.758328, 52.359282],
+            [9.758643, 52.359371]
+          ],
+          [
+            [9.758553, 52.359509],
+            [9.758626, 52.35947]
+          ],
+          [
+            [9.758626, 52.35947],
+            [9.758643, 52.359371]
+          ],
+          [
+            [9.758626, 52.35947],
+            [9.76038, 52.359988]
+          ],
+          [
+            [9.758643, 52.359371],
+            [9.758709, 52.359331],
+            [9.759, 52.359266],
+            [9.759489, 52.359186]
+          ],
+          [
+            [9.759489, 52.359186],
+            [9.760497, 52.358991]
+          ],
+          [
+            [9.76038, 52.359988],
+            [9.7605, 52.360024]
+          ],
+          [
+            [9.760497, 52.358991],
+            [9.761085, 52.358857],
+            [9.761193, 52.358856]
+          ],
+          [
+            [9.7605, 52.360024],
+            [9.760613, 52.360056]
+          ],
+          [
+            [9.7605, 52.360024],
+            [9.761367, 52.358899]
+          ],
+          [
+            [9.760613, 52.360056],
+            [9.762601, 52.360629]
+          ],
+          [
+            [9.761193, 52.358856],
+            [9.761367, 52.358899]
+          ],
+          [
+            [9.761367, 52.358899],
+            [9.761506, 52.358949],
+            [9.761536, 52.358968]
+          ],
+          [
+            [9.761536, 52.358968],
+            [9.761603, 52.35901],
+            [9.761812, 52.359353]
+          ],
+          [
+            [9.761812, 52.359353],
+            [9.762176, 52.359963]
+          ],
+          [
+            [9.762176, 52.359963],
+            [9.762601, 52.360629]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "streetKey": "0324100100145"
+    },
+    "bplan-67-8": {
+      "kind": "place",
+      "label": "Bebauungsplan 67, 8. Änderung – Orientierungspunkt im Plangebiet (Lönsstraße 16)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.759887, 52.373646]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/93564853126AF3D8C125700E00272112/$FILE/1408-2005_Anlage2.pdf"
+    },
+    "container-forstkamp": {
+      "kind": "street",
+      "label": "Am Forstkamp (Straßenbezug der Container, Aufstellpunkt unbestimmt)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.84601, 52.390228],
+            [9.845962, 52.390311],
+            [9.845975, 52.390445],
+            [9.846501, 52.391116]
+          ],
+          [
+            [9.846501, 52.391116],
+            [9.847037, 52.391901],
+            [9.847369, 52.392303],
+            [9.847686, 52.392753]
+          ],
+          [
+            [9.847686, 52.392753],
+            [9.848376, 52.393629]
+          ],
+          [
+            [9.847966, 52.396256],
+            [9.848321, 52.39671],
+            [9.848969, 52.396477],
+            [9.849268, 52.396365],
+            [9.849378, 52.396382]
+          ],
+          [
+            [9.848376, 52.393629],
+            [9.848711, 52.394076]
+          ],
+          [
+            [9.848376, 52.393629],
+            [9.84898, 52.393355]
+          ],
+          [
+            [9.848711, 52.394076],
+            [9.848764, 52.394174]
+          ],
+          [
+            [9.848764, 52.394174],
+            [9.849162, 52.393995]
+          ],
+          [
+            [9.848764, 52.394174],
+            [9.849466, 52.395115],
+            [9.849549, 52.395229],
+            [9.849859, 52.39567],
+            [9.849926, 52.395764]
+          ],
+          [
+            [9.849162, 52.393995],
+            [9.849389, 52.393892]
+          ],
+          [
+            [9.849162, 52.393995],
+            [9.849524, 52.39453]
+          ],
+          [
+            [9.849378, 52.396382],
+            [9.849426, 52.396351]
+          ],
+          [
+            [9.849426, 52.396351],
+            [9.849653, 52.396208],
+            [9.850104, 52.396008]
+          ],
+          [
+            [9.849926, 52.395764],
+            [9.849976, 52.395833],
+            [9.850104, 52.396008]
+          ],
+          [
+            [9.850104, 52.396008],
+            [9.850206, 52.396202]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "container-ohefeld": {
+      "kind": "street",
+      "label": "Ohefeldweg (Straßenbezug der Container, Aufstellpunkt unbestimmt)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.852274, 52.356089],
+            [9.852556, 52.356427],
+            [9.852983, 52.356939]
+          ],
+          [
+            [9.852983, 52.356939],
+            [9.853043, 52.357011]
+          ],
+          [
+            [9.853043, 52.357011],
+            [9.853382, 52.357415],
+            [9.853584, 52.357703],
+            [9.854575, 52.358892]
+          ],
+          [
+            [9.854575, 52.358892],
+            [9.854616, 52.358948],
+            [9.854657, 52.359022]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "container-tiergarten": {
+      "kind": "street",
+      "label": "Am Tiergarten (Straßenbezug der Container, Aufstellpunkt unbestimmt)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.845507, 52.360386],
+            [9.845591, 52.360495],
+            [9.845687, 52.360563],
+            [9.846235, 52.360934]
+          ],
+          [
+            [9.846235, 52.360934],
+            [9.84636, 52.361019],
+            [9.846722, 52.361231],
+            [9.847583, 52.361762],
+            [9.848097, 52.362055],
+            [9.848274, 52.362096]
+          ],
+          [
+            [9.848274, 52.362096],
+            [9.848341, 52.362112],
+            [9.848479, 52.362144]
+          ],
+          [
+            [9.848479, 52.362144],
+            [9.849241, 52.362246],
+            [9.851397, 52.362613]
+          ],
+          [
+            [9.851397, 52.362613],
+            [9.853806, 52.362956]
+          ],
+          [
+            [9.85327, 52.363437],
+            [9.853806, 52.362956]
+          ],
+          [
+            [9.853806, 52.362956],
+            [9.853995, 52.362983]
+          ],
+          [
+            [9.853995, 52.362983],
+            [9.854481, 52.363065]
+          ],
+          [
+            [9.854481, 52.363065],
+            [9.854864, 52.363117]
+          ],
+          [
+            [9.854864, 52.363117],
+            [9.855761, 52.363243]
+          ],
+          [
+            [9.855761, 52.363243],
+            [9.855929, 52.363268]
+          ],
+          [
+            [9.855929, 52.363268],
+            [9.857186, 52.363443]
+          ],
+          [
+            [9.857186, 52.363443],
+            [9.857789, 52.363546]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "conti-turm": {
+      "label": "Conti-Turm, Wasserstadt Limmer",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.6787824, 52.383073]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/node/9977384887/history/3",
+      "corroborationUrl": "https://denkmalatlas.niedersachsen.de/viewer/metadata/30776241/1/-/"
+    },
+    "echternfeld-bplan1150-1": {
+      "kind": "place",
+      "label": "Bebauungsplan 1150, 1. Änderung – Echternfeld 27 (Orientierungspunkt auf Flurstück 75/19, Flur 24)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.79274235, 52.44790239]
+      },
+      "attribution": "LGLN (2026), INSPIRE ALKIS-Flurstücke, CC BY 4.0",
+      "sourceUrl": "https://registry.gdi-de.org/id/de.ni.land.geobasisdaten.inspire.cp.alkis/CadastralParcel_033848024000750019__",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0328-2013"
+    },
+    "feldbuschwende": {
+      "label": "Feldbuschwende (Straßenverlauf zur Orientierung)",
+      "kind": "street",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.836863, 52.34266],
+            [9.83873, 52.342042]
+          ],
+          [
+            [9.836949, 52.342797],
+            [9.838065, 52.342484]
+          ],
+          [
+            [9.838065, 52.342484],
+            [9.838908, 52.342248]
+          ],
+          [
+            [9.83873, 52.342042],
+            [9.840446, 52.341497]
+          ],
+          [
+            [9.838908, 52.342248],
+            [9.840628, 52.341757]
+          ],
+          [
+            [9.840446, 52.341497],
+            [9.840628, 52.341757]
+          ],
+          [
+            [9.840446, 52.341497],
+            [9.84208, 52.340969]
+          ],
+          [
+            [9.840628, 52.341757],
+            [9.8407, 52.341737]
+          ],
+          [
+            [9.8407, 52.341737],
+            [9.84233, 52.341274]
+          ],
+          [
+            [9.84208, 52.340969],
+            [9.84223, 52.34114],
+            [9.84233, 52.341274]
+          ],
+          [
+            [9.84233, 52.341274],
+            [9.843245, 52.341014]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "streetKey": "0324100103669"
+    },
+    "fiedelerplatz": {
+      "label": "Fiedelerplatz, Döhren (Veranstaltungsplatz)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.7637139, 52.3401993],
+            [9.7637463, 52.3401504],
+            [9.7639663, 52.3398188],
+            [9.7641811, 52.3394947],
+            [9.7642181, 52.3394409],
+            [9.7640936, 52.3394104],
+            [9.7636523, 52.3393026],
+            [9.7635324, 52.3392733],
+            [9.7634972, 52.3393296],
+            [9.7633905, 52.3394919],
+            [9.7632845, 52.3396532],
+            [9.7630627, 52.3399904],
+            [9.7630338, 52.3400344],
+            [9.7631646, 52.3400661],
+            [9.7632253, 52.3400808],
+            [9.7635627, 52.3401626],
+            [9.7637139, 52.3401993]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/10897071/history/19"
+    },
+    "franz-bork-denkmalschutz": {
+      "kind": "street",
+      "label": "Franz-Bork-Straße (Straßenverlauf zur Orientierung, drei betroffene Häuser im Antrag ohne Nummer)",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.751451, 52.391607],
+          [9.750878, 52.391697],
+          [9.75085, 52.39174],
+          [9.750845, 52.39179],
+          [9.751046, 52.392274],
+          [9.751099, 52.392302],
+          [9.751204, 52.392301],
+          [9.751691, 52.392212]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "streetKey": "0324100100909"
+    },
+    "franz-bork-gruen-11": {
+      "kind": "place",
+      "label": "Franz-Bork-Straße 11 (Hauskoordinate zur Orientierung für die davorliegende Grünfläche)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.750641, 52.391986]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1130-2008"
+    },
+    "franz-bork-gruen-13": {
+      "kind": "place",
+      "label": "Franz-Bork-Straße 13 (Hauskoordinate zur Orientierung für die davorliegende Grünfläche)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.750705, 52.392117]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1130-2008"
+    },
+    "franz-bork-gruen-9": {
+      "kind": "place",
+      "label": "Franz-Bork-Straße 9 (Hauskoordinate zur Orientierung für die davorliegende Grünfläche)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.750587, 52.391844]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1130-2008"
+    },
+    "franz-bork-sperrmuell": {
+      "kind": "place",
+      "label": "Franz-Bork-Straße 1 (Hauskoordinate zur Orientierung für den Bereich davor)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.751183, 52.391579]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1142-2007"
+    },
+    "glocksee-gruen": {
+      "label": "Grünfläche an der Glockseestraße zwischen Braunstraße und enercity-Zufahrt (Orientierungspunkt)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7207329, 52.3729251]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/1531533474/history/1",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-3026-2022"
+    },
+    "grundschulparkplatz-misburg": {
+      "kind": "place",
+      "label": "Parkplatz vor den Grundschulen Kardinal-Galen und Pestalozzi (Wochenmarkt Misburg)",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.856296, 52.3908505],
+            [9.8563167, 52.3908602],
+            [9.8563476, 52.3908745],
+            [9.8568071, 52.3910889],
+            [9.8565807, 52.3912795],
+            [9.8562454, 52.391128],
+            [9.8561216, 52.3910943],
+            [9.8562385, 52.3909011],
+            [9.856296, 52.3908505]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL",
+      "sourceUrl": "https://www.openstreetmap.org/way/95357669/history/5",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0906-2012"
+    },
+    "hildesheimer-hoerung": {
+      "kind": "street",
+      "label": "Hildesheimer Straße im Stadtbezirk Südstadt-Bult (Straßenverlauf der Anhörung)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.743165, 52.368276],
+            [9.74334, 52.368238]
+          ],
+          [
+            [9.74334, 52.368238],
+            [9.743581, 52.368162],
+            [9.744501, 52.367691],
+            [9.744636, 52.367616],
+            [9.74489, 52.36747],
+            [9.745222, 52.36723],
+            [9.745322, 52.367136],
+            [9.745539, 52.366891],
+            [9.745839, 52.366448],
+            [9.746578, 52.365308]
+          ],
+          [
+            [9.746578, 52.365308],
+            [9.746801, 52.364946]
+          ],
+          [
+            [9.746801, 52.364946],
+            [9.746938, 52.364761]
+          ],
+          [
+            [9.746938, 52.364761],
+            [9.747358, 52.364196],
+            [9.747636, 52.363839]
+          ],
+          [
+            [9.747636, 52.363839],
+            [9.747782, 52.363653]
+          ],
+          [
+            [9.747782, 52.363653],
+            [9.74909, 52.361961]
+          ],
+          [
+            [9.74909, 52.361961],
+            [9.749514, 52.361415]
+          ],
+          [
+            [9.749514, 52.361415],
+            [9.749993, 52.3608]
+          ],
+          [
+            [9.749993, 52.3608],
+            [9.750211, 52.360515]
+          ],
+          [
+            [9.750211, 52.360515],
+            [9.750325, 52.360365],
+            [9.750493, 52.360144],
+            [9.750535, 52.360088]
+          ],
+          [
+            [9.750535, 52.360088],
+            [9.750996, 52.359486],
+            [9.751153, 52.359283]
+          ],
+          [
+            [9.751153, 52.359283],
+            [9.751185, 52.35924]
+          ],
+          [
+            [9.751185, 52.35924],
+            [9.751253, 52.359152]
+          ],
+          [
+            [9.751253, 52.359152],
+            [9.751821, 52.358423]
+          ],
+          [
+            [9.751821, 52.358423],
+            [9.751881, 52.35834]
+          ],
+          [
+            [9.751881, 52.35834],
+            [9.752397, 52.357673]
+          ],
+          [
+            [9.752397, 52.357673],
+            [9.753099, 52.356757]
+          ],
+          [
+            [9.753099, 52.356757],
+            [9.753313, 52.356485]
+          ],
+          [
+            [9.753313, 52.356485],
+            [9.753448, 52.356312]
+          ],
+          [
+            [9.753448, 52.356312],
+            [9.753737, 52.355985],
+            [9.75408, 52.355592],
+            [9.754127, 52.355509]
+          ],
+          [
+            [9.754127, 52.355509],
+            [9.754173, 52.355428]
+          ],
+          [
+            [9.754173, 52.355428],
+            [9.754218, 52.355364]
+          ],
+          [
+            [9.754218, 52.355364],
+            [9.754367, 52.355155],
+            [9.754635, 52.354778],
+            [9.755057, 52.354216],
+            [9.755603, 52.35349],
+            [9.75607, 52.352827]
+          ],
+          [
+            [9.75607, 52.352827],
+            [9.756131, 52.352741]
+          ],
+          [
+            [9.756131, 52.352741],
+            [9.756242, 52.352591]
+          ],
+          [
+            [9.756242, 52.352591],
+            [9.758979, 52.349056],
+            [9.759611, 52.348288],
+            [9.760206, 52.347628]
+          ],
+          [
+            [9.760031, 52.347964],
+            [9.760182, 52.348018],
+            [9.760538, 52.348228],
+            [9.76063, 52.348368],
+            [9.760739, 52.348657]
+          ],
+          [
+            [9.760075, 52.347588],
+            [9.760116, 52.347517],
+            [9.760193, 52.347382],
+            [9.760281, 52.347182]
+          ],
+          [
+            [9.760281, 52.347182],
+            [9.760336, 52.347058]
+          ],
+          [
+            [9.760312, 52.347664],
+            [9.760455, 52.347508],
+            [9.760579, 52.347373],
+            [9.760659, 52.347283]
+          ],
+          [
+            [9.760336, 52.347058],
+            [9.760538, 52.346771]
+          ],
+          [
+            [9.760538, 52.346771],
+            [9.760573, 52.346735],
+            [9.760915, 52.346435],
+            [9.761207261711064, 52.346172160608845]
+          ],
+          [
+            [9.760659, 52.347283],
+            [9.760746779655294, 52.34718452923284]
+          ],
+          [
+            [9.761062174496784, 52.346816932885744],
+            [9.761384, 52.346437]
+          ],
+          [
+            [9.761384, 52.346437],
+            [9.761508526454778, 52.346289514759974]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet; © Landeshauptstadt Hannover (2026), Statistische Gliederung SKH5, CC BY 4.0",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "corroborationUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Verwaltungen-Kommunen/Die-Verwaltung-der-Landeshauptstadt-Hannover/Dezernate-und-Fachbereiche-der-LHH/Stadtentwicklung-und-Bauen/Fachbereich-Planen-und-Stadtentwicklung/Geoinformation/Open-GeoData/Themenkarten-und-statistische-Gliederung/Statistische-Gliederungen/Statistische-Gliederung-SKH5",
+      "streetKey": "0324100101303"
+    },
+    "historisches-museum": {
+      "label": "Historisches Museum Hannover (Gebäudebezug des Änderungsantrags in Anlage 1)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.73119, 52.372107],
+            [9.7313575, 52.3721566],
+            [9.731419, 52.3721748],
+            [9.7314863, 52.3721956],
+            [9.731906, 52.372315],
+            [9.7319381, 52.3722732],
+            [9.731956, 52.37225],
+            [9.731981, 52.372258],
+            [9.732031, 52.372193],
+            [9.732056, 52.372201],
+            [9.732106, 52.372137],
+            [9.732131, 52.372144],
+            [9.73218, 52.37208],
+            [9.732205, 52.372087],
+            [9.732255, 52.372023],
+            [9.73228, 52.37203],
+            [9.732402, 52.371841],
+            [9.732406, 52.371705],
+            [9.732253, 52.371684],
+            [9.731517, 52.371727],
+            [9.731474, 52.371827],
+            [9.731361, 52.371795],
+            [9.731364, 52.371792],
+            [9.731322, 52.371789],
+            [9.731234, 52.372042],
+            [9.7312124, 52.3720739],
+            [9.73119, 52.372107]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/1491794926/history/1"
+    },
+    "ihme-park": {
+      "kind": "place",
+      "label": "Ihme-Park am Peter-Fechter-Ufer (Veranstaltungsort des Lichtspielfestivals 2016)",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.7219785, 52.3686783],
+            [9.722004, 52.3688824],
+            [9.7219181, 52.3688865],
+            [9.7219122, 52.3688868],
+            [9.7219141, 52.3689006],
+            [9.721932, 52.3690295],
+            [9.7219084, 52.3690313],
+            [9.7218811, 52.3690281],
+            [9.7218733, 52.3690529],
+            [9.7218599, 52.3691028],
+            [9.7218539, 52.3691254],
+            [9.7218518, 52.3691334],
+            [9.7217377, 52.3691246],
+            [9.7216846, 52.3693814],
+            [9.7217479, 52.3693863],
+            [9.7217064, 52.3695866],
+            [9.7216974, 52.3696322],
+            [9.7216959, 52.3696399],
+            [9.7216897, 52.3696723],
+            [9.7216793, 52.3696732],
+            [9.7216687, 52.3696748],
+            [9.7216512, 52.3696788],
+            [9.7216335, 52.3696862],
+            [9.7212767, 52.3698835],
+            [9.721254, 52.3698993],
+            [9.7210932, 52.3703325],
+            [9.7210766, 52.3703991],
+            [9.7210591, 52.3705719],
+            [9.7209752, 52.3705838],
+            [9.7209548, 52.3708303],
+            [9.7209233, 52.3709605],
+            [9.7208526, 52.3709517],
+            [9.7206753, 52.370932],
+            [9.7204061, 52.3709712],
+            [9.7201435, 52.3710094],
+            [9.7196122, 52.3710867],
+            [9.7195546, 52.371095],
+            [9.7194845, 52.3711884],
+            [9.7193878, 52.3713108],
+            [9.7192051, 52.371657],
+            [9.7191726, 52.3717182],
+            [9.7191438, 52.3717723],
+            [9.7194086, 52.3718496],
+            [9.7193398, 52.3718507],
+            [9.719309, 52.3718789],
+            [9.7192072, 52.3719721],
+            [9.7186912, 52.3724445],
+            [9.7186573, 52.3724755],
+            [9.7184308, 52.372683],
+            [9.7184207, 52.3726922],
+            [9.7181931, 52.3729006],
+            [9.7180962, 52.3729893],
+            [9.7180192, 52.3729643],
+            [9.7179241, 52.3730851],
+            [9.7178869, 52.3731323],
+            [9.717873, 52.3731434],
+            [9.7178387, 52.3731301],
+            [9.7177329, 52.3730974],
+            [9.7176346, 52.3730465],
+            [9.7175014, 52.3729776],
+            [9.7174646, 52.3729584],
+            [9.7173375, 52.3728927],
+            [9.7173029, 52.3728748],
+            [9.7174228, 52.3727095],
+            [9.7175048, 52.3726004],
+            [9.717767, 52.3721754],
+            [9.7178135, 52.3720692],
+            [9.7179467, 52.3718668],
+            [9.7181253, 52.3715678],
+            [9.7182251, 52.3714394],
+            [9.7182932, 52.3713266],
+            [9.7183849, 52.3712117],
+            [9.7184361, 52.3711923],
+            [9.7185493, 52.371079],
+            [9.7187103, 52.3709488],
+            [9.7188762, 52.370835],
+            [9.7192634, 52.3706085],
+            [9.7195443, 52.3704501],
+            [9.7198611, 52.370286],
+            [9.7200505, 52.3701699],
+            [9.7201403, 52.3701023],
+            [9.7202611, 52.3700089],
+            [9.7204059, 52.369909],
+            [9.7205022, 52.3697914],
+            [9.7207266, 52.3695682],
+            [9.7207866, 52.3694983],
+            [9.7208918, 52.3693813],
+            [9.7209526, 52.3692468],
+            [9.7210014, 52.369175],
+            [9.7210547, 52.3691208],
+            [9.7211083, 52.3690311],
+            [9.7211898, 52.3688741],
+            [9.7213108, 52.3686665],
+            [9.7214085, 52.3685283],
+            [9.7214375, 52.3684968],
+            [9.7214736, 52.3684044],
+            [9.7214806, 52.3683676],
+            [9.7215319, 52.3683779],
+            [9.7215667, 52.3683849],
+            [9.721637, 52.3683977],
+            [9.7217436, 52.3684183],
+            [9.7218186, 52.3684369],
+            [9.7218753, 52.3684519],
+            [9.7219311, 52.3684686],
+            [9.7219907, 52.3684859],
+            [9.7220793, 52.3685118],
+            [9.7221078, 52.36852],
+            [9.7222523, 52.3685692],
+            [9.7222655, 52.3685741],
+            [9.7222743, 52.3686493],
+            [9.7221869, 52.3686533],
+            [9.7221888, 52.3686687],
+            [9.722177, 52.3686693],
+            [9.7221056, 52.3686726],
+            [9.7219785, 52.3686783]
+          ]
+        ]
+      },
+      "sourceUrl": "https://www.openstreetmap.org/way/46353640/history/41",
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/1EDB4AE5088B7B32C125804A001DF487/$FILE/2144-2016_Anlage2.pdf"
+    },
+    "jahnplatz": {
+      "label": "Jahnplatz (Platzbezug der historischen Zweigstelle; Gebäudestandort nicht belegt)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.731186, 52.3943875],
+            [9.7310182, 52.3948018],
+            [9.7309648, 52.3949351],
+            [9.7309544, 52.3949713],
+            [9.7308216, 52.3949726],
+            [9.7307103, 52.3949674],
+            [9.7299511, 52.3948377],
+            [9.7286896, 52.3946211],
+            [9.7285732, 52.3946008],
+            [9.7286302, 52.3945028],
+            [9.7288878, 52.3940605],
+            [9.7290691, 52.3940908],
+            [9.731186, 52.3943875]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/25042462/history/14"
+    },
+    "kita-ricklingen-beck": {
+      "kind": "place",
+      "label": "Kita Beckstraße (dauerhafter Neubau für das Familienzentrum), Beckstraße 36",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.681332, 52.346916]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.hannover.de/content/download/594361/file/Adressliste-STMV-Stand-2025.pdf"
+    },
+    "kita-ricklingen-bergfeld": {
+      "kind": "place",
+      "label": "Kita Bergfeldstraße, Bergfeldstraße 34",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.701138, 52.333328]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.hannover.de/content/download/594361/file/Adressliste-STMV-Stand-2025.pdf"
+    },
+    "kita-ricklingen-butjer": {
+      "kind": "place",
+      "label": "Kita Butjerbrunnenplatz / St. Lucia, Butjerbrunnenplatz 2",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.7122784, 52.3429647],
+            [9.7122853, 52.3429057],
+            [9.7123047, 52.3429098],
+            [9.7124651, 52.3426919],
+            [9.7128453, 52.3427153],
+            [9.7128442, 52.3426939],
+            [9.7129608, 52.3426915],
+            [9.7129592, 52.3426609],
+            [9.7129682, 52.3426389],
+            [9.7130908, 52.3426563],
+            [9.7131073, 52.342703],
+            [9.7131286, 52.343039],
+            [9.7131209, 52.3430548],
+            [9.7131034, 52.3430653],
+            [9.7130359, 52.3430719],
+            [9.7125785, 52.3429796],
+            [9.7122784, 52.3429647]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/1372279876/history/4",
+      "corroborationUrl": "https://www.hannover.de/content/download/644947/file/Faltblatt_Kita_Butjerbrunnenplatz.pdf"
+    },
+    "kita-ricklingen-canaris": {
+      "kind": "place",
+      "label": "Ehemalige Wohnungs-Kita im Canarisweg 21 (von der Überführung betroffener Standort)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.692023, 52.346096]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015F1"
+    },
+    "kita-ricklingen-sausewind": {
+      "kind": "place",
+      "label": "Elternverein Sausewind (Betreuungsgruppe an der Göttinger Chaussee 109)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.717403, 52.343012]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015F1"
+    },
+    "kleiner-hillen-kirchliches-umfeld": {
+      "kind": "section",
+      "label": "Kleiner Hillen zwischen Wasserkampstraße und Brabeckstraße",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.825176, 52.358313],
+          [9.82557, 52.358411],
+          [9.826027, 52.358439],
+          [9.826163, 52.358447],
+          [9.827239, 52.35847]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2484-2012S1"
+    },
+    "lange-hop": {
+      "label": "Lange-Hop-Straße, Großer Hillen bis Tiergartenstraße (Straßenachse)",
+      "kind": "section",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.820591, 52.359518],
+          [9.820583, 52.359628],
+          [9.82058, 52.359676],
+          [9.82021, 52.361466],
+          [9.820013, 52.362384],
+          [9.820029, 52.362439],
+          [9.82004, 52.362478]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "marien-hoerung": {
+      "kind": "street",
+      "label": "Marienstraße im Stadtbezirk Südstadt-Bult (Straßenverlauf der Anhörung)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.743940773109216, 52.368992653361346],
+            [9.743946, 52.368992],
+            [9.74562, 52.369059]
+          ],
+          [
+            [9.74562, 52.369059],
+            [9.746198, 52.369076]
+          ],
+          [
+            [9.746198, 52.369076],
+            [9.747181, 52.36913]
+          ],
+          [
+            [9.747181, 52.36913],
+            [9.747748, 52.36916]
+          ],
+          [
+            [9.747748, 52.36916],
+            [9.747855388362504, 52.36916541271989]
+          ],
+          [
+            [9.75158900688371, 52.36952470721977],
+            [9.751618, 52.369531],
+            [9.752102, 52.369673],
+            [9.7523186358017, 52.36974485795383]
+          ],
+          [
+            [9.753027117565361, 52.36995886159869],
+            [9.753044, 52.369962]
+          ],
+          [
+            [9.753044, 52.369962],
+            [9.753142, 52.369978]
+          ],
+          [
+            [9.753142, 52.369978],
+            [9.753225, 52.369994]
+          ],
+          [
+            [9.753225, 52.369994],
+            [9.753479, 52.370007]
+          ],
+          [
+            [9.753479, 52.370007],
+            [9.755442, 52.370114]
+          ],
+          [
+            [9.755442, 52.370114],
+            [9.756405, 52.370166]
+          ],
+          [
+            [9.756405, 52.370166],
+            [9.756896, 52.370195]
+          ],
+          [
+            [9.756896, 52.370195],
+            [9.757705, 52.37025]
+          ],
+          [
+            [9.757705, 52.37025],
+            [9.758795, 52.370311]
+          ],
+          [
+            [9.758795, 52.370311],
+            [9.759074, 52.370326]
+          ],
+          [
+            [9.759074, 52.370326],
+            [9.760222, 52.370386]
+          ],
+          [
+            [9.760222, 52.370386],
+            [9.760779, 52.370401],
+            [9.760795, 52.370402],
+            [9.760886, 52.370405],
+            [9.761067, 52.370413],
+            [9.761154, 52.370419],
+            [9.761413, 52.37044]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet; © Landeshauptstadt Hannover (2026), Statistische Gliederung SKH5, CC BY 4.0",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "corroborationUrl": "https://www.hannover.de/Leben-in-der-Region-Hannover/Verwaltungen-Kommunen/Die-Verwaltung-der-Landeshauptstadt-Hannover/Dezernate-und-Fachbereiche-der-LHH/Stadtentwicklung-und-Bauen/Fachbereich-Planen-und-Stadtentwicklung/Geoinformation/Open-GeoData/Themenkarten-und-statistische-Gliederung/Statistische-Gliederungen/Statistische-Gliederung-SKH5",
+      "streetKey": "0324100101916"
+    },
+    "misburg-containerparkplatz": {
+      "kind": "place",
+      "label": "Parkplatz an Meyers Garten (Fläche der Wertstoffinsel, einzelne Behälter unbestimmt)",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.8523512, 52.3899531],
+            [9.8528963, 52.3898947],
+            [9.8530459, 52.3898811],
+            [9.8531319, 52.3898965],
+            [9.8531947, 52.3899245],
+            [9.8533827, 52.3900816],
+            [9.8531103, 52.390162],
+            [9.8528059, 52.3902022],
+            [9.8526166, 52.3902272],
+            [9.8525597, 52.3901806],
+            [9.8523512, 52.3899531]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/33888246/history/10"
+    },
+    "misburg-grundschulhof": {
+      "kind": "place",
+      "label": "Schulhof der Grundschulen Pestalozzi und Kardinal-Galen in Misburg (Schuladresse, von der Verwaltung vermuteter Bezug)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.856953, 52.391312]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Kardinal-Galen-Schule"
+    },
+    "misburg-park-erinnerung": {
+      "kind": "place",
+      "label": "Park der Erinnerung, Misburg-Nord (Parkfläche)",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.836955, 52.3862933],
+            [9.8371825, 52.3861259],
+            [9.8378894, 52.3863028],
+            [9.8379206, 52.3863089],
+            [9.8379702, 52.3863187],
+            [9.8380637, 52.3863167],
+            [9.8385178, 52.3862948],
+            [9.8388783, 52.3861025],
+            [9.838985, 52.3860456],
+            [9.8390811, 52.3858938],
+            [9.8391189, 52.3858342],
+            [9.8390604, 52.3857581],
+            [9.8390173, 52.3856622],
+            [9.8389557, 52.3854695],
+            [9.8389574, 52.3853231],
+            [9.8389835, 52.3851915],
+            [9.838953, 52.3849562],
+            [9.8389127, 52.3848893],
+            [9.8388768, 52.3848299],
+            [9.8386437, 52.384592],
+            [9.8385196, 52.3846824],
+            [9.8383672, 52.384806],
+            [9.8382387, 52.3848738],
+            [9.8380448, 52.3849775],
+            [9.8374459, 52.3853802],
+            [9.8373915, 52.3854307],
+            [9.8373741, 52.3855251],
+            [9.8372149, 52.3856988],
+            [9.8370856, 52.3857016],
+            [9.836987, 52.3857157],
+            [9.8369254, 52.3857289],
+            [9.8368484, 52.3857693],
+            [9.8367083, 52.3858849],
+            [9.8366344, 52.3859197],
+            [9.836465, 52.3860847],
+            [9.8365894, 52.3861341],
+            [9.836624, 52.3861478],
+            [9.836955, 52.3862933]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/155036896/history/6"
+    },
+    "misburg-rathaus": {
+      "kind": "place",
+      "label": "Rathaus Misburg, Waldstraße 9 (Orientierung für den Vorplatz)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.854425, 52.39226]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Lokationsdatenbank/Landeshauptstadt-Hannover/Standorte-der-Verwaltung/Rathaus-Misburg"
+    },
+    "ndr-spielplatz": {
+      "kind": "place",
+      "label": "Spielplatz Rudolf-von-Bennigsen-Ufer am NDR (Spielplatzfläche)",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.743033, 52.3582155],
+            [9.742713, 52.3586195],
+            [9.7433587, 52.3588102],
+            [9.7437618, 52.3583327],
+            [9.7436596, 52.3583019],
+            [9.7430897, 52.3581385],
+            [9.743033, 52.3582155]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/1126205214/history/2",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1961-2012"
+    },
+    "nussriede-spender": {
+      "kind": "street",
+      "label": "Nußriede (Straßenverlauf, genauer Standort des Spenders offen)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.808489, 52.389396],
+            [9.808519, 52.389348]
+          ],
+          [
+            [9.808519, 52.389348],
+            [9.808632, 52.389199],
+            [9.808867, 52.388835],
+            [9.808911, 52.388767]
+          ],
+          [
+            [9.808911, 52.388767],
+            [9.809444, 52.387948]
+          ],
+          [
+            [9.808911, 52.388767],
+            [9.810158, 52.389092],
+            [9.810572, 52.389193],
+            [9.811005, 52.389309]
+          ],
+          [
+            [9.811005, 52.389309],
+            [9.811495, 52.38925],
+            [9.811595, 52.389242],
+            [9.811698, 52.389255],
+            [9.811904, 52.389307],
+            [9.812922, 52.389562],
+            [9.813051, 52.389597]
+          ],
+          [
+            [9.813051, 52.389597],
+            [9.813135, 52.389618],
+            [9.814509, 52.389964]
+          ],
+          [
+            [9.814509, 52.389964],
+            [9.81476, 52.390031]
+          ],
+          [
+            [9.81476, 52.390031],
+            [9.815595, 52.39024]
+          ],
+          [
+            [9.815595, 52.39024],
+            [9.815917, 52.390317]
+          ],
+          [
+            [9.815917, 52.390317],
+            [9.816361, 52.39043],
+            [9.816448, 52.390432],
+            [9.816522, 52.390406]
+          ],
+          [
+            [9.816522, 52.390406],
+            [9.816923, 52.390115],
+            [9.81701, 52.390085],
+            [9.817096, 52.390084]
+          ],
+          [
+            [9.817096, 52.390084],
+            [9.818421, 52.3904],
+            [9.818685, 52.390469]
+          ],
+          [
+            [9.818685, 52.390469],
+            [9.81926, 52.390619]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "streetKey": "0324100102082"
+    },
+    "pinkenburg-bruecke": {
+      "label": "Pinkenburger Straße unter der Messeschnellwegbrücke (Orientierungspunkt)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.8073625, 52.3980121]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/890095554/history/9",
+      "bridgeSources": [
+        "https://www.openstreetmap.org/way/13948059/history/22",
+        "https://www.openstreetmap.org/way/13948060/history/20"
+      ]
+    },
+    "rondell-koenigsworther-bruecke": {
+      "kind": "place",
+      "label": "Königsworther Brücke (Brückenbauwerk als Orientierung für das seitlich gelegene Aussichtsrondell)",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.7204852, 52.3756751],
+            [9.7205127, 52.3756394],
+            [9.7205432, 52.3755996],
+            [9.7205621, 52.375575],
+            [9.720581, 52.3755504],
+            [9.7206087, 52.3755145],
+            [9.7206347, 52.3754806],
+            [9.7206453, 52.3754896],
+            [9.7208761, 52.3756864],
+            [9.7208898, 52.3756981],
+            [9.7208724, 52.3757211],
+            [9.7208359, 52.3757691],
+            [9.7207985, 52.3758183],
+            [9.720758, 52.3758716],
+            [9.7207412, 52.3758938],
+            [9.7207321, 52.3758861],
+            [9.7204963, 52.3756846],
+            [9.7204852, 52.3756751]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL",
+      "sourceUrl": "https://www.openstreetmap.org/way/448703308/history/10",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2169-2005"
+    },
+    "schule-tresckow-technik": {
+      "kind": "place",
+      "label": "Henning-von-Tresckow-Grundschule, Tresckowstraße 49 (Standort des neuen Technikschwerpunktes)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.691747, 52.33622]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.hannover.de/Media/02-GIS-Objekte/Organisationsdatenbank/Landeshauptstadt-Hannover/Bildung/Schulen/Grundschulen/Grundschule-Henning-von-Tresckow"
+    },
+    "spielplatz-vogelsberg": {
+      "kind": "place",
+      "label": "Spielplatz Vogelsbergstraße mit Bolzplatz, Sahlkamp",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [9.7773696, 52.4160367],
+            [9.7771249, 52.4160367],
+            [9.7771249, 52.4158167],
+            [9.7770067, 52.415819],
+            [9.7770086, 52.41614],
+            [9.7770538, 52.4161598],
+            [9.7776917, 52.4159923],
+            [9.7777909, 52.4159546],
+            [9.7780213, 52.415892],
+            [9.7780236, 52.4158103],
+            [9.7773695, 52.4158167],
+            [9.7773696, 52.4160367]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/119609939/history/5",
+      "corroborationUrl": "https://www.hannover.de/content/download/495324/file/FREK%20Steckbriefe_November%202013_Teil2_low.pdf"
+    },
+    "stamme-pfarr": {
+      "label": "Stammestraße / Pfarrstraße",
+      "kind": "junction",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.728847, 52.347673]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "stammestrasse-parkraum": {
+      "kind": "street",
+      "label": "Stammestraße (Straßenbezug der Parksituation im Umfeld des Klinikums Siloah)",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.724464, 52.358481],
+            [9.724521, 52.358442]
+          ],
+          [
+            [9.724521, 52.358442],
+            [9.724578, 52.358398]
+          ],
+          [
+            [9.724578, 52.358398],
+            [9.724758, 52.357553],
+            [9.724788, 52.357243],
+            [9.724792, 52.356541],
+            [9.724823, 52.356277],
+            [9.724857, 52.356145]
+          ],
+          [
+            [9.724857, 52.356145],
+            [9.724943, 52.35581],
+            [9.72504, 52.355569],
+            [9.725273, 52.355168]
+          ],
+          [
+            [9.725273, 52.355168],
+            [9.725589, 52.354744]
+          ],
+          [
+            [9.725589, 52.354744],
+            [9.725867, 52.354457],
+            [9.726064, 52.354197],
+            [9.726143, 52.354039],
+            [9.726161, 52.353991]
+          ],
+          [
+            [9.726155, 52.352075],
+            [9.726477, 52.352044],
+            [9.726639, 52.352031],
+            [9.726758, 52.352026],
+            [9.726902, 52.352015]
+          ],
+          [
+            [9.726161, 52.353991],
+            [9.726438, 52.353256],
+            [9.726755, 52.352416]
+          ],
+          [
+            [9.726755, 52.352416],
+            [9.726768, 52.352382]
+          ],
+          [
+            [9.726768, 52.352382],
+            [9.726816, 52.352257],
+            [9.726831, 52.352211],
+            [9.726857, 52.352136],
+            [9.726874, 52.352088],
+            [9.726902, 52.352015]
+          ],
+          [
+            [9.726902, 52.352015],
+            [9.727328, 52.350898],
+            [9.727352, 52.35083]
+          ],
+          [
+            [9.727352, 52.35083],
+            [9.727363, 52.3508],
+            [9.72761, 52.350153]
+          ],
+          [
+            [9.727352, 52.35083],
+            [9.728003, 52.350943],
+            [9.729045, 52.351042]
+          ],
+          [
+            [9.72761, 52.350153],
+            [9.727895, 52.349406]
+          ],
+          [
+            [9.727895, 52.349406],
+            [9.728202, 52.348594],
+            [9.728315, 52.348407]
+          ],
+          [
+            [9.728315, 52.348407],
+            [9.728448, 52.34822]
+          ],
+          [
+            [9.728448, 52.34822],
+            [9.728831, 52.347824],
+            [9.728869, 52.34775],
+            [9.728847, 52.347673]
+          ],
+          [
+            [9.728448, 52.34822],
+            [9.729395, 52.348546]
+          ],
+          [
+            [9.728847, 52.347673],
+            [9.728949, 52.347624],
+            [9.729031, 52.347556],
+            [9.729129, 52.347451]
+          ],
+          [
+            [9.729045, 52.351042],
+            [9.729093, 52.351046]
+          ],
+          [
+            [9.729129, 52.347451],
+            [9.729192, 52.347351],
+            [9.729276, 52.347126],
+            [9.729416, 52.34681],
+            [9.729448, 52.346687],
+            [9.729643, 52.34598],
+            [9.729698, 52.345652]
+          ],
+          [
+            [9.729129, 52.347451],
+            [9.729362, 52.347507],
+            [9.729484, 52.34751]
+          ],
+          [
+            [9.729391, 52.342315],
+            [9.729428, 52.342833],
+            [9.729408, 52.343288],
+            [9.729494, 52.343504],
+            [9.729849, 52.343875],
+            [9.729884, 52.344021]
+          ],
+          [
+            [9.729484, 52.34751],
+            [9.729528, 52.3475],
+            [9.730716, 52.347516]
+          ],
+          [
+            [9.729698, 52.345652],
+            [9.729716, 52.345561]
+          ],
+          [
+            [9.729716, 52.345561],
+            [9.729801, 52.345131],
+            [9.72989, 52.344536]
+          ],
+          [
+            [9.729884, 52.344021],
+            [9.729907, 52.344115],
+            [9.72989, 52.344536]
+          ],
+          [
+            [9.730144, 52.345707],
+            [9.730043, 52.346042],
+            [9.730609, 52.346134],
+            [9.730841, 52.346204]
+          ],
+          [
+            [9.730716, 52.347516],
+            [9.731094, 52.347537],
+            [9.731916, 52.347608]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "stoeckener-bad": {
+      "label": "Stöckener Bad (Hogrefestraße 45)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.665827, 52.414374]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.hannover.de/content/download/486241/file/2016_Rundschreiben.pdf"
+    },
+    "testverteilung-2021-1": {
+      "kind": "place",
+      "label": "Belieferte Kita Twipsy (Ortskamp 89)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.834796, 52.331203]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-10": {
+      "kind": "place",
+      "label": "Belieferte Kita Kronsbergkrümel (Trautenauer Hof 1)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.826661, 52.350219]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-11": {
+      "kind": "place",
+      "label": "Belieferte Kita Kita Börgerstraße (Börgerstraße 22)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.817277, 52.342026]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-12": {
+      "kind": "place",
+      "label": "Belieferte Kita Heinemanhof (Heinemanhof 1)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.825369, 52.35187]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-13": {
+      "kind": "place",
+      "label": "Belieferte Kita Arche Noah (Mardalstraße 10)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.825891, 52.363518]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-14": {
+      "kind": "place",
+      "label": "Belieferte Kita Eltern-Initiativ-Kindergarten in der Jakobigemeinde (Kleiner Hillen 1A)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.826374, 52.358069]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-15": {
+      "kind": "place",
+      "label": "Belieferte Kita Kattenbrookstrift (Kattenbrookstrift 26)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.829749, 52.333302]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-16": {
+      "kind": "place",
+      "label": "Belieferte Kita Die Kronsbären (Feldbuschwende 14)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.839355, 52.341708]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-17": {
+      "kind": "place",
+      "label": "Belieferte Kita Elternkindergarten Kirchrode (Bemeroder Straße 8)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.788587, 52.35632]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-18": {
+      "kind": "place",
+      "label": "Belieferte Kita Regenbogen (Jakobskamp 1)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.832126, 52.336057]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-19": {
+      "kind": "place",
+      "label": "Belieferte Kita Wülferoder Zwerge (Kirchbichler Straße 10)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.852125, 52.32667]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-2": {
+      "kind": "place",
+      "label": "Belieferte Kita St. Johannis Bemerode (Alte Bemeroder Straße 104)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.822286, 52.344587]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-20": {
+      "kind": "place",
+      "label": "Belieferte Kita Bildungszentrum Hören-Sehen-Kommunikation (Albert-Schweitzer-Hof 27)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.821159, 52.364018]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-3": {
+      "kind": "place",
+      "label": "Belieferte Kita DRK-Familienzentrum Pappelteich (Anecampstraße 22)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.834436, 52.349621]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-4": {
+      "kind": "place",
+      "label": "Belieferte Kita Neunkirchener Platz (Neunkirchener Platz 10)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.81678, 52.361253]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-5": {
+      "kind": "place",
+      "label": "Belieferte Kita Jakobi-Gemeinde (Aussiger Wende 31)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.826118, 52.356306]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-6": {
+      "kind": "place",
+      "label": "Belieferte Kita Brockfeldzwerge (Brockfeld 65)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.841705, 52.340096]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-7": {
+      "kind": "place",
+      "label": "Belieferte Kita Familienzentrum Papenkamp (Papenkamp 11)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.833391, 52.334964]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-8": {
+      "kind": "place",
+      "label": "Belieferte Kita Familienzentrum Schatzinsel (Hinter dem Holze 157)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.820303, 52.347241]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "testverteilung-2021-9": {
+      "kind": "place",
+      "label": "Belieferte Kita Blaue Schule (Friedrich-Wulfert-Platz 1)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.832977, 52.342707]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+    },
+    "vahrenwalder-bad": {
+      "label": "Vahrenwalder Bad (Vahrenwalder Straße 100)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.736333, 52.394186]
+      },
+      "attribution": "LGLN (2026), INSPIRE Hauskoordinaten aus ALKIS (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://www.inspire.niedersachsen.de/doorman/noauth/alkis-dls-ad",
+      "corroborationUrl": "https://www.hannover.de/content/download/486241/file/2016_Rundschreiben.pdf"
+    },
+    "waldersee-parkverbot": {
+      "kind": "section",
+      "label": "Walderseestraße ab Böcklinplatz stadteinwärts, bis zur Oskar-Winter-Straße über das Anschlussstück Hohenzollernstraße (Straßenachse)",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.781018, 52.398304],
+          [9.780956, 52.398287],
+          [9.780885, 52.398268],
+          [9.779551, 52.397894],
+          [9.777907, 52.397391],
+          [9.777822, 52.397363],
+          [9.775711, 52.396664],
+          [9.775621, 52.396635],
+          [9.772339, 52.395565],
+          [9.771297, 52.395231],
+          [9.770956, 52.395122],
+          [9.770489, 52.394972],
+          [9.769646, 52.394701],
+          [9.768848, 52.394453],
+          [9.768184, 52.394299],
+          [9.767753, 52.3942],
+          [9.767213, 52.3941],
+          [9.765813, 52.393912],
+          [9.765377, 52.393836],
+          [9.765175, 52.393801],
+          [9.764876, 52.393738],
+          [9.764436, 52.393629],
+          [9.76396, 52.393479],
+          [9.763232, 52.3932],
+          [9.762097, 52.392685],
+          [9.762035, 52.392657],
+          [9.760742, 52.392078],
+          [9.760254, 52.39186],
+          [9.76012, 52.391792],
+          [9.759901, 52.391737],
+          [9.759581, 52.39167],
+          [9.759263, 52.39165],
+          [9.758203, 52.391555],
+          [9.758153, 52.391544],
+          [9.757926, 52.391495],
+          [9.757734, 52.391406],
+          [9.756269, 52.390589],
+          [9.754588, 52.389663],
+          [9.754357, 52.389533],
+          [9.753397, 52.389026],
+          [9.753197, 52.388911],
+          [9.753035, 52.388778],
+          [9.752964, 52.38864],
+          [9.752742, 52.388031],
+          [9.752715, 52.387832]
+        ]
+      },
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "streetKeys": [
+        "0324100102925",
+        "0324100100478",
+        "0324100101327",
+        "0324100102109"
+      ],
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/TO/20120423_STBR02_P"
+    },
+    "widmung-huesmannhof-2010": {
+      "kind": "section",
+      "label": "Huesmannhof ab Lenther Straße (Abschnittsachse des gewidmeten Gehwegs)",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.66801365, 52.35553064],
+          [9.66814434, 52.35520804],
+          [9.66865145, 52.35522669]
+        ]
+      },
+      "attribution": "LGLN (2026), INSPIRE ALKIS-Flurstücke (CC BY 4.0), abgeleitete Abschnittsachse",
+      "sourceUrl": "https://registry.gdi-de.org/id/de.ni.land.geobasisdaten.inspire.cp.alkis/CadastralParcel_034875002001060038__",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/9004F200098184A6C12577C000478445/$FILE/2124-2010_Anlage2.PDF"
+    },
+    "widmung-partzsch-nord-2010": {
+      "kind": "section",
+      "label": "Richard-Partzsch-Weg, Stichstraße ab Nr. 29 (Achse)",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.672365, 52.368531],
+          [9.672779, 52.368055]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/9004F200098184A6C12577C000478445/$FILE/2124-2010_Anlage3.PDF"
+    },
+    "widmung-partzsch-west-2010": {
+      "kind": "section",
+      "label": "Richard-Partzsch-Weg, westlicher Stichweg ab Nr. 13 (Achse)",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.6720104, 52.3684038],
+          [9.6723929, 52.3685169]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL",
+      "sourceUrl": "https://www.openstreetmap.org/way/262087177/history/1",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/9004F200098184A6C12577C000478445/$FILE/2124-2010_Anlage3.PDF"
+    },
+    "widmung-schoendorf-2010": {
+      "kind": "section",
+      "label": "Schöndorfhof ab Nr. 20 bis zur Grünverbindung (Abschnittsachse)",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.65577796, 52.3633314],
+          [9.65600569, 52.3631198],
+          [9.65617189, 52.3629752],
+          [9.65639934, 52.36279722]
+        ]
+      },
+      "attribution": "LGLN (2026), INSPIRE ALKIS-Flurstücke (CC BY 4.0), abgeleitete Abschnittsachse",
+      "sourceUrl": "https://registry.gdi-de.org/id/de.ni.land.geobasisdaten.inspire.cp.alkis/CadastralParcel_03487600101052______",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/9004F200098184A6C12577C000478445/$FILE/2124-2010_Anlage4.PDF"
+    },
+    "widmung-tiefel-2010": {
+      "kind": "section",
+      "label": "Tiefelstraße, Verbindung zum Yvette-Amiot-Weg (Abschnittsachse)",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.662938, 52.386946],
+          [9.66329227, 52.38682924],
+          [9.66371004, 52.38669006]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM und INSPIRE ALKIS-Flurstücke (CC BY 4.0), abgeleitete Abschnittsachse",
+      "sourceUrl": "https://registry.gdi-de.org/id/de.ni.land.geobasisdaten.inspire.cp.alkis/CadastralParcel_034878001001710025__",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/9004F200098184A6C12577C000478445/$FILE/2124-2010_Anlage5.PDF"
+    }
+  },
+  "records": {
+    "hannover-sim:0328-2013": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 1150, 1. Änderung - Nördlich Echternfeld Bebauungsplan der Innenentwicklung Auslegungsbeschluss",
+      "sites": [
+        {
+          "site": "echternfeld-bplan1150-1",
+          "text": "Der Geltungsbereich des Bebauungsplans Nr. 1150, 1. Änderung umfasst die Fläche des Grundstücks Echternfeld 27 der ehemaligen Genossenschaftsakademie mit den Flurstücken 75/19, 60/2, 60/13 und 56/64 (alle Flur 24 der Gemarkung Isernhagen-Süd).",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0328-2013"
+        }
+      ]
+    },
+    "hannover-sim:0451-2007": {
+      "source": "hannover-sim",
+      "title": "Information des Rates über die Beschlussfassung des Verwaltungsausschusses zu Aufträgen an die Verwaltung im Rahmen der Haushaltsplanberatungen 2007 (ergänzende Information zur Beschlussdrucksache Nr. 0335/2007 mit 40 Anlagen)",
+      "sites": [
+        {
+          "site": "historisches-museum",
+          "text": "Historisches Museum, Ziffern 1 und 3",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0451-2007"
+        }
+      ]
+    },
+    "hannover-sim:0737-2016": {
+      "source": "hannover-sim",
+      "title": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0737-2016"
+        }
+      ]
+    },
+    "hannover-sim:0737-2016E1": {
+      "source": "hannover-sim",
+      "title": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0737-2016E1"
+        }
+      ]
+    },
+    "hannover-sim:0828-2016": {
+      "source": "hannover-sim",
+      "title": "Änderungsantrag von Eike Geffers - Mitglied in der Kommission Sanierung Limmer - zu Drucks. Nr. 0737/2016 (Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\")",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Änderungsantrag von Eike Geffers - Mitglied in der Kommission Sanierung Limmer - zu Drucks. Nr. 0737/2016 (Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\")",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0828-2016"
+        }
+      ]
+    },
+    "hannover-sim:1408-2005": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 67, 8. Änderung - Plathnerstraße - Vereinfachtes Verfahren; Satzungsbeschluss",
+      "sites": [
+        {
+          "site": "bplan-67-8",
+          "source": "document",
+          "text": "den Entwurf des Bebauungsplanes Nr. 67, 8. Änderung gemäß § 10 BauGB in Verbindung mit § 6 NGO als Satzung zu beschließen",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1408-2005"
+        }
+      ]
+    },
+    "hannover-sim:1493-2012": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 1150, 1. Änderung – Nördlich Echternfeld – Bebauungsplan der Innenentwicklung Aufstellungsbeschluss, Beschluss zur frühzeitigen Beteiligung der Öffentlichkeit",
+      "sites": [
+        {
+          "site": "echternfeld-bplan1150-1",
+          "text": "Das Plangebiet umfasst die Fläche des Grundstück Echternfeld 27 (ehemaligen Genossenschaftsakademie) in Isernhagen-Süd.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1493-2012"
+        }
+      ]
+    },
+    "hannover-sim:15-0021-2000S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUNG: Änd.Antrag zur Schließung von Zweigstellen der SSK Hannover",
+      "sites": [
+        {
+          "site": "jahnplatz",
+          "text": "Die Zweigstelle der Stadtsparkasse Hannover am Jahnplatz wird nicht geschlossen",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0021-2000S1"
+        }
+      ]
+    },
+    "hannover-sim:15-0109-2014": {
+      "source": "hannover-sim",
+      "title": "Zuwendung an die Karnevalsvereine Karnevalscorps Döhren e.V. und Hannoversche Funken-Garde e.V. für das Döhrener Jazz-Festival",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0109-2014"
+        }
+      ]
+    },
+    "hannover-sim:15-0110-2020": {
+      "source": "hannover-sim",
+      "title": "Das Parken von Autos vor den Grundschulen des Schulzentrums Misburg",
+      "sites": [
+        {
+          "site": "grundschulparkplatz-misburg",
+          "source": "document",
+          "text": "auf oder vor den gemeinsamen Parkplätzen von Kardinal-Galen- und Pestalozzi-Grundschule in Misburg",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0110-2020"
+        }
+      ]
+    },
+    "hannover-sim:15-0110-2020F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Das Parken von Autos vor den Grundschulen des Schulzentrums Misburg Sitzung des Stadtbezirksrates Misburg-Anderten am 05.02.2020 TOP 6.1.2.",
+      "sites": [
+        {
+          "site": "grundschulparkplatz-misburg",
+          "source": "document",
+          "text": "auf oder vor den gemeinsamen Parkplätzen von Kardinal-Galen- und Pestalozzi-Grundschule in Misburg",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0110-2020F1"
+        }
+      ]
+    },
+    "hannover-sim:15-0123-2023F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Toilettenanlagen Kurt-Schumacher Grundschule Sitzung des Stadtbezirksrates Misburg-Anderten am 01.02.2023 TOP 7.2.2.",
+      "sites": [
+        {
+          "site": "misburg-grundschulhof",
+          "source": "document",
+          "text": "In der Vermutung, dass mit der Anfrage der Toilettencontainer auf dem Schulhof der Grundschulen GS Pestalozzi-Schule und GS Kardinal-Galen-Schule in Misburg gemeint ist, antwortet die Verwaltung wie folgt:",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0123-2023F1"
+        }
+      ]
+    },
+    "hannover-sim:15-0129-2013": {
+      "source": "hannover-sim",
+      "title": "Zuwendung an Karnevalscorps-Döhren und Hannoversche Funken-Garde e.V. Döhrener Jazz-Festival",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "Döhrener Jazz-Festivals auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0129-2013"
+        }
+      ]
+    },
+    "hannover-sim:15-0141-2002N1": {
+      "source": "hannover-sim",
+      "title": "Parkdauer Pinkenburger Straße",
+      "sites": [
+        {
+          "site": "pinkenburg-bruecke",
+          "text": "die Parkdauer der Parkplätze unter der Messeschnellweg-Brücke in der Pinkenburger auf drei Stunden zu beschränken",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0141-2002N1"
+        }
+      ]
+    },
+    "hannover-sim:15-0141-2002N1S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUG: Parkdauer Pinkenburger Straße",
+      "sites": [
+        {
+          "site": "pinkenburg-bruecke",
+          "text": "die Parkdauer der Parkplätze unter der Messeschnellweg-Brücke in der Pinkenburger auf drei Stunden zu beschränken",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0141-2002N1S1"
+        }
+      ]
+    },
+    "hannover-sim:15-0168-2016": {
+      "source": "hannover-sim",
+      "title": "Dauerparker Pinkenburger Straße",
+      "sites": [
+        {
+          "site": "pinkenburg-bruecke",
+          "text": "unter der Messeschnellwegbrücke",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0168-2016"
+        }
+      ]
+    },
+    "hannover-sim:15-0168-2016S1": {
+      "source": "hannover-sim",
+      "title": "Dauerparker Pinkenburger Straße Sitzung des Stadtbezirksrates Buchholz-Kleefeld am 03.03.2016 TOP 9.3.1.",
+      "sites": [
+        {
+          "site": "pinkenburg-bruecke",
+          "text": "unter der Messeschnellwegbrücke",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0168-2016S1"
+        }
+      ]
+    },
+    "hannover-sim:15-0171-2015": {
+      "source": "hannover-sim",
+      "title": "Zuwendung an die Vereine Karnevalscorps-Döhren und Hannoversche Funken-Garde e.V. für das Döhrener Jazz-Festival 2015",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0171-2015"
+        }
+      ]
+    },
+    "hannover-sim:15-0188-2024": {
+      "source": "hannover-sim",
+      "title": "Hundekottütenspender für den Park der Erinnerung",
+      "sites": [
+        {
+          "site": "misburg-park-erinnerung",
+          "text": "Im Bereich des zukünftigen Parks der Erinnerung werden auf der Grünfläche",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0188-2024"
+        }
+      ]
+    },
+    "hannover-sim:15-0188-2024S1": {
+      "source": "hannover-sim",
+      "title": "Hundekottütenspender für den Park der Erinnerung Sitzung des Stadtbezirksrates Misburg-Anderten am 07.02.2024 TOP 12.2.2.2.",
+      "sites": [
+        {
+          "site": "misburg-park-erinnerung",
+          "text": "Im Bereich des zukünftigen Parks der Erinnerung werden auf der Grünfläche",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0188-2024S1"
+        }
+      ]
+    },
+    "hannover-sim:15-0201-2007": {
+      "source": "hannover-sim",
+      "title": "Bezirkshaushalt 2007 : Hannoversche Funken-Garde und Karnevalscorps Döhren; 5. Döhrener Jazz-Festival",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "dem Jazz-Festival auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0201-2007"
+        }
+      ]
+    },
+    "hannover-sim:15-0208-2016": {
+      "source": "hannover-sim",
+      "title": "Hannoversche Funken-Garde und Karnevals Corps Döhren, Zuschuss des Stadtbezirksrates Döhren-Wülfel für die Ausrichtung des Events „15 Jahre Döhrener Jazz-Festival auf dem Fiedelerplatz“",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "Döhrener Jazz-Festival auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0208-2016"
+        }
+      ]
+    },
+    "hannover-sim:15-0253-2016": {
+      "source": "hannover-sim",
+      "title": "Anhörung zum Thema \"Verkehrssicherheit an den Hauptausfallstraßen\"",
+      "sites": [
+        {
+          "site": "hildesheimer-hoerung",
+          "text": "Dies betrifft vor allem die Hildesheimer Straße und die Marienstraße.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0253-2016"
+        },
+        {
+          "site": "marien-hoerung",
+          "text": "Dies betrifft vor allem die Hildesheimer Straße und die Marienstraße.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0253-2016"
+        }
+      ]
+    },
+    "hannover-sim:15-0273-2008": {
+      "source": "hannover-sim",
+      "title": "Bezirkshaushalt 2008: Karnevalscorps-Döhren und Hannoversche Funken-Garde e.V.; 7. Döhrener Jazz-Festival",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "Döhrener Jazz-Festivals auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0273-2008"
+        }
+      ]
+    },
+    "hannover-sim:15-0374-2024": {
+      "source": "hannover-sim",
+      "title": "Zuwendung aus Mitteln des Bezirksrates für die Aufstellung eines Hundetütenspenders in der Nussriede und für 1 Jahr Hundetüten (Zuwendung 06/2024)",
+      "sites": [
+        {
+          "site": "nussriede-spender",
+          "source": "document",
+          "text": "Aufstellung eines Hundetütenspenders in der Nussriede und für 1 Jahr Hundetüten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0374-2024"
+        }
+      ]
+    },
+    "hannover-sim:15-0409-2004": {
+      "source": "hannover-sim",
+      "title": "Kein Abriss denkmalgeschützter Gebäude in der Franz - Bork - Straße",
+      "sites": [
+        {
+          "site": "franz-bork-denkmalschutz",
+          "source": "document",
+          "text": "Drei Häuser in der Franz-Bork-Straße sollen nach dem Willen der Eigentümer abgerissen werden.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0409-2004"
+        }
+      ]
+    },
+    "hannover-sim:15-0455-2009": {
+      "source": "hannover-sim",
+      "title": "Bezirkshaushalt 2009: Karnevalscorps-Döhren und Hannoversche Funken-Garde e.V.; 8. Döhrener Jazz-Festival",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "Döhrener Jazz-Festivals auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0455-2009"
+        }
+      ]
+    },
+    "hannover-sim:15-0504-2012": {
+      "source": "hannover-sim",
+      "title": "Zuwendung an die Karnevalsvereine Karnevalcorps Döhren e.V. und Hannoversche Funkengarde e.V. zur Durchführung des Döhrener Jazz-Festivals auf dem Fiedelerplatz; Auftritt einer Jazzband",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "Döhrener Jazz-Festivals auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0504-2012"
+        }
+      ]
+    },
+    "hannover-sim:15-0795-2025": {
+      "source": "hannover-sim",
+      "title": "Altkleidercontainer auf dem Parkplatz an Meyers Garten",
+      "sites": [
+        {
+          "site": "misburg-containerparkplatz",
+          "text": "Wertstoffinsel auf dem Parkplatz an Meyers Garten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0795-2025"
+        }
+      ]
+    },
+    "hannover-sim:15-0795-2025S1": {
+      "source": "hannover-sim",
+      "title": "Altkleidercontainer auf dem Parkplatz an Meyers Garten Sitzung des Stadtbezirksrates Misburg-Anderten am 04.06.2025 TOP 10.1.1.1.",
+      "sites": [
+        {
+          "site": "misburg-containerparkplatz",
+          "text": "Wertstoffinsel auf dem Parkplatz an Meyers Garten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0795-2025S1"
+        }
+      ]
+    },
+    "hannover-sim:15-0808-2019": {
+      "source": "hannover-sim",
+      "title": "Parken in der Stammestraße und im Umfeld des KRH Siloah in Linden-Süd",
+      "sites": [
+        {
+          "site": "stammestrasse-parkraum",
+          "text": "auf dem Parkplatz der Hochschule Hannover bzw. auf der Stammesstrasse parken",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0808-2019"
+        }
+      ]
+    },
+    "hannover-sim:15-0808-2019F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Parken in der Stammestraße und im Umfeld des KRH Siloah in Linden-Süd Sitzung des Stadtbezirksrates Linden-Limmer am 27.03.2019 TOP 7.2.2.",
+      "sites": [
+        {
+          "site": "stammestrasse-parkraum",
+          "text": "Richtig ist, dass seit der Bebauung des ehemaligen P+R-Parkplatzes und der Erweiterung des Krankenhauses Siloah die Zahl der Parkverstöße in der Stammestraße zugenommen hat.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0808-2019F1"
+        }
+      ]
+    },
+    "hannover-sim:15-0880-2010": {
+      "source": "hannover-sim",
+      "title": "Zuwendung an Kanevalscorps Döhren und Hannoversche Funken-Garde e.V.; 9. Döhrener Jazz-Festival",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "Döhrener Jazz-Festivals auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0880-2010"
+        }
+      ]
+    },
+    "hannover-sim:15-0906-2012": {
+      "source": "hannover-sim",
+      "title": "Streusandcontainer am Wochenmarkt in Misburg",
+      "sites": [
+        {
+          "site": "grundschulparkplatz-misburg",
+          "source": "document",
+          "text": "Besonders im Bereich des Parkplatzes der Kardinal-Galen-Schule und der Pestalozzischule, auf dem samstags der Wochenmarkt stattfindet",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0906-2012"
+        }
+      ]
+    },
+    "hannover-sim:15-0925-2016": {
+      "source": "hannover-sim",
+      "title": "Änderungsantrag zu Drucks. Nr. 0737/2016 Instandsetzung \"Conti-Turm\"",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Änderungsantrag zu Drucks. Nr. 0737/2016 Instandsetzung \"Conti-Turm\"",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0925-2016"
+        }
+      ]
+    },
+    "hannover-sim:15-1021-2013": {
+      "source": "hannover-sim",
+      "title": "Parkverbot für LKWs über 3,5t auf der Walderseestraße",
+      "sites": [
+        {
+          "site": "waldersee-parkverbot",
+          "text": "vom Böcklinplatz bis zur Oskar-Winter-Straße einzurichten.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1021-2013"
+        }
+      ]
+    },
+    "hannover-sim:15-1021-2013S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUNG: Parkverbot für LKWs über 3,5t auf der Walderseestraße Sitzung des Stadtbezirksrates Vahrenwald-List am 13.05.2013 TOP 10.2.1.",
+      "sites": [
+        {
+          "site": "waldersee-parkverbot",
+          "text": "vom Böcklinplatz bis zur Oskar-Winter-Straße einzurichten.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1021-2013S1"
+        }
+      ]
+    },
+    "hannover-sim:15-1035-2016": {
+      "source": "hannover-sim",
+      "title": "Zuwendung für das Projekt Ihmevisionen",
+      "sites": [
+        {
+          "site": "ihme-park",
+          "text": "Für das im September 2016 stattfindende Projekt Ihmevisionen erhalten die AntragstellerInnen eine Zuwendung über 500,- € aus den Mitteln des Bezirksrates Mitte.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1035-2016"
+        }
+      ]
+    },
+    "hannover-sim:15-1042-2009": {
+      "source": "hannover-sim",
+      "title": "Rondell Brücke Königsworther Straße",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell Brücke Königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1042-2009"
+        }
+      ]
+    },
+    "hannover-sim:15-1042-2009F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Rondell Brücke Königsworther Straße Sitzung des Stadtbezirksrates Mitte am 18.05.2009 TOP 10.2.2.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell Brücke Königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1042-2009F1"
+        }
+      ]
+    },
+    "hannover-sim:15-1104-2025": {
+      "source": "hannover-sim",
+      "title": "Sanierung Vorplatz des Misburger Rathauses",
+      "sites": [
+        {
+          "site": "misburg-rathaus",
+          "text": "der Vorplatz des Misburger Rathauses",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1104-2025"
+        }
+      ]
+    },
+    "hannover-sim:15-1104-2025F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Sanierung Vorplatz des Misburger Rathauses Sitzung des Stadtbezirksrates Misburg-Anderten am 04.06.2025 TOP 6.2.2.",
+      "sites": [
+        {
+          "site": "misburg-rathaus",
+          "text": "der Vorplatz des Misburger Rathauses",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1104-2025F1"
+        }
+      ]
+    },
+    "hannover-sim:15-1124-2025": {
+      "source": "hannover-sim",
+      "title": "ÄNDERUNGSANTRAG: Altkleidercontainer auf dem Parkplatz an Meyers Garten",
+      "sites": [
+        {
+          "site": "misburg-containerparkplatz",
+          "text": "Wertstoffinsel auf dem Parkplatz an Meyers Garten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1124-2025"
+        }
+      ]
+    },
+    "hannover-sim:15-1129-2019S1": {
+      "source": "hannover-sim",
+      "title": "Einrichtung eines Radweges östliche Lange-Hop-Straße zwischen Großer Hillen und Tiergartenstraße Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 08.05.2019 - TOP 8.5.4.",
+      "sites": [
+        {
+          "site": "lange-hop",
+          "text": "Die Lange-Hop-Straße zwischen Großer Hillen und Tiergartenstraße befindet sich in einer Tempo-30-Zone.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1129-2019S1"
+        }
+      ]
+    },
+    "hannover-sim:15-1130-2008": {
+      "source": "hannover-sim",
+      "title": "Grünfläche in der Franz-Bork-Straße vor den Häusern 9/11/13",
+      "sites": [
+        {
+          "site": "franz-bork-gruen-9",
+          "source": "title",
+          "text": "Grünfläche in der Franz-Bork-Straße vor den Häusern 9/11/13",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1130-2008"
+        },
+        {
+          "site": "franz-bork-gruen-11",
+          "source": "title",
+          "text": "Grünfläche in der Franz-Bork-Straße vor den Häusern 9/11/13",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1130-2008"
+        },
+        {
+          "site": "franz-bork-gruen-13",
+          "source": "title",
+          "text": "Grünfläche in der Franz-Bork-Straße vor den Häusern 9/11/13",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1130-2008"
+        }
+      ]
+    },
+    "hannover-sim:15-1142-2007": {
+      "source": "hannover-sim",
+      "title": "Ablage von Sperrmüll und anderem Müll Ecke Lister Straße/Franz Borkstraße 1",
+      "sites": [
+        {
+          "site": "franz-bork-sperrmuell",
+          "source": "document",
+          "text": "an der Ecke Lister Straße/ Franz Borkstraße vor dem Haus Nummer 1 Sperrmüll und Hausmüll gelagert",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1142-2007"
+        }
+      ]
+    },
+    "hannover-sim:15-1155-2004": {
+      "source": "hannover-sim",
+      "title": "Kein Abriss denkmalgeschützter Gebäude in der Franz - Bork - Straße; Änderungsantrag der SPD - Fraktion",
+      "sites": [
+        {
+          "site": "franz-bork-denkmalschutz",
+          "source": "document",
+          "text": "Der Bezirksrat Vahrenwald-List spricht sich für den größtmöglichen Erhalt der denkmalgeschützten Gebäude in der Franz-Bork-Straße aus.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1155-2004"
+        }
+      ]
+    },
+    "hannover-sim:15-1185-2024": {
+      "source": "hannover-sim",
+      "title": "Weitere Ertüchtigung Glockseestraße",
+      "sites": [
+        {
+          "site": "glocksee-gruen",
+          "text": "begrünte Fläche an der Glockseestraße zwischen Braunstraße und der Einfahrz zu Enercity",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1185-2024"
+        }
+      ]
+    },
+    "hannover-sim:15-1185-2024N1": {
+      "source": "hannover-sim",
+      "title": "Weitere Ertüchtigung Glockseestraße",
+      "sites": [
+        {
+          "site": "glocksee-gruen",
+          "text": "begrünte Fläche an der Glockseestraße zwischen Braunstraße und der Einfahrz zu Enercity",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1185-2024N1"
+        }
+      ]
+    },
+    "hannover-sim:15-1185-2024N1S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUNG zum gemeinsamen Antrag der Fraktion Bündnis 90/Die Grünen und der SPD-Fraktion: Weitere Ertüchtigung Glockseestraße Sitzung des Stadtbezirksrates Mitte am 10.06.2024 TOP 6.3.1.1.",
+      "sites": [
+        {
+          "site": "glocksee-gruen",
+          "text": "begrünte Fläche an der Glockseestraße zwischen Braunstraße und der Einfahrz zu Enercity",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1185-2024N1S1"
+        }
+      ]
+    },
+    "hannover-sim:15-1311-2019": {
+      "source": "hannover-sim",
+      "title": "Frauenschwimmzeiten",
+      "sites": [
+        {
+          "site": "stoeckener-bad",
+          "text": "in den Schwimmbädern Vahrenwald und Stöcken das Angebot beibehalten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1311-2019"
+        },
+        {
+          "site": "vahrenwalder-bad",
+          "text": "in den Schwimmbädern Vahrenwald und Stöcken das Angebot beibehalten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1311-2019"
+        }
+      ]
+    },
+    "hannover-sim:15-1311-2019F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Frauenschwimmzeiten Sitzung des Stadtbezirksrates Herrenhausen Stöcken am 22.05.2019 TOP 9.3.3.",
+      "sites": [
+        {
+          "site": "stoeckener-bad",
+          "text": "in den Schwimmbädern Vahrenwald und Stöcken das Angebot beibehalten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1311-2019F1"
+        },
+        {
+          "site": "vahrenwalder-bad",
+          "text": "in den Schwimmbädern Vahrenwald und Stöcken das Angebot beibehalten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1311-2019F1"
+        }
+      ]
+    },
+    "hannover-sim:15-1360-2009": {
+      "source": "hannover-sim",
+      "title": "Rondell königsworther Straße",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1360-2009"
+        }
+      ]
+    },
+    "hannover-sim:15-1360-2009N1": {
+      "source": "hannover-sim",
+      "title": "Rondell Königsworther Straße",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell Königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1360-2009N1"
+        }
+      ]
+    },
+    "hannover-sim:15-1360-2009N1S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUNG: Rondell Königsworther Straße Sitzung des Stadtbezirksrates Mitte am 15.06.2009 TOP 9.4.1.1.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell Königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1360-2009N1S1"
+        }
+      ]
+    },
+    "hannover-sim:15-1475-2007": {
+      "source": "hannover-sim",
+      "title": "Finanzierung der Restaurierung des Rondells an der brücke Königsworther Str.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "erung der Restaurierung des Rondells an der brücke Königsworther Str. Das denkmalges",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1475-2007"
+        }
+      ]
+    },
+    "hannover-sim:15-1620-2024": {
+      "source": "hannover-sim",
+      "title": "Verwahrlosende Bereiche im Stadtbezirk",
+      "sites": [
+        {
+          "site": "misburg-containerparkplatz",
+          "text": "Kleidercontainer auf dem Parkplatz an Meyers Garten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024"
+        },
+        {
+          "site": "container-ohefeld",
+          "text": "An den Kleidercontainern an den Straßen Ohefeldweg",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024"
+        },
+        {
+          "site": "container-forstkamp",
+          "text": "Am Forstkamp und Am Tiergarten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024"
+        },
+        {
+          "site": "container-tiergarten",
+          "text": "Am Forstkamp und Am Tiergarten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024"
+        },
+        {
+          "site": "misburg-park-erinnerung",
+          "text": "der kürzlich eingeweihte Park der Erinnerung",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024"
+        },
+        {
+          "site": "misburg-rathaus",
+          "text": "vor dem Misburger Rathaus",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024"
+        }
+      ]
+    },
+    "hannover-sim:15-1620-2024F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Verwahrlosende Bereiche im Stadtbezirk Sitzung des Stadtbezirksrates Misburg-Anderten am 04.09.2024 TOP 7.2.1.",
+      "sites": [
+        {
+          "site": "misburg-containerparkplatz",
+          "text": "Kleidercontainer auf dem Parkplatz an Meyers Garten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024F1"
+        },
+        {
+          "site": "container-ohefeld",
+          "text": "An den Kleidercontainern an den Straßen Ohefeldweg",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024F1"
+        },
+        {
+          "site": "container-forstkamp",
+          "text": "Am Forstkamp und Am Tiergarten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024F1"
+        },
+        {
+          "site": "container-tiergarten",
+          "text": "Am Forstkamp und Am Tiergarten",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024F1"
+        },
+        {
+          "site": "misburg-park-erinnerung",
+          "text": "der kürzlich eingeweihte Park der Erinnerung",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024F1"
+        },
+        {
+          "site": "misburg-rathaus",
+          "text": "vor dem Misburger Rathaus",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1620-2024F1"
+        }
+      ]
+    },
+    "hannover-sim:15-1649-2021F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Corona-Schnelltests für Kindergärten im Stadtbezirk Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 14.07.2021 TOP 4.1.6.",
+      "sites": [
+        {
+          "site": "testverteilung-2021-1",
+          "source": "document",
+          "text": "Twipsy Ortskamp 89 100 900",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-2",
+          "source": "document",
+          "text": "Ev.-luth. St. Johannis- Kirchen- gemeinde Bemerode Alte Bemeroder Straße 104 97 873",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-3",
+          "source": "document",
+          "text": "DRK Familien- zentrum Pappelteich Anecamp- straße 22 90 810",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-4",
+          "source": "document",
+          "text": "Neunkir- chener Platz Neunkir- chener Platz 10 88 792",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-5",
+          "source": "document",
+          "text": "Jakobi- Gemeinde Aussiger Wende 31 80 720",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-6",
+          "source": "document",
+          "text": "Brockfeld- zwerge Brockfeld 65 75 675",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-7",
+          "source": "document",
+          "text": "Familien- zentrum Papenkamp Papenkamp 11 75 675",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-8",
+          "source": "document",
+          "text": "Familien- zentrum Schatzinsel Hinter dem Holze 157 75 675",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-9",
+          "source": "document",
+          "text": "Blaue Schule Friedrich- Wulfert-Platz 1 65 585",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-10",
+          "source": "document",
+          "text": "Kronsberg- krümel Trautenauer Hof 1 50 450",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-11",
+          "source": "document",
+          "text": "Kita Börgerstraße Börgerstraße 22 43 387",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-12",
+          "source": "document",
+          "text": "Heineman- hof Heineman- hof 1 30 270",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-13",
+          "source": "document",
+          "text": "Arche Noah Mardalstraße 10 25 225",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-14",
+          "source": "document",
+          "text": "Eltern-Initiativ Kindergarten in der Jakobi- gemeinde Kleiner Hillen 1A 25 225",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-15",
+          "source": "document",
+          "text": "Kattenbrookstrift Kattenbrooks-trift 26 25 225",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-16",
+          "source": "document",
+          "text": "Die Kronsbären Feldbusch- wende 14 25 225",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-17",
+          "source": "document",
+          "text": "Elternkinder-garten Kirchrode Bemeroder Straße 8 18 162",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-18",
+          "source": "document",
+          "text": "Regenbogen Jakobskamp 1 10 90",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-19",
+          "source": "document",
+          "text": "Wülferoder Zwerge Kirchbichler Straße 10 10 90",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        },
+        {
+          "site": "testverteilung-2021-20",
+          "source": "document",
+          "text": "Bildungs- zentrum Hören-Sehen- Kommuni- kation Albert- Schweitzer-Hof 27 5 45",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1649-2021F1"
+        }
+      ]
+    },
+    "hannover-sim:15-1728-2006": {
+      "source": "hannover-sim",
+      "title": "Restaurierung des Rondells an der Brücke Königsworther Str.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondells an der Brücke Königsworther Str.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1728-2006"
+        }
+      ]
+    },
+    "hannover-sim:15-1857-2017": {
+      "source": "hannover-sim",
+      "title": "Verbesserung der Verkehrssituation Stammestraße / Pfarrstraße",
+      "sites": [
+        {
+          "site": "stamme-pfarr",
+          "text": "Verbesserung der Verkehrssituation Stammestraße / Pfarrstraße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1857-2017"
+        }
+      ]
+    },
+    "hannover-sim:15-1857-2017S1": {
+      "source": "hannover-sim",
+      "title": "Verbesserung der Verkehrssituation Stammestraße / Pfarrstraße Sitzung des Stadtbezirksrates Ricklingen am 21.09.2017 TOP 7.4.6. (Änderungsantrag Drucks. Nr. 15-2392/2017)",
+      "sites": [
+        {
+          "site": "stamme-pfarr",
+          "text": "Verbesserung der Verkehrssituation Stammestraße / Pfarrstraße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1857-2017S1"
+        }
+      ]
+    },
+    "hannover-sim:15-1863-2020": {
+      "source": "hannover-sim",
+      "title": "Erneuerung Schilder Feldbuschwende",
+      "sites": [
+        {
+          "site": "feldbuschwende",
+          "text": "Straßenschilder an der Feldbuschwende auf Erneuerung prüfen und gegebenenfalls ersetzen.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1863-2020"
+        }
+      ]
+    },
+    "hannover-sim:15-1870-2007": {
+      "source": "hannover-sim",
+      "title": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1870-2007"
+        }
+      ]
+    },
+    "hannover-sim:15-1870-2007S1": {
+      "source": "hannover-sim",
+      "title": "Entscheidung: Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Entscheidung: Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1870-2007S1"
+        }
+      ]
+    },
+    "hannover-sim:15-1870-2007S2": {
+      "source": "hannover-sim",
+      "title": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1870-2007S2"
+        }
+      ]
+    },
+    "hannover-sim:15-1886-2008": {
+      "source": "hannover-sim",
+      "title": "Spiel- und Bolzplatz an der Vogelsbergstraße im Stadtteil Sahlkamp",
+      "sites": [
+        {
+          "site": "spielplatz-vogelsberg",
+          "text": "Ist in naher Zukunft ein Ersatz der abgebauten Spielgeräte auf dem Spielplatz Vogelsbergstraße vorgesehen?",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1886-2008"
+        }
+      ]
+    },
+    "hannover-sim:15-1886-2008F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Spiel- und Bolzplatz an der Vogelsbergstraße im Stadtteil Sahlkamp Sitzung des Stadtbezirksrates Bothfeld-Vahrenheide am 03.09.2008 TOP 7.2.3.",
+      "sites": [
+        {
+          "site": "spielplatz-vogelsberg",
+          "text": "Der Spielplatz in der Vogelsbergstraße wird ab der ersten Septemberwoche 2008 im Rahmen der Spielplatzunterhaltung teilumgebaut und aufgewertet.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1886-2008F1"
+        }
+      ]
+    },
+    "hannover-sim:15-1932-2006": {
+      "source": "hannover-sim",
+      "title": "Aussichtsrondell an der Königsworther Brücke",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Aussichtsrondell an der Königsworther Brücke",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1932-2006"
+        }
+      ]
+    },
+    "hannover-sim:15-1932-2006S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUNG: Aussichtsrondell an der Königsworther Brücke",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Aussichtsrondell an der Königsworther Brücke",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1932-2006S1"
+        }
+      ]
+    },
+    "hannover-sim:15-1949-2008": {
+      "source": "hannover-sim",
+      "title": "Rondell Königsworther Brücke",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell Königsworther Brücke",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1949-2008"
+        }
+      ]
+    },
+    "hannover-sim:15-1949-2008F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Rondell Königsworther Brücke Sitzung des Stadtbezirksrates Mitte am 08.09.2008 TOP 11.2.1.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell Königsworther Brücke",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1949-2008F1"
+        }
+      ]
+    },
+    "hannover-sim:15-1961-2012": {
+      "source": "hannover-sim",
+      "title": "Ökologische Sanierung des Spielplatzes am Rudolf-von-Bennigsen-Ufer am NDR-Parkplatz",
+      "sites": [
+        {
+          "site": "ndr-spielplatz",
+          "text": "den Spielplatz am Rudolf-von-Bennigsen-Ufer am NDR-Parkplatz zu sanieren.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1961-2012"
+        }
+      ]
+    },
+    "hannover-sim:15-2169-2005": {
+      "source": "hannover-sim",
+      "title": "Restaurierung des Rondells an der Brücke Königsworther Str.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondells an der Brücke Königsworther Str.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2169-2005"
+        }
+      ]
+    },
+    "hannover-sim:15-2302-2005": {
+      "source": "hannover-sim",
+      "title": "Interfraktioneller Änderungsantrag zur Drucksache Nr. 15-2169/2005 - Restaurierung des Rondells an der Brücke Königsworther Str.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondells an der Brücke Königsworther Str.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2302-2005"
+        }
+      ]
+    },
+    "hannover-sim:15-2302-2005S1": {
+      "source": "hannover-sim",
+      "title": "Z W I S C H E N N A C H R I C H T der Verwaltung: Interfraktioneller Änderungsantrag zur Drucksache Nr. 15-2169/2005 - Restaurierung des Rondells an der Brücke Königsworther Str.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondells an der Brücke Königsworther Str.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2302-2005S1"
+        }
+      ]
+    },
+    "hannover-sim:15-2302-2005S2": {
+      "source": "hannover-sim",
+      "title": "E N T S C H E I D U N G Interfraktioneller Änderungsantrag zur Drucksache Nr. 15-2169/2005 - Restaurierung des Rondells an der Brücke Königsworther Str.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondells an der Brücke Königsworther Str.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2302-2005S2"
+        }
+      ]
+    },
+    "hannover-sim:15-2389-2010": {
+      "source": "hannover-sim",
+      "title": "Zuwendung an die Karnevalsvereine Karnevalscorps Döhren und HFG; Durchführung des 10. Döhrener Jazz-Festivals",
+      "sites": [
+        {
+          "site": "fiedelerplatz",
+          "text": "Döhrener Jazz-Festivals auf dem Fiedelerplatz",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2389-2010"
+        }
+      ]
+    },
+    "hannover-sim:15-2392-2017": {
+      "source": "hannover-sim",
+      "title": "Gemeinsamer Änderungsantrag von SPD, CDU, Grünen, FDP, Die Linke und Piraten zu Drucks. Nr. 15-1857/2917",
+      "sites": [
+        {
+          "site": "stamme-pfarr",
+          "text": "Verbesserung der Verkehrssituation Stammestraße / Pfarrstraße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2392-2017"
+        }
+      ]
+    },
+    "hannover-sim:15-2450-2005": {
+      "source": "hannover-sim",
+      "title": "Zuwendung Restaurierung Rondell an der Brücke Königsworther Straße",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell an der Brücke Königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2450-2005"
+        }
+      ]
+    },
+    "hannover-sim:15-2450-2005N1": {
+      "source": "hannover-sim",
+      "title": "Zuwendung Restaurierung Rondell an der Brücke Königsworther Straße",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell an der Brücke Königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2450-2005N1"
+        }
+      ]
+    },
+    "hannover-sim:15-2484-2012": {
+      "source": "hannover-sim",
+      "title": "Überplanung der Erschließung des kirchlichen Umfeldes im Kleinen Hillen",
+      "sites": [
+        {
+          "site": "kleiner-hillen-kirchliches-umfeld",
+          "source": "document",
+          "text": "die Straße „Kleiner Hillen“ prinzipiell zwischen Wasserkampstraße und Brabeckstraße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2484-2012"
+        }
+      ]
+    },
+    "hannover-sim:15-2484-2012S1": {
+      "source": "hannover-sim",
+      "title": "Überplanung der Erschließung des kirchlichen Umfeldes im Kleinen Hillen Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 14.11.2012 TOP 12.2.2.",
+      "sites": [
+        {
+          "site": "kleiner-hillen-kirchliches-umfeld",
+          "source": "document",
+          "text": "die Straße „Kleiner Hillen“ prinzipiell zwischen Wasserkampstraße und Brabeckstraße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2484-2012S1"
+        }
+      ]
+    },
+    "hannover-sim:15-2491-2020": {
+      "source": "hannover-sim",
+      "title": "Mehr Sicherheit für Kinder auf dem Spielplatz am NDR",
+      "sites": [
+        {
+          "site": "ndr-spielplatz",
+          "text": "den Zaun des Spielplatzes am NDR am Rudolf-von-Bennigsen-Ufer durch geeignete Maßnahmen so umzugestalten",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2491-2020"
+        }
+      ]
+    },
+    "hannover-sim:15-2491-2020S1": {
+      "source": "hannover-sim",
+      "title": "Mehr Sicherheit für Kinder auf dem Spielplatz am NDR Sitzung des Stadtbezirksrates Südstadt-Bult am 11.11.2020 TOP 8.3.2.",
+      "sites": [
+        {
+          "site": "ndr-spielplatz",
+          "text": "den Zaun des Spielplatzes am NDR am Rudolf-von-Bennigsen-Ufer durch geeignete Maßnahmen so umzugestalten",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2491-2020S1"
+        }
+      ]
+    },
+    "hannover-sim:15-2529-2015": {
+      "source": "hannover-sim",
+      "title": "Kindertagesstättenbericht 2015 - weiterer Handlungsbedarf für den Stadtbezirk",
+      "sites": [
+        {
+          "site": "kita-ricklingen-butjer",
+          "text": "die Kita am Butjerbrunnenplatz nahezu fertiggestellt ist",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015"
+        },
+        {
+          "site": "kita-ricklingen-beck",
+          "text": "die Kitas an der Bergfeld- und der Beckstraße in den nächsten Jahren gebaut werden",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015"
+        },
+        {
+          "site": "kita-ricklingen-bergfeld",
+          "text": "die Kitas an der Bergfeld- und der Beckstraße in den nächsten Jahren gebaut werden",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015"
+        }
+      ]
+    },
+    "hannover-sim:15-2529-2015F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Kindertagesstättenbericht 2015 - weiterer Handlungsbedarf für den Stadtbezirk Sitzung des Stadtbezirksrates Ricklingen am 26.11.2015 TOP 7.1.2.",
+      "sites": [
+        {
+          "site": "kita-ricklingen-sausewind",
+          "text": "Der Elternverein Sausewind e.V. hat zum 01.08.2015 mit der Betreuung einer Kindergartengruppe von 25 Kindern in der Göttinger Chaussee 109 begonnen.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015F1"
+        },
+        {
+          "site": "kita-ricklingen-butjer",
+          "text": "Neubau Kita Butjerbrunnenplatz mit 2 Kindergarten-",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015F1"
+        },
+        {
+          "site": "kita-ricklingen-beck",
+          "text": "In der Kita Beckstraße werden 2 Krippen-, 4 Kindergarten- und 2 Hortgruppen entstehen.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015F1"
+        },
+        {
+          "site": "kita-ricklingen-canaris",
+          "text": "die städtische Wohnungs-Kita im Canarisweg 21",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015F1"
+        },
+        {
+          "site": "kita-ricklingen-bergfeld",
+          "text": "In dem geplanten Neubau der Kindertagesstätte in der Bergfeldstraße werden 2 Krippen-, 2 Kindergartengruppen und eine altersübergreifende Gruppe entstehen.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2529-2015F1"
+        }
+      ]
+    },
+    "hannover-sim:15-2675-2017": {
+      "source": "hannover-sim",
+      "title": "Tischtennisplatte für den Spielplatz am NDR",
+      "sites": [
+        {
+          "site": "ndr-spielplatz",
+          "text": "auf dem Spielplatz am Rudolf-von-Bennigsen-Ufer eine wetterfeste Tischtennisplatte zu installieren.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2675-2017"
+        }
+      ]
+    },
+    "hannover-sim:15-2675-2017S1": {
+      "source": "hannover-sim",
+      "title": "Tischtennisplatte für den Spielplatz am NDR Sitzung des Stadtbezirksrates Südstadt-Bult am 15.11.2017 TOP 6.3.2.",
+      "sites": [
+        {
+          "site": "ndr-spielplatz",
+          "text": "auf dem Spielplatz am Rudolf-von-Bennigsen-Ufer eine wetterfeste Tischtennisplatte zu installieren.",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2675-2017S1"
+        }
+      ]
+    },
+    "hannover-sim:15-2697-2009F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Rondell an der Königsworther Straße Sitzung des Stadtbezirksrates Mitte am 14.12.2009 TOP 8.1.3.",
+      "sites": [
+        {
+          "site": "rondell-koenigsworther-bruecke",
+          "source": "document",
+          "text": "Rondell an der Königsworther Straße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2697-2009F1"
+        }
+      ]
+    },
+    "hannover-sim:15-3237-2022": {
+      "source": "hannover-sim",
+      "title": "Legendenschilder Bertha-von-Suttner-Platz",
+      "sites": [
+        {
+          "site": "bertha-suttner-schilder",
+          "source": "document",
+          "text": "An vier Straßenschildern des Bertha-von-Suttner-Platzes werden Legendenschilder zur Namensgeberin Bertha von Suttner angebracht.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-3237-2022"
+        }
+      ]
+    },
+    "hannover-sim:15-3237-2022N1": {
+      "source": "hannover-sim",
+      "title": "Legendenschilder Bertha-von-Suttner-Platz",
+      "sites": [
+        {
+          "site": "bertha-suttner-schilder",
+          "source": "document",
+          "text": "An vier Straßenschildern des Bertha-von-Suttner-Platzes werden Legendenschilder zur Namensgeberin Bertha von Suttner angebracht.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-3237-2022N1"
+        }
+      ]
+    },
+    "hannover-sim:15-3237-2022N1S1": {
+      "source": "hannover-sim",
+      "title": "Legendenschilder Bertha-von-Suttner-Platz Sitzung des Stadtbezirksrates Südstadt-Bult am 21.12.2022 TOP 9.3.1.1.",
+      "sites": [
+        {
+          "site": "bertha-suttner-schilder",
+          "source": "document",
+          "text": "An vier Straßenschildern des Bertha-von-Suttner-Platzes werden Legendenschilder zur Namensgeberin Bertha von Suttner angebracht.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-3237-2022N1S1"
+        }
+      ]
+    },
+    "hannover-sim:1548-2007": {
+      "source": "hannover-sim",
+      "title": "Henning-von-Tresckow-Grundschule -Schwerpunkt Technikunterricht-",
+      "sites": [
+        {
+          "site": "schule-tresckow-technik",
+          "text": "an der Henning-von-Tresckow-Grundschule den besonderen pädagogischen Schwerpunkt „Technik“ als schulbezirksübergreifendes Angebot einzurichten",
+          "source": "document",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1548-2007"
+        }
+      ]
+    },
+    "hannover-sim:1784-2021": {
+      "source": "hannover-sim",
+      "title": "Zweckverband Abfallwirtschaft Region Hannover (aha) – Haushaltssatzung und Wirtschaftsplan 2022",
+      "sites": [
+        {
+          "site": "aha-lahe",
+          "text": "Oberfl.abdeckung Lahe (Südostkörper)",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/6FA300B72B78C5FBC12587220016F154/$FILE/1784-2021_Anlage5.pdf"
+        },
+        {
+          "site": "aha-billung",
+          "text": "Ausbau BS Billungstraße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/6FA300B72B78C5FBC12587220016F154/$FILE/1784-2021_Anlage5.pdf"
+        },
+        {
+          "site": "aha-hansa",
+          "text": "Bau WSH Hansastraße",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/6FA300B72B78C5FBC12587220016F154/$FILE/1784-2021_Anlage5.pdf"
+        },
+        {
+          "site": "aha-nordstadt",
+          "text": "Ausbau WSH G.-Knebusch-Str.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/6FA300B72B78C5FBC12587220016F154/$FILE/1784-2021_Anlage5.pdf"
+        }
+      ]
+    },
+    "hannover-sim:1801-2007": {
+      "source": "hannover-sim",
+      "title": "Dringlichkeitsantrag der SPD-Gruppe in der Sanierungskommission Limmer zum Thema Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Dringlichkeitsantrag der SPD-Gruppe in der Sanierungskommission Limmer zum Thema Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/1801-2007"
+        }
+      ]
+    },
+    "hannover-sim:2016-2013": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 1150, 1. Änderung - Nördlich Echternfeld Bebauungsplan der Innenentwicklung Beschluss über Stellungnahmen, Satzungsbeschluss",
+      "sites": [
+        {
+          "site": "echternfeld-bplan1150-1",
+          "text": "den Bebauungsplan Nr. 1150, 1. Änderung gemäß § 10 Abs. 1 BauGB und § 10 Abs. 1 NKomVG als Satzung zu beschließen und der Begründung zuzustimmen.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2016-2013"
+        }
+      ]
+    },
+    "hannover-sim:2124-2010": {
+      "source": "hannover-sim",
+      "title": "Widmung von Straßen im Stadtbezirk Ahlem-Badenstedt-Davenstedt",
+      "sites": [
+        {
+          "site": "widmung-huesmannhof-2010",
+          "source": "document",
+          "text": "von Lenther Straße südöstlich ca. 73 m",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2124-2010"
+        },
+        {
+          "site": "widmung-partzsch-nord-2010",
+          "source": "document",
+          "text": "Stichstraße ab Haus Nr. 29 nördlich ca. 55 m",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2124-2010"
+        },
+        {
+          "site": "widmung-partzsch-west-2010",
+          "source": "document",
+          "text": "Stichstraße ab Haus Nr. 13 westlich ca. 29 m",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2124-2010"
+        },
+        {
+          "site": "widmung-schoendorf-2010",
+          "source": "document",
+          "text": "Verbindung von Haus Nr. 20 bis Grünverbindung",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2124-2010"
+        },
+        {
+          "site": "widmung-tiefel-2010",
+          "source": "document",
+          "text": "Verbindung von Haus Nr. 14 bis Yvette-Amiot-Weg ca. 55 m",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2124-2010"
+        }
+      ]
+    },
+    "hannover-sim:2607-2004": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 67, 8. Änderung - Plathnerstraße - Vereinfachtes Verfahren; Verzicht auf die frühzeitige Beteiligung der Öffentlichkeit, Aufstellungs- und Auslegungsbeschluss",
+      "sites": [
+        {
+          "site": "bplan-67-8",
+          "source": "document",
+          "text": "die Aufstellung des Bebauungsplanes Nr. 67, 8. Änderung zu beschließen",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2607-2004"
+        }
+      ]
+    }
+  }
+}

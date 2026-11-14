@@ -89,11 +89,43 @@ test('attributes the adapted Base64 decoder in Fontkit to its upstream author', 
   });
 });
 
-test('ships the distinct HarfBuzz notices for the Arabic and Indic tables in Fontkit', () => {
+test('attributes the two Leaflet plugin notices to their exact package versions', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    for (const name of ['leaflet-draw', 'leaflet.markercluster']) {
+      const direct = notice.dependencies.find(entry => entry.package === name);
+      const purl = `pkg:npm/${name}@${direct.version}`;
+      const component = notice.components.find(entry => entry.purl === purl);
+      expect(component.licenseTexts).toContainEqual({
+        path: direct.licenseTextPath, sha256: direct.licenseTextSha256, copyrightIncluded: true,
+      });
+      expect(sbom.components.find(entry => entry.purl === purl).properties)
+        .toContainEqual({ name: 'unfallatlas:license-text-count', value: '1' });
+    }
+  });
+});
+
+test('binds the DOCX pipe, EventEmitter and SVG path parser to their original notices', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    for (const [asset, suffix, holders] of [
+      [docxAsset, 'docx:stream-browserify-pipe', ['James Halliday', 'Joyent']],
+      [docxAsset, 'docx:events-emitter', ['Joyent']],
+      [pdfAsset, 'pdfkit:svgo-path-parser', ['Kir Belevich']],
+    ]) {
+      const ref = 'urn:unfallatlas:vendor-source:' + suffix;
+      expect(notice.assetAssessments.find(record => record.path === asset).containsFiles).toContain(ref);
+      const evidence = notice.supplementalLicenses.find(record => record.ref === ref);
+      const license = fs.readFileSync(path.join(root, evidence.path), 'utf8');
+      for (const holder of holders) expect(license).toContain(holder);
+    }
+  });
+});
+
+test('ships the HarfBuzz notices for Arabic, Indic and fallback combining classes in Fontkit', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const pdf = notice.assetAssessments.find(entry => entry.path === pdfAsset);
     const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
-    for (const [name, year] of [['arabic', '2010,2012'], ['indic', '2011,2012']]) {
+    for (const [name, year] of [['arabic', '2010,2012'], ['indic', '2011,2012'], ['fallback', '2011,2012']]) {
       const ref = 'urn:unfallatlas:vendor-source:fontkit:harfbuzz-' + name;
       const record = notice.supplementalLicenses.find(entry => entry.ref === ref);
       expect(record).toMatchObject({ asset: pdfAsset, spdx: 'MIT-Modern-Variant', copyright: `Copyright © ${year}  Google, Inc.` });
@@ -109,12 +141,32 @@ test('ships the distinct HarfBuzz notices for the Arabic and Indic tables in Fon
   });
 });
 
+test('links HarfBuzz grammar inputs to both shipped Fontkit state machines', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const asset = notice.assetAssessments.find(entry => entry.path === pdfAsset);
+    for (const name of ['indic', 'use']) {
+      const ref = 'urn:unfallatlas:vendor-source:fontkit:harfbuzz-' + name + '-grammar';
+      const record = notice.supplementalLicenses.find(entry => entry.ref === ref);
+      expect(record).toBeDefined();
+      const generated = fs.readFileSync(path.join(repoRoot, record.generatedPath));
+      expect(record.generatedSha256).toBe(crypto.createHash('sha256').update(generated).digest('hex'));
+      expect(asset.containsFiles).toContain(ref);
+      expect(sbom.components.find(entry => entry['bom-ref'] === ref).hashes)
+        .toContainEqual({ alg: 'SHA-256', content: record.sourceSha256 });
+      const license = fs.readFileSync(path.join(root, record.path), 'utf8');
+      expect(license).toContain('Google');
+      if (name === 'use') expect(license).toContain('Mozilla Foundation');
+    }
+  });
+});
+
 test('ships the license notices for each emitted DOCX runtime helper', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const asset = notice.assetAssessments.find(entry => entry.path === docxAsset);
-    const sources = notice.supplementalLicenses.filter(item => item.asset === docxAsset);
+    const sources = notice.supplementalLicenses.filter(item => item.asset === docxAsset && item.moduleLabel);
     expect(sources).toHaveLength(9);
-    expect(sources.map(item => item.ref).sort()).toEqual(asset.containsFiles);
+    expect(asset.containsFiles).toEqual(expect.arrayContaining(sources.map(item => item.ref)));
     const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
     for (const record of sources) {
       const published = sbom.components.find(component => component['bom-ref'] === record.ref);
@@ -255,6 +307,26 @@ test('attributes the decoded standard dictionary separately from the JavaScript 
     const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
     expect(sbom.dependencies.find(entry => entry.ref === 'urn:unfallatlas:vendor-asset:' + pdfAsset).dependsOn).toContain(ref);
     expect(sbom.components.find(entry => entry['bom-ref'] === ref).hashes[0].content).toBe(record.sourceSha256);
+  });
+});
+
+test('binds the Google C origins of the Brotli Huffman and memory-stream ports separately from the npm license', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const prefix = 'urn:unfallatlas:vendor-source:pdfmake:brotli-port:';
+    const commit = 'd9a74803fa884559879e3205cfe6f257a2d85519';
+    for (const file of ['huffman', 'streams']) {
+      const record = notice.supplementalLicenses.find(entry => entry.ref === prefix + file);
+      expect(record).toMatchObject({
+        sourcePath: 'node_modules/brotli/dec/' + file + '.js',
+        sourceUrl: 'https://github.com/google/brotli/blob/' + commit + '/brotli/dec/' + file + '.c',
+        spdx: 'Apache-2.0', copyright: 'Copyright 2013 Google Inc. All Rights Reserved.',
+      });
+      expect(sbom.components.find(entry => entry['bom-ref'] === record.ref).hashes[0].content).toBe(record.sourceSha256);
+      expect(fs.readFileSync(path.join(root, record.path), 'utf8')).toContain('JavaScript port');
+      expect(notice.assetAssessments.find(asset => asset.path === pdfAsset).containsFiles).toContain(record.ref);
+      expect(notice.components.find(entry => entry.purl === brotliPurl).licenseTexts).toEqual([]);
+    }
   });
 });
 

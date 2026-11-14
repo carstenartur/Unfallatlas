@@ -1,0 +1,312 @@
+{
+  "sites": {
+    "loewenburg-zur-saalkirche": {
+      "label": "Löwenburgstraße / Zur Saalkirche (belegte Einmündung im Antragsgebiet)",
+      "kind": "junction",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.1878643,
+          50.7291755
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/node/6331661506/history/1",
+      "osmWayIds": [
+        23919522,
+        804936897
+      ]
+    },
+    "friedrich-breuer-strasse": {
+      "label": "Friedrich-Breuer-Straße (Straßenverlauf zur Orientierung)",
+      "kind": "street",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              7.1141332,
+              50.7379754
+            ],
+            [
+              7.1142262,
+              50.7379961
+            ],
+            [
+              7.1147093,
+              50.73809
+            ],
+            [
+              7.1148233,
+              50.7381129
+            ],
+            [
+              7.1151489,
+              50.7381787
+            ],
+            [
+              7.1153545,
+              50.7382226
+            ],
+            [
+              7.1161396,
+              50.7383853
+            ],
+            [
+              7.1162841,
+              50.7384152
+            ]
+          ],
+          [
+            [
+              7.1228207,
+              50.7399401
+            ],
+            [
+              7.12292,
+              50.7399623
+            ],
+            [
+              7.1231466,
+              50.7400192
+            ],
+            [
+              7.1232902,
+              50.7400555
+            ],
+            [
+              7.1234747,
+              50.7400971
+            ],
+            [
+              7.1235476,
+              50.7401163
+            ],
+            [
+              7.1238537,
+              50.7402477
+            ],
+            [
+              7.1243711,
+              50.7404789
+            ],
+            [
+              7.1244681,
+              50.7405223
+            ],
+            [
+              7.1247164,
+              50.740639
+            ],
+            [
+              7.1251389,
+              50.7408343
+            ],
+            [
+              7.1255907,
+              50.7410371
+            ],
+            [
+              7.1256675,
+              50.7410795
+            ]
+          ],
+          [
+            [
+              7.1187339,
+              50.7389734
+            ],
+            [
+              7.1188774,
+              50.7390049
+            ],
+            [
+              7.1190209,
+              50.7390468
+            ]
+          ],
+          [
+            [
+              7.1173441,
+              50.7386526
+            ],
+            [
+              7.1171915,
+              50.7386195
+            ],
+            [
+              7.1168402,
+              50.7385448
+            ],
+            [
+              7.1164241,
+              50.7384478
+            ],
+            [
+              7.1162841,
+              50.7384152
+            ]
+          ],
+          [
+            [
+              7.1195506,
+              50.7391719
+            ],
+            [
+              7.1196269,
+              50.7391899
+            ],
+            [
+              7.1197461,
+              50.739218
+            ],
+            [
+              7.1198676,
+              50.7392467
+            ],
+            [
+              7.1199884,
+              50.7392752
+            ],
+            [
+              7.1200087,
+              50.73928
+            ],
+            [
+              7.1201256,
+              50.7393076
+            ],
+            [
+              7.120475,
+              50.7393907
+            ]
+          ],
+          [
+            [
+              7.120475,
+              50.7393907
+            ],
+            [
+              7.1208413,
+              50.7394766
+            ],
+            [
+              7.121498,
+              50.7396304
+            ],
+            [
+              7.1220333,
+              50.7397578
+            ]
+          ],
+          [
+            [
+              7.1220333,
+              50.7397578
+            ],
+            [
+              7.1228207,
+              50.7399401
+            ]
+          ],
+          [
+            [
+              7.1173441,
+              50.7386526
+            ],
+            [
+              7.1181828,
+              50.7388636
+            ],
+            [
+              7.1185016,
+              50.7389438
+            ],
+            [
+              7.118615,
+              50.7389723
+            ]
+          ],
+          [
+            [
+              7.1190209,
+              50.7390468
+            ],
+            [
+              7.1195506,
+              50.7391719
+            ]
+          ],
+          [
+            [
+              7.118615,
+              50.7389723
+            ],
+            [
+              7.118692,
+              50.7389708
+            ],
+            [
+              7.1187339,
+              50.7389734
+            ]
+          ]
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://api.openstreetmap.org/api/0.6/map.json?bbox=7.1138,50.7374,7.1261,50.7415",
+      "osmWayIds": [
+        4842150,
+        11159137,
+        11159140,
+        23372602,
+        31347471,
+        32040603,
+        32210229,
+        73419816,
+        1230857461,
+        1363552238
+      ]
+    }
+  },
+  "records": {
+    "https://www.bonn.sitzung-online.de/oparl/papers/2001730": {
+      "source": "bonn-oparl",
+      "title": "Bürgerantrag: Verkehrsberuhigung Löwenburgstraße im Bereich Neubaugebiet \"Niederholtorf-Süd\"",
+      "sites": [
+        {
+          "site": "loewenburg-zur-saalkirche",
+          "source": "document",
+          "text": "Zugehöriger Bürgerantrag 202118, Anlage 1: mit der Baustraße „Zur Saalkirche“ eine Einmündung in die Löwenburgstraße geschaffen worden. Die Stellungnahme 202118-01 ST bezieht sich auf dessen Abschnitt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/234206"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/9027": {
+      "source": "bonn-oparl",
+      "title": "Bürgerantrag: Verkehrsberuhigung Löwenburgstraße im Bereich Neubaugebiet \"Niederholtorf-Süd\"",
+      "sites": [
+        {
+          "site": "loewenburg-zur-saalkirche",
+          "source": "document",
+          "text": "Anlage 1 zum Bürgerantrag 202118: mit der Baustraße „Zur Saalkirche“ eine Einmündung in die Löwenburgstraße geschaffen worden.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/234206"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/2027967": {
+      "source": "bonn-oparl",
+      "title": "Grüne-Antrag: Aufstellung von Sitzmöbeln in der Friedrich-Breuer-Straße",
+      "sites": [
+        {
+          "site": "friedrich-breuer-strasse",
+          "source": "document",
+          "text": "Die Verwaltung wird beauftragt, auf der Friedrich-Breuer-Straße geeignete und begrünte Sitzmöbel dauerhaft aufzustellen.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/3158432"
+        }
+      ]
+    }
+  }
+}

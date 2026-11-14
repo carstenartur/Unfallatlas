@@ -596,7 +596,7 @@ function evidenceSentences(text) {
 // outside the city gazetteer. Only independently reviewed tram areas can
 // locate the named station. They do not delimit works on individual tracks.
 function regionalPlatformProject(title, register, recordId) {
-  const project = /^Stadtbahnstrecke ([A-D]-(?:Nord|Ost|Süd|West)):\s*Barrierefreier Ausbau der Haltestelle (.+?)\s+[-–]\s+(.+)$/iu.exec(title);
+  const project = /^Stadtbahnstrecke ([A-D]-(?:Nord|Ost|Süd|West)):\s*(?:Barrierefreier Ausbau der Haltestelle|Hochbahnsteig) (.+?)\s+[-–]\s+(.+)$/iu.exec(title);
   if (!project) return null;
   const [, corridor, name, stage] = project;
   const planningStage = /^(?:Realisierung und Finanzierung|Finanzierung(?: \d{4} [-–] \d{4})?|Einleitung (?:des Planfeststellungsverfahrens|Planfeststellung(?:sverfahren)?)|Antrag auf Planfeststellung)$/iu;
@@ -721,6 +721,18 @@ function measureLocations(record, byFirstWord, gazetteer, limit, requireHannover
     const existing = locations.get(key);
     if (!existing || (!existing.geometry && candidate.geometry)) locations.set(key, candidate);
   };
+  // Reviewed quotations apply to this source and this version of the subject.
+  // A reply or another paper with the same title needs its own evidence.
+  const register = gazetteer.reviewedSites;
+  const reviewed = register?.records?.[record.id];
+  if (reviewed && reviewed.source === record.source && reviewed.title === record.title) {
+    for (const reference of reviewed.sites) {
+      const site = register.sites[reference.site];
+      if (site && site.attribution && site.sourceUrl && reference.text && validLocationGeometry(site.geometry, site.kind)) {
+        keep(location(site.kind, site.label, site.geometry, [site]), { source: reference.source ?? 'document', text: reference.text });
+      }
+    }
+  }
   for (const { found, evidence } of reviewedTrafficControls(record, gazetteer, byFirstWord)) keep(found, evidence);
   for (const title of titles) {
     const found = requireHannoverScope ? regionalPlatformProject(title, gazetteer.regionalTramStops, record.id)

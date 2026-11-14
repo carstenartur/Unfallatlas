@@ -14,13 +14,14 @@ test('a single-year site selection opens its area draft and returns keyboard foc
   if (await panelToggle.getAttribute('aria-expanded') === 'false') await panelToggle.click();
   await page.getByRole('button', { name: 'Stellen finden' }).click();
   await expect(page.locator('#siteDiscoveryMode')).toHaveValue('network', { timeout: 30000 });
+  await page.getByText('Suchfilter und Datenstand', { exact: true }).click();
   await page.locator('#siteDiscoveryFromYear').selectOption('2025');
   await page.locator('#siteDiscoveryToYear').selectOption('2025');
   const candidate = page.getByRole('list', { name: 'Gefundene Netzstellen' }).getByRole('button').first();
   await candidate.click();
 
   const detail = page.locator('.site-discovery-detail');
-  const name = await detail.getByRole('heading').innerText();
+  const name = await detail.getByRole('heading', { level: 4 }).innerText();
   await expect(candidate).toContainText(name);
   await expect(detail).toContainText('kein wiederkehrendes Muster');
   const draft = detail.getByRole('button', { name: 'Antragsentwurf für den markierten Bereich öffnen' });

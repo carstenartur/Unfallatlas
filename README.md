@@ -52,6 +52,14 @@ Die Animation zeigt einen zusammenhängenden realen Ablauf aus dem aktuellen Ser
 
 ## Typische Analysen
 
+### Stellen im eigenen Bezirk finden
+
+Mit **Stellen finden** lassen sich wiederkehrende Unfallmuster und Unfälle mit schweren Folgen nach Stadtbezirk sichten. Hannover bietet außerdem kartierte Querungen im Schulumfeld als präventive Prüfstellen an. Der Link hält Bezirk, Suchkriterien und ausgewählten Ort fest. Im Fall stehen die örtliche Zuständigkeit, belegte Änderungen, räumlich zugeordnete Ratsvorgänge und der Antragsentwurf zur Verfügung. Bei einem belegten Beginn der Maßnahme lassen sich Unfallzahlen aus gleich langen Zeiträumen vergleichen.
+
+- [Hannover-Mitte · wiederkehrende Unfallmuster 2021–2025](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteDistrict=Mitte&sitePriority=pattern&findFrom=2021&findTo=2025)
+- [Hannover-Mitte · Querungen im Schulumfeld](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteDistrict=Mitte&sitePriority=school)
+- [Bonn-Beuel · Unfälle mit schweren Folgen 2021–2025](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Bonn&find=1&siteDistrict=Beuel&sitePriority=severe&findFrom=2021&findTo=2025)
+
 ### Rad- und Pkw-Beteiligung an einem konkreten Ort
 
 Die kombinierte Cluster- und Heatmapansicht am Bonner Hauptbahnhof zeigt nur Unfälle, an denen sowohl Rad- als auch Pkw-Verkehr beteiligt waren. Nummerierte Cluster halten die Fallzahlen auch in der verkleinerten README-Ansicht deutlich erkennbar; die Heatmap ergänzt die räumliche Dichte.
@@ -142,7 +150,7 @@ Das [Quellenverzeichnis mit dem veröffentlichten Bestand](https://carstenartur.
 | Gelände und Luftbilder | Höhenraster liefern Geländekontext und in Hannover DGM1-Profile entlang von Straßen. Die Karte lädt verfügbare Orthofotos bei den jeweiligen Anbietern. Aufnahmejahr, Abruf und Berechnung haben unterschiedliche Bedeutungen. | [Geländedaten und Verfahren](docs/osm-elevation-context-chain.md) · [DGM1 Hannover](docs/hannover-dgm1-road-profiles.md) · [Bilddienste und Bildnachweise](https://carstenartur.github.io/Unfallatlas/data-status/#quellen) |
 | Ratsvorgänge und parlamentarische Dokumente | Vorlagen, Beratungsgänge, Beziehungen und belegte Ortsbezüge aus Bonn sowie aus Stadt und Region Hannover, ergänzt um einen Teilbestand des Niedersächsischen Landtags. Die Kataloge verknüpfen die Vorgänge mit den verfügbaren Originalunterlagen. | [Bonn OParl](https://opendata.bonn.de/dataset/ratsinformationssystem-oparl-api) · [Hannover SIM](https://e-government.hannover-stadt.de/lhhsimwebre.nsf/ds_suchformular) · [Region Hannover ALLRIS](https://ris.hannit.de/public/vo040) · [Landtagsdokumentation](https://www.landtag-niedersachsen.de/dokumentensuche/) |
 | Kommunale Fachdaten | In Hannover ergänzen Stadtbezirke, aus OSM abgeleitete Tempo-30-Abschnitte, Schulwegpläne, Stadtbahnlinien und dokumentierte Änderungen an Prüfstellen die Ortsanalyse. | [Landeshauptstadt Hannover, Stadtbezirksgrenzen](https://www.hannover.de/content/download/887881/file/SKH5_Statistische_Gliederung.zip) · [LGLN, ATKIS Basis-DLM](https://numis.niedersachsen.de/trefferanzeige?docuuid=121cf327-48f5-4ecd-b3db-aabd023eb3df) · [Quellen je kommunaler Ebene](https://carstenartur.github.io/Unfallatlas/data-status/#quellen) |
-| Unfallkosten und Maßnahmen | Die Werkbank schätzt einen Modellwert mit Kostensätzen je Person. Bei den Wirkungsspannen der Maßnahmen fehlen teilweise zitierfähige Einzelfundstellen. | [Kostensätze und Fundstelle](data/cost_factors_de.json) · [Maßnahmenkatalog mit Literaturangaben](data/measures_catalog.json) |
+| Unfallkosten und Maßnahmen | Die Werkbank schätzt einen Modellwert mit Kostensätzen je Person. Der Maßnahmenkatalog nennt zu jeder Maßnahme die fachliche Fundstelle, deren Geltungsbereich und eine konkrete Frage für die Ortsbesichtigung. | [Kostensätze und Fundstelle](data/cost_factors_de.json) · [Maßnahmenkatalog mit Literaturangaben](data/measures_catalog.json) |
 
 Die [servergestützte Recherche in weiteren Ratsportalen](server/political-context/README.md) ergänzt die beiden statisch veröffentlichten Kataloge. Hannoveraner Radzählungen der VMZ lassen sich als [vom Nutzer geladene GeoJSON-Datei](https://www.vmz-niedersachsen.de/geojson/region-hannover-radzaehler.geojson) einblenden. Der lokale Dateiimport fließt in keine veröffentlichte Bestandszahl ein. Bonn gibt die OParl-Textinformationen unter CC0 frei. Für angehängte und extern verlinkte Dokumente gelten eigene Bedingungen.
 
