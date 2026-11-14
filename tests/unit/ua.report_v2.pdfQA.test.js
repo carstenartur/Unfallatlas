@@ -349,6 +349,17 @@ describe('UA.report_v2 – PDF-Export semantische QA', () => {
     }
   });
 
+  test('PDF attaches the field question and the linked primary source to the recommended option', async () => {
+    const measure = require('../../data/measures_catalog.json').measures.find(item => item.id === 'mittelinsel');
+    UA.hasRecommendationsOrFiltered = rm => Boolean(rm?.measures.length);
+    const report = makeFixtureReportData();
+    report.structured.recommendedMeasures = { measures: [{ measure, guidance: measure.guidance }] };
+    const {definition} = await runPdfExport(makeFixtureCtx(), report, {includeMap: false});
+    const content = definition.content;
+    expect(collectTexts(content)).toContain(`Vor Ort prüfen: ${measure.guidance.check}`);
+    expect(content).toContainEqual(expect.objectContaining({text: measure.guidance.sourceLabel, link: measure.guidance.url}));
+  });
+
   test('PDF retains scope prose and the exploratory limitation in its rendered method block', async () => {
     // QA-PR „Export-Semantik vor Layout": Methodik-Block verwendet
     // verwaltungstaugliche Begriffe statt Entwicklerjargon —

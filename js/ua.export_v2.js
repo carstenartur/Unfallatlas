@@ -1194,6 +1194,20 @@
     return districts.length === 1 ? districts[0].properties?.district : null;
   }
 
+  async function resolveCommittee(citySlug, bounds, admin = {}) {
+    const config = await loadGremienData(citySlug);
+    const districts = bounds && config?.stadtbezirksgrenzen
+      ? await loadDistrictBoundaries(config.stadtbezirksgrenzen) : null;
+    if (!districts) return matchGremium(admin, config);
+    const district = districtForSelection(districts.features,
+      { lat: bounds.south, lng: bounds.west }, { lat: bounds.north, lng: bounds.east });
+    const match = matchGremium({ city_district: district }, config);
+    if (match.gremium && districts.source) match.source = districts.source;
+    return match;
+  }
+
+  UA.DistrictBoundaries = Object.freeze({ loadGremienData, loadDistrictBoundaries, districtForSelection, resolveCommittee });
+
   // --------------------
   // Bounds helpers
   // --------------------
@@ -1909,16 +1923,7 @@
     // Load Gremien data and match committee
     let gremiumMatch = { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
     try {
-      const gremienConfig = await loadGremienData(citySlug);
-      if (gremienConfig) {
-        const districts = markedBounds ? await loadDistrictBoundaries(gremienConfig.stadtbezirksgrenzen) : null;
-        if (districts) {
-          gremiumMatch = matchGremium({ city_district: districtForSelection(districts.features, sw, ne) }, gremienConfig);
-          if (gremiumMatch.gremium && districts.source) gremiumMatch.source = districts.source;
-        } else {
-          gremiumMatch = matchGremium(loc?.admin || {}, gremienConfig);
-        }
-      }
+      gremiumMatch = await resolveCommittee(citySlug, markedArea, loc?.admin);
     } catch (e) {
       console.warn("Gremien matching failed:", e);
     }
@@ -2455,7 +2460,6 @@
     // Note: `recommendedMeasures` is null when the toggle was off (load gated above).
     if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
-      const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       lines.push("Empfohlene Maßnahmen (automatischer Vorschlag, basierend auf detektierten Mustern):");
       // OSM-Datenstand-Hinweis: Wenn Achsen relevant sind, aber nicht
       // belastbar geprüft werden konnten, vor der Liste klar markieren.
@@ -2465,21 +2469,22 @@
       for (const item of recommendedMeasures.measures) {
         const m = item.measure;
         const cost = fmtCost(m.costRange);
-        const red = fmtRed(m.effect && m.effect.expectedReductionPct);
-        const ev = (m.effect && m.effect.evidenceLevel) ? ` Evidenz ${m.effect.evidenceLevel}` : "";
         lines.push(`  ${i}. ${m.label}`);
         if (m.description) lines.push(`     ${m.description}`);
-        lines.push(`     Kosten: ${cost} pro ${m.perUnit || "Einheit"} · erwartete Reduktion: ${red} ·${ev} · Vorlauf: ${m.leadTime || "—"}`);
+        lines.push(`     Kostenrahmen: ${cost} pro ${m.perUnit || "Einheit"} · Vorlauf: ${m.leadTime || "—"}`);
+        if (item.guidance) {
+          const { scope, finding, check, sourceLabel, url } = item.guidance;
+          lines.push(`     Geltungsbereich: ${scope}`, `     Fachlicher Befund: ${finding}`,
+            `     Vor Ort prüfen: ${check}`, `     Fundstelle: ${sourceLabel} – ${url}`);
+        } else {
+          lines.push('     Eine maßnahmenspezifische Fundstelle ist im verwendeten Katalog offen.');
+        }
         // Goldstandard Items 5–6: Cross-Reference zurück in den
         // URSACHEN-Block. Macht für den Leser explizit, *warum* genau
         // diese Maßnahme vorgeschlagen wird — und verhindert, dass der
         // Eindruck einer beliebigen, unverbundenen Liste entsteht.
         if (Array.isArray(item.derivedFrom) && item.derivedFrom.length > 0) {
           lines.push(`     Abgeleitet aus auffälligem Muster: ${item.derivedFrom.map(d => d.label).join(" · ")}`);
-        }
-        if (item.amortisation && item.amortisation.years) {
-          const [best, worst] = item.amortisation.years;
-          lines.push(`     Geschätzte Amortisation: ca. ${best.toFixed(1)} – ${worst.toFixed(1)} Jahre (Best- bis Worst-Case).`);
         }
         if (Array.isArray(m.considerations) && m.considerations.length > 0) {
           for (const c of m.considerations) lines.push(`     – ${c}`);
@@ -2877,15 +2882,16 @@
     let measuresHtmlSection = "";
     if (includeMeasures && hasRecommendationsOrFiltered(recommendedMeasures)) {
       const fmtCost = (UA.measures && UA.measures.formatCostRange) ? UA.measures.formatCostRange : (() => "—");
-      const fmtRed = (UA.measures && UA.measures.formatReductionRange) ? UA.measures.formatReductionRange : (() => "—");
       const itemsHtml = recommendedMeasures.measures.map((item) => {
         const m = item.measure;
         const cost = fmtCost(m.costRange);
-        const red = fmtRed(m.effect && m.effect.expectedReductionPct);
-        const ev = (m.effect && m.effect.evidenceLevel) ? `Evidenz ${m.effect.evidenceLevel}` : "";
-        const amort = (item.amortisation && item.amortisation.years)
-          ? `<div style="color:#0a5; font-size:12px; margin-top:2px;"><strong>Amortisation:</strong> ca. ${item.amortisation.years[0].toFixed(1)} – ${item.amortisation.years[1].toFixed(1)} Jahre</div>`
-          : "";
+        const evidence = item.guidance;
+        const guidanceHtml = evidence
+          ? `<div><strong>Geltungsbereich:</strong> ${UA.escHtml(evidence.scope)}</div>
+             <div><strong>Fachlicher Befund:</strong> ${UA.escHtml(evidence.finding)}</div>
+             <div><strong>Vor Ort prüfen:</strong> ${UA.escHtml(evidence.check)}</div>
+             <div><a href="${UA.escHtml(evidence.url)}" target="_blank" rel="noopener">${UA.escHtml(evidence.sourceLabel)}</a></div>`
+          : '<div>Eine maßnahmenspezifische Fundstelle ist im verwendeten Katalog offen.</div>';
         const considerationsHtml = (Array.isArray(m.considerations) && m.considerations.length > 0)
           ? `<ul style="margin:4px 0 0 18px; padding:0; color:#555; font-size:12px;">${m.considerations.map(c => `<li>${UA.escHtml(c)}</li>`).join("")}</ul>`
           : "";
@@ -2900,12 +2906,11 @@
             <div style="font-weight:700;">${UA.escHtml(m.label)}</div>
             ${m.description ? `<div style="color:#444; font-size:13px; margin-top:2px;">${UA.escHtml(m.description)}</div>` : ""}
             <div style="color:#666; font-size:12px; margin-top:2px;">
-              <strong>Kosten:</strong> ${UA.escHtml(cost)} pro ${UA.escHtml(m.perUnit || "Einheit")} ·
-              <strong>Reduktion:</strong> ${UA.escHtml(red)} ·
-              ${ev ? UA.escHtml(ev) + " · " : ""}<strong>Vorlauf:</strong> ${UA.escHtml(m.leadTime || "—")}
+              <strong>Kostenrahmen:</strong> ${UA.escHtml(cost)} pro ${UA.escHtml(m.perUnit || "Einheit")} ·
+              <strong>Vorlauf:</strong> ${UA.escHtml(m.leadTime || "—")}
             </div>
+            ${guidanceHtml}
             ${derivedHtml}
-            ${amort}
             ${considerationsHtml}
           </li>`;
       }).join("");

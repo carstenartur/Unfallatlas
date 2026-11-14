@@ -1153,5 +1153,5 @@
     return root;
   }
 
-  UA.RisLayer = { controlContent, refresh, showLocation };
+  UA.RisLayer = { controlContent, refresh, showLocation, intersects };
 })();

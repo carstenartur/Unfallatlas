@@ -60,8 +60,7 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
     else delete global.fetch;
   });
 
-  // Build a single accident point. Pattern bit 1 (Rad alone) → matches the
-  // FALLBACK `tempo_30` targetPatterns.
+  // The rail fixtures need bicycle-only cases. Speed-limit fixtures add car involvement.
   function pt(year, ukategorie) {
     return {
       lat: 52.25, lon: 9.8,
@@ -135,8 +134,15 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
   // (1) osmContext is wired into recommendMeasures
   // ----------------------------------------------------------------------
 
+  function makeMixedCtx(opts) {
+    const ctx = makeCtx(opts);
+    ctx.allPts.forEach(point => { point.props.IstPKW = '1'; });
+    ctx.baselineCounts.byMask = { 4: 950, 5: 50 };
+    return ctx;
+  }
+
   test('osmContext drop case suppresses tempo_30 and surfaces it in filteredOut', async () => {
-    const r = await UA.computeExportReport(makeCtx({ osmContextOverride: osmDrop() }));
+    const r = await UA.computeExportReport(makeMixedCtx({ osmContextOverride: osmDrop() }));
     const rm = r.structured.recommendedMeasures;
     expect(rm).toBeDefined();
     // tempo_30 must NOT be in the active recommendations.
@@ -152,11 +158,18 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
   });
 
   test('osmContext keep case lets tempo_30 through and reports no filteredOut for it', async () => {
-    const r = await UA.computeExportReport(makeCtx({ osmContextOverride: osmKept() }));
+    const r = await UA.computeExportReport(makeMixedCtx({ osmContextOverride: osmKept() }));
     const rm = r.structured.recommendedMeasures;
     expect(rm).toBeDefined();
     expect(rm.measures.find(m => m.measure.id === 'tempo_30')).toBeDefined();
     expect((rm.filteredOut || []).find(f => f.id === 'tempo_30')).toBeUndefined();
+    const {guidance} = rm.measures.find(item => item.measure.id === 'tempo_30');
+    for (const output of [r.text, r.html]) {
+      expect(output).toContain(guidance.url);
+      expect(output).toContain(guidance.check);
+      expect(output).toContain(guidance.scope);
+      expect(output).not.toMatch(/Geschätzte Amortisation|erwartete Reduktion/);
+    }
   });
 
   // ----------------------------------------------------------------------
@@ -253,7 +266,7 @@ describe('UA.computeExportReport – recommendedMeasures pipeline (PR-#223 follo
   // ----------------------------------------------------------------------
 
   test('osmCoverage reports speed axis as covered when dominantMaxspeed is known', async () => {
-    const r = await UA.computeExportReport(makeCtx({ osmContextOverride: osmKept() }));
+    const r = await UA.computeExportReport(makeMixedCtx({ osmContextOverride: osmKept() }));
     const cov = r.structured.recommendedMeasures.osmCoverage;
     expect(cov.present).toBe(true);
     expect(cov.axes.speed).toBe(true);

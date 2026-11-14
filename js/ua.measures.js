@@ -22,9 +22,9 @@
 
   // Hardcoded Mini-Fallback (für Tests / Offline). Die echten Inhalte liegen in der JSON-Datei.
   const FALLBACK = Object.freeze({
-    version: 1,
+    version: 2,
     sources: [],
-    disclaimer: "Wirkungswerte sind Erfahrungsspannen; kein Ersatz für ein Fachgutachten.",
+    disclaimer: "Kosten und Vorlauf sind Orientierungswerte für die Planung. Studienergebnisse beziehen sich auf die untersuchten Stellen. Die örtliche Wirkung ist nach Umsetzung gesondert zu prüfen.",
     measures: [
       {
         id: "tempo_30",
@@ -33,8 +33,15 @@
         costRange: [2000, 8000],
         perUnit: "Abschnitt",
         leadTime: "1–3 Monate",
-        effect: { targetPatterns: [1, 2, 3, 5, 6], expectedReductionPct: [10, 25], evidenceLevel: "A" },
-        description: "Anordnung von Tempo 30 zur Reduktion von Häufigkeit und Schwere.",
+        effect: {"targetPatterns": [4, 5, 6, 12, 17, 18, 20, 21, 22]},
+        guidance: {
+          "sourceLabel": "UDV, Tempo 30 auf Hauptverkehrsstraßen (2026), Abb. 2",
+          "url": "https://www.udv.de/udv/unfallorte/stadt/einfluss-von-tempo-30-abschnitten-auf-die-sicherheit-von-hauptverkehrsstrassen-206056",
+          "scope": "Vorher-Nachher-Untersuchung an 42 Hauptverkehrsstraßen mit angrenzenden Tempo-50-Abschnitten.",
+          "finding": "Auf den untersuchten Tempo-30-Abschnitten sank die Zahl der Unfälle mit Personenschaden um 25 %, auf den angrenzenden Tempo-50-Abschnitten um rund 10 %.",
+          "check": "Welche gemessenen Geschwindigkeiten und Fahrtrichtungen der beteiligten Kfz liegen für diesen Abschnitt vor?"
+        },
+        description: "Eine streckenbezogene Absenkung der zulässigen Höchstgeschwindigkeit auf einer Hauptverkehrsstraße prüfen.",
         considerations: [],
         // Konsistent zum Voll-Katalog: nur empfehlen, wenn aktuell > 30 km/h gilt.
         prerequisites: { currentSpeedLimitGt: 30 }
@@ -379,8 +386,6 @@
    * @param {object}   catalog           Bereits geladener Katalog
    * @param {object}   [opts]
    * @param {number}   [opts.limit=5]    Maximalzahl Empfehlungen
-   * @param {object}   [opts.economicImpact]  Optional, ergibt Amortisations-Block
-   *                   (Format: { annual: number } aus UA.costs.computeAnnualCost)
    * @param {object}   [opts.osmContext]      Optional, `structured.osmContext`.
    *                   Wird genutzt, um Maßnahmen mit `prerequisites`-Block zu
    *                   filtern (z. B. Tempo 30 nur, wenn aktuell > 30 km/h).
@@ -389,7 +394,7 @@
    *     measure: object,
    *     score: number,
    *     matchedPatterns: number[],
-   *     amortisation?: { years: [number, number]|null, lowYears: number|null, highYears: number|null }
+   *     guidance: object|null
    *   }>,
    *   sources: object[],
    *   disclaimer: string,
@@ -399,9 +404,6 @@
   function recommendMeasures(detectedPatterns, catalog, opts) {
     const cat = catalog && Array.isArray(catalog.measures) ? catalog : FALLBACK;
     const limit = (opts && Number.isFinite(opts.limit)) ? opts.limit : 5;
-    const annual = opts && opts.economicImpact && Number.isFinite(opts.economicImpact.annual)
-      ? Number(opts.economicImpact.annual)
-      : null;
     const osmContext = (opts && opts.osmContext) || null;
     const activeContexts = (opts && opts.activeContexts) || null;
 
@@ -424,27 +426,10 @@
         filteredOut.push({ id: m.id, label: m.label, reason: supp.reason || "Im Ortskontext unpassend" });
         continue;
       }
-      const entry = { measure: m, score: s.score, matchedPatterns: s.matchedPatterns };
-
-      // Amortisation: für die untere bzw. obere Wirkungsspanne durchrechnen
-      if (annual && Array.isArray(m.costRange) && m.effect && Array.isArray(m.effect.expectedReductionPct)) {
-        const [costLow, costHigh] = m.costRange;
-        const [redLow, redHigh] = m.effect.expectedReductionPct;
-        // Best case: niedrige Kosten + hohe Wirkung → kürzeste Amortisation
-        const best = (UA.costs && UA.costs.computeAmortisationYears)
-          ? UA.costs.computeAmortisationYears(costLow, annual, redHigh / 100)
-          : null;
-        // Worst case: hohe Kosten + niedrige Wirkung
-        const worst = (UA.costs && UA.costs.computeAmortisationYears)
-          ? UA.costs.computeAmortisationYears(costHigh, annual, redLow / 100)
-          : null;
-        entry.amortisation = {
-          lowYears: best,   // schnellste (best-case)
-          highYears: worst, // langsamste (worst-case)
-          years: (best != null && worst != null) ? [best, worst] : null
-        };
-      }
-      scored.push(entry);
+      const evidence = m.guidance;
+      const hasEvidence = evidence && ['sourceLabel', 'scope', 'finding', 'check'].every(key =>
+        typeof evidence[key] === 'string' && evidence[key].trim()) && /^https:\/\/[^\s]+$/i.test(evidence.url);
+      scored.push({ measure: m, score: s.score, matchedPatterns: s.matchedPatterns, guidance: hasEvidence ? evidence : null });
     }
 
     // Sortierung: 1) Score desc, 2) Untere Kostenkante asc (günstigste zuerst), 3) Label asc
