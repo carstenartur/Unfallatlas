@@ -308,6 +308,21 @@ test.describe.serial('README screenshot deep links – published application', (
             Array.isArray(ctx.filteredAll) && Array.isArray(ctx.viewportPts) &&
             document.getElementById('citySel')?.value === city && !/Daten werden geladen|wird geladen/i.test(stat));
         }, scenario.expected.city, { timeout: 90000 });
+        if (scenario.expected.district) {
+          const panel = page.locator('#siteDiscoveryPanel');
+          await expect(panel).toBeVisible();
+          await expect(panel.locator('#siteDiscoveryDistrict')).toHaveValue(scenario.expected.district);
+          await expect(panel.locator('#siteDiscoveryPriority')).toHaveValue(scenario.expected.priority);
+          await expect(panel.locator('#siteDiscoveryMode')).toHaveValue(scenario.expected.findMode);
+          await expect(panel.locator('.site-discovery-result').first()).toBeVisible({timeout: 60000});
+        }
+        if (scenario.expected.implementationMonth) {
+          const review = page.locator('#siteDiscoveryPanel .site-evaluation');
+          await expect(review.locator('summary')).toBeVisible({timeout: 60000});
+          await review.locator('summary').click();
+          await expect(review).toContainText('In Betrieb seit ' + scenario.expected.implementationMonth);
+          await expect(review.getByRole('link', {name: /Aegidientorplatz|Rechtsabbiegespuren/})).toHaveAttribute('href', /^https:\/\/www\.hannover\.de\//);
+        }
         if (scenario.expected.exportReady) {
           await page.locator('#modalOverlay').waitFor({ state: 'visible', timeout: 60000 });
           await page.waitForFunction(() => String(document.getElementById('exportProgress')?.textContent || '').includes('Fertig'), null, { timeout: 60000 });

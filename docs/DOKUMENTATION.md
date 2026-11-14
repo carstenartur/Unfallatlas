@@ -9,17 +9,18 @@ Diese Anleitung führt von der ersten Kartenansicht bis zur teilbaren Analyse un
 ## Inhalt
 
 1. [Schnellstart](#schnellstart)
-2. [Demo-Ablauf](#demo-ablauf)
-3. [Der typische Arbeitsablauf](#der-typische-arbeitsablauf)
-4. [Filter und Beteiligungsmodi](#filter-und-beteiligungsmodi)
-5. [Karte, Auswahl und Darstellungen](#karte-auswahl-und-darstellungen)
-6. [Kontext: Schulen, Kitas, Straßen und Gelände](#kontext-neu)
-7. [Analyse teilen](#analyse-teilen)
-8. [Export und Bezirksratsantrag](#export-und-bezirksratsantrag)
-9. [Praxisbeispiele](#praxisbeispiele)
-10. [Methodik und Grenzen](#methodik-und-grenzen)
-11. [Häufige Fragen](#häufige-fragen-faq)
-12. [Betrieb und Entwicklung](#betrieb-und-entwicklung)
+2. [Eine Stelle im Bezirk untersuchen](#eine-stelle-im-bezirk-untersuchen)
+3. [Demo-Ablauf](#demo-ablauf)
+4. [Der typische Arbeitsablauf](#der-typische-arbeitsablauf)
+5. [Filter und Beteiligungsmodi](#filter-und-beteiligungsmodi)
+6. [Karte, Auswahl und Darstellungen](#karte-auswahl-und-darstellungen)
+7. [Kontext: Schulen, Kitas, Straßen und Gelände](#kontext-neu)
+8. [Analyse teilen](#analyse-teilen)
+9. [Export und Bezirksratsantrag](#export-und-bezirksratsantrag)
+10. [Praxisbeispiele](#praxisbeispiele)
+11. [Methodik und Grenzen](#methodik-und-grenzen)
+12. [Häufige Fragen](#häufige-fragen-faq)
+13. [Betrieb und Entwicklung](#betrieb-und-entwicklung)
 
 ---
 
@@ -42,6 +43,48 @@ Die öffentliche Browser-Version benötigt keine Installation:
 - **Analyse/Export:** Zusammenfassung, Tabellen, Datenexport und Dokumententwurf.
 
 Die Werkbank arbeitet interaktiv. Nach einer Änderung sollte die Statusanzeige vollständig aktualisiert sein, bevor Zahlen oder Screenshots übernommen werden.
+
+---
+
+## Eine Stelle im Bezirk untersuchen
+
+1. Sehen Sie auf dem iPhone nur den Titel „Unfallwerkbank V2“, tippen Sie auf den Pfeil daneben. Wählen Sie unter **Stadt** z. B. **Hannover** und tippen Sie auf **Stellen finden**.
+2. Wählen Sie unter **Stadtbezirk** Ihren Bezirk oder **Gesamte Stadt**. In Hannover stehen 13 Stadtbezirke zur Auswahl, in Bonn vier. Bei aktivem Bezirksfilter muss das gesamte Auswahlrechteck innerhalb des Bezirks liegen. Fehlen für eine Stadt Bezirksgrenzen, können Sie die Prüfbereiche stadtweit durchsuchen.
+3. Wählen Sie unter **Welche Stellen interessieren mich?** einen der drei folgenden Schwerpunkte. Unter **Suchfilter und Datenstand** können Sie z. B. den Zeitraum oder die Beteiligung eingrenzen. Tippen Sie anschließend auf einen Treffer.
+
+| Auswahl | Welche Stellen erscheinen zuerst? |
+|---|---|
+| **Wiederkehrende Unfallmuster** | Stellen mit den meisten Fällen desselben Musters. Dafür müssen mindestens drei Unfälle mit gleicher Beteiligung und ähnlichem Unfalltyp aus mindestens zwei Jahren vorliegen. |
+| **Schwere Unfallfolgen** | Stellen mit den meisten Unfällen mit Getöteten oder Schwerverletzten. Gezählt werden Unfälle. Für eine Rate pro Fahrt wären zusätzlich Verkehrsmengen nötig. |
+| **Querungen im Schulumfeld** | In Hannover erscheinen Querungen bis 200 m Luftlinie von einer Schule, die in OpenStreetMap ausdrücklich als unbeleuchtet oder unmarkiert erfasst sind. Die nächstgelegenen stehen oben, auch bei null zugeordneten Unfällen. Prüfen Sie vor Ort, wo die Kinder tatsächlich queren. |
+
+**Welchen Ort beschreibt der Treffer?** In Bonn zeigt die Werkbank räumliche Prüfbereiche. In Hannover können Sie außerdem im **Netzregister** einen Knoten, einen Straßenabschnitt oder eine Querung wählen. Dort zeigt die Detailansicht die zugeordneten Fälle und gesondert alle Unfälle im umgebenden Rechteck. Den **Suchmodus** finden Sie unter **Suchfilter und Datenstand**. Für ein selbst gezeichnetes Rechteck wählen Sie **Bereich markieren** und unter **Stellen finden** dann **Fall zum markierten Bereich öffnen**.
+
+### Ratsunterlagen prüfen und den Fall teilen
+
+Unter **Fall und weiteres Vorgehen** finden Sie das örtliche Gremium, soweit es eindeutig zugeordnet ist, und die vorhandenen datierten Belege. Öffnen Sie **Ratsvorgänge im Auswahlbereich**. Tippen Sie auf den Dokumenttitel oder, falls vorhanden, auf **Original-PDF**. Prüfen Sie den Straßennamen und die genaue Stelle im Original. Ein Kartenpunkt kann vom beschriebenen Ort abweichen, ein Straßenverlauf weit über das gewählte Rechteck hinausreichen.
+
+Über **Beratungsverlauf** sehen Sie die erfassten Beratungsschritte. **Für Bericht übernehmen** fügt den geprüften Vorgang dem Bericht hinzu. **Weitere Ortsbezüge laden** ruft weitere Treffer ab, sofern verfügbar. Bei leerer Liste können weitere Unterlagen ohne Kartenbezug im Ratsinformationssystem der Stadt vorliegen.
+
+Halten Sie auf dem iPhone **Link zu diesem Fall** gedrückt und kopieren Sie den Link. Er öffnet die gewählte Stelle mit den Suchkriterien, dem Ausschnitt und bei Netzstellen der zugehörigen Netzversion. Einen eingetragenen eigenen Umsetzungsbeleg geben Sie mit dem Fall-Link ebenfalls weiter.
+
+### Aus dem Fall einen Antrag erstellen
+
+Tippen Sie beim Treffer auf **Antragsentwurf für diese Stelle öffnen**. Liegen passende Unfälle ohne wiederkehrendes Muster vor, heißt der Knopf **Antragsentwurf für den markierten Bereich öffnen**. Prüfen Sie Ort, Zeitraum und Fallzahlen in der Vorschau. Wählen Sie für einen bearbeitbaren Entwurf **Antrag als Word (.docx)** oder zum Weitergeben **Antrag als PDF**.
+
+Mit **Maßnahmenvorschläge** berücksichtigt der Bericht passende Einträge aus dem Katalog von zwölf Maßnahmen. Jeder Eintrag nennt Fundstelle, Geltungsbereich, fachlichen Befund und eine Frage für die Ortsbesichtigung. Bei einer Mittelinsel etwa soll geprüft werden, wo Menschen queren und ob die Aufstellfläche für Kinderwagen oder Rollstühle ausreicht. [Maßnahmenkatalog mit Fundstellen](../data/measures_catalog.json)
+
+### Was hat sich nach der Inbetriebnahme geändert?
+
+Öffnen Sie im Fall **Wirkungskontrolle**. Ein hinterlegter Beleg zur tatsächlichen Inbetriebnahme ist direkt verlinkt. Fehlt er, tragen Sie den **Monat der tatsächlichen Inbetriebnahme** und unter **Link zum Umsetzungsbeleg** eine vollständige HTTPS-Adresse ein. Tippen Sie auf **Mit diesem Beleg vergleichen**. Ihre Adresse erscheint vollständig als Text. Über **Quellenadresse kopieren** können Sie sie übernehmen und über **Eigenen Beleg entfernen** aus dem aktuellen Fall-Link löschen. Bereits versandte Links enthalten die damalige Angabe weiterhin.
+
+Die Tabelle zählt Unfälle am selben Ort und gegebenenfalls mit demselben Muster. Vor und nach der Inbetriebnahme umfasst sie jeweils gleich viele abgeschlossene Kalenderjahre, bis zu drei in Folge. Sie überspringt das Inbetriebnahmejahr. Die Jahresgrenzen der ursprünglichen Stellensuche gelten nur für die Suche. Für jedes verwendete Jahr muss die stadtweit geladene Fallzahl mit der veröffentlichten Unfallatlas-Lieferung übereinstimmen. Für einen privaten Import ohne nachgewiesene Jahresabdeckung bleibt **Wirkung offen**. Fehlt ein Jahr des ersten Vergleichspaars, zeigt die Werkbank die benötigten Jahre an.
+
+Am **Aegidientorplatz West** ist die neue Verkehrsführung ab März 2026 belegt. Der erste Vergleich braucht die vollständigen Jahrgänge **2025 und 2027**. Erst wenn beide vorliegen, erscheint eine Ergebnistabelle. Auch dann lassen sich Änderungen der Fallzahlen nur zusammen mit Verkehrsaufkommen, anderen Umbauten und möglichen Zufallsschwankungen beurteilen.
+
+[![Wirkungskontrolle am Aegidientorplatz mit städtischem Beleg für März 2026 und den benötigten Unfalljahrgängen 2025 und 2027](screenshots/27-hannover-fall-wirkungskontrolle.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteFocus=all&centerLat=52.368420&centerLon=9.744015&zoom=18&selWest=9.743059873580934&selSouth=52.36783538523368&selEast=9.744969606399538&selNorth=52.36900471210124)
+
+Das Bild öffnet den markierten Bereich am Aegidientorplatz. Tippen Sie dort auf **Wirkungskontrolle**, um den Beleg und die benötigten Jahre zu sehen.
 
 ---
 

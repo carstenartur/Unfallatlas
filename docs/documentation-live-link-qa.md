@@ -6,7 +6,7 @@ User-facing screenshots and action links may point to the public Unfallwerkbank 
 
 `scripts/documentation-deeplink-contract.cjs` reads both user-facing documents and validates every embedded PNG/GIF and every canonical application URL.
 
-For the 14 documented application-screenshot scenarios it requires:
+Every documented application screenshot must satisfy these checks.
 
 - every displayed medium is clickable;
 - every screenshot path has one declared canonical scenario;
@@ -19,13 +19,15 @@ The complete contract is exercised by `tests/unit/documentationDeepLinkContract.
 
 ## Representative browser scenarios
 
-Browser QA intentionally deduplicates repeated documentation links. It opens six representative states generated from the contract:
+Browser QA intentionally deduplicates repeated documentation links. It opens eight representative states generated from the contract:
 
 Linked screenshots:
 
 1. Hannover cluster-only state;
 2. Bonn with a marked selection;
-3. Bonn with visible school/kindergarten POIs.
+3. Bonn with visible school/kindergarten POIs;
+4. Hannover-Mitte with recurring accident patterns and a populated list of network locations;
+5. the Aegidientorplatz case, including the documented user action that opens the implementation date and its municipal source.
 
 Explicitly named README actions:
 

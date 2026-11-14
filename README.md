@@ -15,7 +15,7 @@
 **[Praxisbeispiele](docs/DOKUMENTATION.md#praxisbeispiele)** ·
 **[Datenstatus](https://carstenartur.github.io/Unfallatlas/data-status/)**
 
-*Klick auf einen Screenshot öffnet die gezeigte Stadt, den Kartenausschnitt und die zugehörigen Filter in der Werkbank.*
+*Ein Klick auf ein Bild öffnet die zugehörige Analyse. Bei einem aufgeklappten Detail steht der letzte Bedienungsschritt unter dem Bild.*
 
 ---
 
@@ -54,7 +54,13 @@ Die Animation zeigt einen zusammenhängenden realen Ablauf aus dem aktuellen Ser
 
 ### Stellen im eigenen Bezirk finden
 
-Mit **Stellen finden** lassen sich wiederkehrende Unfallmuster und Unfälle mit schweren Folgen nach Stadtbezirk sichten. Hannover bietet außerdem kartierte Querungen im Schulumfeld als präventive Prüfstellen an. Der Link hält Bezirk, Suchkriterien und ausgewählten Ort fest. Im Fall stehen die örtliche Zuständigkeit, belegte Änderungen, räumlich zugeordnete Ratsvorgänge und der Antragsentwurf zur Verfügung. Bei einem belegten Beginn der Maßnahme lassen sich Unfallzahlen aus gleich langen Zeiträumen vergleichen.
+Öffne **Stellen finden**, wähle einen Stadtbezirk und tippe auf **Wiederkehrende Unfallmuster** oder **Schwere Unfallfolgen**. Jeder Treffer nennt den Grund für seine Platzierung. In Hannover kannst du auch nach **Querungen im Schulumfeld** suchen. Wähle einen Treffer, um das örtliche Gremium und frühere Ratsvorgänge zu sehen oder einen Antragsentwurf zu öffnen.
+
+[![Mobile Stellensuche für Hannover-Mitte mit Bezirkswahl und Treffern für wiederkehrende Unfallmuster](docs/screenshots/26-hannover-mitte-stellensuche.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteDistrict=Mitte&sitePriority=pattern&findMode=network&centerLat=52.3740&centerLon=9.7380&zoom=15)
+
+Für **Brühlstraße / Escherstraße** zeigt der Screenshot 34 zugeordnete Unfälle über alle verfügbaren Jahre. Bei 26 davon wiederholt sich dasselbe Muster mit Rad und Pkw beim Abbiegen oder Einbiegen/Kreuzen. Das erste Beispiel unten grenzt die Suche auf 2021–2025 ein.
+
+Mit **Link zu diesem Fall** kannst du die ausgewählte Stelle und die Suchkriterien weitergeben. Die [Schrittfolge in der Nutzungsanleitung](docs/DOKUMENTATION.md#eine-stelle-im-bezirk-untersuchen) führt vom Treffer bis zur Prüfung, wie sich die Unfallzahlen nach einer belegten Inbetriebnahme entwickelt haben.
 
 - [Hannover-Mitte · wiederkehrende Unfallmuster 2021–2025](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteDistrict=Mitte&sitePriority=pattern&findFrom=2021&findTo=2025)
 - [Hannover-Mitte · Querungen im Schulumfeld](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteDistrict=Mitte&sitePriority=school)

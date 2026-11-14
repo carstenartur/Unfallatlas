@@ -1,13 +1,10 @@
-# Unfallwerkbank V2 - POI und Bezugsdokumente
+# Unfallwerkbank V2 – Funktionen und technische Grundlagen
 
 ## Überblick
 
-Die Unfallwerkbank V2 (`werkbank_v2.html`) erweitert die ursprüngliche Unfallwerkbank um zwei neue Funktionen:
+Die Unfallwerkbank verbindet Unfalldaten, Karten und kommunale Unterlagen. Dieses Dokument beschreibt die technischen Grundlagen der Kartenebenen, Schulen und Kitas, Bezugsdokumente und des Word- und PDF-Exports.
 
-1. **POI-Integration (Points of Interest)**: Schulen, Kindergärten und Kitas
-2. **Bezugsdokumente**: Verweise auf relevante Dokumente und Konzepte
-
-Die ursprüngliche `werkbank.html` bleibt unverändert und voll funktionsfähig.
+Für die Bedienung auf dem iPhone oder Desktop folgen Sie dem Weg vom Stadtbezirk über die Fallansicht zum Antragsentwurf und zur Wirkungskontrolle. [Schritt für Schritt in der Nutzungsanleitung](docs/DOKUMENTATION.md#eine-stelle-im-bezirk-untersuchen)
 
 ## Architektur
 
@@ -385,12 +382,10 @@ Dadurch wird sichergestellt, dass Fehler beim Laden oder Verarbeiten von POI/Bez
 Mögliche Erweiterungen der V2-Funktionalität:
 
 1. **Erweiterte POI-Typen**: Bushaltestellen, Seniorenheime, etc.
-2. **POI-Overlay auf Karte**: POIs direkt auf der Karte darstellen
-3. **Interaktive POI-Filter**: POI-Typen ein-/ausblenden
-4. **Bezugsdokumente-Metadaten**: Tags, Kategorien, Relevanz-Scores
-5. **Automatische Bezugsdokument-Zuordnung**: Basierend auf Unfallmuster
+2. **Bezugsdokumente-Metadaten**: Tags, Kategorien, Relevanz-Scores
+3. **Automatische Bezugsdokument-Zuordnung**: Basierend auf Unfallmuster
 
-## Word/PDF Export (NEU)
+## Word- und PDF-Export
 
 ### Überblick
 
@@ -445,24 +440,13 @@ Die exportierten Dokumente enthalten folgende Abschnitte:
 
 #### Export-Optionen
 
-Im Export-Dialog können folgende Optionen ausgewählt werden:
-
-- ☑ **Kartenausschnitt**: Fügt eine Karte des Unfallbereichs ein
-- ☑ **POIs (Schulen/Kitas)**: Integriert POI-Analyse
-- ☑ **Referenzdokumente**: Fügt fachliche Bezüge hinzu
+Im Exportdialog steuern **Kartenausschnitt**, **POIs (Schulen/Kitas)** und **Referenzdokumente**, welche Karten und ergänzenden Informationen im Bericht erscheinen. **Maßnahmenvorschläge** übernimmt passende Katalogeinträge mit Fundstelle und Prüffrage für die Ortsbesichtigung. **Volkswirtschaftliche Kosten**, **Stunden-Heatmap** und **OSM-Kontext** ergänzen die jeweils verfügbaren Auswertungen.
 
 ### Technische Details
 
 #### Verwendete Bibliotheken
 
-- **docx.js** (v9.7.1): Word-Dokument-Erstellung
-- **pdfMake** (v0.3.11): PDF-Dokument-Erstellung
-- **leaflet-image** (v0.4.0): Programmatische Kartenerstellung
-- **FileSaver.js** (v2.0.5): Download-Funktionalität
-
-Alle Browser-Bibliotheken werden aus den exakt gelockten npm-Versionen durch
-`npm run build:site` nach `_site/vendor/` kopiert. Laufzeit-CDN-Fallbacks sind
-bewusst ausgeschlossen; siehe [`docs/site-build.md`](docs/site-build.md).
+Der Browser erstellt Word-Dokumente mit **docx** und PDF-Dokumente mit **pdfmake**. Der Build kopiert die in [package-lock.json](package-lock.json) festgelegten Browserbibliotheken nach `_site/vendor/`. Einzelheiten zur Bereitstellung stehen in der [Build-Dokumentation](docs/site-build.md).
 
 #### Kartenexport
 

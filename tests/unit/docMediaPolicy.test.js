@@ -419,13 +419,13 @@ describe('documentation media policy', () => {
   });
 
   test('documentation screenshots use their reviewed scenario dimensions', () => {
-    const featured = new Set([
-      'docs/screenshots/14-export-filterkontext.png',
-    ]);
+    const scenarioDimensions = {
+      'docs/screenshots/14-export-filterkontext.png': { width: 1774, height: 887 },
+      'docs/screenshots/26-hannover-mitte-stellensuche.png': { width: 580, height: 1040 },
+      'docs/screenshots/27-hannover-fall-wirkungskontrolle.png': { width: 1040, height: 760 },
+    };
     for (const asset of manifest.assets.filter(entry => entry.kind === 'screenshot')) {
-      expect(asset.target).toEqual(featured.has(asset.path)
-        ? { width: 1774, height: 887 }
-        : { width: 1280, height: 640 });
+      expect(asset.target).toEqual(scenarioDimensions[asset.path] ?? { width: 1280, height: 640 });
     }
     const documentPreview = manifest.assets.find(
       entry => entry.path === 'docs/screenshots/15-export-pdf-rendered.png'

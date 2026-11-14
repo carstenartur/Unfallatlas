@@ -221,10 +221,16 @@ jobs:
               raise SystemExit('candidate summary is not bound to this workflow revision')
           if cartography.get('revision') != summary['revision']:
               raise SystemExit('candidate cartography evidence is not bound to the screenshot revision')
-          if len(summary.get('screenshots') or []) != 21:
+          media_manifest = json.loads((root / 'docs/media-manifest.json').read_text(encoding='utf-8'))
+          expected_paths = sorted(asset['path'] for asset in media_manifest['assets']
+                                  if asset['kind'] in ('screenshot', 'document-preview'))
+          pdf_preview = 'docs/screenshots/15-export-pdf-rendered.png'
+          if (pdf_preview not in expected_paths or len(expected_paths) != len(set(expected_paths)) or
+                  [entry.get('path') for entry in summary.get('screenshots') or []] != expected_paths):
               raise SystemExit('candidate does not contain the complete canonical screenshot set')
           totals = cartography.get('totals') or {}
-          if totals.get('screenshots') != 21 or totals.get('validCartographic') != 20 or totals.get('exempt') != 1:
+          if (totals.get('screenshots') != len(expected_paths) or
+                  totals.get('validCartographic') != len(expected_paths) - 1 or totals.get('exempt') != 1):
               raise SystemExit('candidate cartography totals are incomplete')
 
           def sha256(path):
@@ -255,7 +261,7 @@ jobs:
               raise SystemExit('candidate cartography rows do not cover the screenshot summary exactly')
 
           sidecars = sorted(readiness_dir.glob('*.json'))
-          if len(sidecars) != 21:
+          if {item.stem for item in sidecars} != {pathlib.PurePosixPath(name).stem for name in expected_paths}:
               raise SystemExit('candidate readiness sidecar set is incomplete')
           candidate_sources = []
           for entry in summary['screenshots']:
@@ -270,7 +276,7 @@ jobs:
                   raise SystemExit(f'candidate screenshot hash/size mismatch: {relative}')
               candidate_sources.append((relative, source, entry))
               cartography_row = cartography_by_path[entry['path']]
-              expected_status = 'exempt' if relative.name == '15-export-pdf-rendered.png' else 'valid'
+              expected_status = 'exempt' if entry['path'] == pdf_preview else 'valid'
               if cartography_row.get('status') != expected_status or cartography_row.get('errors'):
                   raise SystemExit(f'candidate cartography status mismatch: {relative}')
               sidecar_name = pathlib.PurePosixPath(entry['evidence']).name

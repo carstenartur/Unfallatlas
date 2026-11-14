@@ -137,6 +137,8 @@ describe('documentation live-link contract', () => {
         'docs-cluster-hannover',
         'docs-selection-bonn',
         'docs-poi-bonn',
+        'docs-stellensuche-mitte',
+        'docs-wirkungskontrolle-aegi',
         'readme-start',
         'readme-export',
         'readme-bonn-hbf',

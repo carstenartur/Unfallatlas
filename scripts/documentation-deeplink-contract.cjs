@@ -581,6 +581,23 @@ const SCREENSHOT_SCENARIOS = Object.freeze({
     query: MAP_ANALYSIS_QUERY,
     liveCheck: false,
   }),
+  'docs/screenshots/26-hannover-mitte-stellensuche.png': Object.freeze({
+    id: 'docs-stellensuche-mitte',
+    description: 'Priorisierte Netzstellen mit wiederkehrenden Unfallmustern in Hannover-Mitte',
+    query: query({city: 'Hannover', find: 1, siteDistrict: 'Mitte', sitePriority: 'pattern', findMode: 'network',
+      centerLat: '52.3740', centerLon: '9.7380', zoom: 15}),
+    liveCheck: true,
+    expected: Object.freeze({city: 'Hannover', minimumAllPoints: 1,
+      district: 'Mitte', priority: 'pattern', findMode: 'network'}),
+  }),
+  'docs/screenshots/27-hannover-fall-wirkungskontrolle.png': Object.freeze({
+    id: 'docs-wirkungskontrolle-aegi',
+    description: 'Fall zum Aegidientorplatz mit belegter Inbetriebnahme',
+    query: query({city: 'Hannover', find: 1, siteFocus: 'all', centerLat: '52.368420', centerLon: '9.744015', zoom: 18,
+      selWest: '9.743059873580934', selSouth: '52.36783538523368', selEast: '9.744969606399538', selNorth: '52.36900471210124'}),
+    liveCheck: true,
+    expected: Object.freeze({city: 'Hannover', minimumAllPoints: 1, implementationMonth: '2026-03'}),
+  }),
 });
 
 const PUBLIC_START_EXPECTED = Object.freeze({
