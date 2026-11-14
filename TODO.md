@@ -9,6 +9,16 @@ priorisiert und in eigenen kleinen PRs umgesetzt werden — nicht in
 einen Mehrzweck‑PR gepackt werden, der die eigentliche Stoßrichtung
 verwässert (siehe Lehre aus PR #265).
 
+<a id="hannover-fahrbahnabnahme"></a>
+
+## Hannover – externe Nachweise für die fachliche Abnahme der Straßenprofile
+
+Die öffentliche Werkbank verwendet das städtische DGM1 und kennzeichnet unsichere sowie durch Bauwerke beeinflusste Profile. Der [Prüfstand mit den untersuchten Primärquellen](docs/qa/hannover-dgm1-qgis-city.md) und [Issue #412](https://github.com/carstenartur/Unfallatlas/issues/412) dokumentieren die technische Umsetzung und die bisherigen Gelände- und Oberflächenvergleiche. Die fachliche Kalibrierung ist offen.
+
+- [ ] Vom [Servicecenter Geoinformation der Landeshauptstadt Hannover](https://www.hannover.de/content/download/641402/file/Produktblatt_DGM.pdf) eine datierte, auf die **veröffentlichte DGM1-XYZ-Ausgabe der Befliegung 2010** bezogene Auskunft bzw. Produktdokumentation beibringen. Höhenstatus, Einheit und gegebenenfalls Transformation zwischen Vermessung und Ausgabe festhalten. Bis zur eindeutigen Zuordnung bleibt der vertikale Bezug im Provider offen.
+- [ ] Datierte Bestandsaufmaße der **Fahrbahnoberfläche** für die Kalibrierung beschaffen. Bei kommunalen Wegen beim zuständigen Fachbereich nach Lage und Höhe der Fahrbahnpunkte, Messdatum, Höhenbezug und Messgenauigkeit fragen. Für den B-6-Brückenübergang kann das [Fernstraßen-Bundesamt](https://fba.bund.de/a-z-suche/zeb) mit Abschnitt 560, Netzknoten 3624058 → 3624057, ca. Station 249–256 m, nach Fahrstreifen, Messrichtung und räumlicher Auflösung suchen. Weitere Prüffälle sind der kurze Abschnitt Am Lindener Berge (24855098), der Einschnitt (31308114) und die Brücken.
+- [ ] Nach Eingang der Unterlagen mindestens drei Referenzfälle (flach, klare Steigung, Bauwerk) fachlich prüfen. Die Messpunkte bzw. Fahrstreifen an die OSM-Geometrie binden, Datum und Genauigkeit berücksichtigen, Fenster von ±20 und ±50 m soweit durch die vorhandene Geometrie gedeckt vergleichen. Abweichungen, Richtungsbezug und Ausschlüsse dokumentieren und die Ergebnisse an die vorhandenen Regressionstests binden. Die bDOM- und QGIS-Stichproben bleiben als getrennte Vergleichsdaten erhalten.
+
 ## a) Aktueller Fokus — Bielefeld + slope (in dieser Iteration)
 
 - [x] Generischen API‑Smoke‑Test entfernt
