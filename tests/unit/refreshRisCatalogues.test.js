@@ -1747,6 +1747,9 @@ test('reassesses an unmapped revision 8 SIM intersection from its retained title
 test('upgrades an already fully assessed Hannover revision 12 snapshot to apply the round-four reviewed site', async () => {
   const previous = regionalCatalogue();
   previous.locationRevision = 12;
+  // Represent a genuinely fully assessed v12 snapshot: the regional fixture otherwise lacks an assessment.
+  previous.records[2].locationAssessment = { status: 'unresolved', sources: ['title'],
+    reasons: ['no_specific_location'], truncated: false };
   const id = 'hannover-sim:15-0632-2005N1S1';
   const title = 'ENTSCHEIDUNG: Benennung eines Platzes nach Fred Grube';
   previous.records[1] = { ...previous.records[1], id, title, source: 'hannover-sim',
