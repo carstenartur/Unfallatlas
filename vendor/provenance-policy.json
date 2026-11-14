@@ -269,6 +269,38 @@
           "copyright": "Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.",
           "path": "vendor/licenses/components/pdfmake-brotli-dictionary-MIT.txt",
           "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"
+        },
+        "cPort": {
+          "originalPortUrl": "https://github.com/foliojs/brotli.js/commit/0dcb0a7394bda3e72ed7c9a8da8e22b592cc7ca8",
+          "upstreamArchive": "https://codeload.github.com/google/brotli/tar.gz/d9a74803fa884559879e3205cfe6f257a2d85519",
+          "archiveSha256": "acecd49dc7c541be0daa2be65c4dccdb6ec9a8108576055a4b5a11ae962457a4",
+          "licenseFile": "vendor/pdfmake-build/licenses/Brotli-C-ports.txt",
+          "records": [
+            {
+              "ref": "urn:unfallatlas:vendor-source:pdfmake:brotli-port:huffman",
+              "component": "Google Brotli Huffman decoding tables adapted in brotli@1.3.3",
+              "sourcePath": "node_modules/brotli/dec/huffman.js",
+              "sourceSha256": "69cb67902c20896c89ae679d7c71b1f2274b34c51d4b235865396187f6d7e572",
+              "sourceUrl": "https://github.com/google/brotli/blob/d9a74803fa884559879e3205cfe6f257a2d85519/brotli/dec/huffman.c",
+              "upstreamFileSha256": "d488817c5dd3e08fed5313896a9d3e441e06e1509bf578035cdcaca0cafcb189",
+              "spdx": "Apache-2.0",
+              "copyright": "Copyright 2013 Google Inc. All Rights Reserved.",
+              "path": "vendor/licenses/components/pdfmake-brotli-c-ports-Apache-2.0.txt",
+              "sha256": "eb3adb6902c65a3ffca3afd941d52d13aa05a9a5b1250e19a787ccb65aef8960"
+            },
+            {
+              "ref": "urn:unfallatlas:vendor-source:pdfmake:brotli-port:streams",
+              "component": "Google Brotli memory streams adapted in brotli@1.3.3",
+              "sourcePath": "node_modules/brotli/dec/streams.js",
+              "sourceSha256": "90e23fca221adbfafd4cda38934920648781f4bb65d993fd6187fb7b270513ea",
+              "sourceUrl": "https://github.com/google/brotli/blob/d9a74803fa884559879e3205cfe6f257a2d85519/brotli/dec/streams.c",
+              "upstreamFileSha256": "4cdb662c63c9e81e3b339629a222bda13c17ff0503358ff5e81f8a3a15e0f28e",
+              "spdx": "Apache-2.0",
+              "copyright": "Copyright 2013 Google Inc. All Rights Reserved.",
+              "path": "vendor/licenses/components/pdfmake-brotli-c-ports-Apache-2.0.txt",
+              "sha256": "eb3adb6902c65a3ffca3afd941d52d13aa05a9a5b1250e19a787ccb65aef8960"
+            }
+          ]
         }
       },
       "fontkitSources": {

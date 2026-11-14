@@ -272,6 +272,15 @@ der Apache Software Foundation. Notice und CycloneDX verknüpfen jede der
 sechs Dateien mit dem gemeinsamen Copyright- und Lizenztext unter
 `vendor/licenses/components/pdfmake-brotli-decoder-Apache-2.0.txt`.
 
+Im [ersten manuellen JavaScript-Port](https://github.com/foliojs/brotli.js/commit/0dcb0a7394bda3e72ed7c9a8da8e22b592cc7ca8)
+von Juli 2015 verweist das Submodul `vendor` auf [Googles Originalrevision](https://github.com/google/brotli/tree/d9a74803fa884559879e3205cfe6f257a2d85519/brotli/dec).
+Deren C-Quellen für die Huffman-Dekodiertabelle und Speicherstreams tragen den
+Google-Copyrightvermerk und Apache-2.0. Der Herstellercheck kompiliert diese
+C-Dateien und vergleicht die erzeugten Huffman-Tabelleneinträge sowie die Lese-
+und Schreiboperationen mit den JavaScript-Umsetzungen aus dem npm-Archiv.
+Die Source Map bindet beide JS-Dateien. Der eigene ausgelieferte Hinweis
+ordnet den Google-Text den übernommenen C-Anteilen zu.
+
 Das aus `dec/dictionary.bin.js` dekodierte Wörterbuch ist mit den 122.784
 Bytes von `c/common/dictionary.bin` im Original-Release 1.1.0 des
 Brotli-Projekts identisch. Auch der Hexdump in RFC 7932, Anhang A,

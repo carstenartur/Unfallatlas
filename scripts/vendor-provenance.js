@@ -731,8 +731,23 @@ function collectBrotliDecoderLicenses(repoRoot, outputRoot, pdfmake, expected) {
   const destination = path.join(outputRoot, expected.path);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, notice);
+  const port = expected.cPort;
+  const portNotice = fs.readFileSync(path.join(repoRoot, port.licenseFile));
+  const portRecords = port.records.map(record => {
+    const file = record.sourcePath.slice(expected.lockPath.length + 1);
+    const source = fs.readFileSync(path.join(installedRoot, file));
+    const id = mapPrefix + record.sourcePath;
+    const index = pdfmake.sourceMap.sources.indexOf(id);
+    if (index < 0 || index !== pdfmake.sourceMap.sources.lastIndexOf(id) ||
+        !source.equals(Buffer.from(pdfmake.sourceMap.sourcesContent[index])) || sha256Buffer(source) !== record.sourceSha256 ||
+        sha256Buffer(portNotice) !== record.sha256) {
+      throw new Error('Brotli C port or notice differs: ' + record.sourcePath);
+    }
+    fs.writeFileSync(path.join(outputRoot, record.path), portNotice);
+    return { ...record, asset: PDF_ASSET, copyrightIncluded: true };
+  });
   const decoder = records.map(record => ({ ...record, asset: PDF_ASSET, copyrightIncluded: true }));
-  return [...decoder, collectBrotliDictionary(repoRoot, outputRoot, pdfmake.sourceMap, installedRoot, expected.dictionary)];
+  return [...decoder, ...portRecords, collectBrotliDictionary(repoRoot, outputRoot, pdfmake.sourceMap, installedRoot, expected.dictionary)];
 }
 
 function buildAssetAssessments(repoRoot, copiedAssets, policy, lockComponents, discoveredByAsset) {
@@ -985,7 +1000,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
       ...(expected.fontkitSources?.sections.map(section => section.record) || []),
       ...(expected.fontkitSources?.grammarInputs?.map(input => input.record) || []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
-      ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), expected.brotliDecoder.dictionary] : []),
+      ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), ...expected.brotliDecoder.cPort.records, expected.brotliDecoder.dictionary] : []),
       ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),
       ...(expected.webpackRuntime ? pdfmakeWebpackRecords(expected) : []),
     ];

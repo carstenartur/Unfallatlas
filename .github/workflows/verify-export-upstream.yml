@@ -18,6 +18,7 @@ on:
       - 'scripts/verify-docx-runtime-sources.py'
       - 'scripts/verify-fontkit-shaping.py'
       - 'scripts/verify-pdfkit-parser.py'
+      - 'scripts/verify-brotli-c-port.py'
       - 'scripts/reproduce-pdf-unicode.py'
       - 'scripts/pdf-unicode-data.js'
   workflow_dispatch:

@@ -310,6 +310,26 @@ test('attributes the decoded standard dictionary separately from the JavaScript 
   });
 });
 
+test('binds the Google C origins of the Brotli Huffman and memory-stream ports separately from the npm license', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const prefix = 'urn:unfallatlas:vendor-source:pdfmake:brotli-port:';
+    const commit = 'd9a74803fa884559879e3205cfe6f257a2d85519';
+    for (const file of ['huffman', 'streams']) {
+      const record = notice.supplementalLicenses.find(entry => entry.ref === prefix + file);
+      expect(record).toMatchObject({
+        sourcePath: 'node_modules/brotli/dec/' + file + '.js',
+        sourceUrl: 'https://github.com/google/brotli/blob/' + commit + '/brotli/dec/' + file + '.c',
+        spdx: 'Apache-2.0', copyright: 'Copyright 2013 Google Inc. All Rights Reserved.',
+      });
+      expect(sbom.components.find(entry => entry['bom-ref'] === record.ref).hashes[0].content).toBe(record.sourceSha256);
+      expect(fs.readFileSync(path.join(root, record.path), 'utf8')).toContain('JavaScript port');
+      expect(notice.assetAssessments.find(asset => asset.path === pdfAsset).containsFiles).toContain(record.ref);
+      expect(notice.components.find(entry => entry.purl === brotliPurl).licenseTexts).toEqual([]);
+    }
+  });
+});
+
 test('publishes the Google copyright and Apache license for the six shipped Brotli decoder files', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const files = [
