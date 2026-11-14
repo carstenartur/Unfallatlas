@@ -86,7 +86,7 @@ Publication remains blocked by the acceptance items in
   updates vulnerable dependency versions while retaining strict audit enforcement.
   Word/PDF export uses docx 9.15.3 and pdfmake 0.3.14;
   pdfjs-dist 6.5.438 validates exported PDFs in QA.
-  Playwright packages and the Docker browser runtime are aligned at 1.65.0.
+  Playwright packages and the Docker browser runtime are aligned at 1.65.1.
   The build uses pinned npm 11.21.2, and complete audit evidence remains available alongside compact CI
   summaries.
 - The Analysis Service uses Spring Boot 4.1.2 and Java 27 build/runtime containers.
