@@ -273,7 +273,8 @@
     }
     if (typeof change.date !== 'string') return false;
     const date = change.precision === 'month' ? change.date + '-01' : change.date;
-    if (change.precision !== 'documented-by' && change.precision !== 'month') return false;
+    const operatingDay = change.precision === 'day' && ['in-service', 'implemented'].includes(change.kind);
+    if (change.precision !== 'documented-by' && change.precision !== 'month' && !operatingDay) return false;
     if (change.precision === 'month' && !/^\d{4}-\d{2}$/.test(change.date)) return false;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
     const parsed = new Date(date + 'T00:00:00Z');

@@ -42,6 +42,26 @@
     }
   }
 
+  function validDataset(payload, slug) {
+    return payload?.schemaVersion === 1 && payload.city === slug
+      && Array.isArray(payload.names) && Array.isArray(payload.labels);
+  }
+
+  UA.loadLocalRoadNames = async function(city) {
+    const slug = String(city || '').trim().toLowerCase();
+    if (!Object.hasOwn(sources, slug) || !UA.DataResources) return null;
+    const payload = await UA.DataResources.fetchJsonUrl(sources[slug], {
+      compression: 'gzip-only', cache: 'no-cache', optional: true
+    });
+    if (!validDataset(payload, slug)) return null;
+    const names = new Map();
+    for (const [wayId, index] of payload.labels) {
+      const name = payload.names[index];
+      if (name) names.set(String(wayId), name);
+    }
+    return names;
+  };
+
   UA.createLocalRoadLabels = function(city, onStatusChange) {
     const slug = String(city || '').trim().toLowerCase();
     if (!Object.hasOwn(sources, slug) || !window.L?.layerGroup || !UA.DataResources) return null;
@@ -59,8 +79,7 @@
       try {
         pending ||= UA.DataResources.fetchJsonUrl(sources[slug], { compression: 'gzip-only', cache: 'no-cache' });
         const payload = await pending;
-        if (payload?.schemaVersion !== 1 || payload.city !== slug || !Array.isArray(payload.names)
-            || !Array.isArray(payload.labels)) throw new Error('Invalid local road label data');
+        if (!validDataset(payload, slug)) throw new Error('Invalid local road label data');
         data = payload;
         layer.localLabelStatus = 'ready';
         redraw();

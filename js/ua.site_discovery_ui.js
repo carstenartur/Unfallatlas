@@ -55,12 +55,17 @@
     state.rows.querySelector('[aria-pressed="true"]')?.setAttribute('aria-pressed', 'false');
   }
 
+  function updateAreaAction(ctx, state) {
+    if (state) state.areaCase.hidden = !ctx.selectionBounds || Boolean(state.selection);
+  }
+
   function selectionChanged(ctx) {
     const state = panels.get(ctx);
     const bounds = areaBounds(ctx);
     const cityChanged = state && state.city !== ctx.CITY_RAW;
     if (ctx.discoveryFocus && (cityChanged || !sameBounds(ctx.discoveryFocus.bounds, bounds))) setFocus(ctx, null);
     if (state && (cityChanged || (state.selection && !sameBounds(state.selection.bounds, bounds)))) resetDetail(ctx, state);
+    updateAreaAction(ctx, state);
   }
 
   function pointsInArea(ctx, bounds) {
@@ -261,6 +266,11 @@
     container.append(details);
   }
 
+  function renderCaseHistory(ctx, state, selection) {
+    if (UA.SiteCase) UA.SiteCase.render(state.history, { ctx, selection });
+    else renderHistory(state.history, selection.changes);
+  }
+
   function exposureText(points, query) {
     const modes = { motor_vehicle: 'Kfz', bicycle: 'Rad', pedestrian: 'Fuß' };
     const counts = new Set();
@@ -308,7 +318,8 @@
     const restoreFocus = activeCase?.link === document.activeElement;
     resetDetail(ctx, state);
     state.selection = selection;
-    const { label, total, points, pattern, changes, visibleCount, complete, site, networkStatus } = selection;
+    updateAreaAction(ctx, state);
+    const { label, total, points, pattern, visibleCount, complete, site, networkStatus } = selection;
     if ((state.mode.value === 'network') === Boolean(site)) {
       const action = [...state.rows.querySelectorAll('[data-discovery-candidate]')]
         .find(button => button.dataset.discoveryCandidate === selection.id);
@@ -325,6 +336,7 @@
       : countText(points.length, 'Fall nach ' + criteria, 'Fälle nach ' + criteria);
     state.heading = heading;
     state.detail.append(heading);
+    if (selection.rankingReason) state.detail.append(el('p', 'site-discovery-note', selection.rankingReason));
     if (networkStatus) {
       const status = el('p', '', networkStatus === 'pending'
         ? 'Der gespeicherte Netzstand wird geladen.'
@@ -370,8 +382,8 @@
     exposureChanged(ctx);
 
     state.history = el('div');
-    renderHistory(state.history, changes);
     state.detail.append(state.history);
+    renderCaseHistory(ctx, state, selection);
 
     const listDetails = el('details', 'site-discovery-case-list');
     listDetails.open = true;
@@ -426,15 +438,49 @@
       networkStatus: pending ? 'pending' : 'unavailable',
     };
     showSelection(ctx, state, { ...selection, focus });
+    updateSharedCandidate(state);
+  }
+
+  function candidateLabel(row, state) {
+    if (row.kind !== 'segment' || !state.roadNames) return row.label;
+    const match = /^segment:([1-9]\d*):/.exec(row.id);
+    const name = match && state.roadNames.get(match[1]);
+    return name ? name + ' · Straßenabschnitt' : row.label;
+  }
+
+  function updateSharedCandidate(state) {
+    const selection = state.selection;
+    if (!selection || !state.candidates.length) return;
+    const row = selection.site
+      ? state.candidates.find(candidate => candidate.id === selection.site.id)
+      : selection.shared && state.candidates.find(candidate => sameBounds(candidate.bounds, selection.bounds));
+    if (!row) return;
+    const label = candidateLabel(row, state);
+    selection.id = row.id;
+    selection.label = label;
+    state.heading.textContent = label;
+    const reason = UA.DistrictDiscovery?.reason(row, state.priority.value);
+    if (reason && !selection.rankingReason) {
+      selection.rankingReason = reason;
+      state.heading.after(el('p', 'site-discovery-note', reason));
+    }
+  }
+
+  function effectiveQuery(state) {
+    return state.priority.value === 'severe' && state.query.severity === 'all'
+      ? { ...state.query, severity: 'serious' } : state.query;
   }
 
   function selectCandidate(ctx, state, row, networkMode) {
     const site = networkMode ? { id: row.id, revision: ctx.reviewNetworkResult.network.revision } : null;
-    const selection = site ? buildNetworkSelection(ctx, row, state.query, site)
-      : buildSelection(ctx, { bounds: row.bounds, query: state.query, label: row.label, changes: row.changes });
+    const query = effectiveQuery(state);
+    const selection = site ? buildNetworkSelection(ctx, row, query, site)
+      : buildSelection(ctx, { bounds: row.bounds, query, label: candidateLabel(row, state), changes: row.changes });
+    if (state.priority.value === 'school') selection.pattern = null;
     if (!UA.setSelectionArea(ctx, row.bounds, { fit: fitOptions(ctx) })) return;
-    setFocus(ctx, { bounds: row.bounds, query: state.query, key: selection.pattern?.key || null, ...(site ? { site } : {}) });
-    const heading = showSelection(ctx, state, { ...selection, id: row.id, focus: ctx.discoveryFocus });
+    setFocus(ctx, { bounds: row.bounds, query, key: selection.pattern?.key || null, ...(site ? { site } : {}) });
+    const rankingReason = UA.DistrictDiscovery?.reason(row, state.priority.value);
+    const heading = showSelection(ctx, state, { ...selection, id: row.id, rankingReason, focus: ctx.discoveryFocus });
     heading.focus({ preventScroll: true });
     heading.scrollIntoView?.({ block: 'nearest' });
   }
@@ -471,10 +517,14 @@
       : null;
     state.rows.replaceChildren();
     const rows = [...state.candidates];
-    if (state.sort.value === 'severe') rows.sort((a, b) => b.severeCount - a.severeCount || b.count - a.count);
-    if (state.sort.value === 'pattern') rows.sort((a, b) => (b.pattern?.points.length || 0) - (a.pattern?.points.length || 0) || b.count - a.count);
+    if (!state.priority.value && state.sort.value === 'severe') rows.sort((a, b) => b.severeCount - a.severeCount || b.count - a.count);
+    if (!state.priority.value && state.sort.value === 'pattern') rows.sort((a, b) => (b.pattern?.points.length || 0) - (a.pattern?.points.length || 0) || b.count - a.count);
+    const byKind = new Map();
+    if (state.priority.value) {
+      for (const row of rows) byKind.set(row.kind, (byKind.get(row.kind) || 0) + 1);
+    }
     for (const row of rows.slice(0, state.limit)) {
-      const action = button(row.label, () => selectCandidate(ctx, state, row, networkMode));
+      const action = button(candidateLabel(row,state), () => selectCandidate(ctx, state, row, networkMode));
       action.classList.add('site-discovery-result');
       action.dataset.discoveryCandidate = row.id;
       action.disabled = !row.bounds;
@@ -482,6 +532,13 @@
       const cases = networkMode ? countText(row.count, 'zugeordneter Fall', 'zugeordnete Fälle') : countText(row.count, 'Fall', 'Fälle');
       action.append(el('span', '', (kindLabels[row.kind] || 'Prüfbereich') + ' · '
         + cases + ' · ' + number.format(row.severeCount) + ' mit Getöteten oder Schwerverletzten'));
+      const reason = UA.DistrictDiscovery?.reason(row, state.priority.value);
+      if (reason) {
+        const others = byKind.get(row.kind) - 1;
+        const scope = state.district.value ? 'im Bezirk' : 'in der Stadt';
+        action.append(el('span', '', reason), el('span', '', countText(others, 'weitere Stelle', 'weitere Stellen')
+          + ' desselben Typs ' + scope + ' mit diesem Prüfhinweis.'));
+      }
       const item = el('li');
       item.append(action);
       state.rows.append(item);
@@ -489,6 +546,12 @@
     }
     state.status.textContent = (networkMode ? countText(rows.length, 'Netzstelle', 'Netzstellen') : countText(rows.length, 'Prüfbereich', 'Prüfbereiche'))
       + (rows.length ? ' · ' + Math.min(state.limit, rows.length) + ' angezeigt' : ' mit den gewählten Kriterien');
+    if (state.district.value) state.status.textContent += ' · Stadtbezirk ' + state.district.value;
+    if (state.priority.value === 'school' && !networkMode) {
+      state.status.textContent = 'Für diese Stadt oder Datenansicht ist kein vollständiges Querungsregister geladen.';
+    } else if (state.priority.value === 'school' && !state.schoolIndex) {
+      state.status.textContent = 'Schulstandorte sind derzeit nicht verfügbar.';
+    }
     state.more.hidden = state.limit >= rows.length;
   }
 
@@ -499,16 +562,46 @@
       state.status.textContent = 'Das Startjahr muss vor oder im Endjahr liegen.';
       return;
     }
-    state.candidates = state.mode.value === 'network'
-      ? UA.ReviewNetwork.rows(ctx.reviewNetworkResult, state.query, { kind: state.networkKind.value, onlyEmpty: state.onlyEmpty.checked })
-      : UA.SiteDiscovery.candidates(ctx.allPts || [], state.query, state.sites || []);
+    const networkMode = state.mode.value === 'network';
+    const priority = state.priority.value;
+    const discovery = UA.DistrictDiscovery;
+    const query = effectiveQuery(state);
+    let rows;
+    if (priority === 'school') {
+      if (state.schoolData !== ctx.poiData) {
+        state.schoolData = ctx.poiData;
+        state.schoolIndex = discovery.schoolIndex(ctx.poiData);
+      }
+      rows = networkMode ? discovery.schoolCrossings(ctx.reviewNetworkResult, query, state.schoolIndex) : [];
+    } else {
+      rows = networkMode
+        ? UA.ReviewNetwork.rows(ctx.reviewNetworkResult, query, { kind: state.networkKind.value, onlyEmpty: state.onlyEmpty.checked })
+        : UA.SiteDiscovery.candidates(ctx.allPts || [], query, state.sites || []);
+    }
+    if (priority) rows = discovery.rank(rows, priority);
+    const district = state.district.value || state.requestedDistrict;
+    if (district) rows = rows.filter(row => discovery?.inDistrict(row, district, state.districts));
+    state.candidates = rows;
+    updateSharedCandidate(state);
     renderRows(ctx, state);
+    if (state.requestedDistrict && !state.district.value) state.status.textContent = state.districtRequest
+      ? 'Stadtbezirksgrenzen werden geladen.' : 'Der geteilte Stadtbezirk ist in diesem Datenstand nicht verfügbar.';
+
   }
 
   function syncSearchMode(state) {
     const networkMode = state.mode.value === 'network';
-    state.networkKindLabel.hidden = !networkMode;
-    state.onlyEmptyLabel.hidden = !networkMode;
+    const school = state.priority.value === 'school';
+    state.networkKindLabel.hidden = !networkMode || school;
+    state.onlyEmptyLabel.hidden = !networkMode || school;
+    state.sort.disabled = Boolean(state.priority.value);
+    state.scopeNote.textContent = school
+      ? 'Kartierte Querungen ohne Markierung oder Beleuchtung bis 200 m von einem Schulstandort. Reihenfolge nach Entfernung. Den tatsächlichen Schulweg vor Ort prüfen. Auch Stellen ohne Unfall werden einbezogen.'
+      : state.priority.value === 'pattern'
+        ? 'Mindestens drei Unfälle mit gleicher Beteiligung und ähnlichem Unfalltyp in mindestens zwei Jahren. Die häufigsten wiederkehrenden Muster stehen oben.'
+        : state.priority.value === 'severe'
+          ? 'Die meisten Unfälle mit Getöteten oder Schwerverletzten stehen oben. Eine Unfallrate je Fahrt setzt passende Verkehrszählungen voraus.'
+          : 'Die Liste zeigt Fallzahlen. Verkehrsmengen und amtlich festgelegte Unfallhäufungsstellen sind gesondert zu prüfen. Die Kartenfilter bleiben separat.';
     state.networkMeta.hidden = !networkMode;
     state.rows.setAttribute('aria-label', networkMode ? 'Gefundene Netzstellen' : 'Gefundene Prüfbereiche');
     state.more.textContent = networkMode ? 'Weitere Netzstellen' : 'Weitere Prüfbereiche';
@@ -558,7 +651,7 @@
     state.networkControls.hidden = !result;
     state.title.textContent = result ? 'Stellen finden' : 'Prüfbereiche finden';
     if (!result) state.mode.value = 'areas';
-    else if (!previous) state.mode.value = 'network';
+    else if (!previous) state.mode.value = state.requestedMode === 'areas' ? 'areas' : 'network';
     syncSearchMode(state);
     state.networkMeta.replaceChildren();
     if (result) {
@@ -586,6 +679,15 @@
       state.sites = null;
       state.siteRequest = null;
       state.network = undefined;
+      state.districts = null;
+      state.districtRequest = null;
+      state.district.value = '';
+      state.requestedDistrict = '';
+      state.priority.value = '';
+      state.schoolData = null;
+      state.requestedMode = null;
+      state.roadNames = null;
+      state.roadNameRequest = null;
       state.networkRequest = null;
       ctx.reviewNetworkPromise = null;
     }
@@ -621,7 +723,33 @@
     state.complete = complete;
     state.networkPending = pending;
     if (!visible) return;
-    if (opening || pointsChanged || networkChanged) refreshCandidates(ctx, state);
+    updateAreaAction(ctx, state);
+    if (opening || pointsChanged || networkChanged || (state.priority.value === 'school' && state.schoolData !== ctx.poiData)) refreshCandidates(ctx, state);
+    if (opening && !state.roadNameRequest && UA.loadLocalRoadNames) {
+      const city = state.city;
+      const request = UA.loadLocalRoadNames(city).catch(() => null);
+      state.roadNameRequest = request;
+      request.then(names => {
+        if (!names || city !== state.city || state.roadNameRequest !== request) return;
+        state.roadNames = names;
+        updateSharedCandidate(state);
+        if (!state.panel.hidden && state.mode.value === 'areas') renderRows(ctx,state);
+      });
+    }
+    if (opening && !state.districts && !state.districtRequest && UA.DistrictDiscovery) {
+      const city = state.city;
+      const request = UA.DistrictDiscovery.loadDistricts(city).catch(() => null);
+      state.districtRequest = request;
+      request.then(districts => {
+        if (city !== state.city || state.districtRequest !== request) return;
+        state.districtRequest = null;
+        state.districts = districts;
+        setSelectOptions(state.district, [['', 'Gesamte Stadt'], ...(districts?.names || []).map(name => [name,name])]);
+        if (state.requestedDistrict && districts?.names.includes(state.requestedDistrict)) state.district.value = state.requestedDistrict;
+        state.districtLabel.hidden = !districts && !state.requestedDistrict;
+        if (!state.panel.hidden) refreshCandidates(ctx, state);
+      });
+    }
     if (!state.siteRequest) {
       const requested = Promise.resolve(UA.SiteDiscovery.loadSites(ctx.CITY_RAW));
       state.siteRequest = requested;
@@ -633,7 +761,7 @@
           state.selection.label = site.label;
           state.selection.changes = site.changes;
           state.heading.textContent = site.label;
-          renderHistory(state.history, site.changes);
+          renderCaseHistory(ctx, state, state.selection);
         }
         if (!state.panel.hidden && state.mode.value === 'areas') refreshCandidates(ctx, state);
       }).catch(() => {});
@@ -681,6 +809,7 @@
 
     const close = () => {
       panel.hidden = true;
+      if (UA.qs?.().has('find')) UA.setQS?.({ find: '0' });
       trigger.setAttribute('aria-expanded', 'false');
       trigger.focus();
     };
@@ -690,6 +819,27 @@
     title.tabIndex = -1;
     head.append(title, button('Schließen', close));
 
+    const search = UA.qs?.() || new URLSearchParams();
+    const searchOpen = search.get('find') === '1';
+    const hasSearch = search.has('find');
+    const district = selectControl('siteDiscoveryDistrict', 'Stadtbezirk', [['', 'Gesamte Stadt']]);
+    district.wrapper.hidden = true;
+    const priority = selectControl('siteDiscoveryPriority', 'Welche Stellen interessieren mich?', [
+      ['', 'Alle Stellen'], ['pattern', 'Wiederkehrende Unfallmuster'], ['severe', 'Schwere Unfallfolgen'],
+      ['school', 'Querungen im Schulumfeld'],
+    ]);
+    priority.wrapper.hidden = !UA.DistrictDiscovery;
+    const overview = el('div', 'site-discovery-criteria');
+    overview.append(district.wrapper, priority.wrapper);
+    const areaCase = button('Fall zum markierten Bereich öffnen', () => {
+      const bounds = areaBounds(ctx);
+      if (!bounds) return;
+      const selection = buildSelection(ctx, {bounds, query:state.query, label:'Markierter Prüfbereich'});
+      setFocus(ctx, {bounds, query:state.query, key:selection.pattern?.key || null});
+      showSelection(ctx, state, {...selection, focus:ctx.discoveryFocus}).focus();
+    });
+    areaCase.hidden = true;
+    const scopeNote = el('p', 'site-discovery-note');
     const networkControls = el('div');
     networkControls.hidden = true;
     const mode = selectControl('siteDiscoveryMode', 'Suchmodus', [['areas', 'Prüfbereiche'], ['network', 'Netzregister']]);
@@ -736,25 +886,69 @@
       state.rows.children[previous]?.querySelector('button')?.focus();
     });
     more.hidden = true;
-    panel.append(head, coverage, el('p', 'site-discovery-note',
-      'Die Liste zeigt Fallzahlen. Verkehrsmengen und amtlich festgelegte Unfallhäufungsstellen sind gesondert zu prüfen. Die Kartenfilter bleiben separat.'),
-      networkControls, grid, detail, status, rows, more);
+    const filters = el('details', 'site-discovery-filters');
+    filters.open = !window.matchMedia?.(UA.COMPACT_MAP_QUERY)?.matches;
+    filters.append(el('summary', '', 'Suchfilter und Datenstand'), coverage, networkControls, grid);
+    panel.append(head, overview, scopeNote, filters, areaCase, detail, status, rows, more);
     (trigger.closest('.taskActions') || trigger).after(panel);
 
-    const savedQuery = ctx.discoveryFocus?.query || allQuery;
+    const fromUrl = (key, choices, fallback) => {
+      const value = hasSearch ? search.get(key) : null;
+      return choices.includes(value) ? value : fallback;
+    };
+    const filterValue = (key, control) => fromUrl(key, [...control.options].map(option => option.value), 'all');
+    const yearValue = key => hasSearch && /^[1-9]\d{3}$/.test(search.get(key)) ? Number(search.get(key)) : null;
+    const savedQuery = (!hasSearch && ctx.discoveryFocus?.query) || {
+      fromYear: yearValue('findFrom'), toYear: yearValue('findTo'),
+      severity: filterValue('findSeverity',severity.select), type: filterValue('findType',type.select),
+      involvement: filterValue('findInvolvement',involvement.select),
+    };
+    priority.select.value = UA.DistrictDiscovery ? fromUrl('sitePriority', ['pattern','severe','school'], '') : '';
+    networkKind.select.value = filterValue('findKind',networkKind.select);
+    onlyEmpty.checked = hasSearch && search.get('findEmpty') === '1';
+    sort.select.value = fromUrl('findSort',['pattern','severe'],'count');
     const { mapFilters: _mapFilters, ...query } = savedQuery;
     severity.select.value = query.severity;
     type.select.value = query.type;
     involvement.select.value = query.involvement || 'all';
     const state = {
       panel, trigger, title, coverage, status, rows, more, detail, sort: sort.select,
+      priority: priority.select, district: district.select, districtLabel:district.wrapper, scopeNote, areaCase,
+      requestedDistrict: hasSearch ? search.get('siteDistrict') || '' : '',
+      requestedMode: fromUrl('findMode', ['areas','network'], null),
       networkControls, mode: mode.select, networkKind: networkKind.select, networkKindLabel: networkKind.wrapper,
       onlyEmpty, onlyEmptyLabel, networkMeta,
       fromYearSelect: from.select, toYearSelect: to.select,
       limit: listPage, query, city: ctx.CITY_RAW, candidates: [], points: ctx.allPts, mapPoints: ctx.filteredAll,
     };
     panels.set(ctx, state);
+    syncSearchMode(state);
     refreshYearControls(ctx, state);
+    function shareSearch() {
+      UA.setQS?.({
+        find: '1', siteDistrict: state.district.value || state.requestedDistrict || null, sitePriority: state.priority.value || null,
+        findMode: state.mode.value, findKind: state.networkKind.value, findEmpty: state.onlyEmpty.checked ? 1 : null,
+        findSort: state.sort.value, findFrom: state.query.fromYear, findTo: state.query.toYear,
+        findSeverity: state.query.severity, findType: state.query.type, findInvolvement: state.query.involvement,
+      });
+    }
+    const applyCriteria = () => {
+      setFocus(ctx, null);
+      resetDetail(ctx, state);
+      updateAreaAction(ctx, state);
+      state.limit = listPage;
+      shareSearch();
+      refreshCandidates(ctx, state);
+    };
+    for (const control of [district.select, priority.select]) control.addEventListener('change', () => {
+      if (control === district.select) state.requestedDistrict = control.value;
+      if (priority.select.value === 'school' && ctx.reviewNetworkResult) {
+        mode.select.value = 'network';
+        state.requestedMode = 'network';
+      }
+      syncSearchMode(state);
+      applyCriteria();
+    });
     for (const control of [from, to, severity, type, involvement]) {
       control.select.addEventListener('change', () => {
         state.query = {
@@ -762,26 +956,25 @@
           severity: severity.select.value, type: type.select.value,
           involvement: involvement.select.value,
         };
-        setFocus(ctx, null);
-        resetDetail(ctx, state);
-        state.limit = listPage;
-        refreshCandidates(ctx, state);
+        applyCriteria();
       });
     }
     sort.select.addEventListener('change', () => {
       state.limit = listPage;
+      shareSearch();
       renderRows(ctx, state);
     });
     for (const control of [mode.select, networkKind.select, onlyEmpty]) {
       control.addEventListener('change', () => {
+        if (control === mode.select) state.requestedMode = mode.select.value;
         syncSearchMode(state);
-        state.limit = listPage;
-        refreshCandidates(ctx, state);
+        applyCriteria();
       });
     }
     trigger.addEventListener('click', () => {
       if (!panel.hidden) { close(); return; }
       showPanel(ctx, state);
+      UA.setQS?.({ find: '1' });
       title.focus();
     });
     ctx.ui?.btnOpenExport?.addEventListener('click', () => {
@@ -791,15 +984,16 @@
       if (event.key === 'Escape') { event.stopPropagation(); close(); }
     });
 
+    if (searchOpen && !ctx.discoveryFocus && !UA.qBool?.('export', false)) showPanel(ctx, state, { fromMap: true });
     if (ctx.discoveryFocus && sameBounds(ctx.discoveryFocus.bounds, areaBounds(ctx))) {
       const { bounds, key, site } = ctx.discoveryFocus;
       if (!site) {
         showSelection(ctx, state, {
-          ...buildSelection(ctx, { bounds, query: savedQuery, key, useExactKey: true, label: 'Geteilter Prüfbereich' }),
+          ...buildSelection(ctx, { bounds, query: ctx.discoveryFocus.query, key, useExactKey: true, label: 'Geteilter Prüfbereich' }),
           shared: true,
         });
       }
-      if (!UA.qBool?.('export', false)) showPanel(ctx, state, { fromMap: true });
+      if ((!hasSearch || searchOpen) && !UA.qBool?.('export', false)) showPanel(ctx, state, { fromMap: true });
       else if (site) dataChanged(ctx);
     }
   }

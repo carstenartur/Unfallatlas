@@ -690,6 +690,7 @@
       const u = new URL(window.location.href);
       u.searchParams.set("city", nextCity);
       ["centerLat","centerLon","zoom","selSouth","selWest","selNorth","selEast","export",
+        "find","siteDistrict","sitePriority","findMode","findKind","findEmpty","findSort","findFrom","findTo","findSeverity","findType","findInvolvement","siteEvalPlace","siteEvalMonth","siteEvalSource",
         "siteFocus","siteFrom","siteTo","siteSeverity","siteType","siteInvolvement","siteMapFilters","siteNetworkId","siteNetworkRev",
         ...Object.keys(UA.RisViewState?.toQuery() || {})].forEach(k => u.searchParams.delete(k));
       window.location.assign(u.toString());

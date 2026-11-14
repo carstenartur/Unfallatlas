@@ -1194,6 +1194,20 @@
     return districts.length === 1 ? districts[0].properties?.district : null;
   }
 
+  async function resolveCommittee(citySlug, bounds, admin = {}) {
+    const config = await loadGremienData(citySlug);
+    const districts = bounds && config?.stadtbezirksgrenzen
+      ? await loadDistrictBoundaries(config.stadtbezirksgrenzen) : null;
+    if (!districts) return matchGremium(admin, config);
+    const district = districtForSelection(districts.features,
+      { lat: bounds.south, lng: bounds.west }, { lat: bounds.north, lng: bounds.east });
+    const match = matchGremium({ city_district: district }, config);
+    if (match.gremium && districts.source) match.source = districts.source;
+    return match;
+  }
+
+  UA.DistrictBoundaries = Object.freeze({ loadGremienData, loadDistrictBoundaries, districtForSelection, resolveCommittee });
+
   // --------------------
   // Bounds helpers
   // --------------------
@@ -1909,16 +1923,7 @@
     // Load Gremien data and match committee
     let gremiumMatch = { gremium: null, typ: null, kontakt: null, confidence: "unbekannt", hinweis: "" };
     try {
-      const gremienConfig = await loadGremienData(citySlug);
-      if (gremienConfig) {
-        const districts = markedBounds ? await loadDistrictBoundaries(gremienConfig.stadtbezirksgrenzen) : null;
-        if (districts) {
-          gremiumMatch = matchGremium({ city_district: districtForSelection(districts.features, sw, ne) }, gremienConfig);
-          if (gremiumMatch.gremium && districts.source) gremiumMatch.source = districts.source;
-        } else {
-          gremiumMatch = matchGremium(loc?.admin || {}, gremienConfig);
-        }
-      }
+      gremiumMatch = await resolveCommittee(citySlug, markedArea, loc?.admin);
     } catch (e) {
       console.warn("Gremien matching failed:", e);
     }

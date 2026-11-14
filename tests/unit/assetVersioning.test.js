@@ -42,7 +42,7 @@ describe('Werkbank deployment asset versions', () => {
   test('site discovery is available from the ordinary Werkbank entry point', () => {
     const scripts = [...html.matchAll(/<script[^>]+src="([^"?]+)/g)].map(match => match[1]);
     expect(html).toContain('id="btnDiscover"');
-    expect(html).toContain('css/ua.site-discovery.css?v=2026-11-10-site-discovery');
+    expect(html).toContain('css/ua.site-discovery.css?v=2026-11-14-fallansicht');
     for (const script of ['js/ua.site_discovery.js', 'js/ua.facility_context.js', 'js/ua.site_discovery_ui.js']) {
       expect(scripts).toContain(script);
       expect(scripts.indexOf(script)).toBeLessThan(scripts.indexOf('js/ua.app_v2.js'));
@@ -51,9 +51,9 @@ describe('Werkbank deployment asset versions', () => {
     expect(scripts.indexOf('js/ua.facility_context.js')).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
   });
 
-  test.each(['ua.site_discovery', 'ua.hannover_layers'])
+  test.each(['ua.site_discovery', 'ua.hannover_layers', 'ua.local_road_labels'])
   ('%s loads the local evidence and motion update', asset => {
-    const version = asset === 'ua.hannover_layers' ? '2026-11-11-terrain-references' : '2026-11-10-site-evidence';
+    const version = '2026-11-14-fallansicht';
     expect(html).toContain('js/' + asset + '.js?v=' + version + '"');
   });
 
@@ -67,13 +67,11 @@ describe('Werkbank deployment asset versions', () => {
 
   test('loads the documented cost model and the source-checked renderers', () => {
     expect(html).toContain('js/ua.costs.js?v=2026-11-11-kostenmodell"');
-    for (const asset of ['ua.stats', 'ua.export_v2', 'ua.report_v2']) {
-      expect(html).toContain(`js/${asset}.js?v=${patternComparisonVersion}"`);
-    }
+    expect(html).toContain(`js/ua.stats.js?v=${patternComparisonVersion}"`);
   });
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
-    expect(html).toContain('js/ua.state.js?v=2026-11-11-evidence-links"');
+    expect(html).toContain('js/ua.state.js?v=2026-11-14-fallansicht"');
     expect(html).toContain('js/ua.data_paths.js?v=2026-11-13-radzaehlung"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-kartenlesbarkeit');
@@ -94,22 +92,32 @@ describe('Werkbank deployment asset versions', () => {
     expect(registry).toBeLessThan(scripts.indexOf('js/ua.export_v2.js'));
   });
 
+  test('loads the district search, case evidence and evaluation before the selection UI', () => {
+    const modules = ['district_discovery','site_evaluation','site_case','export_v2','report_v2','measures','ris-layer'];
+    const consumer = html.indexOf('src="js/ua.site_discovery_ui.js');
+    for (const name of modules) {
+      const script = html.indexOf('src="js/ua.' + name + '.js?v=2026-11-14-fallansicht"');
+      expect(script).toBeGreaterThan(0);
+      expect(script).toBeLessThan(consumer);
+    }
+  });
+
   test('loads the current discovery app and orthophoto fallback', () => {
     expect(html).toContain('js/ua.app_v2.js?v=2026-11-11-kartenlesbarkeit"');
-    expect(html).toContain('js/ua.site_discovery_ui.js?v=2026-11-11-kartenlesbarkeit"');
+    expect(html).toContain('js/ua.site_discovery_ui.js?v=2026-11-14-fallansicht"');
     expect(html).toContain('js/ua.map_v2.js?v=2026-11-13-dgm1-radzaehlung"');
   });
 
   test('loads the matching evidence map controls and marker styles', () => {
     expect(html).toContain('css/ua.css?v=2026-11-11-kartenlesbarkeit"');
-    expect(html).toContain('js/ua.ui.js?v=2026-11-11-kartenlesbarkeit"');
+    expect(html).toContain('js/ua.ui.js?v=2026-11-14-fallansicht"');
   });
 
   test.each([
     'css/ris-record-view.css',
     'js/ua.filters.js', 'js/ua.map_scene.js', 'js/ua.map_store.js',
     'js/ua.political-context.js', 'js/ua.ris-catalogue.js',
-    'js/ua.ris-details.js', 'js/ua.ris-layer.js', 'js/ua.ris-partitions.js', 'js/ua.ris-sources.js',
+    'js/ua.ris-details.js', 'js/ua.ris-partitions.js', 'js/ua.ris-sources.js',
     'js/ua.video-export.js',
   ])('%s loads the same map and RIS repair version', asset => {
     expect(html).toContain(`${asset}?v=2026-11-10-ris-map"`);

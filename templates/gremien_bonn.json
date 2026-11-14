@@ -1,4 +1,5 @@
 {
+  "stadtbezirksgrenzen": "data/mobility/bonn-stadtbezirke.geojson",
   "gremiumTyp": "Bezirksvertretung",
   "hinweis": "Zuständigkeit bitte vor Einreichung mit der aktuellen Bezirksgliederung der Stadt Bonn abgleichen.",
   "fallback": "Zuständige Bezirksvertretung konnte nicht eindeutig ermittelt werden. Bitte prüfen Sie die Zuordnung anhand der vier Bonner Stadtbezirke (Bonn, Bad Godesberg, Beuel, Hardtberg).",
