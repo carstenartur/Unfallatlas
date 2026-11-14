@@ -228,6 +228,24 @@ sich mit `python3 scripts/verify-fontkit-shaping.py node_modules/fontkit`
 wiederholen. Weitere Shaper-Algorithmen, Generatorregeln und die Lizenz des
 Fontkit-Pakets selbst bleiben getrennte Nachweisaufgaben.
 
+Für die Positionierung kombinierender Zeichen nennt Fontkit den HarfBuzz-Fallback
+als Vorlage. Der Vergleich mit der C++-Referenz von 2014 bestätigt 51 gemeinsame
+Fallzuordnungen. Für eine weitere Zuordnung verwendet Fontkit 2.0.4 U+0E3D,
+HarfBuzz U+0E4D. Fontkit hat das Zeichen im Oktober 2026 [upstream korrigiert](https://github.com/foliojs/fontkit/commit/ed87e83d97851d984558f9c219b830917f9993a5).
+Die Inventur bindet die tatsächlich ausgelieferte Fassung an den Originalhinweis.
+
+Die Silbengrammatiken der indischen Schriften und der Universal Shaping Engine
+haben eigene Herkunftsnachweise. Von 20 indischen Regeldefinitionen entsprechen
+19 den HarfBuzz-Ausdrücken. Fontkit kürzt den Silbenauslaut. Von zwölf
+USE-Definitionen stimmen elf überein. Fontkit lässt im unabhängigen Cluster
+die Kategorie `Rsv` aus. Der Herstellerlauf vergleicht die Definitionen mit
+zeitgenössischen, hashgebundenen HarfBuzz-Quellen und baut die Zustandsmaschinen
+mit 617 bzw. 55 Zuständen aus den Fontkit-Eingaben nach. Der Seitenbuild
+prüft die Grammatik, die generierten JSON-Dateien, die innere Source Map und die
+eingebetteten JSON-Bytes im PDF-Bundle. Notice und SBOM ordnen die Lizenz der
+jeweiligen Grammatik zu. Der USE-Originalhinweis nennt Mozilla und Google.
+Die Unicode-Kategorien und -Zerlegungen in `use.json` haben eigenen Ursprung.
+
 Sechs Dateien aus `brotli@1.3.3` tragen denselben Apache-2.0-Lizenzhinweis
 mit Copyright von Google Inc. aus dem Jahr 2013. Der Seitenbuild vergleicht
 diese Dateien bytegenau mit den in der PDF-Source-Map enthaltenen Quellen.
@@ -320,5 +338,5 @@ Der Herstellerprüflauf im Maven-Profil `vendor-upstream-rebuild` ruft das
 Skript auf. Es baut außerdem die drei Tries und zwei
 Zustandsmaschinen aus `fontkit@2.0.4` nach und findet die gleichen Bytes im
 ausgelieferten PDF-Bundle. In diese Ressourcen gehen zusätzliche Shaper-Regeln
-ein. Ihre Lizenzherkunft ist weiterhin offen. Originaladressen und Prüfsummen stehen im
+ein. Ihre Lizenzherkunft ist weiterhin offen. Die Nachweise für die indische und die USE-Silbengrammatik stehen oben. Originaladressen und Prüfsummen stehen im
 [Quellenmanifest](../vendor/pdfmake-build/unicode-data.json).

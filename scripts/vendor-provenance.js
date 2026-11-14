@@ -597,7 +597,7 @@ function collectFontkitSources(repoRoot, outputRoot, pdfmake, expected) {
     throw new Error('Fontkit browser module or source map differs from the PDF exporter');
   }
   const map = JSON.parse(mapBytes);
-  return expected.sections.map(({ file, start, end, licenseFile, record }) => {
+  const inputs = expected.sections.map(({ file, start, end, licenseFile, record }) => {
     const source = fs.readFileSync(path.join(root, file), 'utf8');
     const index = map.sources.indexOf(file);
     const begin = source.indexOf(start);
@@ -608,6 +608,23 @@ function collectFontkitSources(repoRoot, outputRoot, pdfmake, expected) {
         sha256Buffer(section) !== record.sourceSha256) {
       throw new Error('Fontkit attributed source differs: ' + file);
     }
+    return { file, licenseFile, record };
+  });
+  const deliveredPath = path.join(outputRoot, PDF_ASSET);
+  const delivered = fs.readFileSync(fs.existsSync(deliveredPath)
+    ? deliveredPath : path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.min.js'), 'utf8');
+  for (const input of expected.grammarInputs) {
+    const grammar = fs.readFileSync(path.join(root, input.file));
+    const generated = fs.readFileSync(path.join(root, input.generatedFile), 'utf8');
+    const index = map.sources.indexOf(input.generatedFile);
+    if (sha256Buffer(grammar) !== input.record.sourceSha256 || sha256Buffer(generated) !== input.record.generatedSha256 ||
+        index < 0 || map.sources.lastIndexOf(input.generatedFile) !== index || map.sourcesContent[index] !== generated ||
+        delivered.indexOf(generated) < 0 || delivered.indexOf(generated) !== delivered.lastIndexOf(generated)) {
+      throw new Error('Fontkit grammar or embedded state machine differs: ' + input.file);
+    }
+    inputs.push(input);
+  }
+  return inputs.map(({ file, licenseFile, record }) => {
     const license = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses', licenseFile));
     if (sha256Buffer(license) !== record.sha256) throw new Error('Fontkit source license differs: ' + file);
     const destination = path.join(outputRoot, record.path);
@@ -944,6 +961,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
       ...docxRuntimeRecords(expected.generatedRuntimes || []),
       ...(expected.unicodeDataManifestSha256 ? unicodeDataRecords(expected.unicodeDataManifestSha256) : []),
       ...(expected.fontkitSources?.sections.map(section => section.record) || []),
+      ...(expected.fontkitSources?.grammarInputs?.map(input => input.record) || []),
       ...(expected.embeddedSource ? [expected.embeddedSource] : []),
       ...(expected.brotliDecoder ? [...brotliDecoderRecords(expected.brotliDecoder), expected.brotliDecoder.dictionary] : []),
       ...(expected.nestedPdfkitSources ? pdfkitSourceRecords(expected.nestedPdfkitSources) : []),

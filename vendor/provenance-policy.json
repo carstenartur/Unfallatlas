@@ -289,6 +289,70 @@
               "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
               "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
             }
+          },
+          {
+            "file": "src/layout/UnicodeLayoutEngine.js",
+            "start": "  getCombiningClass(codePoint) {",
+            "end": "    return combiningClass;\n  }",
+            "licenseFile": "HarfBuzz-indic.txt",
+            "record": {
+              "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-fallback",
+              "component": "HarfBuzz fallback combining-class rules adapted in fontkit@2.0.4",
+              "sourcePath": "node_modules/fontkit/src/layout/UnicodeLayoutEngine.js#getCombiningClass",
+              "sourceSha256": "6567654385becbfca981a9fcb8c63add3409c865db94b01a9a871a8a1c87378e",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/layout/UnicodeLayoutEngine.js#L138-L249",
+              "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/8f3eebf7ee4005f9a8efaafcb7f4058cc0a3756e/src/hb-ot-shape-fallback.cc",
+              "upstreamFileSha256": "cfb372c7f16592f6a8883af6466e10474cf5e0ab1371d51de94941766e6d6e00",
+              "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/8f3eebf7ee4005f9a8efaafcb7f4058cc0a3756e/src/hb-ot-shape-fallback.cc#L1-L25",
+              "copyright": "Copyright © 2011,2012  Google, Inc.",
+              "spdx": "MIT-Modern-Variant",
+              "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
+              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
+            }
+          }
+        ],
+        "grammarInputs": [
+          {
+            "file": "src/opentype/shapers/indic.machine",
+            "generatedFile": "src/opentype/shapers/indic.json",
+            "licenseFile": "HarfBuzz-indic.txt",
+            "record": {
+              "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-indic-grammar",
+              "component": "HarfBuzz Indic syllable grammar adapted in the fontkit@2.0.4 state machine",
+              "sourcePath": "node_modules/fontkit/src/opentype/shapers/indic.machine",
+              "sourceSha256": "ace5d0eebf014c8d2112b86d9642b8eade4af9010dd23b58bed6596e0fd7c17b",
+              "generatedPath": "node_modules/fontkit/src/opentype/shapers/indic.json",
+              "generatedSha256": "903a39c0f59dca5ab4d31d14ca39bacb58786fa373b64d38af82c5749f2e16e2",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/indic.machine",
+              "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/8b5d6e755b271d0d22b31a7726d5bfbf2aae8b2f/src/hb-ot-shape-complex-indic-machine.rl",
+              "upstreamFileSha256": "1572f734a736d7708cca11ea2de730c9c98d6c49ada0dca6976a4d1ba788749e",
+              "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/8b5d6e755b271d0d22b31a7726d5bfbf2aae8b2f/src/hb-ot-shape-complex-indic-machine.rl#L1-L25",
+              "copyright": "Copyright © 2011,2012  Google, Inc.",
+              "spdx": "MIT-Modern-Variant",
+              "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
+              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
+            }
+          },
+          {
+            "file": "src/opentype/shapers/use.machine",
+            "generatedFile": "src/opentype/shapers/use.json",
+            "licenseFile": "HarfBuzz-use.txt",
+            "record": {
+              "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-use-grammar",
+              "component": "HarfBuzz USE syllable grammar adapted in the fontkit@2.0.4 state machine",
+              "sourcePath": "node_modules/fontkit/src/opentype/shapers/use.machine",
+              "sourceSha256": "fb1ec6f50006241999ef2faa83b198860ef023249d5509bbec3bdb7159c5a318",
+              "generatedPath": "node_modules/fontkit/src/opentype/shapers/use.json",
+              "generatedSha256": "98de30bc007d0e3fb180839e167de030dd579acd40285865d67718d713b2e9b1",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/use.machine",
+              "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/9b6312f9451db790db00dc2c2e27a5a1db852e72/src/hb-ot-shape-complex-use-machine.rl",
+              "upstreamFileSha256": "dd71c83eca553527f716054eb7d7f2c853bb216f0b8d60b57b65a901bf8e6a9e",
+              "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/9b6312f9451db790db00dc2c2e27a5a1db852e72/src/hb-ot-shape-complex-use-machine.rl#L1-L27",
+              "copyright": "Copyright © 2015  Mozilla Foundation.\nCopyright © 2015  Google, Inc.",
+              "spdx": "MIT-Modern-Variant",
+              "path": "vendor/licenses/components/fontkit-HarfBuzz-use.txt",
+              "sha256": "1a37cc3ab28e551778df88f0d4c95704fe7dd8a3b6ea8fad5df22d2b489d7421"
+            }
           }
         ]
       },

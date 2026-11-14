@@ -89,11 +89,11 @@ test('attributes the adapted Base64 decoder in Fontkit to its upstream author', 
   });
 });
 
-test('ships the distinct HarfBuzz notices for the Arabic and Indic tables in Fontkit', () => {
+test('ships the HarfBuzz notices for Arabic, Indic and fallback combining classes in Fontkit', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const pdf = notice.assetAssessments.find(entry => entry.path === pdfAsset);
     const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
-    for (const [name, year] of [['arabic', '2010,2012'], ['indic', '2011,2012']]) {
+    for (const [name, year] of [['arabic', '2010,2012'], ['indic', '2011,2012'], ['fallback', '2011,2012']]) {
       const ref = 'urn:unfallatlas:vendor-source:fontkit:harfbuzz-' + name;
       const record = notice.supplementalLicenses.find(entry => entry.ref === ref);
       expect(record).toMatchObject({ asset: pdfAsset, spdx: 'MIT-Modern-Variant', copyright: `Copyright © ${year}  Google, Inc.` });
@@ -105,6 +105,26 @@ test('ships the distinct HarfBuzz notices for the Arabic and Indic tables in Fon
       const license = fs.readFileSync(path.join(root, record.path), 'utf8');
       expect(license).toContain(record.copyright);
       expect(license).toContain('Google Author(s): Behdad Esfahbod');
+    }
+  });
+});
+
+test('links HarfBuzz grammar inputs to both shipped Fontkit state machines', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    const asset = notice.assetAssessments.find(entry => entry.path === pdfAsset);
+    for (const name of ['indic', 'use']) {
+      const ref = 'urn:unfallatlas:vendor-source:fontkit:harfbuzz-' + name + '-grammar';
+      const record = notice.supplementalLicenses.find(entry => entry.ref === ref);
+      expect(record).toBeDefined();
+      const generated = fs.readFileSync(path.join(repoRoot, record.generatedPath));
+      expect(record.generatedSha256).toBe(crypto.createHash('sha256').update(generated).digest('hex'));
+      expect(asset.containsFiles).toContain(ref);
+      expect(sbom.components.find(entry => entry['bom-ref'] === ref).hashes)
+        .toContainEqual({ alg: 'SHA-256', content: record.sourceSha256 });
+      const license = fs.readFileSync(path.join(root, record.path), 'utf8');
+      expect(license).toContain('Google');
+      if (name === 'use') expect(license).toContain('Mozilla Foundation');
     }
   });
 });
