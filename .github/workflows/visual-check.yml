@@ -58,6 +58,7 @@ jobs:
       - name: Set up Java 21 with Maven cache
         uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
+          problem-matcher: true
           distribution: temurin
           java-version: '25'
           cache: maven
@@ -167,6 +168,7 @@ jobs:
         if: steps.acceptance.outputs.requested == 'true'
         uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
+          problem-matcher: true
           distribution: temurin
           java-version: '25'
           cache: maven

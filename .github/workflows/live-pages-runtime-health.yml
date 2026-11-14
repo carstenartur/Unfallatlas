@@ -54,6 +54,7 @@ jobs:
       - name: Set up JDK and Maven cache
         uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
+          problem-matcher: true
           java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
@@ -74,6 +75,7 @@ jobs:
       - name: Set up JDK and Maven cache
         uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
+          problem-matcher: true
           java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
