@@ -58,6 +58,8 @@ Die Animation zeigt einen zusammenhängenden realen Ablauf aus dem aktuellen Ser
 
 [![Mobile Stellensuche für Hannover-Mitte mit Bezirkswahl und Treffern für wiederkehrende Unfallmuster](docs/screenshots/26-hannover-mitte-stellensuche.png)](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteDistrict=Mitte&sitePriority=pattern&findMode=network&centerLat=52.3740&centerLon=9.7380&zoom=15)
 
+Für **Brühlstraße / Escherstraße** zeigt der Screenshot 34 zugeordnete Unfälle über alle verfügbaren Jahre. Bei 26 davon wiederholt sich dasselbe Muster mit Rad und Pkw beim Abbiegen oder Einbiegen/Kreuzen. Das erste Beispiel unten grenzt die Suche auf 2021–2025 ein.
+
 Mit **Link zu diesem Fall** kannst du die ausgewählte Stelle und die Suchkriterien weitergeben. Die [Schrittfolge in der Nutzungsanleitung](docs/DOKUMENTATION.md#eine-stelle-im-bezirk-untersuchen) führt vom Treffer bis zur Prüfung, wie sich die Unfallzahlen nach einer belegten Inbetriebnahme entwickelt haben.
 
 - [Hannover-Mitte · wiederkehrende Unfallmuster 2021–2025](https://carstenartur.github.io/Unfallatlas/werkbank_v2.html?city=Hannover&find=1&siteDistrict=Mitte&sitePriority=pattern&findFrom=2021&findTo=2025)
