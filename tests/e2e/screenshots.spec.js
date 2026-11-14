@@ -14,6 +14,7 @@ import {
   waitForScreenshotReady
 } from './helpers.js';
 import networkFixtureRouting from './fixtures/network/routing.cjs';
+import documentationLinks from '../../scripts/documentation-deeplink-contract.cjs';
 
 const { classifyNominatimFixture, classifyOverpassFixture } = networkFixtureRouting;
 
@@ -632,6 +633,51 @@ test.describe('Werkbank V2 – Dokumentations-Screenshots', () => {
       city: 'Bonn',
       layers: ['heatmap']
     });
+  });
+
+  test('26 Mobile Stellensuche nach wiederkehrenden Mustern in Hannover-Mitte', async ({ page }) => {
+    const path = 'docs/screenshots/26-hannover-mitte-stellensuche.png';
+    await page.setViewportSize({ width: 580, height: 960 });
+    await loadPage(page, '?' + new URLSearchParams(documentationLinks.SCREENSHOT_SCENARIOS[path].query));
+    const panel = page.locator('#siteDiscoveryPanel');
+    await expect(panel.locator('#siteDiscoveryDistrict')).toHaveValue('Mitte');
+    await expect(panel.locator('#siteDiscoveryPriority')).toHaveValue('pattern');
+    const result = panel.getByRole('list', { name: 'Gefundene Netzstellen' }).getByRole('button').first();
+    await expect(result).toContainText('Fälle desselben Musters in mehreren Jahren');
+    await expect(panel.locator('.site-discovery-status')).toContainText('Stadtbezirk Mitte');
+    // Das Bedienpanel befindet sich auf dem Telefon unter der Karte. Filter und
+    // erster Treffer müssen unterhalb des mitlaufenden Stadtkopfs lesbar sein.
+    await waitForScreenshotReady(page, { city: 'Hannover', layers: ['cluster'] });
+    const framing = await panel.locator('#siteDiscoveryTitle').evaluate(title => {
+      const sidebar = title.closest('.panel');
+      const headerBottom = sidebar.querySelector('.ua-sticky-city-row').getBoundingClientRect().bottom;
+      sidebar.scrollTop += title.getBoundingClientRect().top - headerBottom - 10;
+      return {
+        titleTop: title.getBoundingClientRect().top,
+        headerBottom,
+        firstResultBottom: sidebar.querySelector('.site-discovery-result').getBoundingClientRect().bottom,
+        panelBottom: sidebar.getBoundingClientRect().bottom
+      };
+    });
+    expect(framing.titleTop).toBeGreaterThanOrEqual(framing.headerBottom);
+    expect(framing.firstResultBottom).toBeLessThanOrEqual(framing.panelBottom);
+    await captureDataScreenshot(page, { path, city: 'Hannover', layers: ['cluster'] });
+  });
+
+  test('27 Beleg und ausstehende Wirkungskontrolle am Aegidientorplatz', async ({ page }) => {
+    const path = 'docs/screenshots/27-hannover-fall-wirkungskontrolle.png';
+    await page.setViewportSize({ width: 1040, height: 760 });
+    await loadPage(page, '?' + new URLSearchParams(documentationLinks.SCREENSHOT_SCENARIOS[path].query));
+    const detail = page.locator('.site-discovery-detail');
+    await expect(detail.getByRole('heading', { name: 'Aegidientorplatz – westlicher Bereich' })).toBeVisible();
+    const evaluation = detail.locator('.site-evaluation');
+    await evaluation.locator('summary').click();
+    await expect(evaluation.getByRole('link')).toHaveAttribute('href', /^https:\/\/www\.hannover\.de\/.+Aegidientorplatz-bleibt$/);
+    await expect(evaluation).toContainText('In Betrieb seit 2026-03');
+    await expect(evaluation).toContainText('Wirkung offen.');
+    await expect(evaluation).toContainText('2025 und 2027');
+    await evaluation.scrollIntoViewIfNeeded();
+    await captureDataScreenshot(page, { path, city: 'Hannover', layers: ['cluster'] });
   });
 
   test('25 Kartenmodus Orthofoto – Fallback bei Tile-Fehler', async ({ page }) => {

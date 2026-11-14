@@ -319,6 +319,34 @@
         "docs/screenshots/README.md",
         "tests/e2e/screenshots.spec.js"
       ]
+    },
+    {
+      "path": "docs/screenshots/26-hannover-mitte-stellensuche.png",
+      "kind": "screenshot",
+      "purpose": "Priorisierte Netzstellen mit wiederkehrenden Unfallmustern im Stadtbezirk Hannover-Mitte.",
+      "target": {
+        "width": 580,
+        "height": 960
+      },
+      "references": [
+        "README.md",
+        "docs/screenshots/README.md",
+        "tests/e2e/screenshots.spec.js"
+      ]
+    },
+    {
+      "path": "docs/screenshots/27-hannover-fall-wirkungskontrolle.png",
+      "kind": "screenshot",
+      "purpose": "Belegte Inbetriebnahme am Aegidientorplatz und die für einen Vorher-Nachher-Vergleich benötigten Unfalljahrgänge.",
+      "target": {
+        "width": 1040,
+        "height": 760
+      },
+      "references": [
+        "docs/DOKUMENTATION.md",
+        "docs/screenshots/README.md",
+        "tests/e2e/screenshots.spec.js"
+      ]
     }
   ]
 }

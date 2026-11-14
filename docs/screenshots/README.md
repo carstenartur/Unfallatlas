@@ -7,7 +7,7 @@ werden automatisiert geprüft.
 
 ## Verbindliche Regeln
 
-1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Das Hbf-Kartenbild `13` folgt diesem Standard und wird zusätzlich durch ein Sichtbarkeits-Gate geschützt; die Dialog- und Doppelseitenmedien `14` und `15` verwenden **1774 × 887 px**.
+1. Anwendungsscreenshots haben grundsätzlich **1280 × 640 px**. Das Hbf-Kartenbild `13` folgt diesem Standard und wird zusätzlich durch ein Sichtbarkeits-Gate geschützt; die Dialog- und Doppelseitenmedien `14` und `15` verwenden **1774 × 887 px**. Die Bezirksliste `26` zeigt die Telefonansicht mit **580 × 960 px**. Das Fallblatt `27` zeigt Karte und Quellenbeleg bei **1040 × 760 px**.
 2. Die gerenderte PDF-Gesamtvorschau `15` zeigt eine geprüfte Doppelseite mit **1774 × 887 px**.
 3. Jedes eingecheckte Medium unter `docs/` ist in
    [`docs/media-manifest.json`](../media-manifest.json) deklariert.
@@ -61,6 +61,11 @@ Kartenmodi und Fallback:
 - `24-mapmode-analysis.png`
 - `25-mapmode-orthophoto-fallback.png`
 
+Stellensuche und Wirkungskontrolle:
+
+- `26-hannover-mitte-stellensuche.png` – priorisierte Netzstellen in Hannover-Mitte mit wiederkehrenden Unfallmustern
+- `27-hannover-fall-wirkungskontrolle.png` – belegte Inbetriebnahme am Aegidientorplatz und benötigte Vergleichsjahre
+
 Animation:
 
 - `../demo.gif` – zusammenhängender Analyse- und Exportablauf aus dem aktuellen
@@ -82,14 +87,15 @@ Die kanonischen Screenshot-Szenarien stehen in
 - Auswahl, Stadt, Filter und Kartenmodus entsprechen dem Szenario.
 - Medienbudget, Abmessungen und Referenzen sind gültig.
 
-Relevante Befehle:
+Der Maven-Lauf erzeugt alle im Medienmanifest deklarierten Screenshots mit echten Kartenkacheln und öffnet die dokumentierten Links am lokalen Kandidaten:
 
 ```bash
-npm run qa:e2e:prepare
-npx playwright test tests/e2e/screenshots.spec.js --project=chromium
-npm run validate:screenshot-evidence
-npm run validate:media
+mvn -B -ntp verify -Pdocumentation-live -Ddocumentation.liveLinks=true
 ```
+
+Im PR stellt `Visual Check (PR Screenshots)` die PNGs, den Buildstand und die Nachweise als `pr-live-map-screenshots-<PR-Nummer>` bereit. Bei der Sichtprüfung gehören die verlinkte Ansicht, lesbare Bedienfelder, sichtbare Karteninhalte und die Quellenangaben zusammen.
+
+Für die Übernahme dient `qa/accept-screenshot-candidate.json` im selben PR. Das JSON enthält `schemaVersion` mit dem Wert `1`, `accept` mit dem Wert `true`, `pullRequest` mit der tatsächlichen PR-Nummer und `artifactName` mit dem vollständigen Namen des Kandidaten. Der PR-Lauf erzeugt erneut einen vollständigen Satz. Die Freigabe bindet genau dessen Bilddateien, Kartografie- und Readiness-Nachweise an Artefakt-ID, Prüfsumme und Erzeugungsbuild. Nach erfolgreicher Release-Prüfung übernimmt der Workflow den Satz in den PR-Zweig und entfernt die Markierungsdatei. Der lokale Gegencheck des eingecheckten Bestands lautet `npm run validate:media`.
 
 ## Deep-Link-QA
 

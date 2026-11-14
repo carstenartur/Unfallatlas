@@ -10,12 +10,14 @@ describe('user-facing documentation deep-link repository contract', () => {
       'docs-cluster-hannover',
       'docs-selection-bonn',
       'docs-poi-bonn',
+      'docs-stellensuche-mitte',
+      'docs-wirkungskontrolle-aegi',
       'readme-start',
       'readme-export',
       'readme-bonn-hbf',
     ]));
     expect(result.liveScenarios).toHaveLength(Object.keys(contract.SCENARIOS).length);
-    expect(result.liveScenarios.filter((scenario) => scenario.imagePath)).toHaveLength(3);
+    expect(result.liveScenarios.filter((scenario) => scenario.imagePath)).toHaveLength(5);
     expect(result.liveScenarios.every((scenario) => scenario.knownMismatch == null)).toBe(true);
     expect(result.liveScenarios.filter((scenario) => scenario.expected.publicPreview)).toHaveLength(3);
 

@@ -19,13 +19,15 @@ The complete contract is exercised by `tests/unit/documentationDeepLinkContract.
 
 ## Representative browser scenarios
 
-Browser QA intentionally deduplicates repeated documentation links. It opens six representative states generated from the contract:
+Browser QA intentionally deduplicates repeated documentation links. It opens eight representative states generated from the contract:
 
 Linked screenshots:
 
 1. Hannover cluster-only state;
 2. Bonn with a marked selection;
-3. Bonn with visible school/kindergarten POIs.
+3. Bonn with visible school/kindergarten POIs;
+4. Hannover-Mitte with recurring accident patterns and a populated list of network locations;
+5. the Aegidientorplatz case, including the documented user action that opens the implementation date and its municipal source.
 
 Explicitly named README actions:
 
