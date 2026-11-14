@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "dependencyDashboardAutoclose": true,
   "dependencyDashboardHeader": "### analysis-service framework stack safety\n- Do not merge framework-stack updates unless `mvn -f analysis-service/pom.xml clean verify` is green.\n- Spring Boot / Hibernate ORM / Hibernate Search version jumps must be reviewed as a coordinated migration (or kept split in separate PRs).",
   "customManagers": [
     {
@@ -15,6 +16,13 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "Keep the root package manager and its engine range on npm 11 until the dedicated npm migration described in #612.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["package.json"],
+      "matchPackageNames": ["npm"],
+      "allowedVersions": "11.x"
+    },
     {
       "description": "Keep the Roboto source rebuild on the Python 3.11 toolchain used with its hash-locked wheels.",
       "matchManagers": ["github-actions"],
