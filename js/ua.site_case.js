@@ -89,7 +89,7 @@
       const meta = [record.number, record.date && dateLabel(record.date), record.type, record.gremium,
         UA.RisSources?.sourceLabel(record)];
       if (meta.some(Boolean)) element(row, 'p', meta.filter(Boolean).join(' · '));
-      const quality = { official: 'Amtlich verortet', derived: 'Abgeleiteter Ortsbezug', mixed: 'Gemischter Ortsbezug' }[link.accuracy];
+      const quality = { official: 'Ortsangabe aus dem Ratsinformationssystem', derived: 'Abgeleiteter Ortsbezug', mixed: 'Gemischter Ortsbezug' }[link.accuracy];
       if (quality || link.label) element(row, 'p', [quality,link.label].filter(Boolean).join(' · '));
       if (webUrl(record.originalPdfUrl)) source(row, 'Original-PDF', record.originalPdfUrl);
       if (UA.RisDetails?.open) {
@@ -127,7 +127,7 @@
           features = snapshot.features.features.filter(f => !f.properties.overview && UA.RisLayer.intersects(f.geometry, rect));
           const coverage = UA.RisCatalogue.snapshotStatus?.(snapshot.manifest);
           note.textContent = [
-            'Die verknüpfte Geometrie berührt den Auswahlbereich. Ein Straßenverlauf kann weit darüber hinausreichen. Den Bezug dieses Vorgangs zur konkreten Stelle im Original prüfen.',
+            'Die Kartenangabe zum Ratsvorgang berührt den Auswahlbereich. Auch ein amtlicher Kartenpunkt kann vom im Antrag genannten Ort abweichen. Ein zugeordneter Straßenverlauf kann über den Auswahlbereich hinausreichen. Den konkreten Ort im Originaldokument prüfen.',
             snapshot.manifest.generatedAt && 'Katalogstand ' + dateLabel(snapshot.manifest.generatedAt.slice(0,10)) + '.',
             coverage?.complete === false && 'Der veröffentlichte Ratsbestand ist unvollständig.',
             ...(coverage?.warnings || []),

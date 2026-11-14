@@ -1,0 +1,37 @@
+{
+  "sampleId": "fba2a6380454ae4133c7fd10e9e76d20180629ed20c4480cf128ef686a1925d0",
+  "decisions": [
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2027768",
+      "relevance": "yes",
+      "sourceUrl": "https://www.bonn.sitzung-online.de/oparl/papers/2027768",
+      "location": "unclear",
+      "note": "Parkraumantrag zur Maarstraße. Der OParl-Punkt liegt auf dieser Straße, doch der amtliche Betreff und der Ortsbezug nennen keine Hausnummer und keinen engeren Abschnitt. Die punktgenaue Zuordnung bleibt offen."
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2010436",
+      "relevance": "yes",
+      "sourceUrl": "https://www.bonn.sitzung-online.de/oparl/papers/2010436",
+      "location": "incorrect",
+      "note": "Der amtliche Betreff nennt den Plittersdorfer Dorfplatz an der Ecke Plittersdorfer Straße/Steinstraße. Der unverändert übernommene OParl-Punkt liegt rund 489 m vom Knoten entfernt. Die richtige Straße allein reicht für diese Kreuzungsangabe nicht."
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0397-2016",
+      "relevance": "yes",
+      "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0397-2016",
+      "location": "correct",
+      "note": "Der Antrag verlangt Kontrollen auf beiden Straßen. Die beiden abgeleiteten Linien sind ausdrücklich als Orientierung gekennzeichnet. Die Begründung grenzt das Problem am Industrieweg auf Wiesenauer Straße bis Hackethalstraße ein."
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1074-2020",
+      "relevance": "yes",
+      "sourceUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-1074-2020",
+      "location": "correct",
+      "note": "Die beantragte Signalisierung betrifft genau den Knoten Lohweg/Höversche Straße. Der Kartenpunkt liegt rund 4 m vom unabhängig kartierten Straßenknoten entfernt."
+    }
+  ]
+}

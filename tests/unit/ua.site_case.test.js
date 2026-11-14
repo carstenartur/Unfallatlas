@@ -108,7 +108,8 @@ test('legacy catalogue matches precise site points and overview is never counted
     .mockResolvedValueOnce({partitioned:true,overview:true,features:{features:[]},manifest:{}})};
   UA.SiteCase.render(box,{ctx,selection}); box.querySelector('.site-case-ris').open=true;
   await tick();await tick();
-  expect(box.textContent).toContain('Amtlich verortet');
+  expect(box.textContent).toContain('Ortsangabe aus dem Ratsinformationssystem');
+  expect(box.textContent).toContain('vom im Antrag genannten Ort abweichen');
   UA.SiteCase.render(box,{ctx,selection}); box.querySelector('.site-case-ris').open=true;
   await tick();await tick();
   expect(box.textContent).toContain('Übersichtszellen');
