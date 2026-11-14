@@ -234,6 +234,24 @@ function collectDocxRuntimes(repoRoot, outputRoot, inventory) {
   return records.map(record => ({ ...record, asset: DOCX_ASSET, copyrightIncluded: true }));
 }
 
+function collectDocxSections(repoRoot, outputRoot, inventory) {
+  const bundle = fs.readFileSync(path.join(repoRoot, 'node_modules/docx/dist/index.iife.js'), 'utf8');
+  return inventory.attributedSections.map(({ start, end, licenseFile, record }) => {
+    const first = bundle.indexOf(start);
+    const last = bundle.indexOf(end, first + start.length);
+    if (first < 0 || first !== bundle.lastIndexOf(start) || last < 0 ||
+        sha256Buffer(bundle.slice(first, last)) !== record.emittedSha256) {
+      throw new Error('DOCX attributed section differs: ' + record.component);
+    }
+    const notice = fs.readFileSync(path.join(repoRoot, licenseFile));
+    if (sha256Buffer(notice) !== record.sha256) throw new Error('Changed DOCX source notice: ' + record.component);
+    const target = path.join(outputRoot, record.path);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, notice);
+    return { ...record, asset: DOCX_ASSET, copyrightIncluded: true };
+  });
+}
+
 function docxSourcePackages(repoRoot, inventory) {
   const bundle = fs.readFileSync(path.join(repoRoot, 'node_modules/docx/dist/index.iife.js'));
   if (sha256Buffer(bundle) !== inventory?.bundleSha256) {
@@ -906,6 +924,7 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
   }
   const embeddedSources = [
     ...collectDocxRuntimes(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
+    ...collectDocxSections(repoRoot, outputRoot, policy.verifiedBundleInventories[DOCX_ASSET]),
     ...collectUnicodeData(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.unicodeDataManifestSha256),
     ...collectFontkitSources(repoRoot, outputRoot, pdfmake, pdfInventory.fontkitSources),
     collectEmbeddedSvgLicense(repoRoot, outputRoot, pdfmake.sourceMap, pdfInventory.embeddedSource),
@@ -961,6 +980,7 @@ function validateVerifiedBundleInventories(manifest, policy) {
     ])].sort();
     const embeddedSources = [
       ...docxRuntimeRecords(expected.generatedRuntimes || []),
+      ...(expected.attributedSections || []).map(section => section.record),
       ...(expected.unicodeDataManifestSha256 ? unicodeDataRecords(expected.unicodeDataManifestSha256) : []),
       ...(expected.fontkitSources?.sections.map(section => section.record) || []),
       ...(expected.fontkitSources?.grammarInputs?.map(input => input.record) || []),

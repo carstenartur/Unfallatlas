@@ -111,6 +111,48 @@
             }
           ]
         }
+      ],
+      "attributedSections": [
+        {
+          "start": "\t/**\n\t* @license MIT\n\t* Adapted from stream-browserify",
+          "end": "\t// \\0@oxc-project+runtime@",
+          "licenseFile": "vendor/docx-build/stream-browserify-notices.txt",
+          "record": {
+            "ref": "urn:unfallatlas:vendor-source:docx:stream-browserify-pipe",
+            "component": "DOCX legacy pipe adapted from stream-browserify",
+            "sourcePath": "src/export/packer/stream.ts",
+            "sourceSha256": "2b07e1288deb70051469460bbc30556d6bfe082371aaa3ae98ac6d28398862ac",
+            "sourcePurl": "pkg:npm/stream-browserify@3.0.0",
+            "sourceArchive": "https://registry.npmjs.org/stream-browserify/-/stream-browserify-3.0.0.tgz",
+            "sourceIntegrity": "sha512-H73RAHsVBapbim0tU2JwwOiXUj+fikfiaoYAKHF3VJfA0pe2BCzkhAHBlLG6REzE+2WNZcxOXjK7lkso+9euLA==",
+            "upstreamFileSha256": "cc832133a4385d63203d4693f3dcb7fb5dbee3e2104c3e3bf948b6996e60e777",
+            "emittedSha256": "5ceffb1b5fe3623da8ec1f6264b55e1f12ccc6bc449ae6b2fded260e701f5477",
+            "spdx": "MIT",
+            "copyright": "Copyright Joyent, Inc. and other Node contributors.\nCopyright (c) James Halliday",
+            "path": "vendor/licenses/components/docx-stream-browserify-pipe.txt",
+            "sha256": "60eb2950c0f23ccf398f7f67ac15fd0a9a7b3a826968df6b3fa5800988782a59"
+          }
+        },
+        {
+          "start": "\tvar import_events = (/* @__PURE__ */ __commonJSMin(",
+          "end": "\t/**\n\t* @license MIT\n\t* Adapted from stream-browserify",
+          "licenseFile": "node_modules/events/LICENSE",
+          "record": {
+            "ref": "urn:unfallatlas:vendor-source:docx:events-emitter",
+            "component": "EventEmitter browser polyfill in the DOCX packer",
+            "sourcePath": "events.js",
+            "sourceSha256": "b6d7d26a2395a94dd1b9dc0d06e699bb50b4ec664589fd477ce7cc344e20e172",
+            "sourcePurl": "pkg:npm/events@3.3.0",
+            "sourceArchive": "https://registry.npmjs.org/events/-/events-3.3.0.tgz",
+            "sourceIntegrity": "sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==",
+            "upstreamFileSha256": "b6d7d26a2395a94dd1b9dc0d06e699bb50b4ec664589fd477ce7cc344e20e172",
+            "emittedSha256": "972f2ba9f2058199396d4e337eb4e3eca31d4db449f6a790fa0e33655c1c1ea6",
+            "spdx": "MIT",
+            "copyright": "Copyright Joyent, Inc. and other Node contributors.",
+            "path": "vendor/licenses/components/docx-events-emitter.txt",
+            "sha256": "631987b7616a325a5b97566c232418481ddf7dbb5ecadefb991e791876cc2599"
+          }
+        }
       ]
     },
     "vendor/export/pdfmake.js": {
@@ -380,6 +422,20 @@
           "copyright": "Copyright International Color Consortium, 2015",
           "path": "vendor/licenses/components/pdfkit-ICC-sRGB2014.txt",
           "sha256": "7d3f6be5b6a7c756c7d5fbf80623d64fe94404c4137eef01d0a414d34004ea2d"
+        },
+        "pathParser": {
+          "ref": "urn:unfallatlas:vendor-source:pdfkit:svgo-path-parser",
+          "component": "SVGO path parser adapted in PDFKit",
+          "sourcePath": "node_modules/pdfkit/lib/path.js#parse",
+          "sourceSha256": "c2abd7a1055c67d51916580ab8d1a71053d1021f693f4caf6c47d2197088eb6d",
+          "sourceUrl": "https://github.com/foliojs/pdfkit/blob/8d72a71c3e2b03f3253c221065e9efcc69ca5b7d/lib/path.js",
+          "upstreamReferenceUrl": "https://github.com/svg/svgo/blob/747cc722d933cb49058eb32b494acd43b6a4ad03/lib/path.js",
+          "upstreamFileSha256": "3d15c3a675ae7f9de103c2b4b019da4d5c9ddf62f99c849c1e2f1d661b9c722f",
+          "licenseUrl": "https://github.com/svg/svgo/blob/747cc722d933cb49058eb32b494acd43b6a4ad03/LICENSE",
+          "copyright": "Copyright (c) Kir Belevich",
+          "spdx": "MIT",
+          "path": "vendor/licenses/components/pdfkit-SVGO-MIT.txt",
+          "sha256": "d2b5640808aeec9c243152ae733cf9cca3a86189ad7817bf50335290dbb31012"
         }
       }
     },

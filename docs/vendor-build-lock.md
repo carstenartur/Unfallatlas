@@ -121,6 +121,15 @@ entpackten Hersteller-Locks und die unveränderten MIT-Texte. Notice und
 CycloneDX binden `fflate@0.8.3` und `nanoid@6.0.2` als enthaltene Komponenten
 an `vendor/export/docx.js`.
 
+Die 356 im IIFE markierten DOCX-Quelldateien sind im Herstellerarchiv enthalten.
+Beim Packer liegt unter dem Marker `src/export/packer/stream.ts` auch der
+`events@3.3.0`-Polyfill. Das Modul importiert den EventEmitter und übernimmt die
+benötigte Pipe-Implementierung aus `stream-browserify@3.0.0`. Beide stammen aus
+dem Hersteller-Lock. Der Prüflauf gleicht Quelldateien, die 18 Ereignisbindungen
+der Pipe und die vollständigen Originalhinweise für James Halliday, Joyent und
+weitere Node-Mitwirkende ab. Die Bytebereiche im ausgelieferten IIFE und ihre
+Lizenztexte sind einzeln in den Notices und in CycloneDX verzeichnet.
+
 Zusätzlich nennt das ausgelieferte IIFE neun virtuelle Laufzeitmodule.
 Rolldown 1.2.15 erzeugt den CommonJS-Helfer aus `runtime-base.js`; acht
 weitere Helfer stammen aus `@oxc-project/runtime@0.155.0`. Der Herkunftsnachweis
@@ -206,6 +215,14 @@ Der Build vergleicht das Profil mit den Base64-Daten der inneren Source-Map
 und dem Hersteller-Hash. Notice und SBOM binden den eigenen Lizenztext
 des ICC an diese Datei. Der Abschnitt zu den Unicode-Daten beschreibt die
 reproduzierten Ressourcen und die offenen Nachweise für die Shaper-Regeln.
+
+PDFKit schreibt seinen SVG-Pfadparser ausdrücklich SVGO zu. Der Hersteller
+[dokumentiert die Übernahme](https://github.com/foliojs/pdfkit/pull/1679).
+Der Vergleich der Funktionskörper prüft die nach Umbenennungen, JSDoc-Cast und
+einer umgestellten Bedingung verbleibenden Token. Der Quellabschnitt in der
+inneren PDFKit-Map trägt den MIT-Originalhinweis von Kir Belevich. Die separat
+von PDFKit als Inkscape-`svgtopdf` bezeichnete Bogenumwandlung hat einen
+eigenen ausstehenden Herkunfts- und Lizenznachweis.
 
 `fontkit@2.0.4` nennt in `src/utils.js` das Projekt `base64-arraybuffer`
 als Quelle seines angepassten Base64-Decoders. Der Seitenbuild prüft den

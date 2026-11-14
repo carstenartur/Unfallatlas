@@ -105,6 +105,22 @@ test('attributes the two Leaflet plugin notices to their exact package versions'
   });
 });
 
+test('binds the DOCX pipe, EventEmitter and SVG path parser to their original notices', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    for (const [asset, suffix, holders] of [
+      [docxAsset, 'docx:stream-browserify-pipe', ['James Halliday', 'Joyent']],
+      [docxAsset, 'docx:events-emitter', ['Joyent']],
+      [pdfAsset, 'pdfkit:svgo-path-parser', ['Kir Belevich']],
+    ]) {
+      const ref = 'urn:unfallatlas:vendor-source:' + suffix;
+      expect(notice.assetAssessments.find(record => record.path === asset).containsFiles).toContain(ref);
+      const evidence = notice.supplementalLicenses.find(record => record.ref === ref);
+      const license = fs.readFileSync(path.join(root, evidence.path), 'utf8');
+      for (const holder of holders) expect(license).toContain(holder);
+    }
+  });
+});
+
 test('ships the HarfBuzz notices for Arabic, Indic and fallback combining classes in Fontkit', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const pdf = notice.assetAssessments.find(entry => entry.path === pdfAsset);
@@ -148,9 +164,9 @@ test('links HarfBuzz grammar inputs to both shipped Fontkit state machines', () 
 test('ships the license notices for each emitted DOCX runtime helper', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const asset = notice.assetAssessments.find(entry => entry.path === docxAsset);
-    const sources = notice.supplementalLicenses.filter(item => item.asset === docxAsset);
+    const sources = notice.supplementalLicenses.filter(item => item.asset === docxAsset && item.moduleLabel);
     expect(sources).toHaveLength(9);
-    expect(sources.map(item => item.ref).sort()).toEqual(asset.containsFiles);
+    expect(asset.containsFiles).toEqual(expect.arrayContaining(sources.map(item => item.ref)));
     const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
     for (const record of sources) {
       const published = sbom.components.find(component => component['bom-ref'] === record.ref);

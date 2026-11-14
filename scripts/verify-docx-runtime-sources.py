@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import tarfile
+import re
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -26,9 +27,39 @@ def npm_files(url, integrity, paths):
         return {name: archive.extractfile("package/" + name).read() for name in paths}
 
 
+def verify_packer_sources(entries, supplier_root):
+    for item in entries:
+        record = item["record"]
+        package = record["sourcePurl"].split("/")[1].split("@")[0]
+        filename = "index.js" if package == "stream-browserify" else "events.js"
+        files = npm_files(record["sourceArchive"], record["sourceIntegrity"], [filename, "LICENSE"])
+        if hashlib.sha256(files[filename]).hexdigest() != record["upstreamFileSha256"]:
+            raise ValueError(f"Changed upstream source for {record['sourcePurl']}")
+        if package == "stream-browserify":
+            adapted = (supplier_root / record["sourcePath"]).read_bytes()
+            if hashlib.sha256(adapted).hexdigest() != record["sourceSha256"]:
+                raise ValueError("Changed DOCX Stream implementation")
+            header = adapted.split(b"/**\n", 1)[1].split(b" */", 1)[0]
+            notice = b"\n".join(line[3:] if line.startswith(b" * ") else b"" for line in header.splitlines()[2:]).strip()
+            expected = notice + b"\n\n" + files["LICENSE"]
+            # Compare resource cleanup, event routing and backpressure event bindings
+            # against the implementation explicitly named by the supplier.
+            events = rb"(source|dest)\.(on|removeListener)\(['\"]([a-z]+)['\"],\s*(\w+)"
+            if sorted(re.findall(events, adapted)) != sorted(re.findall(events, files[filename])):
+                raise ValueError("DOCX pipe event bindings differ from stream-browserify")
+        else:
+            expected = files["LICENSE"]
+            if (supplier_root / "node_modules/events/events.js").read_bytes() != files[filename]:
+                raise ValueError("DOCX EventEmitter differs from the locked original")
+        if expected != (ROOT / item["licenseFile"]).read_bytes():
+            raise ValueError(f"Changed original or adapted notice for {record['sourcePurl']}")
+
+
 def main():
     policy = json.loads((ROOT / "vendor/provenance-policy.json").read_text())
-    runtimes = policy["verifiedBundleInventories"]["vendor/export/docx.js"]["generatedRuntimes"]
+    inventory = policy["verifiedBundleInventories"]["vendor/export/docx.js"]
+    verify_packer_sources(inventory["attributedSections"], Path.cwd())
+    runtimes = inventory["generatedRuntimes"]
     for runtime in runtimes:
         if runtime["component"] == "rolldown@1.2.15":
             licenses = npm_files(
