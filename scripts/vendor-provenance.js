@@ -891,11 +891,13 @@ function buildDiagnosticProvenance(repoRoot, outputRoot, copiedAssets, dependenc
     for (const candidate of candidates) if (requiredPurls.has(candidate.purl)) selected.push(candidate);
   }
   for (const { components } of discoveredByAsset.values()) selected.push(...components);
-  const leafletImageLicense = dependencies.find(dependency => dependency.package === 'leaflet-image');
+  const directLicenses = new Map(dependencies.map(dependency => [
+    `pkg:npm/${dependency.package}@${dependency.version}`, dependency,
+  ]));
   const components = [...new Map(selected.map(component => [component.purl, component])).values()]
     .sort((left, right) => left.purl.localeCompare(right.purl))
     .map(component => copyComponentLicenseEvidence(repoRoot, outputRoot, component,
-      component.purl === leafletImageInventory.owner ? leafletImageLicense : undefined));
+      directLicenses.get(component.purl)));
   const fontEvidence = collectFontEvidence(repoRoot, outputRoot);
   const simpleheat = components.find(component => component.attestation.lockPath === 'node_modules/simpleheat');
   const simpleheatLicense = simpleheat?.licenseTexts.find(license => license.copyrightIncluded);

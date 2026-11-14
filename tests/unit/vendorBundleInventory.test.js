@@ -89,6 +89,22 @@ test('attributes the adapted Base64 decoder in Fontkit to its upstream author', 
   });
 });
 
+test('attributes the two Leaflet plugin notices to their exact package versions', () => {
+  withVendorArtifact((root, noticePath, notice) => {
+    const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
+    for (const name of ['leaflet-draw', 'leaflet.markercluster']) {
+      const direct = notice.dependencies.find(entry => entry.package === name);
+      const purl = `pkg:npm/${name}@${direct.version}`;
+      const component = notice.components.find(entry => entry.purl === purl);
+      expect(component.licenseTexts).toContainEqual({
+        path: direct.licenseTextPath, sha256: direct.licenseTextSha256, copyrightIncluded: true,
+      });
+      expect(sbom.components.find(entry => entry.purl === purl).properties)
+        .toContainEqual({ name: 'unfallatlas:license-text-count', value: '1' });
+    }
+  });
+});
+
 test('ships the HarfBuzz notices for Arabic, Indic and fallback combining classes in Fontkit', () => {
   withVendorArtifact((root, noticePath, notice) => {
     const pdf = notice.assetAssessments.find(entry => entry.path === pdfAsset);
