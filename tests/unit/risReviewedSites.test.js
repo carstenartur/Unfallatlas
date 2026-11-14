@@ -26,3 +26,25 @@ test('recognizes a regional Hochbahnsteig with the verified corridor and constru
     expect(locate({ ...row, title }).locations.some(site => site.geometry)).toBe(false);
   }
 });
+
+test.each(['hannover', 'bonn'])('resolves every reviewed reference in the shipped %s register', city => {
+  const register = require(`../../config/ris-locations/${city}-reviewed-sites.json`);
+  const { validLocationGeometry } = require('../../js/ua.ris-catalogue.js').snapshotFormat;
+  const referencedSites = new Set();
+  for (const row of Object.values(register.records)) {
+    expect(row.source.trim().length).toBeGreaterThan(0);
+    expect(row.title.trim().length).toBeGreaterThan(0);
+    expect(row.sites.length).toBeGreaterThan(0);
+    for (const reference of row.sites) {
+      const site = register.sites[reference.site];
+      expect(site).toBeDefined();
+      expect(validLocationGeometry(site.geometry, site.kind)).toBe(true);
+      expect(new URL(site.sourceUrl).protocol).toBe('https:');
+      expect(site.attribution.trim().length).toBeGreaterThan(0);
+      expect(new URL(reference.documentUrl).protocol).toBe('https:');
+      expect(reference.text.trim().length).toBeGreaterThan(0);
+      referencedSites.add(reference.site);
+    }
+  }
+  expect(referencedSites).toEqual(new Set(Object.keys(register.sites)));
+});
