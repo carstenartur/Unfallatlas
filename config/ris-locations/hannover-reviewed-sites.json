@@ -1,0 +1,318 @@
+{
+  "sites": {
+    "conti-turm": {
+      "label": "Conti-Turm, Wasserstadt Limmer",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.6787824, 52.383073]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/node/9977384887/history/3",
+      "corroborationUrl": "https://denkmalatlas.niedersachsen.de/viewer/metadata/30776241/1/-/"
+    },
+    "feldbuschwende": {
+      "label": "Feldbuschwende (Straßenverlauf zur Orientierung)",
+      "kind": "street",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [9.836863, 52.34266],
+            [9.83873, 52.342042]
+          ],
+          [
+            [9.836949, 52.342797],
+            [9.838065, 52.342484]
+          ],
+          [
+            [9.838065, 52.342484],
+            [9.838908, 52.342248]
+          ],
+          [
+            [9.83873, 52.342042],
+            [9.840446, 52.341497]
+          ],
+          [
+            [9.838908, 52.342248],
+            [9.840628, 52.341757]
+          ],
+          [
+            [9.840446, 52.341497],
+            [9.840628, 52.341757]
+          ],
+          [
+            [9.840446, 52.341497],
+            [9.84208, 52.340969]
+          ],
+          [
+            [9.840628, 52.341757],
+            [9.8407, 52.341737]
+          ],
+          [
+            [9.8407, 52.341737],
+            [9.84233, 52.341274]
+          ],
+          [
+            [9.84208, 52.340969],
+            [9.84223, 52.34114],
+            [9.84233, 52.341274]
+          ],
+          [
+            [9.84233, 52.341274],
+            [9.843245, 52.341014]
+          ]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "streetKey": "0324100103669"
+    },
+    "glocksee-gruen": {
+      "label": "Grünfläche an der Glockseestraße zwischen Braunstraße und enercity-Zufahrt (Orientierungspunkt)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.7207329, 52.3729251]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "sourceUrl": "https://www.openstreetmap.org/way/1531533474/history/1",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-3026-2022"
+    },
+    "lange-hop": {
+      "label": "Lange-Hop-Straße, Großer Hillen bis Tiergartenstraße (Straßenachse)",
+      "kind": "section",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [9.820591, 52.359518],
+          [9.820583, 52.359628],
+          [9.82058, 52.359676],
+          [9.82021, 52.361466],
+          [9.820013, 52.362384],
+          [9.820029, 52.362439],
+          [9.82004, 52.362478]
+        ]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas"
+    },
+    "echternfeld-bplan1150-1": {
+      "kind": "place",
+      "label": "Bebauungsplan 1150, 1. Änderung – Echternfeld 27 (Orientierungspunkt auf Flurstück 75/19, Flur 24)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.79274235, 52.44790239]
+      },
+      "attribution": "LGLN (2026), INSPIRE ALKIS-Flurstücke, CC BY 4.0",
+      "sourceUrl": "https://registry.gdi-de.org/id/de.ni.land.geobasisdaten.inspire.cp.alkis/CadastralParcel_033848024000750019__",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/0328-2013"
+    },
+    "stadionbruecke-parkraum": {
+      "kind": "junction",
+      "label": "Stammestraße / Stadionbrücke (Standort des entfallenen Parkplatzes im untersuchten Umfeld)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.724464, 52.358481]
+      },
+      "attribution": "LGLN (2026), ATKIS Basis-DLM (CC BY 4.0), bearbeitet",
+      "sourceUrl": "https://opendata.lgln.niedersachsen.de/doorman/noauth/atkisbdlm_wfs_nas",
+      "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/TO/20191106_STBR10_P"
+    }
+  },
+  "records": {
+    "hannover-sim:0737-2016": {
+      "source": "hannover-sim",
+      "title": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:0737-2016E1": {
+      "source": "hannover-sim",
+      "title": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\"",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:0828-2016": {
+      "source": "hannover-sim",
+      "title": "Änderungsantrag von Eike Geffers - Mitglied in der Kommission Sanierung Limmer - zu Drucks. Nr. 0737/2016 (Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\")",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Änderungsantrag von Eike Geffers - Mitglied in der Kommission Sanierung Limmer - zu Drucks. Nr. 0737/2016 (Sanierungsgebiet Limmer Wasserstadt Instandsetzung des \"Conti-Turms\")",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:15-0925-2016": {
+      "source": "hannover-sim",
+      "title": "Änderungsantrag zu Drucks. Nr. 0737/2016 Instandsetzung \"Conti-Turm\"",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Änderungsantrag zu Drucks. Nr. 0737/2016 Instandsetzung \"Conti-Turm\"",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:15-1129-2019S1": {
+      "source": "hannover-sim",
+      "title": "Einrichtung eines Radweges östliche Lange-Hop-Straße zwischen Großer Hillen und Tiergartenstraße Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 08.05.2019 - TOP 8.5.4.",
+      "sites": [
+        {
+          "site": "lange-hop",
+          "text": "Die Lange-Hop-Straße zwischen Großer Hillen und Tiergartenstraße befindet sich in einer Tempo-30-Zone.",
+          "source": "document"
+        }
+      ]
+    },
+    "hannover-sim:15-1185-2024": {
+      "source": "hannover-sim",
+      "title": "Weitere Ertüchtigung Glockseestraße",
+      "sites": [
+        {
+          "site": "glocksee-gruen",
+          "text": "begrünte Fläche an der Glockseestraße zwischen Braunstraße und der Einfahrz zu Enercity",
+          "source": "document"
+        }
+      ]
+    },
+    "hannover-sim:15-1185-2024N1": {
+      "source": "hannover-sim",
+      "title": "Weitere Ertüchtigung Glockseestraße",
+      "sites": [
+        {
+          "site": "glocksee-gruen",
+          "text": "begrünte Fläche an der Glockseestraße zwischen Braunstraße und der Einfahrz zu Enercity",
+          "source": "document"
+        }
+      ]
+    },
+    "hannover-sim:15-1185-2024N1S1": {
+      "source": "hannover-sim",
+      "title": "ENTSCHEIDUNG zum gemeinsamen Antrag der Fraktion Bündnis 90/Die Grünen und der SPD-Fraktion: Weitere Ertüchtigung Glockseestraße Sitzung des Stadtbezirksrates Mitte am 10.06.2024 TOP 6.3.1.1.",
+      "sites": [
+        {
+          "site": "glocksee-gruen",
+          "text": "begrünte Fläche an der Glockseestraße zwischen Braunstraße und der Einfahrz zu Enercity",
+          "source": "document"
+        }
+      ]
+    },
+    "hannover-sim:15-1863-2020": {
+      "source": "hannover-sim",
+      "title": "Erneuerung Schilder Feldbuschwende",
+      "sites": [
+        {
+          "site": "feldbuschwende",
+          "text": "Straßenschilder an der Feldbuschwende auf Erneuerung prüfen und gegebenenfalls ersetzen.",
+          "source": "document"
+        }
+      ]
+    },
+    "hannover-sim:15-1870-2007": {
+      "source": "hannover-sim",
+      "title": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:15-1870-2007S1": {
+      "source": "hannover-sim",
+      "title": "Entscheidung: Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Entscheidung: Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:15-1870-2007S2": {
+      "source": "hannover-sim",
+      "title": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:1801-2007": {
+      "source": "hannover-sim",
+      "title": "Dringlichkeitsantrag der SPD-Gruppe in der Sanierungskommission Limmer zum Thema Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+      "sites": [
+        {
+          "site": "conti-turm",
+          "text": "Dringlichkeitsantrag der SPD-Gruppe in der Sanierungskommission Limmer zum Thema Sicherung und Erhalt des Conti-Turms auf dem Gelände der Wasserstadt Limmer",
+          "source": "title"
+        }
+      ]
+    },
+    "hannover-sim:0328-2013": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 1150, 1. Änderung - Nördlich Echternfeld Bebauungsplan der Innenentwicklung Auslegungsbeschluss",
+      "sites": [
+        {
+          "site": "echternfeld-bplan1150-1",
+          "text": "Der Geltungsbereich des Bebauungsplans Nr. 1150, 1. Änderung umfasst die Fläche des Grundstücks Echternfeld 27 der ehemaligen Genossenschaftsakademie mit den Flurstücken 75/19, 60/2, 60/13 und 56/64 (alle Flur 24 der Gemarkung Isernhagen-Süd)."
+        }
+      ]
+    },
+    "hannover-sim:1493-2012": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 1150, 1. Änderung – Nördlich Echternfeld – Bebauungsplan der Innenentwicklung Aufstellungsbeschluss, Beschluss zur frühzeitigen Beteiligung der Öffentlichkeit",
+      "sites": [
+        {
+          "site": "echternfeld-bplan1150-1",
+          "text": "Das Plangebiet umfasst die Fläche des Grundstück Echternfeld 27 (ehemaligen Genossenschaftsakademie) in Isernhagen-Süd."
+        }
+      ]
+    },
+    "hannover-sim:2016-2013": {
+      "source": "hannover-sim",
+      "title": "Bebauungsplan Nr. 1150, 1. Änderung - Nördlich Echternfeld Bebauungsplan der Innenentwicklung Beschluss über Stellungnahmen, Satzungsbeschluss",
+      "sites": [
+        {
+          "site": "echternfeld-bplan1150-1",
+          "text": "den Bebauungsplan Nr. 1150, 1. Änderung gemäß § 10 Abs. 1 BauGB und § 10 Abs. 1 NKomVG als Satzung zu beschließen und der Begründung zuzustimmen."
+        }
+      ]
+    },
+    "hannover-sim:15-0808-2019": {
+      "source": "hannover-sim",
+      "title": "Parken in der Stammestraße und im Umfeld des KRH Siloah in Linden-Süd",
+      "sites": [
+        {
+          "site": "stadionbruecke-parkraum",
+          "text": "Die Parkflächen, die für dieses Zentrum entfallen sind, haben den Parkdruck verschärft."
+        }
+      ]
+    },
+    "hannover-sim:15-0808-2019F1": {
+      "source": "hannover-sim",
+      "title": "Antwort der Verwaltung auf die Anfrage Parken in der Stammestraße und im Umfeld des KRH Siloah in Linden-Süd Sitzung des Stadtbezirksrates Linden-Limmer am 27.03.2019 TOP 7.2.2.",
+      "sites": [
+        {
+          "site": "stadionbruecke-parkraum",
+          "text": "Richtig ist, dass seit der Bebauung des ehemaligen P+R-Parkplatzes und der Erweiterung des Krankenhauses Siloah die Zahl der Parkverstöße in der Stammestraße zugenommen hat."
+        }
+      ]
+    }
+  }
+}

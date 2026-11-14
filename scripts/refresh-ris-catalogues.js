@@ -32,7 +32,7 @@ const SOURCE_FINISH_MS = 2 * 60_000;
 const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
-const LOCATION_REVISIONS = { bonn: 5, hannover: 11 };
+const LOCATION_REVISIONS = { bonn: 6, hannover: 12 };
 const historyStartYears = { bonn: 2014, hannover: HANNOVER_HISTORY_START_YEAR };
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
@@ -322,6 +322,7 @@ async function loadGazetteer(city) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  if (curated) curated.reviewedSites = JSON.parse(await fs.readFile(path.join(folder, `${city}-reviewed-sites.json`), 'utf8'));
   if (city !== 'hannover') return curated;
   const compressed = await fs.readFile(path.join(folder, 'hannover-atkis.json.gz'));
   const atkis = JSON.parse((await gunzip(compressed, { maxOutputLength: ASSET_BYTES })).toString('utf8'));
@@ -332,7 +333,7 @@ async function loadGazetteer(city) {
   const names = new Set(atkis.entries.map(key));
   const additional = (curated?.entries || []).filter(entry => !names.has(key(entry)))
     .map(entry => ({ ...entry, attribution: entry.attribution ?? curated.attribution }));
-  return { ...atkis, entries: [...atkis.entries, ...additional], regionalProjectAddresses: curated?.regionalProjectAddresses,
+  return { ...atkis, entries: [...atkis.entries, ...additional], reviewedSites: curated?.reviewedSites, regionalProjectAddresses: curated?.regionalProjectAddresses,
     streetAliases: curated?.streetAliases, publicFacilities: curated?.publicFacilities,
     regionalTramStops: JSON.parse(await fs.readFile(path.join(folder, 'hannover-stadtbahn.json'), 'utf8')),
     trafficControlProjects: JSON.parse(await fs.readFile(path.join(folder, 'hannover-verkehrsknoten.json'), 'utf8')) };
