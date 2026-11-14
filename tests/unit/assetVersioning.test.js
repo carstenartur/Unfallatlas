@@ -72,7 +72,7 @@ describe('Werkbank deployment asset versions', () => {
 
   test('loads the matching Word report, map capture and accident point renderers', () => {
     expect(html).toContain('js/ua.state.js?v=2026-11-14-fallansicht"');
-    expect(html).toContain('js/ua.data_paths.js?v=2026-11-13-radzaehlung"');
+    expect(html).toContain('js/ua.data_paths.js?v=2026-11-14-jahresabdeckung"');
     const paths = fs.readFileSync(path.resolve(__dirname, '../../js/ua.data_paths.js'), 'utf8');
     expect(paths).toContain('js/ua.evidence_cohort.js?v=2026-11-11-kartenlesbarkeit');
     expect(bootstrap).toContain('ua.map_capture_tile_integrity.js?v=2026-11-11-word-maps');
@@ -96,7 +96,8 @@ describe('Werkbank deployment asset versions', () => {
     const modules = ['district_discovery','site_evaluation','site_case','export_v2','report_v2','measures','ris-layer'];
     const consumer = html.indexOf('src="js/ua.site_discovery_ui.js');
     for (const name of modules) {
-      const script = html.indexOf('src="js/ua.' + name + '.js?v=2026-11-14-fallansicht"');
+      const version = name === 'site_evaluation' ? '2026-11-14-jahresabdeckung' : '2026-11-14-fallansicht';
+      const script = html.indexOf('src="js/ua.' + name + '.js?v=' + version + '"');
       expect(script).toBeGreaterThan(0);
       expect(script).toBeLessThan(consumer);
     }

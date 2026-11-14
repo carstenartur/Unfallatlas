@@ -132,12 +132,34 @@
     else openTrafficViews.delete(ctx);
   }
 
-  function evaluate({ctx, selection, implementation}) {
+  function completeSelection(ctx, selection) {
+    const coverage = ctx.accidentDataCoverage;
+    return selection.complete && !selection.networkStatus && coverage?.complete === true
+      && coverage.city === ctx.CITY_RAW;
+  }
+
+  function releasedYears(ctx, release) {
+    if (ctx.accidentDataCoverage.provider !== 'static' || release?.schemaVersion !== 1
+        || release.contract !== 'unfallwerkbank-accident-data-release/v1' || !Array.isArray(release.cities)) return null;
+    const slug = UA.normKey(ctx.CITY_RAW);
+    const city = release.cities.find(row => row?.slug === slug);
+    if (!Array.isArray(city?.years) || !city.byYear || !Array.isArray(ctx.allPts)) return null;
+    const loaded = new Map();
+    for (const point of ctx.allPts) {
+      const year = UA.SiteDiscovery.yearOf(point);
+      loaded.set(year, (loaded.get(year) || 0) + 1);
+    }
+    const currentYear = new Date().getUTCFullYear();
+    return new Set(city.years.filter(year => Number.isInteger(year) && year < currentYear
+      && Number.isInteger(city.byYear[year]) && city.byYear[year] === (loaded.get(year) || 0)));
+  }
+
+  function evaluate({ctx, selection, implementation, release}) {
     if (!isImplementation(implementation)) return {status:'no-date'};
-    if (!selection.complete || selection.networkStatus || ctx.accidentDataCoverage?.complete !== true
-        || (ctx.accidentDataCoverage.city && ctx.accidentDataCoverage.city !== ctx.CITY_RAW)) return {status:'incomplete'};
+    if (!completeSelection(ctx, selection)) return {status:'incomplete'};
+    const available = releasedYears(ctx, release);
+    if (!available) return {status:'unverified-years'};
     const year = Number(implementation.date.slice(0,4));
-    const available = new Set((ctx.allPts || []).map(UA.SiteDiscovery.yearOf).filter(Boolean));
     const before = [], after = [];
     for (let offset = 1; offset <= maxYears && available.has(year-offset) && available.has(year+offset); offset++) {
       before.unshift(year-offset);
@@ -169,13 +191,17 @@
       box.append(element('p','Für diesen Vergleich werden der vollständige Stadtdatensatz und die gewählte Ortszuordnung benötigt.'));
       return;
     }
+    if (result.status === 'unverified-years') {
+      box.append(element('p','Wirkung offen. Für diesen Datenbestand fehlt der Nachweis der Jahresabdeckung. Der Vergleich benötigt veröffentlichte Jahreszahlen für die gewählte Stadt.'));
+      return;
+    }
     if (result.status === 'waiting') {
       box.append(element('p','Wirkung offen. Für den ersten Vergleich werden die vollständigen Unfalljahrgänge '
         + result.beforeNeeded + ' und ' + result.afterNeeded + ' benötigt.'));
       return;
     }
     box.append(element('p',(selection.pattern?.label || 'Unfälle nach den gewählten Suchkriterien')
-      + ' · Vergleich ganzer Kalenderjahre ohne das Jahr der Inbetriebnahme. Die Jahre des Suchfilters gelten nur für die Stellensuche.'));
+      + ' · Vergleich abgeschlossener Kalenderjahre ohne das Jahr der Inbetriebnahme. Die stadtweiten Fallzahlen der verwendeten Jahre stimmen mit der veröffentlichten Unfallatlas-Lieferung überein. Die Jahre des Suchfilters gelten nur für die Stellensuche.'));
     const table = element('table');
     table.append(element('caption','Unfälle im gewählten Gebiet oder am Netzobjekt'));
     const header = table.createTHead().insertRow();
@@ -241,10 +267,26 @@
       box.append(info);
       const output = element('div');
       box.append(output);
-      const display = () => {
-        if (!box.open) return;
-        box.removeEventListener('toggle', display);
-        results(output, evaluate({ctx, selection, implementation:active}), selection, ctx);
+      let checking = false;
+      const display = async () => {
+        if (!box.open || checking) return;
+        const city = ctx.CITY_RAW, points = ctx.allPts;
+        let release = null;
+        if (completeSelection(ctx, selection) && ctx.accidentDataCoverage.provider === 'static') {
+          checking = true;
+          output.textContent = 'Jahresabdeckung wird geprüft …';
+          try {
+            release = await UA.DataResources?.fetchJson('accidentRelease', {}, {optional:true});
+          } catch { /* Unavailable release evidence leaves the comparison open. */ }
+          checking = false;
+          if (!box.isConnected || ctx.CITY_RAW !== city || ctx.allPts !== points) return;
+        }
+        const result = evaluate({ctx, selection, implementation:active, release});
+        if (release || result.status !== 'unverified-years' || ctx.accidentDataCoverage?.provider !== 'static') {
+          box.removeEventListener('toggle', display);
+        }
+        output.replaceChildren();
+        results(output, result, selection, ctx);
       };
       box.addEventListener('toggle', display);
     } else box.append(element('p','Wirkung offen. Für diesen Ort fehlt ein belegter Zeitpunkt der Inbetriebnahme.'));

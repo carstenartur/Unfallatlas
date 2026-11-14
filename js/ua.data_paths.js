@@ -31,6 +31,11 @@
   }
 
   const definitions = Object.freeze({
+    accidentRelease: Object.freeze({
+      compression: COMPRESSION.RAW,
+      cache: 'no-cache',
+      path: () => 'data/accident-data-release.json',
+    }),
     accidentGeoJson: Object.freeze({
       compression: COMPRESSION.GZIP_PREFERRED,
       cache: 'no-store',
