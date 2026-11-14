@@ -2,10 +2,10 @@
 # Rebuild the published docx browser bundle using the supplier's source and npm lock.
 set -euo pipefail
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
-commit=ebd29699d5966bffaa9cf829545b8b6d9ed79d9a
-archive_sha=b41017ca068e110d7bd00ecd88eb597012bdea3786d61e94e9f61d2a9f881a73
-lock_sha=d9d2c3ff7648ef7f7d173f8e97cc0078b1a02ff3f87dd55073c0ec7e13af62f6
-bundle_sha=262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e
+commit=dc8bd21a0c4ab447fda0d5ad149f16ee87979de8
+archive_sha=9702ad5682f51134a6bc31e0db5af382663a00176f72dda7775e358ae8c656d5
+lock_sha=e3454d37dfbc33e77160559f7e1afffbc685d72f19f42869b8f72e7c81d17ad9
+bundle_sha=5d3091bf1e4cb622f0f6cdf4a552db8664e3f3a7524205709b52ba20313255d2
 check_hash() {
   printf '%s  %s\n' "$1" "$2" | sha256sum --check --status
 }

@@ -51,7 +51,7 @@ Die derzeit abgedeckten Ausgaben sind:
 
 | Lock-Referenz | Paket | Eingabe | ausgelieferte Ausgabe |
 |---|---|---|---|
-| `export.docx.iife` | `docx@9.15.3` | `dist/index.iife.js` | `vendor/export/docx.js` |
+| `export.docx.iife` | `docx@9.15.4` | `dist/index.iife.js` | `vendor/export/docx.js` |
 | `export.pdfmake.min` | `pdfmake@0.3.14` | `build/pdfmake.min.js` | `vendor/export/pdfmake.js` |
 | `export.pdfmake.font-container` | `pdfmake@0.3.14` | `build/vfs_fonts.js` | `vendor/export/pdfmake-fonts.js` |
 
@@ -107,23 +107,23 @@ einen vollständigen SBOM-Status vorzutäuschen.
 
 ## Reproduktion des ausgelieferten DOCX-Bundles
 
-Für `docx@9.15.3` wurde das vollständige Upstream-Build mit Node 24.22.1
+Für `docx@9.15.4` wurde das vollständige Upstream-Build mit Node 24.22.1
 und npm 11.9.0 aus dem vom npm-Release benannten Git-Stand
-`ebd29699d5966bffaa9cf829545b8b6d9ed79d9a` ausgeführt. Das im Quellarchiv
+`dc8bd21a0c4ab447fda0d5ad149f16ee87979de8` ausgeführt. Das im Quellarchiv
 enthaltene npm-Lockfile liegt vollständig in `vendor/docx-build/npm-lock.json.gz`.
 Das Prüfskript vergleicht die entpackte Kopie byteweise mit der Herstellerdatei.
 Sie fixiert auch die Versionen von fflate (0.8.3),
-nanoid (6.0.2), Vite (8.3.5) und Rolldown (1.2.15). Gebautes und vom
+nanoid (6.0.2), Vite (8.3.7) und Rolldown (1.2.18). Gebautes und vom
 Site-Build kopiertes IIFE haben jeweils 1.061.595 Bytes und denselben SHA-256
-`262bb22541dd3f9f1f0323ce4e28093d1a7080124cfbd79db9fb383b3be72a5e`.
+`5d3091bf1e4cb622f0f6cdf4a552db8664e3f3a7524205709b52ba20313255d2`.
 Der Seitenbuild prüft die drei npm-Quellpfade im IIFE, den Hash des
 entpackten Hersteller-Locks und die unveränderten MIT-Texte. Notice und
 CycloneDX binden `fflate@0.8.3` und `nanoid@6.0.2` als enthaltene Komponenten
 an `vendor/export/docx.js`.
 
 Zusätzlich nennt das ausgelieferte IIFE neun virtuelle Laufzeitmodule.
-Rolldown 1.2.15 erzeugt den CommonJS-Helfer aus `runtime-base.js`; acht
-weitere Helfer stammen aus `@oxc-project/runtime@0.155.0`. Der Herkunftsnachweis
+Rolldown 1.2.18 erzeugt den CommonJS-Helfer aus `runtime-base.js`; acht
+weitere Helfer stammen aus `@oxc-project/runtime@0.156.0`. Der Herkunftsnachweis
 verknüpft jeden Modulnamen mit dem Hash der unveränderten Quelldatei.
 Die Hashes beziehen sich auf die Quellen vor der Minifizierung. Der
 Herstellerbuild prüft diese Originaldateien und die ausgelieferten
