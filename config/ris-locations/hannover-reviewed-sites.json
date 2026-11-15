@@ -2029,9 +2029,35 @@
       "attribution": "DELFI e. V., Zentrales Haltestellenverzeichnis (HannIT), 09.11.2026, CC BY 4.0 (Haltepunkt, keine historische Bauflächengeometrie)",
       "sourceUrl": "https://mobi.nrw/zentrales-haltestellenverzeichnis.zip",
       "corroborationUrl": "https://www.infra-hannover.de/haltestelle/kurze-kamp-strasse/"
+    },
+    "stadtbahn-freizeitheim-linden-verified": {
+      "kind": "place",
+      "label": "Stadtbahnhaltestelle Freizeitheim Linden (Haltepunkt zur Orientierung, keine Geometrie der beantragten Querung)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          9.70052,
+          52.375519
+        ]
+      },
+      "attribution": "DELFI e. V., Zentrales Haltestellenverzeichnis (HannIT), 09.11.2026, CC BY 4.0 (Haltepunkt, nicht beantragte Querungsfläche)",
+      "sourceUrl": "https://mobi.nrw/zentrales-haltestellenverzeichnis.zip",
+      "corroborationUrl": "https://www.infra-hannover.de/haltestelle/freizeitheim-linden/"
     }
   },
   "records": {
+    "hannover-sim:15-2028-2025S1": {
+      "source": "hannover-sim",
+      "title": "Zusätzliche Querungsmöglichkeit an der Stadtbahnhaltestelle Freizeitheim Linden Sitzung des Stadtbezirksrates Linden-Limmer am 08.10.2025 TOP 6.4.1.",
+      "sites": [
+        {
+          "site": "stadtbahn-freizeitheim-linden-verified",
+          "source": "document",
+          "text": "Die Verwaltung wird gebeten, eine zusätzliche Querungsmöglichkeit der Limmerstraße an der Stadtbahnhaltestelle Freizeitheim Linden in Richtung Steigerthalstraße und einzurichten.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2028-2025S1"
+        }
+      ]
+    },
     "hannover-sim:0328-2013": {
       "source": "hannover-sim",
       "title": "Bebauungsplan Nr. 1150, 1. Änderung - Nördlich Echternfeld Bebauungsplan der Innenentwicklung Auslegungsbeschluss",
