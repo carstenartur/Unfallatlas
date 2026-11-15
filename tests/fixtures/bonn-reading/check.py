@@ -1,14 +1,18 @@
 """Exercises the offline producer and its fixed mirror contract without any network."""
 import gzip
 import hashlib
+import io
 import json
+import os
+import stat
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 import zipfile
 from contextlib import closing
+from datetime import datetime, timezone
+from http.client import IncompleteRead
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -18,6 +22,7 @@ import bonn_reading_queue as batch
 PAPER = 'https://www.bonn.sitzung-online.de/oparl/papers/12'
 FILE = 'https://www.bonn.sitzung-online.de/oparl/files/84'
 VERSION = 'a' * 64
+NOON_UTC = datetime(2026, 11, 15, 12, tzinfo=timezone.utc).timestamp()
 ROW = {'id': PAPER, 'reference': '211002', 'file': FILE, 'title': 'Querung'}
 TEXT = 'Öffentliche Entscheidung zur Querung.'
 RESULT = {'uri': FILE, 'textSha256': VERSION, 'text': TEXT, 'papers': [{'uri': PAPER}]}
@@ -107,8 +112,9 @@ class OfflineReadingTest(unittest.TestCase):
             with self.subTest(reservations=reservations), tempfile.TemporaryDirectory() as tmp:
                 database = Path(tmp) / 'cache.db'
                 with closing(batch.open_cache(database)) as db, db:
-                    db.executemany('INSERT INTO requests VALUES (?,?)', [(time.time(), n) for n in reservations])
-                with closing(batch.open_cache(database)) as db, patch.object(batch.request, 'build_opener') as opener:
+                    db.executemany('INSERT INTO requests VALUES (?,?)', [(NOON_UTC - 15, n) for n in reservations])
+                with closing(batch.open_cache(database)) as db, patch.object(batch.request, 'build_opener') as opener, \
+                        patch.object(batch.time, 'time', return_value=NOON_UTC):
                     with self.assertRaises(RuntimeError):
                         batch.mirror(db, [FILE], True)
                     opener.assert_not_called()
@@ -123,10 +129,11 @@ class OfflineReadingTest(unittest.TestCase):
             queue.write_text(json.dumps({'catalogueGeneration': VERSION, 'exportSha256': VERSION, 'papers': rows}))
             with closing(batch.open_cache(database)) as db, db:
                 batch.sync(db, [ROW], Mock(return_value={'f0': RESULT}))
-                db.execute('INSERT INTO requests VALUES (?,?)', (time.time(), batch.DAILY_BYTES))
+                db.execute('INSERT INTO requests VALUES (?,?)', (NOON_UTC - 15, batch.DAILY_BYTES))
             # The socket audit hook also makes a regression in the budget check harmless to the server.
             launcher = (
-                "import runpy, sys\n"
+                "import runpy, sys, time\n"
+                f"time.time = lambda: {NOON_UTC}\n"
                 "def offline(event, args):\n"
                 "    if event.startswith('socket.'): raise AssertionError('unexpected network access')\n"
                 "sys.addaudithook(offline)\n"
@@ -142,7 +149,7 @@ class OfflineReadingTest(unittest.TestCase):
             self.assertEqual([p['status'] for p in json.loads(output.read_bytes())['papers']],
                              ['text_available', 'not_cached'])
 
-    def test_missing_text_is_cached_as_unresolved(self):
+    def test_explicit_null_text_for_a_version_does_not_trigger_repeated_downloads(self):
         with tempfile.TemporaryDirectory() as tmp, closing(batch.open_cache(Path(tmp) / 'cache.db')) as db:
             remote = Mock(return_value={'f0': {**RESULT, 'text': None}})
             batch.sync(db, [ROW], remote)
@@ -170,13 +177,87 @@ class OfflineReadingTest(unittest.TestCase):
     def test_changed_and_missing_files_do_not_reuse_an_old_version(self):
         with tempfile.TemporaryDirectory() as tmp, closing(batch.open_cache(Path(tmp) / 'cache.db')) as db:
             batch.sync(db, [ROW], Mock(return_value={'f0': RESULT}))
-            new = {**RESULT, 'textSha256': 'b' * 64}
+            new = {**RESULT, 'textSha256': 'b' * 64, 'text': 'unexpected field in metadata response'}
             remote = Mock(side_effect=[{'f0': new}, RuntimeError('interrupted')])
             with self.assertRaises(RuntimeError):
                 batch.sync(db, [ROW], remote, refresh=True)
             self.assertNotIn('text', batch.read_row(db, ROW))
             batch.sync(db, [ROW], Mock(return_value={'f0': None}))
             self.assertNotIn('text', batch.read_row(db, ROW))
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX permissions')
+    def test_raw_database_is_private_under_normal_umask(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old_mask = os.umask(0o022)
+            try:
+                cache = Path(tmp) / 'reading' / 'raw.db'
+                with closing(batch.open_cache(cache)):
+                    self.assertEqual(stat.S_IMODE(cache.stat().st_mode) & 0o077, 0)
+            finally:
+                os.umask(old_mask)
+
+    def test_malformed_file_response_does_not_poison_a_cache_entry(self):
+        missing_text = {k: v for k, v in RESULT.items() if k != 'text'}
+        missing_version = {k: v for k, v in RESULT.items() if k != 'textSha256'}
+        for invalid in (missing_text, missing_version, [], {**RESULT, 'papers': [None]},
+                        {**RESULT, 'papers': [{'uri': 42}]}, {**RESULT, 'textSha256': 42}):
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as tmp:
+                with closing(batch.open_cache(Path(tmp) / 'cache.db')) as db:
+                    with self.assertRaises(ValueError):
+                        batch.read_response(db, [FILE], Mock(return_value={'f0': invalid}), True)
+                    self.assertEqual(batch.read_row(db, ROW)['status'], 'not_cached')
+
+    def test_interrupted_response_leaves_cli_output_at_last_verified_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            database, queue, output = (root / name for name in ('cache.db', 'queue.json', 'out.json'))
+            rows = [ROW, {**ROW, 'id': PAPER + '3', 'file': FILE + '3'}]
+            queue.write_text(json.dumps({'catalogueGeneration': VERSION, 'exportSha256': VERSION, 'papers': rows}))
+            with closing(batch.open_cache(database)) as db:
+                batch.sync(db, [ROW], Mock(return_value={'f0': RESULT}))
+            argv = ['read', 'read', str(queue), str(database), str(output), '--fetch']
+            with patch.object(sys, 'argv', argv), patch.object(batch, 'mirror', side_effect=IncompleteRead(b'x', 2)):
+                self.assertNotEqual(batch.main(), 0)
+            self.assertEqual([p['status'] for p in json.loads(output.read_bytes())['papers']],
+                             ['text_available', 'not_cached'])
+
+    def test_oversleep_across_midnight_accounts_for_actual_request_start(self):
+        midnight = datetime(2026, 11, 16, tzinfo=timezone.utc).timestamp()
+        now = [midnight - 5]
+        sent = []
+
+        def sleep(seconds):
+            now[0] += seconds
+            if now[0] < midnight:
+                now[0] = midnight + 2
+
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls.fromtimestamp(now[0], tz)
+
+        def respond(*args, **kwargs):
+            sent.append(now[0])
+            return io.BytesIO(b'{"data":{}}')
+
+        with tempfile.TemporaryDirectory() as tmp, closing(batch.open_cache(Path(tmp) / 'cache.db')) as db:
+            with db:
+                db.execute('INSERT INTO requests VALUES (?,?)', (midnight - 12, 10))
+            with patch.object(batch.time, 'time', lambda: now[0]), patch.object(batch.time, 'sleep', sleep), \
+                    patch.object(batch, 'datetime', Clock), patch.object(batch.request, 'build_opener') as opener:
+                opener.return_value.open.side_effect = respond
+                for _ in range(batch.MAX_REQUESTS + 1):
+                    try:
+                        batch.mirror(db, [FILE], True)
+                    except RuntimeError:
+                        # A delayed request may stop at the day boundary; resume on the same journal.
+                        continue
+            self.assertGreater(len(sent), 0)
+            self.assertLessEqual(len(sent), batch.MAX_REQUESTS)
+            self.assertTrue(all(b - a >= 10 for a, b in zip(sent, sent[1:])))
+            stamps = [row[0] for row in db.execute(
+                'SELECT started FROM requests WHERE started >= ? ORDER BY started', (midnight,))]
+            self.assertEqual(stamps, sent)
 
     def test_only_official_export_links(self):
         href = 'https://www.bonn.sitzung-online.de/public/doc?DOCTYP=130&DOLFDNR=84&OTYP=41'

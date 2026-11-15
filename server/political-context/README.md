@@ -376,7 +376,11 @@ Antwortdaten vorgesehen, pro Aufruf maximal zehn Dateien und 4 MiB, mit
 mindestens zehn Sekunden zwischen Anfragen. Weitere Abrufe eines Tages gegen
 denselben Host sind bei der Planung mitzuzählen. Bei einem Abbruch enthält der
 Auszug den erreichten Stand, der Prozess meldet einen Fehler. Bei erreichtem
-Budget die offenen Positionen mit demselben Offset und Cache fortsetzen.
+Budget lässt sich das Nachladen fehlender Texte mit demselben Offset und Cache
+fortsetzen. Für eine erneute Versionsprüfung mit `--refresh` Abschnitte von
+höchstens zehn Positionen verwenden und den Offset nach jedem erfolgreichen
+Abschnitt fortschreiben. Ein großer Refresh am selben Offset beginnt erneut
+bei den ersten Metadaten.
 
 Die Ausgabe unterscheidet verfügbaren Text, fehlende/ungeklärte Zuordnung und
 offene Version. Sie enthält den SHA-256 der gelieferten UTF-8-Textbytes sowie

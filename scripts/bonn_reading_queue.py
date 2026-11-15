@@ -4,6 +4,7 @@ import argparse
 from contextlib import contextmanager
 import csv
 import hashlib
+from http.client import HTTPException
 import io
 import json
 import os
@@ -99,7 +100,13 @@ def prepare(manifest_path, export_path):
 
 
 def open_cache(path):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # SQLite bases the mode of its journal on that of the existing database.
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+    finally:
+        os.close(fd)
     db = sqlite3.connect(path, timeout=60)
     db.execute('CREATE TABLE IF NOT EXISTS files (uri TEXT PRIMARY KEY, version TEXT, paper_ids TEXT, body TEXT)')
     db.execute('CREATE TABLE IF NOT EXISTS requests (started REAL, charged INTEGER)')
@@ -127,17 +134,31 @@ def read_response(db, uris, remote, with_text):
     data = remote(uris, with_text)
     changed = []
     with db:
+        if not isinstance(data, dict):
+            raise ValueError('Invalid mirror data')
         for i, uri in enumerate(uris):
+            if f'f{i}' not in data:
+                raise ValueError('Mirror omitted a requested file')
             value = data[f'f{i}']
             if value is None:
                 db.execute('INSERT OR REPLACE INTO files VALUES (?,NULL,?,NULL)', (uri, '[]'))
                 continue
-            if value.get('uri') != uri or not isinstance(value.get('papers'), list):
+            required = {'uri', 'papers', 'textSha256'}
+            if with_text:
+                required.add('text')
+            if not isinstance(value, dict) or not required.issubset(value):
+                raise ValueError('Mirror returned an incomplete file object')
+            if value['uri'] != uri or not isinstance(value['papers'], list):
                 raise ValueError('Mirror returned a different file or invalid ownership list')
-            ids = sorted({p['uri'] for p in value['papers'] if PAPER_ID.fullmatch(p['uri'])})
-            version = value.get('textSha256')
+            ids = set()
+            for paper in value['papers']:
+                pid = paper.get('uri') if isinstance(paper, dict) else None
+                if not isinstance(pid, str) or not PAPER_ID.fullmatch(pid):
+                    raise ValueError('Invalid paper URI in mirror ownership list')
+                ids.add(pid)
+            version = value['textSha256']
             body = value.get('text') if with_text else None
-            if version is not None and not VERSION.fullmatch(version):
+            if version is not None and (not isinstance(version, str) or not VERSION.fullmatch(version)):
                 raise ValueError('Invalid mirror version')
             if body is not None and (not isinstance(body, str) or not version):
                 raise ValueError('Invalid or unversioned text')
@@ -149,7 +170,7 @@ def read_response(db, uris, remote, with_text):
                     changed.append(uri)
             elif body is None and version:
                 body = ''
-            db.execute('INSERT OR REPLACE INTO files VALUES (?,?,?,?)', (uri, version, json.dumps(ids), body))
+            db.execute('INSERT OR REPLACE INTO files VALUES (?,?,?,?)', (uri, version, json.dumps(sorted(ids)), body))
     return changed
 
 
@@ -192,24 +213,26 @@ def exclusive_fetch(path):
 
 def mirror(db, uris, with_text):
     # Reserve bytes before sending. On cancellation the conservative charge survives.
-    now = time.time()
-    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    last = db.execute('SELECT max(started) FROM requests').fetchone()[0] or 0
+    delay = last + 10 - time.time()
+    if delay > 0:
+        time.sleep(delay)
     with db:
         db.execute('BEGIN IMMEDIATE')
+        now = time.time()
+        day_start = datetime.fromtimestamp(now, timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0).timestamp()
         blocked = db.execute('SELECT until FROM backoff WHERE id=1').fetchone()
         if blocked and blocked[0] > now:
             raise RuntimeError('Mirror cooldown in effect')
+        if now < last + 10:
+            raise RuntimeError('Mirror minimum interval has not elapsed')
         count, used = db.execute('SELECT count(*),coalesce(sum(charged),0) FROM requests WHERE started>=?',
                                  (day_start,)).fetchone()
-        last = db.execute('SELECT max(started) FROM requests').fetchone()[0] or 0
         room = min(REQUEST_BYTES, DAILY_BYTES - used)
         if count >= MAX_REQUESTS or room <= 0:
             raise RuntimeError('Daily mirror budget exhausted; read cached texts offline')
-        slot = max(now, last + 10)
-        if slot >= day_start + 86400:
-            raise RuntimeError('Retry after the UTC day boundary')
-        seq = db.execute('INSERT INTO requests VALUES (?,?)', (slot, room)).lastrowid
-    time.sleep(max(0, slot - time.time()))
+        seq = db.execute('INSERT INTO requests VALUES (?,?)', (now, room)).lastrowid
     variables = {f'u{i}': uri for i, uri in enumerate(uris)}
     args = ','.join(f'${name}:String!' for name in variables)
     fields = 'uri papers{uri} textSha256' + (' text' if with_text else '')
@@ -238,13 +261,13 @@ def mirror(db, uris, with_text):
                 db.execute('INSERT OR REPLACE INTO backoff VALUES (1,?)', (until,))
         raise
     payload = json.loads(raw)
-    if payload.get('errors') or not isinstance(payload.get('data'), dict):
+    if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), dict):
         raise ValueError('GraphQL error; text not accepted')
     return payload['data']
 
 
 def atomic_json(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with tempfile.NamedTemporaryFile('w', dir=path.parent, delete=False, encoding='utf-8') as f:
         try:
             json.dump(data, f, ensure_ascii=False)
@@ -284,7 +307,7 @@ def main():
             try:
                 with exclusive_fetch(args.database):
                     sync(db, rows, lambda uris, text: mirror(db, uris, text), args.refresh)
-            except (OSError, RuntimeError, ValueError, KeyError, sqlite3.OperationalError) as exc:
+            except (OSError, HTTPException, RuntimeError, ValueError, sqlite3.OperationalError) as exc:
                 print(f'Mirror fetch stopped: {exc}', file=sys.stderr)
                 failure = True
         result = [read_row(db, p) for p in rows]
