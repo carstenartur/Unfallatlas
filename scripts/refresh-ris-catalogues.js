@@ -629,7 +629,9 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     const fallbackExpired = previous.manifest && startedAt.getTime() >= previous.generated + RIS_FALLBACK_MAX_AGE_MS;
     const canRetrySource = checkpointRetry || firstRegionImport || !lastFailure || fallbackExpired || startedAt.getTime() - Date.parse(lastFailure) >= SOURCE_RETRY_MS;
     const refreshDue = checkpointRetry || !previous.manifest || upgradeLocations || upgradeHistory || upgradeRegion || startedAt.getTime() - previous.generated >= REFRESH_AFTER_MS;
-    if (!restoreOnly && refreshDue && canRetrySource) {
+    // An explicit zero budget must not enter a source collector at all. Manual
+    // checkpoint recovery is exempt: its collector verifies local files only.
+    if (!restoreOnly && refreshDue && canRetrySource && (sourceOptions.workBudget !== 0 || checkpointRetry)) {
       let exclusions = new Set();
       try {
         selected = await prepareCandidate(path.join(scratch, 'candidate'), city, startedAt, collect, previous.manifest ? previous : null,

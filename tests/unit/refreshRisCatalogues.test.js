@@ -1983,3 +1983,16 @@ test('preserves eleven independently labelled plan areas in the partitioned Bonn
   expect(drawn).toHaveLength(plans.length);
   for (const feature of drawn) expect(['Polygon', 'MultiPolygon']).toContain(feature.geometry.type);
 });
+
+// Source budgets belong to the complete collection, not just individual collectors.
+test('zero source work budget restores the existing Pages catalogue without invoking municipal collectors', async () => {
+  const previous = catalogue('bonn');
+  const prior = await writeRisSnapshot(published, 'bonn', previous, { now: FALLBACK });
+  const collect = jest.fn(() => { throw new Error('A public source collector must not run at zero budget'); });
+  await expect(refresh({ cities: ['bonn'], workBudget: 0, collect }))
+    .resolves.toMatchObject([{ city: 'bonn', status: 'current', generatedAt: prior.generatedAt }]);
+  expect(collect).not.toHaveBeenCalled();
+  const after = await readRisSnapshot(directory, 'bonn');
+  expect(after.manifest.generatedAt).toBe(prior.generatedAt);
+  expect(after.records.map(record => record.id)).toEqual(previous.records.map(record => record.id));
+});

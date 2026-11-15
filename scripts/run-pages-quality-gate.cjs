@@ -156,7 +156,7 @@ function buildAndValidateSite() {
     const { checkpointRetryFromEnv } = require('./ris-checkpoint-retry-options');
     const maxRefreshDurationMs = 65 * 60_000;
     runNode('scripts/refresh-ris-catalogues.js', [...checkpointRetryFromEnv(process.env),
-      '--max-refresh-duration-ms', String(maxRefreshDurationMs)], { timeoutMs: maxRefreshDurationMs });
+      '--work-budget', '0', '--max-refresh-duration-ms', String(maxRefreshDurationMs)], { timeoutMs: maxRefreshDurationMs });
   }
   fs.rmSync(SITE_ROOT, { recursive: true, force: true });
   fs.mkdirSync(QA_DIR, { recursive: true });
