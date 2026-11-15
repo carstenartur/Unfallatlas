@@ -6156,6 +6156,18 @@
           "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2180-2015"
         }
       ]
+    },
+    "hannover-sim:15-2180-2015S1": {
+      "source": "hannover-sim",
+      "title": "Bordsteinabsenkung Fußgängerüberweg Kreuzungsbereich Alte Döhrener Str. /Devrienstr./Nestroyweg Sitzung des Stadtbezirksrates Südstadt-Bult am 14.10.2015 TOP 9.1.4.",
+      "sites": [
+        {
+          "site": "alte-doehrener-devrient-nestroy-2015",
+          "source": "document",
+          "text": "Dem Antrag wird gefolgt. Die Ausführung erfolgt im Frühjahr 2016. Es handelt sich um die Absenkung von ca. 3 m Bord auf der Westseite der Alten Döhrener Straße im Bereich eines Zebrastreifens.",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-2180-2015S1"
+        }
+      ]
     }
   }
 }
