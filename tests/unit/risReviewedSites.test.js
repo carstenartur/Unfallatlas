@@ -85,3 +85,19 @@ test('maps only the documented 2015 curb-lowering request to the verified two-ju
     expect(locate({ ...original, ...wrong }, register).locations.some(item => item.geometry)).toBe(false);
   }
 });
+
+
+test('keeps the independent west-side 2016 decision distinguishable from its 2015 original', () => {
+  const register = require('../../config/ris-locations/hannover-reviewed-sites.json');
+  const decision = 'hannover-sim:15-2180-2015S1';
+  const original = { source: 'hannover-sim', id: decision, title: register.records[decision].title };
+  const result = locate(original, register).locations.find(item => item.label.includes('Devrientstraße und Nestroyweg'));
+  expect(result).toEqual(expect.objectContaining({
+    kind: 'section', geometry: register.sites['alte-doehrener-devrient-nestroy-2015'].geometry,
+    evidence: { source: 'document', text: expect.stringContaining('Westseite') },
+  }));
+  // A promised spring 2016 construction is not a completion certificate or an exact kerb geometry.
+  expect(result.label).toContain('nur Orientierung');
+  expect(locate({ ...original, id: 'hannover-sim:15-2180-2015S2' }, register)
+    .locations.some(item => item.geometry)).toBe(false);
+});
