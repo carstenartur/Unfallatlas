@@ -48,3 +48,20 @@ test.each(['hannover', 'bonn'])('resolves every reviewed reference in the shippe
   }
   expect(referencedSites).toEqual(new Set(Object.keys(register.sites)));
 });
+
+test('maps the 2022 bicycle-rack proposal only to its independently checked street-junction orientation', () => {
+  const register = require('../../config/ris-locations/hannover-reviewed-sites.json');
+  const id = 'hannover-sim:15-0307-2022S1';
+  const original = { source: 'hannover-sim', id, title: register.records[id].title };
+  const orientation = locate(original, register).locations.find(item => item.label.includes('Tiergartenstraße / Bleekstraße'));
+  expect(orientation).toEqual(expect.objectContaining({
+    geometry: { type: 'Point', coordinates: [9.8138378, 52.3650162] },
+    evidence: expect.objectContaining({ source: 'document', text: expect.stringContaining('Bleekstraße') }),
+  }));
+  // A location on the crossing must not be mistaken for a proved rack or approval of construction.
+  expect(orientation.label).toContain('keine Position der einzelnen Fahrradbügel');
+  for (const wrong of [{ id: 'hannover-sim:15-0307-2022S2' },
+    { title: 'Andere Fahrradbügel Bleekstraße' }, { source: 'region-hannover-ris' }]) {
+    expect(locate({ ...original, ...wrong }, register).locations.some(item => item.geometry)).toBe(false);
+  }
+});
