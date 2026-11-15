@@ -2001,6 +2001,34 @@
       "attribution": "LGLN (2026), ATKIS Basis-DLM und INSPIRE ALKIS-Flurstücke (CC BY 4.0), abgeleitete Abschnittsachse",
       "sourceUrl": "https://registry.gdi-de.org/id/de.ni.land.geobasisdaten.inspire.cp.alkis/CadastralParcel_034878001001710025__",
       "corroborationUrl": "https://e-government.hannover-stadt.de/lhhsimwebdd.nsf/9004F200098184A6C12577C000478445/$FILE/2124-2010_Anlage5.PDF"
+    },
+    "stadtbahn-bothfeld-verified": {
+      "kind": "place",
+      "label": "Stadtbahnhaltestelle Bothfeld (Haltepunkt, keine Hochbahnsteig-Baufläche)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          9.79558,
+          52.415211
+        ]
+      },
+      "attribution": "DELFI e. V., Zentrales Haltestellenverzeichnis (HannIT), 09.11.2026, CC BY 4.0 (Haltepunkt, keine historische Bauflächengeometrie)",
+      "sourceUrl": "https://mobi.nrw/zentrales-haltestellenverzeichnis.zip",
+      "corroborationUrl": "https://www.infra-hannover.de/haltestelle/bothfeld/"
+    },
+    "stadtbahn-kurze-kamp-verified": {
+      "kind": "place",
+      "label": "Stadtbahnhaltestelle Kurze-Kamp-Straße (Haltepunkt, keine Hochbahnsteig-Baufläche)",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          9.797539,
+          52.420904
+        ]
+      },
+      "attribution": "DELFI e. V., Zentrales Haltestellenverzeichnis (HannIT), 09.11.2026, CC BY 4.0 (Haltepunkt, keine historische Bauflächengeometrie)",
+      "sourceUrl": "https://mobi.nrw/zentrales-haltestellenverzeichnis.zip",
+      "corroborationUrl": "https://www.infra-hannover.de/haltestelle/kurze-kamp-strasse/"
     }
   },
   "records": {
@@ -3443,6 +3471,24 @@
           "source": "document",
           "text": "die Aufstellung des Bebauungsplanes Nr. 67, 8. Änderung zu beschließen",
           "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/2607-2004"
+        }
+      ]
+    },
+    "hannover-sim:2828-2014": {
+      "source": "hannover-sim",
+      "title": "Zusatzantrag der CDU-Ratsfraktion zu Drucks. Nr. 1808/2014 N1 (Nahverkehrsplan 2014 der Region Hannover; Stellungnahme der Landeshauptstadt Hannover zum Entwurf)",
+      "sites": [
+        {
+          "site": "stadtbahn-kurze-kamp-verified",
+          "source": "document",
+          "text": "nach der Haltestelle „Kurze-Kamp-Straße“ 2017",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/TM/DS/2828-2014"
+        },
+        {
+          "site": "stadtbahn-bothfeld-verified",
+          "source": "document",
+          "text": "bis 2020 die Haltestellen „Bothfeld“ und „Bothfelder Kirchweg“",
+          "documentUrl": "https://e-government.hannover-stadt.de/lhhsimwebre.nsf/TM/DS/2828-2014"
         }
       ]
     }
