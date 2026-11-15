@@ -1870,3 +1870,39 @@ test('reassesses the published fully checked Hannover revision 14 for the Freize
     .toEqual(retainedOfficial);
   expect(collect).not.toHaveBeenCalled();
 });
+
+
+test('reassesses published Hannover revision 15 for the Bleekstraße racks without losing old IDs or mapped features', async () => {
+  const previous = regionalCatalogue();
+  previous.locationRevision = 15;
+  previous.records[2].locationAssessment = { status: 'unresolved', sources: ['title'],
+    reasons: ['no_specific_location'], truncated: false };
+  const id = 'hannover-sim:15-0307-2022S1';
+  const title = 'Fahrradbügel Bleekstraße Sitzung des Stadtbezirksrates Kirchrode-Bemerode-Wülferode am 09.02.2022 TOP 9.3.1.';
+  previous.records[1] = { ...previous.records[1], id, title, source: 'hannover-sim',
+    url: 'https://e-government.hannover-stadt.de/lhhsimwebre.nsf/DS/15-0307-2022S1' };
+  const prior = await writeRisSnapshot(published, 'hannover', previous, { now: FALLBACK });
+  prior.refreshFailure = { attemptedAt: '2026-11-07T09:30:00.000Z',
+    expiresAt: EXPIRY.toISOString(), reason: 'Official HTTP 429' };
+  await fs.writeFile(path.join(published, 'hannover.json'), JSON.stringify(prior));
+  const before = await readRisSnapshot(published, 'hannover');
+  expect(before.manifest.locationRevision).toBe(15);
+  expect(before.features.features.some(feature => feature.properties.recordId === id)).toBe(false);
+  const retained = before.features.features.find(feature => feature.properties.recordId === 'hannover:1');
+  const collect = jest.fn(() => { throw new Error('No fresh SIM retrieval on revision-only reassessment'); });
+  await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'current' }]);
+  const after = await readRisSnapshot(directory, 'hannover');
+  expect(after.manifest).toMatchObject({ locationRevision: 16, generatedAt: prior.generatedAt,
+    coverage: prior.coverage, refreshFailure: prior.refreshFailure });
+  expect(after.records.map(record => record.id).sort()).toEqual(before.records.map(record => record.id).sort());
+  const located = after.records.find(record => record.id === id).locations;
+  expect(located).toEqual(expect.arrayContaining([expect.objectContaining({
+    mapped: true, kind: 'place', label: expect.stringContaining('Tiergartenstraße / Bleekstraße'),
+    evidence: { source: 'document',
+      text: 'Die vorhandenen Fahrradbügel an der Ecke Tiergartenstaße/Bleekstraße werden unter Einbeziehung des Grünstreifens um möglichste viele Fahrradbügel ergänzt.' },
+  })]));
+  expect(after.features.features.find(feature => feature.properties.recordId === id).geometry)
+    .toEqual({ type: 'Point', coordinates: [9.8138378, 52.3650162] });
+  expect(after.features.features.find(feature => feature.properties.recordId === 'hannover:1')).toEqual(retained);
+  expect(collect).not.toHaveBeenCalled();
+});
