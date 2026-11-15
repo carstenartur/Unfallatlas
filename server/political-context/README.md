@@ -347,3 +347,44 @@ Das Modul `js/ua.political-context.js` bietet:
   Stadtname, Straßenname und Gremium ab
 - **Übernahme in den Export**: Ausgewählte Vorgänge erscheinen im Word-/PDF-Export
   unter „Bisherige politische Befassung"
+
+## Bonner Vorlagen in lokalen Lesestapeln
+
+Bei einem bereits gespeicherten Bonner RIS-v2-Manifest müssen die referenzierten
+Records-Partitionen im selben Verzeichnis liegen. Das Ratsatlas-ZIP enthält das
+Geokodierungsaudit und die Hauptdokumentlinks. Python ab Version 3.11 genügt.
+
+```sh
+python3 scripts/bonn_reading_queue.py prepare /pfad/bonn.json /pfad/allris-bonn-export.zip .cache/ris-reading/queue.json
+python3 scripts/bonn_reading_queue.py read .cache/ris-reading/queue.json .cache/ris-reading/texte.db .cache/ris-reading/stapel-001.json --size 100
+```
+
+Die Warteschlange umfasst auch ungeklärte Fälle ohne bekannten Dateilink. Beim
+Abgleich müssen die amtliche Paper-URI und die Drucksachennummer übereinstimmen.
+Hinweise aus dem Audit stehen zuerst, innerhalb der Gruppen ist nach Paper-URI
+sortiert. Die protokollierten Generationen und die fixierte Warteschlange für
+Folgestapel aufbewahren. Mit `--offset 100` beginnt der nächste Abschnitt.
+Die Paketgröße darf bis zu 1.000 betragen. Vor fachlicher Prüfung die bereits
+protokollierten Paper-IDs und Textversionen abgleichen.
+
+`read` arbeitet offline. Nur `--fetch` lädt fehlende Fassungen vom unabhängigen
+Spiegel OParl-Lite Bonn nach. Die Dateizuordnung muss der Spiegel bestätigen.
+`--fetch --refresh` überprüft bereits vorliegende Versionen zunächst anhand der
+Metadaten. Für alle Fortsetzungen denselben privaten SQLite-Cache samt
+Abrufjournal verwenden. Pro UTC-Tag sind höchstens zehn Aufrufe und 10 MiB
+Antwortdaten vorgesehen, pro Aufruf maximal zehn Dateien und 4 MiB, mit
+mindestens zehn Sekunden zwischen Anfragen. Weitere Abrufe eines Tages gegen
+denselben Host sind bei der Planung mitzuzählen. Bei einem Abbruch enthält der
+Auszug den erreichten Stand, der Prozess meldet einen Fehler. Bei erreichtem
+Budget die offenen Positionen mit demselben Offset und Cache fortsetzen.
+
+Die Ausgabe unterscheidet verfügbaren Text, fehlende/ungeklärte Zuordnung und
+offene Version. Sie enthält den SHA-256 der gelieferten UTF-8-Textbytes sowie
+die vom Spiegel gelieferte Versionskennung. Die fachliche Bewertung erfordert
+die Prüfung von Inhalt und Anlagen. Rohtexte und Cache bleiben privat.
+Dokumentquellen, Seiten und eigenständig formulierte Ortsbefunde können ins
+Prüfprotokoll. Für die separate 20er-Kontrollziehung die früheren Runden und
+bereits gesichtete Arbeitsstapel mit je einem `--exclude-round` an
+`audit-ris-location-coverage.py` übergeben.
+
+[Öffentlicher Ratsatlas-Export](https://daimpad.github.io/ratsatlas-bonn/data/export/allris-bonn-export.zip) · [Datenquellen und Lizenzen, einschließlich OParl-Lite Bonn von machdenstaat (CC BY 4.0)](https://github.com/daimpad/ratsatlas-bonn/blob/main/data/LICENSE-DATA.md)

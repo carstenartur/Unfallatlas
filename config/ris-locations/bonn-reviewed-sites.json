@@ -269,6 +269,1588 @@
         1230857461,
         1363552238
       ]
+    },
+    "windeckbunker": {
+      "label": "Windeckbunker (Gebäudestandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.096814,
+          50.735221
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0 (Ortsregister Ratsatlas Bonn)",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/44928295",
+      "osmWayIds": [
+        44928295
+      ],
+      "registerFile": "allris-bonn/geo/objekte_bonn.json",
+      "registerSha256": "0460cdeefc92660b2a0d55d7ab50284de8e2f5cd334e1574eae6f85f1602209f",
+      "sourceRetrievedAt": "2026-10-21T18:40:01+00:00",
+      "registerUrl": "https://github.com/daimpad/ratsatlas-bonn/blob/f27d304ed1202b54de454e466f98c9096dc069e8/data/geo/objekte_bonn.json"
+    },
+    "wccb": {
+      "label": "World Conference Center Bonn (Gebäudestandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.123847,
+          50.719125
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/42504056/history"
+    },
+    "schulen-hohe-strasse": {
+      "label": "Elsa-Brändström-Schule und Paulusschule, Hohe Straße 11 (Schulstandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.062076,
+          50.741531
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/20048996/history"
+    },
+    "heizkraftwerk-nord": {
+      "label": "Heizkraftwerk Nord (Anlagenstandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.081038,
+          50.733942
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/28536575/history"
+    },
+    "steinbruch-lyngsberg": {
+      "label": "Naturschutzgebiet Steinbruch Lyngsberg (Orientierungspunkt im Gebiet)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.163325,
+          50.666284
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/405682663/history"
+    },
+    "waldfriedhof-heiderhof": {
+      "label": "Waldfriedhof Heiderhof (Orientierungspunkt im Gebiet)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.148769,
+          50.655256
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/40312996/history"
+    },
+    "duene-tannenbusch": {
+      "label": "Naturschutzgebiet Düne Tannenbusch (Orientierungspunkt im Gebiet)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.060594,
+          50.744049
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/107213973/history"
+    },
+    "migrapolis": {
+      "label": "MIGRApolis – Haus der Vielfalt, Brüdergasse 16–18 (Einrichtungsstandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.103715,
+          50.736312
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/node/6521439963/history"
+    },
+    "elisabeth-selbert-pl": {
+      "label": "Elisabeth-Selbert-Gesamtschule (Schulstandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.148087,
+          50.695374
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/30120196/history"
+    },
+    "bertolt-brecht-tb": {
+      "label": "Bertolt-Brecht-Gesamtschule (Schulstandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.053194,
+          50.745957
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/relation/1851114/history"
+    },
+    "reuterpark": {
+      "label": "Reuterpark (Orientierungspunkt im Park)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.106057,
+          50.719811
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/24045266/history"
+    },
+    "zob-bonn": {
+      "label": "Zentraler Omnibusbahnhof Bonn (Standort zur Orientierung)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.099464,
+          50.731933
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/85680875/history"
+    },
+    "bebauungsplan-6918-1": {
+      "label": "Bebauungsplan 6918-1 – Ludwig-Erhard-Allee / Johanna-Kinkel-Straße (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.149299,
+              50.701017
+            ],
+            [
+              7.148789,
+              50.7014
+            ],
+            [
+              7.148661,
+              50.70234
+            ],
+            [
+              7.149134,
+              50.702584
+            ],
+            [
+              7.148427,
+              50.702982
+            ],
+            [
+              7.148408,
+              50.703264
+            ],
+            [
+              7.149592,
+              50.704104
+            ],
+            [
+              7.150414,
+              50.703576
+            ],
+            [
+              7.150996,
+              50.703193
+            ],
+            [
+              7.151215,
+              50.703033
+            ],
+            [
+              7.15128,
+              50.702978
+            ],
+            [
+              7.151389,
+              50.702886
+            ],
+            [
+              7.15144,
+              50.702815
+            ],
+            [
+              7.151644,
+              50.702672
+            ],
+            [
+              7.151482,
+              50.70258
+            ],
+            [
+              7.150294,
+              50.701981
+            ],
+            [
+              7.150166,
+              50.701915
+            ],
+            [
+              7.149018,
+              50.701333
+            ],
+            [
+              7.14937,
+              50.701056
+            ],
+            [
+              7.149299,
+              50.701017
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/6918-1.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2020-02-19"
+    },
+    "bebauungsplan-7213-1": {
+      "label": "Bebauungsplan 7213-1 – Mainzer Straße 250 (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.194134,
+              50.656019
+            ],
+            [
+              7.193652,
+              50.656529
+            ],
+            [
+              7.193302,
+              50.656879
+            ],
+            [
+              7.19326,
+              50.657086
+            ],
+            [
+              7.193425,
+              50.65707
+            ],
+            [
+              7.193442,
+              50.657136
+            ],
+            [
+              7.193726,
+              50.657119
+            ],
+            [
+              7.193951,
+              50.6571
+            ],
+            [
+              7.194194,
+              50.657125
+            ],
+            [
+              7.194595,
+              50.657175
+            ],
+            [
+              7.194788,
+              50.6572
+            ],
+            [
+              7.194928,
+              50.657224
+            ],
+            [
+              7.195394,
+              50.656627
+            ],
+            [
+              7.195513,
+              50.656469
+            ],
+            [
+              7.194134,
+              50.656019
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/7213-1.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2020-05-27"
+    },
+    "bebauungsplan-6119-1": {
+      "label": "Bebauungsplan 6119-1 – An der Burg Medinghoven (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.032464,
+              50.712969
+            ],
+            [
+              7.03268,
+              50.712975
+            ],
+            [
+              7.033026,
+              50.712997
+            ],
+            [
+              7.033165,
+              50.71284
+            ],
+            [
+              7.033179,
+              50.712804
+            ],
+            [
+              7.032995,
+              50.712338
+            ],
+            [
+              7.032506,
+              50.712415
+            ],
+            [
+              7.032371,
+              50.71207
+            ],
+            [
+              7.032235,
+              50.712101
+            ],
+            [
+              7.032088,
+              50.712141
+            ],
+            [
+              7.031958,
+              50.712173
+            ],
+            [
+              7.031928,
+              50.712189
+            ],
+            [
+              7.031928,
+              50.712198
+            ],
+            [
+              7.031929,
+              50.712212
+            ],
+            [
+              7.031925,
+              50.712224
+            ],
+            [
+              7.031925,
+              50.712243
+            ],
+            [
+              7.031929,
+              50.712252
+            ],
+            [
+              7.032016,
+              50.7124
+            ],
+            [
+              7.032009,
+              50.712402
+            ],
+            [
+              7.032241,
+              50.712786
+            ],
+            [
+              7.032271,
+              50.712828
+            ],
+            [
+              7.032297,
+              50.712863
+            ],
+            [
+              7.032335,
+              50.712906
+            ],
+            [
+              7.032369,
+              50.712952
+            ],
+            [
+              7.032464,
+              50.712969
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/6119-1.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2020-05-27"
+    },
+    "bebauungsplan-6322-2-teil-a": {
+      "label": "Bebauungsplan 6322-2 Teil A – Am Vogelsang (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.065265,
+              50.73634
+            ],
+            [
+              7.065172,
+              50.736441
+            ],
+            [
+              7.065034,
+              50.736572
+            ],
+            [
+              7.064941,
+              50.736656
+            ],
+            [
+              7.064903,
+              50.736691
+            ],
+            [
+              7.064862,
+              50.736728
+            ],
+            [
+              7.064724,
+              50.736667
+            ],
+            [
+              7.06449,
+              50.736578
+            ],
+            [
+              7.064326,
+              50.736506
+            ],
+            [
+              7.064196,
+              50.736481
+            ],
+            [
+              7.064085,
+              50.736465
+            ],
+            [
+              7.063981,
+              50.736472
+            ],
+            [
+              7.063835,
+              50.736491
+            ],
+            [
+              7.06378,
+              50.736472
+            ],
+            [
+              7.063731,
+              50.736438
+            ],
+            [
+              7.063872,
+              50.736388
+            ],
+            [
+              7.063461,
+              50.736168
+            ],
+            [
+              7.06334,
+              50.736099
+            ],
+            [
+              7.062942,
+              50.735868
+            ],
+            [
+              7.062664,
+              50.735689
+            ],
+            [
+              7.06247,
+              50.73556
+            ],
+            [
+              7.062173,
+              50.735352
+            ],
+            [
+              7.062159,
+              50.735341
+            ],
+            [
+              7.062127,
+              50.735317
+            ],
+            [
+              7.062037,
+              50.735257
+            ],
+            [
+              7.062213,
+              50.735228
+            ],
+            [
+              7.06298,
+              50.735069
+            ],
+            [
+              7.062872,
+              50.734887
+            ],
+            [
+              7.063083,
+              50.734832
+            ],
+            [
+              7.063281,
+              50.734744
+            ],
+            [
+              7.06342,
+              50.734721
+            ],
+            [
+              7.063592,
+              50.734666
+            ],
+            [
+              7.063597,
+              50.734719
+            ],
+            [
+              7.063911,
+              50.734709
+            ],
+            [
+              7.065498,
+              50.73391
+            ],
+            [
+              7.06543,
+              50.733669
+            ],
+            [
+              7.065184,
+              50.733478
+            ],
+            [
+              7.065962,
+              50.733101
+            ],
+            [
+              7.066217,
+              50.73336
+            ],
+            [
+              7.06592,
+              50.733489
+            ],
+            [
+              7.065927,
+              50.733773
+            ],
+            [
+              7.066374,
+              50.734236
+            ],
+            [
+              7.067507,
+              50.733784
+            ],
+            [
+              7.06786,
+              50.733916
+            ],
+            [
+              7.068185,
+              50.733997
+            ],
+            [
+              7.068682,
+              50.734095
+            ],
+            [
+              7.068642,
+              50.734152
+            ],
+            [
+              7.068571,
+              50.73415
+            ],
+            [
+              7.068494,
+              50.734155
+            ],
+            [
+              7.068409,
+              50.734167
+            ],
+            [
+              7.067953,
+              50.734354
+            ],
+            [
+              7.066972,
+              50.734764
+            ],
+            [
+              7.066665,
+              50.734922
+            ],
+            [
+              7.066486,
+              50.735023
+            ],
+            [
+              7.066424,
+              50.735064
+            ],
+            [
+              7.066343,
+              50.735119
+            ],
+            [
+              7.066417,
+              50.735176
+            ],
+            [
+              7.065494,
+              50.735624
+            ],
+            [
+              7.06583,
+              50.735886
+            ],
+            [
+              7.065487,
+              50.736067
+            ],
+            [
+              7.065265,
+              50.73634
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/6322-2%20Teil%20A.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2020-05-27"
+    },
+    "bebauungsplan-6918-2": {
+      "label": "Bebauungsplan 6918-2 – Kennedyallee 41 (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.144897,
+              50.699748
+            ],
+            [
+              7.145895,
+              50.69894
+            ],
+            [
+              7.145583,
+              50.698776
+            ],
+            [
+              7.145444,
+              50.698705
+            ],
+            [
+              7.145009,
+              50.699051
+            ],
+            [
+              7.14488,
+              50.698995
+            ],
+            [
+              7.144719,
+              50.699135
+            ],
+            [
+              7.144836,
+              50.699182
+            ],
+            [
+              7.144451,
+              50.699499
+            ],
+            [
+              7.144537,
+              50.699542
+            ],
+            [
+              7.144657,
+              50.699609
+            ],
+            [
+              7.144788,
+              50.699681
+            ],
+            [
+              7.144897,
+              50.699748
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/6918-2.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2020-05-27"
+    },
+    "bebauungsplan-7623-19": {
+      "label": "Bebauungsplan 7623-19 – Ennemoserstraße (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.075942,
+              50.740286
+            ],
+            [
+              7.074844,
+              50.739611
+            ],
+            [
+              7.0758,
+              50.738809
+            ],
+            [
+              7.076728,
+              50.738312
+            ],
+            [
+              7.077572,
+              50.737904
+            ],
+            [
+              7.07814,
+              50.737687
+            ],
+            [
+              7.07947,
+              50.737373
+            ],
+            [
+              7.080398,
+              50.737062
+            ],
+            [
+              7.080905,
+              50.736934
+            ],
+            [
+              7.081057,
+              50.736889
+            ],
+            [
+              7.081154,
+              50.736873
+            ],
+            [
+              7.081316,
+              50.736923
+            ],
+            [
+              7.081855,
+              50.737603
+            ],
+            [
+              7.077625,
+              50.739227
+            ],
+            [
+              7.077042,
+              50.739527
+            ],
+            [
+              7.075942,
+              50.740286
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/7623-19.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2020-07-08"
+    },
+    "bebauungsplan-6722-2": {
+      "label": "Bebauungsplan 6722-2 – Herbert-Rabius-Straße (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.123319,
+              50.743241
+            ],
+            [
+              7.123332,
+              50.74324
+            ],
+            [
+              7.123412,
+              50.743237
+            ],
+            [
+              7.123481,
+              50.743234
+            ],
+            [
+              7.123575,
+              50.743209
+            ],
+            [
+              7.123674,
+              50.74317
+            ],
+            [
+              7.123788,
+              50.743107
+            ],
+            [
+              7.123878,
+              50.743056
+            ],
+            [
+              7.123922,
+              50.743027
+            ],
+            [
+              7.124018,
+              50.742972
+            ],
+            [
+              7.124089,
+              50.742937
+            ],
+            [
+              7.12419,
+              50.742854
+            ],
+            [
+              7.124267,
+              50.742779
+            ],
+            [
+              7.124601,
+              50.742409
+            ],
+            [
+              7.124261,
+              50.74236
+            ],
+            [
+              7.124233,
+              50.742326
+            ],
+            [
+              7.124053,
+              50.7423
+            ],
+            [
+              7.124049,
+              50.742353
+            ],
+            [
+              7.12399,
+              50.742376
+            ],
+            [
+              7.123897,
+              50.742648
+            ],
+            [
+              7.123706,
+              50.742718
+            ],
+            [
+              7.123623,
+              50.742835
+            ],
+            [
+              7.123595,
+              50.742832
+            ],
+            [
+              7.123335,
+              50.743185
+            ],
+            [
+              7.123329,
+              50.743203
+            ],
+            [
+              7.123324,
+              50.743211
+            ],
+            [
+              7.12332,
+              50.743223
+            ],
+            [
+              7.12332,
+              50.743229
+            ],
+            [
+              7.123319,
+              50.743241
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/6722-2.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2019-04-17"
+    },
+    "bebauungsplan-6618-2": {
+      "label": "Bebauungsplan 6618-2 – Quirinusplatz (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.111378,
+              50.705041
+            ],
+            [
+              7.111181,
+              50.704977
+            ],
+            [
+              7.111025,
+              50.704988
+            ],
+            [
+              7.110847,
+              50.704895
+            ],
+            [
+              7.111026,
+              50.704738
+            ],
+            [
+              7.111238,
+              50.704481
+            ],
+            [
+              7.110999,
+              50.704354
+            ],
+            [
+              7.111314,
+              50.703967
+            ],
+            [
+              7.112016,
+              50.704413
+            ],
+            [
+              7.112005,
+              50.704424
+            ],
+            [
+              7.111467,
+              50.705069
+            ],
+            [
+              7.111378,
+              50.705041
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/6618-2.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2019-04-17"
+    },
+    "bebauungsplan-7014-2": {
+      "label": "Bebauungsplan 7014-2 – Paracelsusstraße (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.172987,
+              50.667001
+            ],
+            [
+              7.173206,
+              50.667195
+            ],
+            [
+              7.173238,
+              50.667217
+            ],
+            [
+              7.173277,
+              50.667234
+            ],
+            [
+              7.173499,
+              50.667298
+            ],
+            [
+              7.17352,
+              50.667266
+            ],
+            [
+              7.173772,
+              50.667332
+            ],
+            [
+              7.173983,
+              50.667333
+            ],
+            [
+              7.17403,
+              50.667263
+            ],
+            [
+              7.174126,
+              50.667288
+            ],
+            [
+              7.174379,
+              50.666973
+            ],
+            [
+              7.174236,
+              50.666859
+            ],
+            [
+              7.174174,
+              50.666815
+            ],
+            [
+              7.174004,
+              50.666695
+            ],
+            [
+              7.17396,
+              50.666668
+            ],
+            [
+              7.173925,
+              50.666652
+            ],
+            [
+              7.173896,
+              50.666648
+            ],
+            [
+              7.173789,
+              50.666647
+            ],
+            [
+              7.173666,
+              50.66665
+            ],
+            [
+              7.173548,
+              50.666635
+            ],
+            [
+              7.17344,
+              50.666609
+            ],
+            [
+              7.173318,
+              50.666577
+            ],
+            [
+              7.173117,
+              50.666836
+            ],
+            [
+              7.172987,
+              50.667001
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/7014-2.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2019-08-01"
+    },
+    "bebauungsplan-6223-2": {
+      "label": "Bebauungsplan 6223-2 – Nachnutzung Möbel Boss (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              7.046861,
+              50.751849
+            ],
+            [
+              7.047142,
+              50.751856
+            ],
+            [
+              7.047142,
+              50.751632
+            ],
+            [
+              7.04726,
+              50.751634
+            ],
+            [
+              7.047413,
+              50.75163
+            ],
+            [
+              7.047581,
+              50.751638
+            ],
+            [
+              7.047593,
+              50.751279
+            ],
+            [
+              7.047656,
+              50.751244
+            ],
+            [
+              7.04779,
+              50.751247
+            ],
+            [
+              7.047797,
+              50.751134
+            ],
+            [
+              7.047537,
+              50.750977
+            ],
+            [
+              7.047555,
+              50.75046
+            ],
+            [
+              7.04741,
+              50.750373
+            ],
+            [
+              7.047425,
+              50.750273
+            ],
+            [
+              7.047487,
+              50.750272
+            ],
+            [
+              7.047494,
+              50.750006
+            ],
+            [
+              7.046545,
+              50.749989
+            ],
+            [
+              7.046548,
+              50.75027
+            ],
+            [
+              7.046806,
+              50.750271
+            ],
+            [
+              7.046885,
+              50.750325
+            ],
+            [
+              7.046882,
+              50.75108
+            ],
+            [
+              7.046861,
+              50.751849
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/6223-2.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2019-10-16"
+    },
+    "bebauungsplan-7213-3": {
+      "label": "Bebauungsplan 7213-3 – Mainzer Straße (Geltungsbereich)",
+      "kind": "place",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                7.189749,
+                50.662856
+              ],
+              [
+                7.190108,
+                50.663
+              ],
+              [
+                7.19014,
+                50.662991
+              ],
+              [
+                7.190283,
+                50.662837
+              ],
+              [
+                7.19036,
+                50.662752
+              ],
+              [
+                7.190454,
+                50.662647
+              ],
+              [
+                7.190507,
+                50.662587
+              ],
+              [
+                7.190553,
+                50.662512
+              ],
+              [
+                7.190609,
+                50.662422
+              ],
+              [
+                7.19065,
+                50.662316
+              ],
+              [
+                7.190676,
+                50.662183
+              ],
+              [
+                7.190571,
+                50.662172
+              ],
+              [
+                7.19039,
+                50.66219
+              ],
+              [
+                7.190379,
+                50.662215
+              ],
+              [
+                7.190152,
+                50.66223
+              ],
+              [
+                7.190171,
+                50.662373
+              ],
+              [
+                7.190151,
+                50.662399
+              ],
+              [
+                7.190024,
+                50.662518
+              ],
+              [
+                7.189971,
+                50.662568
+              ],
+              [
+                7.189749,
+                50.662856
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                7.192833,
+                50.661107
+              ],
+              [
+                7.193058,
+                50.660854
+              ],
+              [
+                7.192885,
+                50.660774
+              ],
+              [
+                7.19297,
+                50.660678
+              ],
+              [
+                7.192784,
+                50.660616
+              ],
+              [
+                7.192955,
+                50.660429
+              ],
+              [
+                7.192466,
+                50.660261
+              ],
+              [
+                7.192597,
+                50.660115
+              ],
+              [
+                7.192586,
+                50.660101
+              ],
+              [
+                7.192559,
+                50.660093
+              ],
+              [
+                7.192519,
+                50.660106
+              ],
+              [
+                7.192504,
+                50.660097
+              ],
+              [
+                7.192039,
+                50.660098
+              ],
+              [
+                7.191961,
+                50.66022
+              ],
+              [
+                7.191854,
+                50.660353
+              ],
+              [
+                7.191564,
+                50.660249
+              ],
+              [
+                7.191602,
+                50.660206
+              ],
+              [
+                7.191331,
+                50.660114
+              ],
+              [
+                7.191408,
+                50.660026
+              ],
+              [
+                7.191191,
+                50.660001
+              ],
+              [
+                7.19119,
+                50.659992
+              ],
+              [
+                7.190949,
+                50.659944
+              ],
+              [
+                7.190809,
+                50.66001
+              ],
+              [
+                7.190756,
+                50.660046
+              ],
+              [
+                7.190663,
+                50.66011
+              ],
+              [
+                7.190581,
+                50.660176
+              ],
+              [
+                7.191087,
+                50.660396
+              ],
+              [
+                7.191104,
+                50.660378
+              ],
+              [
+                7.191366,
+                50.660492
+              ],
+              [
+                7.191349,
+                50.660506
+              ],
+              [
+                7.191565,
+                50.660614
+              ],
+              [
+                7.191582,
+                50.660608
+              ],
+              [
+                7.192019,
+                50.660821
+              ],
+              [
+                7.192172,
+                50.660874
+              ],
+              [
+                7.192421,
+                50.660962
+              ],
+              [
+                7.192833,
+                50.661107
+              ]
+            ]
+          ]
+        ]
+      },
+      "attribution": "Bundesstadt Bonn, Lage der Bebauungspläne (CC0 1.0)",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://stadtplan.bonn.de/mapbender/daten/images/Bebauungsplaene/plan_internet/7213-3.pdf",
+      "geometrySourceUrl": "https://stadtplan.bonn.de/geojson?Thema=20074",
+      "sourceRetrievedAt": "2026-10-18T18:31:59+00:00",
+      "inForceSince": "2019-11-27"
+    },
+    "oper-bonn": {
+      "label": "Opernhaus Bonn (Gebäudestandort)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.106746,
+          50.73667
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/21021161/history"
+    },
+    "arndtgarten": {
+      "label": "Ernst-Moritz-Arndt-Garten (Orientierungspunkt im Garten)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.110349,
+          50.728794
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/144904474/history"
+    },
+    "rathaus-beuel": {
+      "label": "Rathaus Beuel (Gebäudestandort der Schaufensterausstellung)",
+      "kind": "place",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          7.119642,
+          50.739757
+        ]
+      },
+      "attribution": "© OpenStreetMap-Mitwirkende, ODbL 1.0",
+      "licenseUrl": "https://www.openstreetmap.org/copyright",
+      "sourceUrl": "https://www.openstreetmap.org/way/24042384/history"
     }
   },
   "records": {
@@ -305,6 +1887,282 @@
           "source": "document",
           "text": "Die Verwaltung wird beauftragt, auf der Friedrich-Breuer-Straße geeignete und begrünte Sitzmöbel dauerhaft aufzustellen.",
           "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/3158432"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/1": {
+      "source": "bonn-oparl",
+      "title": "Masterplan Innere Stadt Bonn 2.0 - Antrag auf Städtebaufördermittel 2020-2027 hier: Finanzierungs- und Zeitplan der Projekte für den Förderantrag Masterplan 2.0 (alt: 1911980NV5)",
+      "sites": [
+        {
+          "site": "windeckbunker",
+          "source": "document",
+          "text": "Vorlage 190001, S. 4, Teilprojekt 3: Das Strukturkonzept soll die Nachnutzung des Windeckbunkers und die Gestaltung der umliegenden öffentlichen Räume behandeln. Der Punkt bezeichnet das Gebäude.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/4"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10041": {
+      "source": "bonn-oparl",
+      "title": "Corona-bedingte Plan-Ist-Abweichungen IST 2020 sowie Corona-bedingte Prognose 2021",
+      "sites": [
+        {
+          "site": "wccb",
+          "source": "document",
+          "text": "201036-03, S. 6. Der Finanzbericht führt die Einrichtung des Impfzentrums im WCCB als pandemiebedingte Maßnahme auf.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/260596"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10126": {
+      "source": "bonn-oparl",
+      "title": "Elsa-Brändström-/Paulusschule, Erweiterung um fünf Klassenräume, einer Mensa und einem Bewegungsraum sowie Umbau im Bestand zur Herstellung eines 2. baulichen Rettungswegs",
+      "sites": [
+        {
+          "site": "schulen-hohe-strasse",
+          "source": "document",
+          "text": "210177, S. 7, 9 und 19. Die Baupläne verorten die gemeinsame Schulerweiterung und den zweiten Rettungsweg an der Hohen Straße 11 in Tannenbusch.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/265553"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10192": {
+      "source": "bonn-oparl",
+      "title": "Wasserstoffstrategie für Bonn",
+      "sites": [
+        {
+          "site": "heizkraftwerk-nord",
+          "source": "document",
+          "text": "210135-01 ST, S. 1. Die Stadtwerke beschreiben die Vorrüstung der Gasturbine für grünen Wasserstoff bei der Modernisierung des HKW Nord.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/268517"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10266": {
+      "source": "bonn-oparl",
+      "title": "Einleitung Vergabeverfahren Herstellungs-, Entwicklungs- und Pflegemaßnahmen NSG Lyngsberg",
+      "sites": [
+        {
+          "site": "steinbruch-lyngsberg",
+          "source": "document",
+          "text": "210234, S. 1–2. Die Vorlage behandelt die Vergabe der Pflege- und Entwicklungsmaßnahmen im ehemaligen Steinbruch. Der Punkt bezeichnet das Gebiet.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/269351"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10401": {
+      "source": "bonn-oparl",
+      "title": "Straßen- und Wegekonzept Antrag zur Vorlage 201637",
+      "sites": [
+        {
+          "site": "waldfriedhof-heiderhof",
+          "source": "document",
+          "text": "201637-06 AA, S. 1. Der Änderungsantrag nennt den Belag der Wege des Waldfriedhofs auf dem Heiderhof. Der Punkt bezeichnet den Friedhof.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/271119"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10493": {
+      "source": "bonn-oparl",
+      "title": "Erhalt der Düne als Naturschutz- und Naherholungsgebiet",
+      "sites": [
+        {
+          "site": "duene-tannenbusch",
+          "source": "document",
+          "text": "202214-01 ST, S. 1–3. Die Verwaltung beschreibt die Pflege und die Kontrollen des Ordnungsdienstes im Naturschutzgebiet.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/275188"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10500": {
+      "source": "bonn-oparl",
+      "title": "Zuschuss an das Bonner Institut für Migrationsforschung und Interkulturelles Lernen (BIM) e.V.",
+      "sites": [
+        {
+          "site": "migrapolis",
+          "source": "document",
+          "text": "210355, S. 1. Gegenstand der beantragten Förderung sind Miet- und Nebenkosten des Hauses und Sachkosten des dortigen Büros.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/275267"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10502": {
+      "source": "bonn-oparl",
+      "title": "Zuschuss an die Evangelische Migrations- und Flüchtlingsarbeit Bonn (EMFA)",
+      "sites": [
+        {
+          "site": "migrapolis",
+          "source": "document",
+          "text": "210357, S. 1. Seit 2011 befindet sich die geförderte Migrations- und Flüchtlingsberatung im Haus der Vielfalt an dieser Adresse.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/275291"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/1107": {
+      "source": "bonn-oparl",
+      "title": "Monitoring Inklusion",
+      "sites": [
+        {
+          "site": "elisabeth-selbert-pl",
+          "source": "document",
+          "text": "190521, S. 2. Im Monitoring sind die verstellbaren Schreibtische und weitere Hilfsmittel den einzelnen Schulen zugewiesen.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/15509"
+        },
+        {
+          "site": "bertolt-brecht-tb",
+          "source": "document",
+          "text": "190521, S. 2. Das Monitoring benennt die Ausstattung für die Inklusion und die akustische Ertüchtigung eines Klassenraumes an dieser Schule.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/15509"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/124": {
+      "source": "bonn-oparl",
+      "title": "Sport- und Bewegung im Öffentlichen Raum (alt: 1911915NV3, FF: Amt 52)",
+      "sites": [
+        {
+          "site": "reuterpark",
+          "source": "document",
+          "text": "190046, S. 2. Die Stadt beschreibt ihre Planung zur inklusiven Sport- und Bewegungsfläche im Reuterpark.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/930"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/163": {
+      "source": "bonn-oparl",
+      "title": "Errichtung eines Taubenhauses (alt: 1912729)",
+      "sites": [
+        {
+          "site": "windeckbunker",
+          "source": "document",
+          "text": "190065, S. 1. Der Antrag nennt den Windeckbunker ausdrücklich als einen von mehreren zu prüfenden Standorten für ein Taubenhaus. Die Auswahl ist offen.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/1046"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/2000032": {
+      "source": "bonn-oparl",
+      "title": "Planung zum Bau eines fahrgastfreundlichen Zentralen Busbahnhofs (ZOB) intensivieren",
+      "sites": [
+        {
+          "site": "zob-bonn",
+          "source": "document",
+          "text": "210459, S. 1–2. Der Antrag betrifft die Neuplanung des zentralen Busbahnhofs zwischen Kaiserplatz, Hauptbahnhof und Maximilianstraße. Der Punkt bezeichnet den Busbahnhof.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2002560"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/2000322": {
+      "title": "BBB-Anfrage: Schaffung von Baurecht durch Bebauungspläne und Wohnneubautätigkeiten",
+      "source": "bonn-oparl",
+      "sites": [
+        {
+          "site": "bebauungsplan-6918-1",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 1: Der Plan 6918-1 (Ludwig-Erhard-Allee / Johanna-Kinkel-Straße) wird für 2020 als Neuaufstellung für Büro und Verwaltung mit 37.492 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-7213-1",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 1: Der Plan 7213-1 (Mainzer Straße 250) wird für 2020 als Neuaufstellung für Wohnen mit 12.876 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-6119-1",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 1: Der Plan 6119-1 (An der Burg Medinghoven) wird für 2020 als Neuaufstellung für Kindertagesstätte mit 5.341 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-6322-2-teil-a",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 1: Der Plan 6322-2 Teil A (Am Vogelsang) wird für 2020 als Neuaufstellung für Wohnen und Kindertagesstätte mit 64.900 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-6918-2",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 1: Der Plan 6918-2 (Kennedyallee 41) wird für 2020 als Neuaufstellung für Wohnen mit 4.930 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-7623-19",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 1: Der Plan 7623-19 (Ennemoserstraße) wird für 2020 als Neuaufstellung für Einzelhandelssteuerung und Sicherung einer Grünfläche mit 61.653 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-6722-2",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 1: Der Plan 6722-2 (Herbert-Rabius-Straße) wird für 2019 als Neuaufstellung für Büro und Verwaltung mit 3.570 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-6618-2",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 2: Der Plan 6618-2 (Quirinusplatz) wird für 2019 als Neuaufstellung für Wohnen und Gewerbe mit 5.192 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-7014-2",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 2: Der Plan 7014-2 (Paracelsusstraße) wird für 2019 als Neuaufstellung für Kindertagesstätte mit 5.541 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-6223-2",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 2: Der Plan 6223-2 (Nachnutzung Möbel Boss) wird für 2019 als Neuaufstellung für Wohnen, Dienstleistungen und Großtagespflege mit 9.997 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        },
+        {
+          "site": "bebauungsplan-7213-3",
+          "source": "document",
+          "text": "Stellungnahme 210522-01 ST, S. 2: Der Plan 7213-3 (Mainzer Straße) wird für 2019 als Neuaufstellung für Steuerung von Vergnügungsstätten mit 12.599 m² aufgeführt.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/2011832"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10595": {
+      "source": "bonn-oparl",
+      "title": "Sachstand Planung ZOB",
+      "sites": [
+        {
+          "site": "zob-bonn",
+          "source": "document",
+          "text": "210416, S. 1–4. Das Grundkonzept behandelt den Neubau des zentralen Busbahnhofs am Hauptbahnhof. Der Punkt bezeichnet den bestehenden Busbahnhof. Die Vorlage zeigt eine Planungsvariante.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/278580"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/1098": {
+      "source": "bonn-oparl",
+      "title": "Sachstand der Vorbereitungen zum Beethoven-Jubiläumsjahr",
+      "sites": [
+        {
+          "site": "oper-bonn",
+          "source": "document",
+          "text": "190418-1 ST, S. 1. Im Opernhaus wurden für das Jubiläum unter anderem die Sanitärausstattung und große Teile der Bestuhlung erneuert.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/15473"
+        },
+        {
+          "site": "arndtgarten",
+          "source": "document",
+          "text": "190418-1 ST, S. 7. Das Amt für Stadtgrün berichtet über die abgeschlossene Sanierung und Neubepflanzung des Arndtgartens.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/15473"
+        }
+      ]
+    },
+    "https://www.bonn.sitzung-online.de/oparl/papers/10405": {
+      "source": "bonn-oparl",
+      "title": "Bericht über die Förderung des Bürgerschaftlichen Engagements in Bonn",
+      "sites": [
+        {
+          "site": "rathaus-beuel",
+          "source": "document",
+          "text": "210303, S. 7. Im Jahr 2021 wurde die Engagement-Galerie in einem Schaufenster des Rathauses Beuel ausgestellt. Der Gebäudepunkt bezeichnet den Ausstellungsort.",
+          "documentUrl": "https://www.bonn.sitzung-online.de/oparl/files/271149"
         }
       ]
     }
