@@ -65,3 +65,23 @@ test('maps the 2022 bicycle-rack proposal only to its independently checked stre
     expect(locate({ ...original, ...wrong }, register).locations.some(item => item.geometry)).toBe(false);
   }
 });
+
+
+test('maps only the documented 2015 curb-lowering request to the verified two-junction road axis', () => {
+  const register = require('../../config/ris-locations/hannover-reviewed-sites.json');
+  const id = 'hannover-sim:15-2180-2015';
+  const original = { source: 'hannover-sim', id, title: register.records[id].title };
+  const orientation = locate(original, register).locations.find(item => item.label.includes('Devrientstraße und Nestroyweg'));
+  expect(orientation).toEqual(expect.objectContaining({
+    kind: 'section',
+    geometry: { type: 'LineString', coordinates: [
+      [9.7500269, 52.3574263], [9.7499722, 52.3574638], [9.7498965, 52.3575158],
+    ] },
+    evidence: { source: 'document', text: expect.stringContaining('Fußgängerüberweg') },
+  }));
+  expect(orientation.label).toContain('nur Orientierung');
+  for (const wrong of [{ id: 'hannover-sim:15-2180-2015S1' },
+    { title: 'Andere Bordsteinabsenkung' }, { source: 'region-hannover-ris' }]) {
+    expect(locate({ ...original, ...wrong }, register).locations.some(item => item.geometry)).toBe(false);
+  }
+});
