@@ -399,6 +399,106 @@
       "city": "hannover",
       "id": "region-hannover-ris:vo:1000138",
       "round": 4
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2405-2003",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:2503-2009",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1544-2009",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2669-2007",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-0708-2022",
+      "round": 5
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2011304",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1058-2006",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1623-2004",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2028-2025S1",
+      "round": 5
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2029903",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1005946",
+      "round": 5
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/4599",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:2541-2012F1",
+      "round": 5
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2019363",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-1379-2005",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2473-2017F1",
+      "round": 5
+    },
+    {
+      "city": "bonn",
+      "id": "https://www.bonn.sitzung-online.de/oparl/papers/2019169",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "region-hannover-ris:vo:1007540",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:1345-2016E1",
+      "round": 5
+    },
+    {
+      "city": "hannover",
+      "id": "hannover-sim:15-2615-2020S1",
+      "round": 5
     }
   ]
 }
