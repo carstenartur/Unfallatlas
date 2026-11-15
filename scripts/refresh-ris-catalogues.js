@@ -33,7 +33,7 @@ const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
 // Increment when the curated Hannover site register gains matches so already assessed public snapshots are re-evaluated.
-const LOCATION_REVISIONS = { bonn: 6, hannover: 17 };
+const LOCATION_REVISIONS = { bonn: 7, hannover: 17 };
 const historyStartYears = { bonn: 2014, hannover: HANNOVER_HISTORY_START_YEAR };
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;

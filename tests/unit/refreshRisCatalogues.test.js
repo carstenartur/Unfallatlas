@@ -43,7 +43,7 @@ function writeRisSnapshot(folder, city, value, options) {
 function catalogue(city, { count = 2, from = city === 'hannover' ? '2014-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
   const gremium = body || (city === 'bonn' ? 'Bonn' : 'Ratsversammlung');
   return {
-    locationRevision: city === 'hannover' ? 17 : 6,
+    locationRevision: city === 'hannover' ? 17 : 7,
     sources: [OFFICIAL[city]],
     coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'],
       ...(city === 'hannover' ? { scope: 'citywide' } : {}) },
@@ -850,7 +850,7 @@ test('assesses every Bonner record immediately when its fresh snapshot predates 
   const collect = jest.fn(() => catalogue('bonn'));
   await expect(refresh({ cities: ['bonn'], collect })).resolves.toMatchObject([{ city: 'bonn', status: 'published' }]);
   const { manifest, records } = await readRisSnapshot(directory, 'bonn');
-  expect(manifest.locationRevision).toBe(6);
+  expect(manifest.locationRevision).toBe(7);
   expect(manifest.locationAssessment.attempted).toBe(records.length);
   expect(records.every(record => record.locationAssessment)).toBe(true);
   expect(collect).toHaveBeenCalledTimes(1);
@@ -873,7 +873,7 @@ test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s recor
   expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
   expect(snapshot.manifest).toMatchObject({
     generatedAt: prior.generatedAt, sources: city === 'hannover' ? [...prior.sources, 'https://ris.hannit.de/public/vo040'] : prior.sources,
-    coverage: prior.coverage, locationRevision: city === 'hannover' ? 17 : 6,
+    coverage: prior.coverage, locationRevision: city === 'hannover' ? 17 : 7,
     locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
     refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
   });
@@ -1067,7 +1067,7 @@ test('migrates a retained legacy fallback to v2 while preserving original source
   await refresh({ cities: ['bonn'], collect: () => { throw new Error('HTTP 429'); } });
   const snapshot = await readRisSnapshot(directory, 'bonn');
   expect(snapshot.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
-    coverage: prior.coverage, sources: prior.sources, locationRevision: 6,
+    coverage: prior.coverage, sources: prior.sources, locationRevision: 7,
     refreshFailure: { expiresAt: EXPIRY.toISOString(), attemptedAt: NOW.toISOString() } });
   await expect(validateRisDirectory(directory, { now: NOW })).resolves.toHaveLength(1);
 });
@@ -1086,7 +1086,7 @@ test('pure format migration preserves canonical records and features without cha
   await refresh({ cities: ['bonn'], collect: () => { throw new Error('fresh source must not be refreshed'); } });
   const after = await readRisSnapshot(directory, 'bonn');
   expect(after.manifest).toMatchObject({ schemaVersion: 2, generatedAt: prior.generatedAt,
-    locationRevision: 6, locationAssessment: prior.locationAssessment, coverage: prior.coverage, sources: prior.sources });
+    locationRevision: 7, locationAssessment: prior.locationAssessment, coverage: prior.coverage, sources: prior.sources });
   expect(after.manifest.refreshFailure).toBeUndefined();
   expect(after.records).toEqual(before.records);
   expect(after.features.features).toEqual(expect.arrayContaining(before.features.features));
@@ -1941,4 +1941,45 @@ test('reassesses published Hannover revision 16 for the Döhrener curb request w
     ] });
   expect(after.features.features.find(feature => feature.properties.recordId === 'hannover:1')).toEqual(retained);
   expect(collect).not.toHaveBeenCalled();
+});
+
+test('restores the Windeckbunker subproject in Bonn revision 7 from the retained funding proposal', async () => {
+  const prior = catalogue('bonn', { count: 3 });
+  prior.locationRevision = 6;
+  const id = 'https://www.bonn.sitzung-online.de/oparl/papers/1';
+  const title = 'Masterplan Innere Stadt Bonn 2.0 - Antrag auf Städtebaufördermittel 2020-2027 hier: Finanzierungs- und Zeitplan der Projekte für den Förderantrag Masterplan 2.0 (alt: 1911980NV5)';
+  prior.records[1] = { ...prior.records[1], id, title, source: 'bonn-oparl' };
+  prior.records[2] = { ...prior.records[2], title, source: 'bonn-oparl' };
+  const manifest = await writeRisSnapshot(published, 'bonn', prior, { now: FALLBACK });
+  manifest.refreshFailure = { attemptedAt: '2026-11-07T09:30:00.000Z',
+    expiresAt: EXPIRY.toISOString(), reason: 'Official HTTP 429' };
+  await fs.writeFile(path.join(published, 'bonn.json'), JSON.stringify(manifest));
+  const before = await readRisSnapshot(published, 'bonn');
+  const collect = jest.fn(() => { throw new Error('The local assessment must reuse the published records'); });
+  await refresh({ cities: ['bonn'], collect });
+  const after = await readRisSnapshot(directory, 'bonn');
+  expect(after.manifest.locationRevision).toBe(7);
+  expect(after.records.find(record => record.id === id).locations).toEqual([expect.objectContaining({
+    kind: 'place', mapped: true, label: 'Windeckbunker (Gebäudestandort)',
+    evidence: { source: 'document', text: expect.stringMatching(/Teilprojekt 3.*Nachnutzung des Windeckbunkers/u) },
+  })]);
+  expect(after.features.features.find(feature => feature.properties.recordId === id).geometry)
+    .toEqual({ type: 'Point', coordinates: [7.096814, 50.735221] });
+  expect(after.features.features.filter(feature => feature.properties.recordId !== id)).toEqual(before.features.features);
+  expect(collect).not.toHaveBeenCalled();
+});
+
+test('preserves eleven independently labelled plan areas in the partitioned Bonn catalogue', async () => {
+  const id = 'https://www.bonn.sitzung-online.de/oparl/papers/2000322';
+  const previous = catalogue('bonn');
+  previous.records[1] = { ...previous.records[1], id, source: 'bonn-oparl',
+    title: 'BBB-Anfrage: Schaffung von Baurecht durch Bebauungspläne und Wohnneubautätigkeiten' };
+  await refresh({ cities: ['bonn'], collect: async () => previous });
+  const { records, features } = await readRisSnapshot(directory, 'bonn');
+  const locations = records.find(record => record.id === id).locations;
+  const plans = ['6119-1', '6223-2', '6322-2 Teil A', '6618-2', '6722-2', '6918-1', '6918-2', '7014-2', '7213-1', '7213-3', '7623-19'];
+  expect(locations.map(site => site.label.match(/^Bebauungsplan (.+?) –/u)?.[1]).sort()).toEqual(plans);
+  const drawn = features.features.filter(feature => feature.properties.recordId === id);
+  expect(drawn).toHaveLength(plans.length);
+  for (const feature of drawn) expect(['Polygon', 'MultiPolygon']).toContain(feature.geometry.type);
 });

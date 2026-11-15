@@ -11,6 +11,7 @@ out/qa/
 /data/ris/
 # Resumable verified public council source responses, shared by all adapters.
 /.cache/ris-sources/
+/.cache/ris-reading/
 
 # Testing
 node_modules/
