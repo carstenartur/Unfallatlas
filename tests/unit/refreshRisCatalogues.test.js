@@ -43,7 +43,7 @@ function writeRisSnapshot(folder, city, value, options) {
 function catalogue(city, { count = 2, from = city === 'hannover' ? '2014-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
   const gremium = body || (city === 'bonn' ? 'Bonn' : 'Ratsversammlung');
   return {
-    locationRevision: city === 'hannover' ? 13 : 6,
+    locationRevision: city === 'hannover' ? 14 : 6,
     sources: [OFFICIAL[city]],
     coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'],
       ...(city === 'hannover' ? { scope: 'citywide' } : {}) },
@@ -873,7 +873,7 @@ test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s recor
   expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
   expect(snapshot.manifest).toMatchObject({
     generatedAt: prior.generatedAt, sources: city === 'hannover' ? [...prior.sources, 'https://ris.hannit.de/public/vo040'] : prior.sources,
-    coverage: prior.coverage, locationRevision: city === 'hannover' ? 13 : 6,
+    coverage: prior.coverage, locationRevision: city === 'hannover' ? 14 : 6,
     locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
     refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
   });
