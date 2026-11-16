@@ -24,7 +24,13 @@ gespeicherten amtlichen Paper-Objekten belegt. Ein Fall aus diesen neun
 ist auch Position 1 des neuen Stapels. Die Einzelvermerke enthalten somit
 90 gesichtete Fälle im Stapel und acht weitere aus der Vorprüfung. Gesondert
 gekennzeichnet sind ausstehende Originalanlagen, nur teilweise gesichtete
-Sammeldokumente und nicht textlich erschließbare Bildseiten. Die Abwesenheit
+Sammeldokumente und nicht textlich erschließbare Bildseiten. Für die acht
+Vorprüfungen **außerhalb** der festen 100 Positionen sind jetzt ausdrücklich
+konservative Einzelbewertungen hinterlegt. Sie ersetzen weder die vollständige
+Lektüre aller Anlagen noch den Nachweis einer Maßnahme oder Geometrie; ihre
+früheren Quellverweise, Text- und Versionshashes bleiben unverändert. Ein
+regressionsgeprüfter Abgleich der Lesebilanz hält die zehn ungelesenen
+Positionen 91–100 und die Trennung von R1–R7 fest. Die Abwesenheit
 eines Textes liefert keinen Negativbefund. Jede Angabe zu einem Beschluss,
 Antrag, Finanzierungsvorschlag oder Prüfstandort ist an das jeweilige
 Dokument gebunden.
