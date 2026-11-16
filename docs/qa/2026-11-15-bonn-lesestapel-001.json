@@ -1151,7 +1151,8 @@
       "mirrorVersion": "8b9f01d59ef9af1a16ddce44319f165050ffceac91a46d173acb860a3149b5c0",
       "textSha256": "954fb5595b41fe91f1f4df4e91bce7851731ca3abe43dd6c1e7efa3a60a5092a",
       "note": "S. 4. Das Konzept behandelt die Nachnutzung des Windeckbunkers und die Gestaltung der angrenzenden öffentlichen Räume. Weitere Teilprojekte erfordern eigene Zuordnungen.",
-      "newlyMappedInRevision7": true
+      "newlyMappedInRevision7": true,
+      "assessment": "Teilprüfung: Nachnutzungsort belegt; weitere Teilprojekte offen"
     },
     {
       "scope": "Bonner Vorprüfung außerhalb dieses 100er-Pakets",
@@ -1162,7 +1163,8 @@
       "mirrorVersion": "a89ebb88bd983904503fab5931ab09faa70dc73c006fbc162ea7c6052abee5b7",
       "textSha256": "3a84307cdf0fcdf7b5a1009edcef9dab5350bdd42b26388e32e522de0e75dd2a",
       "note": "Die genannten Aufführungsorte gehören zur Auswertung der Konzertauslastung.",
-      "newlyMappedInRevision7": false
+      "newlyMappedInRevision7": false,
+      "assessment": "Vorprüfung: Aufführungsorte sind Auswertungsdaten, kein Maßnahmenort belegt"
     },
     {
       "scope": "Bonner Vorprüfung außerhalb dieses 100er-Pakets",
@@ -1173,7 +1175,8 @@
       "mirrorVersion": "57ed8939e4e127a8537fde63eeea74a5aa57a4fdc3719ec944c03d3433231f24",
       "textSha256": "a79c019852ecd0961223bd0324a300aadf14230219b8b146e5c65d15645b6165",
       "note": "Der Antrag betrifft die Ausbildung am Robert-Wetzlar-Berufskolleg. Mehrere Schulstandorte kommen in Betracht.",
-      "newlyMappedInRevision7": false
+      "newlyMappedInRevision7": false,
+      "assessment": "Vorprüfung: mehrere mögliche Schulstandorte, eindeutiger Standort offen"
     },
     {
       "scope": "Bonner Vorprüfung außerhalb dieses 100er-Pakets",
@@ -1184,7 +1187,8 @@
       "mirrorVersion": "3d317b43fcaf255709323f2ef227d9007b914b5df05bff7585e0d3efeb1504c8",
       "textSha256": "73da406d6d548d8f819d1a9b447528c8382c0b97859d5cd026370b6058b3d3d0",
       "note": "Die zusätzliche Anmietung in Auerberger Mitte wird abgelehnt. Das bestehende Quartierszentrum dient als Vergleich.",
-      "newlyMappedInRevision7": false
+      "newlyMappedInRevision7": false,
+      "assessment": "Vorprüfung: zusätzliche Anmietung abgelehnt; bestehender Ort nur Vergleich"
     },
     {
       "scope": "Bonner Vorprüfung außerhalb dieses 100er-Pakets",
@@ -1195,7 +1199,8 @@
       "mirrorVersion": "d429c614de05d5052e50ddabe98d2c6e5d7fd6ce910a5a64c489b87d1fdbf467",
       "textSha256": "597347f859678528c0c445eb6929580453f472b0add6b45079b7772bb8b19286",
       "note": "S. 2. Die Antwort belegt ein Querungssystem an der Haltestelle Robert-Kirchhoff-Straße. Die Geometrie des Fußgängerübergangs bleibt offen.",
-      "newlyMappedInRevision7": false
+      "newlyMappedInRevision7": false,
+      "assessment": "Vorprüfung: Querungsanlage benannt, genaue Geometrie offen"
     },
     {
       "scope": "Bonner Vorprüfung außerhalb dieses 100er-Pakets",
@@ -1206,7 +1211,8 @@
       "mirrorVersion": "a24f2504ed8626968ddfcc938735b5c4f1b00fdcdc1894caf1a5a509e47e64cb",
       "textSha256": "9e1cfb19e010eb69c8eccbf422143480586854280adfdfb65b656076edd450a6",
       "note": "Die Ausschreibung umfasst stadtweit die Reinigung und Wartung von 317 Lichtsignalanlagen. Einzelanlagen sind im Text nicht identifiziert.",
-      "newlyMappedInRevision7": false
+      "newlyMappedInRevision7": false,
+      "assessment": "Vorprüfung: stadtweiter Unterhaltsauftrag, einzelne Anlagen nicht belegt"
     },
     {
       "scope": "Bonner Vorprüfung außerhalb dieses 100er-Pakets",
@@ -1217,7 +1223,8 @@
       "mirrorVersion": "65ea3f55f580fc16ce98e406c6937dc61be4325ee9a84b44fcdf087ce78a95e3",
       "textSha256": "3b789b9925ce9999454770c3759932e79777019435669a679d8a5e0f6a0063df",
       "note": "Zwölf Standorte sind Intervieworte der Innenstadtstudie.",
-      "newlyMappedInRevision7": false
+      "newlyMappedInRevision7": false,
+      "assessment": "Vorprüfung: Intervieworte, keine Maßnahmenorte"
     },
     {
       "scope": "Bonner Vorprüfung außerhalb dieses 100er-Pakets",
@@ -1228,7 +1235,8 @@
       "mirrorVersion": "fbc5d2abbe6fd20d426c9971e91ceb1b41c089bb843a65c82f9623a148f8052b",
       "textSha256": "b69b0c9e4b4ac6f4b385fba575063b81c8fe9c91e7e0f7a303a76edf69e29eae",
       "note": "Die Stellungnahme bittet um Vertagung. Eine Trasse für die Radverbindung Berliner Platz–Maxstraße wird hier nicht festgelegt.",
-      "newlyMappedInRevision7": false
+      "newlyMappedInRevision7": false,
+      "assessment": "Vorprüfung: Vertagung ohne festgelegte Radtrasse"
     }
   ],
   "pending": [
