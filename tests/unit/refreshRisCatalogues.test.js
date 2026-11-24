@@ -43,7 +43,7 @@ function writeRisSnapshot(folder, city, value, options) {
 function catalogue(city, { count = 2, from = city === 'hannover' ? '2014-01-01' : '2026-01-02', to = '2026-10-15', complete = city === 'bonn', body } = {}) {
   const gremium = body || (city === 'bonn' ? 'Bonn' : 'Ratsversammlung');
   return {
-    locationRevision: city === 'hannover' ? 17 : 7,
+    locationRevision: city === 'hannover' ? 18 : 7,
     sources: [OFFICIAL[city]],
     coverage: { from, to, bodies: [gremium], complete, warnings: complete ? [] : ['Amtliche Auswahl.'],
       ...(city === 'hannover' ? { scope: 'citywide' } : {}) },
@@ -598,7 +598,7 @@ test('rebuilds a fresh legacy Hannover snapshot once to publish measure location
     { city: 'hannover', status: 'published' },
   ]);
   const { manifest } = await readRisSnapshot(directory, 'hannover');
-  expect(manifest.locationRevision).toBe(17);
+  expect(manifest.locationRevision).toBe(18);
   expect(manifest.locationAssessment.attempted).toBe(manifest.recordCount);
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([
     { city: 'hannover', status: 'current' },
@@ -873,7 +873,7 @@ test.each(['bonn', 'hannover'])('locally assesses every retained legacy %s recor
   expect(snapshot.features.features.filter(feature => feature.properties.accuracy === 'official')).toEqual(before.features.features);
   expect(snapshot.manifest).toMatchObject({
     generatedAt: prior.generatedAt, sources: city === 'hannover' ? [...prior.sources, 'https://ris.hannit.de/public/vo040'] : prior.sources,
-    coverage: prior.coverage, locationRevision: city === 'hannover' ? 17 : 7,
+    coverage: prior.coverage, locationRevision: city === 'hannover' ? 18 : 7,
     locationAssessment: { attempted: 3, mapped: 0, partial: 1, unresolved: 2, unavailable: 0, truncated: 0 },
     refreshFailure: { attemptedAt: NOW.toISOString(), expiresAt: EXPIRY.toISOString() },
   });
@@ -1242,7 +1242,7 @@ test.each([[6, false], [6, true], [7, false], [7, true], [8, false], [8, true]])
       evidence: { source: 'document', text: text.split('. Es konnte')[0] + '.' } }] });
   expect(after.features.features.find(feature => feature.properties.recordId === record.id).geometry)
     .toEqual({ type: 'Point', coordinates: [9.726686, 52.381992] });
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt });
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt });
   expect(after.manifest.provenance.sourceVerifiedAt).toBe(prior.generatedAt);
 });
 
@@ -1476,7 +1476,7 @@ test('reassesses revision 3 address evidence locally without refreshing source c
   const collect = jest.fn(() => { throw new Error('Backoff must prevent another official source request'); });
   await refresh({ cities: ['hannover'], collect });
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     sourceStatuses: prior.sourceStatuses, coverage: prior.coverage, sources: prior.sources, refreshFailure: prior.refreshFailure });
   expect(after.records[1].locations).toEqual([{ kind: 'address', label: 'Stephanusstraße 10-14', mapped: false,
     evidence: { source: 'title', text: 'Radverkehr Stephanusstraße 10-14' } }]);
@@ -1529,7 +1529,7 @@ test('recovers an independent section from revision 7 retained evidence during s
   expect(geometry.coordinates.at(-1)).toEqual([9.744746, 52.382256]);
   expect(record.locationAssessment).toMatchObject({ status: 'partial',
     reasons: expect.arrayContaining(['unverified_name', 'unmapped_location', 'evidence_truncated']) });
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     coverage: prior.coverage, refreshFailure: prior.refreshFailure });
   expect(after.manifest.provenance.sourceVerifiedAt).toBe(prior.generatedAt);
   expect(collect).not.toHaveBeenCalled();
@@ -1550,7 +1550,7 @@ test('reassesses a published revision 5 Hannover facility title during source ba
   await refresh({ cities: ['hannover'], collect });
 
   const { manifest, records, features } = await readRisSnapshot(directory, 'hannover');
-  expect(manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     coverage: prior.coverage, refreshFailure: prior.refreshFailure });
   expect(records.find(record => record.id === id).locations).toEqual([{
     kind: 'place', label: 'Feuer- und Rettungswache 1 (Weidendamm 50)', mapped: true, evidence: { source: 'title', text: title },
@@ -1595,7 +1595,7 @@ test.each([3, 4])('reassesses retained unavailable details from revision %s duri
   expect(corrected.locations).toEqual([{ kind: 'address', label: 'Hildesheimer Straße 9-15', mapped: false,
     evidence: { source: 'title', text: title } }]);
   expect(corrected.locationAssessment.reasons).toContain('document_text_unavailable');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     sources: prior.sources, sourceStatuses: prior.sourceStatuses,
     coverage: { from: prior.coverage.from, to: prior.coverage.to, bodies: prior.coverage.bodies, complete: false } });
   const preserved = after.records.find(record => record.id === regional.id);
@@ -1632,7 +1632,7 @@ test('never transfers a retained prefix point to a corrected range and leaves re
   expect(corrected.locations).toEqual([{ kind: 'address', label: 'Stephanusstraße 10-14', mapped: false,
     evidence: { source: 'title', text: title } }]);
   expect(first.features.features.some(feature => feature.properties.recordId === stale.id)).toBe(false);
-  expect(first.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt });
+  expect(first.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt });
   await refresh({ cities: ['hannover'], collect });
   const second = await readRisSnapshot(directory, 'hannover');
   expect(collect).toHaveBeenCalledTimes(2);
@@ -1733,7 +1733,7 @@ test('reassesses an unmapped revision 8 SIM intersection from its retained title
   const collect = jest.fn();
   await refresh({ cities: ['hannover'], collect });
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     coverage: prior.coverage, refreshFailure: prior.refreshFailure });
   expect(after.records.find(record => record.id === id).locations).toEqual([{
     kind: 'junction', label: 'Hannoversche Straße / Grenzstraße / Louise-Schroeder-Straße', mapped: true,
@@ -1768,7 +1768,7 @@ test('upgrades an already fully assessed Hannover revision 12 snapshot to apply 
   const collect = jest.fn(() => { throw new Error('The retry-backoff must prevent an official source request'); });
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'current' }]);
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     refreshFailure: prior.refreshFailure, coverage: prior.coverage });
   expect(after.manifest.locationAssessment.attempted).toBe(before.records.length);
   expect(after.records.map(record => record.id).sort()).toEqual(before.records.map(record => record.id).sort());
@@ -1809,7 +1809,7 @@ test('reassesses a fully assessed Hannover revision 13 snapshot for the verified
   const collect = jest.fn(() => { throw new Error('Reassessment must not request new source documents'); });
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'current' }]);
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     coverage: prior.coverage, refreshFailure: prior.refreshFailure });
   expect(after.manifest.locationAssessment.attempted).toBe(before.records.length);
   expect(after.records.map(record => record.id).sort()).toEqual(before.records.map(record => record.id).sort());
@@ -1854,7 +1854,7 @@ test('reassesses the published fully checked Hannover revision 14 for the Freize
   const collect = jest.fn(() => { throw new Error('No new official source request during a revision-only reassessment'); });
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'current' }]);
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     coverage: prior.coverage, refreshFailure: prior.refreshFailure });
   expect(after.manifest.locationAssessment.attempted).toBe(before.records.length);
   expect(after.records.map(record => record.id).sort()).toEqual(before.records.map(record => record.id).sort());
@@ -1892,7 +1892,7 @@ test('reassesses published Hannover revision 15 for the Bleekstraße racks witho
   const collect = jest.fn(() => { throw new Error('No fresh SIM retrieval on revision-only reassessment'); });
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'current' }]);
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     coverage: prior.coverage, refreshFailure: prior.refreshFailure });
   expect(after.records.map(record => record.id).sort()).toEqual(before.records.map(record => record.id).sort());
   const located = after.records.find(record => record.id === id).locations;
@@ -1925,7 +1925,7 @@ test('reassesses published Hannover revision 16 for the Döhrener curb request w
   const collect = jest.fn(() => { throw new Error('Revision-only reassessment must not fetch new SIM documents'); });
   await expect(refresh({ cities: ['hannover'], collect })).resolves.toMatchObject([{ city: 'hannover', status: 'current' }]);
   const after = await readRisSnapshot(directory, 'hannover');
-  expect(after.manifest).toMatchObject({ locationRevision: 17, generatedAt: prior.generatedAt,
+  expect(after.manifest).toMatchObject({ locationRevision: 18, generatedAt: prior.generatedAt,
     coverage: prior.coverage, refreshFailure: prior.refreshFailure });
   expect(after.records.map(record => record.id).sort()).toEqual(before.records.map(record => record.id).sort());
   const located = after.records.find(record => record.id === id).locations;
@@ -1995,4 +1995,24 @@ test('zero source work budget restores the existing Pages catalogue without invo
   const after = await readRisSnapshot(directory, 'bonn');
   expect(after.manifest.generatedAt).toBe(prior.generatedAt);
   expect(after.records.map(record => record.id)).toEqual(previous.records.map(record => record.id));
+});
+
+test('upgrades a complete revision 17 Hannover snapshot locally, preserving existing locations and source clock', async () => {
+  const before = catalogue('hannover');
+  before.locationRevision = 17;
+  const existing = before.records[0];
+  delete existing.geometry;
+  delete existing.locationSource;
+  existing.locations = [{ kind: 'place', label: 'Historisch geprüfter Maßnahmenort',
+    evidence: { source: 'document', text: 'Der Maßnahmenort wurde vor Ort geprüft.' }, geometry: { type: 'Point', coordinates: [9.7, 52.4] } }];
+  existing.locationAssessment = { status: 'mapped', sources: ['document'], reasons: [], truncated: false };
+  Object.assign(before.records[1], { id: 'hannover-sim:15-1375-2023', source: 'hannover-sim', title: 'Einsatz des Ordnungsdienstes im Stadtbezirk Linden-Limmer' });
+  const original = await writeRisSnapshot(directory, 'hannover', before, { now: FRESH });
+  const collect = jest.fn();
+  await refresh({ cities: ['hannover'], workBudget: 0, collect });
+  expect(collect).not.toHaveBeenCalled();
+  const after = await readRisSnapshot(directory, 'hannover');
+  expect(after.manifest).toMatchObject({ mappedRecordCount: 2, recordCount: 2, generatedAt: original.generatedAt, locationRevision: 18 });
+  expect(after.features.features.find(feature => feature.properties.recordId === existing.id).geometry).toEqual(existing.locations[0].geometry);
+  expect(after.records.find(record => record.id === before.records[1].id).locations[0]).toMatchObject({kind:'area', provenance:{accuracy:'Nur Stadtbezirk bekannt'}});
 });

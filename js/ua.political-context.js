@@ -228,7 +228,7 @@
 
   const locationKinds = new Map([
     ['junction', 'Kreuzung'], ['section', 'Abschnitt'], ['street', 'Straßenbezug'],
-    ['address', 'Adresse'], ['place', 'Ort'],
+    ['address', 'Adresse'], ['place', 'Ort'], ['area', 'Gebietsbezug'],
   ]);
   const locationStatuses = new Map([
     ['mapped', 'Auf der Karte verortet'], ['partial', 'Teilweise auf der Karte verortet'],
@@ -276,6 +276,7 @@
     const label = document.createElement('strong');
     label.textContent = location.label;
     details.append(`${locationKinds.get(location.kind) || 'Ort'} · `, label);
+    if (location.provenance?.accuracy) details.append(` · ${location.provenance.accuracy}`);
     if (location.mapped === false) details.append(' · Nicht auf der Karte verortet');
     const evidence = location.evidence;
     const source = evidence?.source === 'title' ? 'Titel' : evidence?.source === 'document' ? 'Dokument' : '';

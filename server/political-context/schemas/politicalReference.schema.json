@@ -273,7 +273,23 @@
           "id": { "type": "string", "pattern": "^location:[a-f0-9]{64}$" },
           "geometryId": { "type": "string", "pattern": "^geometry:[a-f0-9]{64}$" },
           "label": { "type": "string", "minLength": 1, "maxLength": 4096 },
-          "kind": { "enum": ["junction", "section", "street", "address", "place"] },
+          "kind": { "enum": ["junction", "section", "street", "address", "place", "area"] },
+          "provenance": {
+            "type": "object", "additionalProperties": false,
+            "required": ["provider", "revision", "accuracy", "method", "attribution", "sourceUrl", "evidenceUrl"],
+            "properties": {
+              "provider": { "const": "ratsatlas-hannover" },
+              "revision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+              "accuracy": { "type": "string", "maxLength": 4096 },
+              "method": { "type": "string", "maxLength": 4096 },
+              "attribution": { "type": "string", "maxLength": 4096 },
+              "sourceUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+              "evidenceUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+              "evidenceNote": { "type": "string", "maxLength": 4096 },
+              "areaId": { "type": "string", "pattern": "^(bezirk|stadtteil):[0-9]+$" },
+              "retainedMention": { "const": true }
+            }
+          },
           "mapped": { "type": "boolean" },
           "evidence": {
             "type": "object",

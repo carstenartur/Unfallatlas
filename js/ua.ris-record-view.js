@@ -22,7 +22,7 @@
     minutes: /^(?:protokoll|niederschrift|stenografischer bericht)$/i,
     other: /^(?:sonstige|sonstiges)$/i,
   };
-  const LOCATION_KINDS = { junction: 'Kreuzung', section: 'Abschnitt', street: 'Straßenbezug', address: 'Adresse', place: 'Ort' };
+  const LOCATION_KINDS = { junction: 'Kreuzung', area: 'Gebietsbezug', section: 'Abschnitt', street: 'Straßenbezug', address: 'Adresse', place: 'Ort' };
   let nextId = 0;
 
   function element(tag, content, className) {
@@ -408,6 +408,12 @@
         append(row, 'h5', place.label || 'Ort ohne Bezeichnung');
         append(row, 'p', place.mapped ? 'Auf der Karte verortet' : 'Nicht auf der Karte verortet', 'ris-record-view__metadata');
         evidence(row, place.evidence?.text, place.evidence?.source === 'title' ? 'Beleg im Titel' : 'Beleg im Dokument');
+        if (place.provenance) {
+          const info = place.provenance;
+          append(row, 'p', `${info.accuracy} · ${info.method}`, 'ris-record-view__metadata');
+          externalLink(row, info.evidenceUrl, info.evidenceNote || 'Amtlicher Ortsbeleg');
+          externalLink(row, info.sourceUrl, info.attribution);
+        }
         if (place.geometryId) mapped.add(place.geometryId);
         if (place.mapped) showButton(row, place, place.label, { index: (result.places.start || 0) + index, geometryId: place.geometryId });
       }
