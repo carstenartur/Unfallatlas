@@ -12,11 +12,11 @@
   "trustedVendorBuilders": [],
   "verifiedBundleInventories": {
     "vendor/export/docx.js": {
-      "owner": "pkg:npm/docx@9.15.4",
-      "bundleSha256": "5d3091bf1e4cb622f0f6cdf4a552db8664e3f3a7524205709b52ba20313255d2",
+      "owner": "pkg:npm/docx@9.16.0",
+      "bundleSha256": "436e003b7fc506af50f46ec0eb863d4dfba0f74090c7c5db71249f233f1e48c0",
       "lockFile": "vendor/docx-build/npm-lock.json.gz",
-      "lockSha256": "e3454d37dfbc33e77160559f7e1afffbc685d72f19f42869b8f72e7c81d17ad9",
-      "componentEvidenceSha256": "4ea0602cf9a656a0f0c2a68723dbfa1c0db9a44f33179b1f4b797df85e72f3a7",
+      "lockSha256": "79336671d6bb75e1bf53d6f019241a4f186bb0cb18308a0514c141a0a8bac7e8",
+      "componentEvidenceSha256": "6afb97bd2d207c5500a22a5c953a669b448c5acd7ea49a5fc3b2e0ddde7b6d08",
       "modules": [
         "node_modules/fflate/esm/browser.js",
         "node_modules/nanoid/non-secure/index.js",
@@ -162,7 +162,7 @@
       "lockFile": "vendor/pdfmake-build/npm-lock.json",
       "lockSha256": "774707993a725893f1c7506bdbfa493394a51b2e56cb76804133b1f37b73af70",
       "sourceMapSha256": "aa9d3452539f10bafe8661612431f9ec6b5fd4840454ab1caba5be4bad2f2baf",
-      "componentEvidenceSha256": "2a288636bdd5e80d06151bc9fdd3b8d0e89e02cefbcf668fcdda1eae1a3588d3",
+      "componentEvidenceSha256": "d015ecebb01271d835f77c165761c9331b46b05ab3d5bc1b0d57a509b70667ba",
       "sourceMapPurls": [
         "pkg:npm/%40noble/ciphers@2.4.0",
         "pkg:npm/%40noble/hashes@2.4.0",
@@ -633,7 +633,7 @@
   ],
   "verifiedSourceRebuilds": {
     "vendor/export/docx.js": {
-      "sha256": "5d3091bf1e4cb622f0f6cdf4a552db8664e3f3a7524205709b52ba20313255d2",
+      "sha256": "436e003b7fc506af50f46ec0eb863d4dfba0f74090c7c5db71249f233f1e48c0",
       "command": "bash scripts/verify-docx-upstream.sh"
     },
     "vendor/export/pdfmake.js": {

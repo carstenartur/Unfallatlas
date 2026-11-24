@@ -51,7 +51,7 @@ Die derzeit abgedeckten Ausgaben sind:
 
 | Lock-Referenz | Paket | Eingabe | ausgelieferte Ausgabe |
 |---|---|---|---|
-| `export.docx.iife` | `docx@9.15.4` | `dist/index.iife.js` | `vendor/export/docx.js` |
+| `export.docx.iife` | `docx@9.16.0` | `dist/index.iife.js` | `vendor/export/docx.js` |
 | `export.pdfmake.min` | `pdfmake@0.3.15` | `build/pdfmake.min.js` | `vendor/export/pdfmake.js` |
 | `export.pdfmake.font-container` | `pdfmake@0.3.15` | `build/vfs_fonts.js` | `vendor/export/pdfmake-fonts.js` |
 
@@ -107,15 +107,15 @@ einen vollständigen SBOM-Status vorzutäuschen.
 
 ## Reproduktion des ausgelieferten DOCX-Bundles
 
-Für `docx@9.15.4` wurde das vollständige Upstream-Build mit Node 24.22.1
-und npm 11.9.0 aus dem vom npm-Release benannten Git-Stand
-`dc8bd21a0c4ab447fda0d5ad149f16ee87979de8` ausgeführt. Das im Quellarchiv
+Für `docx@9.16.0` wurde das vollständige Upstream-Build mit Node 26.13.1
+und npm 11.20.0 aus dem vom npm-Release benannten Git-Stand
+`f227ee1b1df33e72829b4250c156488be2fae193` ausgeführt. Das im Quellarchiv
 enthaltene npm-Lockfile liegt vollständig in `vendor/docx-build/npm-lock.json.gz`.
 Das Prüfskript vergleicht die entpackte Kopie byteweise mit der Herstellerdatei.
 Sie fixiert auch die Versionen von fflate (0.8.3),
-nanoid (6.0.2), Vite (8.3.7) und Rolldown (1.2.18). Gebautes und vom
-Site-Build kopiertes IIFE haben jeweils 1.061.595 Bytes und denselben SHA-256
-`5d3091bf1e4cb622f0f6cdf4a552db8664e3f3a7524205709b52ba20313255d2`.
+nanoid (6.0.2), Vite (8.3.8) und Rolldown (1.2.18). Gebautes und vom
+Site-Build kopiertes IIFE haben jeweils 1.061.739 Bytes und denselben SHA-256
+`436e003b7fc506af50f46ec0eb863d4dfba0f74090c7c5db71249f233f1e48c0`.
 Der Seitenbuild prüft die drei npm-Quellpfade im IIFE, den Hash des
 entpackten Hersteller-Locks und die unveränderten MIT-Texte. Notice und
 CycloneDX binden `fflate@0.8.3` und `nanoid@6.0.2` als enthaltene Komponenten
