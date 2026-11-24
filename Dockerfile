@@ -26,30 +26,56 @@ FROM mcr.microsoft.com/playwright:v1.65.1-noble
 #
 # Die NodeSource-Installation des Playwright-Images wird durch die gepinnte
 # Node-Distribution ersetzt. Deren Linux-Binary benötigt libatomic1.
-# APT kann ausgefallene Paketquellen pro Datei durch einen zweiten Spiegel ersetzen.
+# Die Netzwerkphasen haben ein Gesamtzeitlimit. Bei einer Störung wird nur
+# der betroffene Abruf über die offiziellen Ubuntu-Quellen wiederholt.
 COPY scripts/configure-ubuntu-mirrors.sh /tmp/configure-ubuntu-mirrors.sh
 RUN set -eux; \
     rm -f /etc/apt/sources.list.d/nodesource.list; \
     dpkg --purge nodejs; \
     sh /tmp/configure-ubuntu-mirrors.sh; \
     rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*; \
-    apt-get \
-      -o Acquire::Retries=5 \
-      -o Acquire::ForceIPv4=true \
-      -o Acquire::Languages=none \
-      -o Acquire::http::Timeout=30 \
-      -o Acquire::https::Timeout=30 \
-      update; \
-    DEBIAN_FRONTEND=noninteractive apt-get \
-      -o Acquire::Retries=5 \
-      -o Acquire::ForceIPv4=true \
-      -o Acquire::Languages=none \
-      -o Acquire::http::Timeout=30 \
-      -o Acquire::https::Timeout=30 \
-      install -y --no-install-recommends \
-        ffmpeg \
-        imagemagick \
-        libatomic1; \
+    set -- ffmpeg imagemagick libatomic1; \
+    official_mirrors=0; \
+    use_official_mirrors() { \
+      printf '%s; retrying with official Ubuntu mirrors\n' "$1" >&2; \
+      UNFALLATLAS_APT_OFFICIAL_ONLY=1 sh /tmp/configure-ubuntu-mirrors.sh; \
+      official_mirrors=1; \
+    }; \
+    update_indexes() { \
+      timeout --kill-after=15s 5m apt-get \
+        -o Acquire::Retries=5 \
+        -o Acquire::ForceIPv4=true \
+        -o Acquire::Languages=none \
+        -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 \
+        -o APT::Update::Error-Mode=any \
+        update; \
+    }; \
+    download_packages() { \
+      timeout --kill-after=15s 8m apt-get \
+        -o Acquire::Retries=5 \
+        -o Acquire::ForceIPv4=true \
+        -o Acquire::Languages=none \
+        -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 \
+        --download-only install -y --no-install-recommends "$@"; \
+    }; \
+    update_indexes || { \
+      use_official_mirrors "APT index acquisition failed (exit $?)"; \
+      rm -rf /var/lib/apt/lists/*; \
+      update_indexes; \
+    }; \
+    download_packages "$@" || { \
+      status=$?; \
+      if [ "$official_mirrors" -eq 1 ]; then \
+        printf 'APT package acquisition from official Ubuntu mirrors failed (exit %s)\n' "$status" >&2; \
+        exit "$status"; \
+      fi; \
+      use_official_mirrors "APT package acquisition failed (exit $status)"; \
+      rm -rf /var/cache/apt/archives/partial/*; \
+      download_packages "$@"; \
+    }; \
+    DEBIAN_FRONTEND=noninteractive apt-get --no-download install -y --no-install-recommends "$@"; \
     test -x /usr/bin/ffmpeg; \
     command -v convert >/dev/null; \
     apt-get clean; \

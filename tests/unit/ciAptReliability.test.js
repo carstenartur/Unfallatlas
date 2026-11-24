@@ -3,12 +3,111 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+}
+
+function runDockerAptFixture(failures) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ua-docker-apt-'));
+  try {
+    const aptDir = path.join(dir, 'apt');
+    const archives = path.join(dir, 'archives');
+    const lists = path.join(dir, 'lists');
+    fs.mkdirSync(path.join(aptDir, 'sources.list.d'), { recursive: true });
+    fs.mkdirSync(path.join(archives, 'partial'), { recursive: true });
+    fs.mkdirSync(path.join(lists, 'partial'), { recursive: true });
+    const source = path.join(aptDir, 'sources.list.d', 'ubuntu.sources');
+    fs.writeFileSync(source, 'URIs: http://archive.ubuntu.com/ubuntu\nSuites: noble noble-updates\nComponents: main universe\nSigned-By: /keys/ubuntu.gpg\n\nURIs: http://security.ubuntu.com/ubuntu\nSuites: noble-security\nComponents: main universe\nSigned-By: /keys/ubuntu.gpg\n');
+    const commandLog = path.join(dir, 'commands');
+    const mockCommand = (name, body) =>
+      fs.writeFileSync(path.join(dir, name), '#!/bin/sh\nset -eu\n' + body + '\n', { mode: 0o755 });
+    mockCommand('dpkg', 'exit 0');
+    mockCommand('convert', 'exit 0');
+    mockCommand('rm', [
+      'for operand do',
+      '  case "$operand" in',
+      '    -f|-rf|"$APT_FIXTURE_ROOT"/*) ;;',
+      '    *) exit 92 ;;',
+      '  esac',
+      'done',
+      'exec /usr/bin/rm "$@"',
+    ].join('\n'));
+    mockCommand('timeout', [
+      'test "$1" = --kill-after=15s',
+      'export ACQUISITION_BUDGET="$2"',
+      'shift 2',
+      'exec "$@"',
+    ].join('\n'));
+    mockCommand('apt-get', [
+      'mode=preferred',
+      'if ! grep -q mirrors.edge.kernel.org "$APT_FIXTURE_DIR"/ua-ubuntu-mirrors.txt; then',
+      '  mode=official',
+      '  grep -q https://archive.ubuntu.com/ubuntu "$APT_FIXTURE_DIR"/ua-ubuntu-mirrors.txt',
+      '  grep -q https://security.ubuntu.com/ubuntu "$APT_FIXTURE_DIR"/apt-security-mirrors.txt',
+      '  ! grep -q mirrors.edge.kernel.org "$APT_FIXTURE_DIR"/apt-security-mirrors.txt || exit 90',
+      'fi',
+      'case " $* " in',
+      '  *" update "*)',
+      '    phase=update',
+      '    case " $* " in *" APT::Update::Error-Mode=any "*) ;; *) exit 93 ;; esac',
+      '    rm -f "$APT_FIXTURE_ARCHIVES"/cached.deb ;;',
+      '  *" --download-only "*)',
+      '    phase=download',
+      '    if [ "$mode" = official ] && grep -q "^download preferred " "$APT_FIXTURE_LOG"; then',
+      '      test -f "$APT_FIXTURE_ARCHIVES"/cached.deb',
+      '    fi',
+      '    touch "$APT_FIXTURE_ARCHIVES"/cached.deb ;;',
+      '  *" --no-download "*) phase=install; test -f "$APT_FIXTURE_ARCHIVES"/cached.deb ;;',
+      '  *" clean "*) exit 0 ;;',
+      '  *) exit 91 ;;',
+      'esac',
+      'printf "%s %s %s\n" "$phase" "$mode" "$ACQUISITION_BUDGET" >> "$APT_FIXTURE_LOG"',
+      'case " $APT_FIXTURE_FAILURES " in',
+      '  *" $phase:$mode:124 "*) exit 124 ;;',
+      '  *" $phase:$mode:137 "*) exit 137 ;;',
+      '  *" $phase:$mode:1 "*) exit 1 ;;',
+      'esac',
+    ].join('\n'));
+    const dockerfile = read('Dockerfile');
+    const start = dockerfile.indexOf('RUN set -eux; \\');
+    const end = dockerfile.indexOf('\n\n', start);
+    mockCommand('ffmpeg', 'exit 0');
+    const command = dockerfile.slice(start + 4, end)
+      .replaceAll('/etc/apt', '"$APT_FIXTURE_DIR"')
+      .replaceAll('/var/cache/apt/archives', '"$APT_FIXTURE_ARCHIVES"')
+      .replaceAll('/var/lib/apt/lists', '"$APT_FIXTURE_LISTS"')
+      .replaceAll('/usr/bin/ffmpeg', '"$APT_FIXTURE_ROOT"/ffmpeg')
+      .replaceAll('sh /tmp/configure-ubuntu-mirrors.sh',
+        'sh "$APT_FIXTURE_CONFIG" "$APT_FIXTURE_DIR"');
+    const result = spawnSync('sh', ['-c', command], {
+      encoding: 'utf8',
+      timeout: 5000,
+      env: {
+        ...process.env,
+        PATH: dir + path.delimiter + process.env.PATH,
+        ACQUISITION_BUDGET: 'local',
+        APT_FIXTURE_ROOT: dir,
+        APT_FIXTURE_CONFIG: path.join(ROOT, 'scripts/configure-ubuntu-mirrors.sh'),
+        APT_FIXTURE_DIR: aptDir,
+        APT_FIXTURE_ARCHIVES: archives,
+        APT_FIXTURE_LISTS: lists,
+        APT_FIXTURE_FAILURES: failures.join(' '),
+        APT_FIXTURE_LOG: commandLog,
+      },
+    });
+    if (result.error) throw result.error;
+    return {
+      status: result.status,
+      commands: fs.existsSync(commandLog) ? fs.readFileSync(commandLog, 'utf8').trim().split('\n') : [],
+      sources: fs.readFileSync(source, 'utf8'),
+    };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 describe('CI package installation reliability', () => {
@@ -60,6 +159,36 @@ describe('CI package installation reliability', () => {
     expect(applicationDockerfile).toContain('sh /tmp/configure-ubuntu-mirrors.sh');
     expect(applicationDockerfile).toContain('test -x /usr/bin/ffmpeg');
     expect(applicationDockerfile).toContain('command -v convert >/dev/null');
+  });
+
+  test.each([
+    ['healthy mirrors', [], 0, ['update preferred 5m', 'download preferred 8m', 'install preferred local']],
+    ['timed-out index fetch', ['update:preferred:124'], 0, [
+      'update preferred 5m', 'update official 5m', 'download official 8m', 'install official local',
+    ]],
+    ['killed package fetch', ['download:preferred:137'], 0, [
+      'update preferred 5m', 'download preferred 8m', 'download official 8m', 'install official local',
+    ]],
+    ['both index attempts fail', ['update:preferred:124', 'update:official:1'], 1, [
+      'update preferred 5m', 'update official 5m',
+    ]],
+    ['both package attempts fail', ['download:preferred:137', 'download:official:1'], 1, [
+      'update preferred 5m', 'download preferred 8m', 'download official 8m',
+    ]],
+    ['official download fails after index fallback', ['update:preferred:124', 'download:official:137'], 137, [
+      'update preferred 5m', 'update official 5m', 'download official 8m',
+    ]],
+    ['local package installation fails', ['install:preferred:1'], 1, [
+      'update preferred 5m', 'download preferred 8m', 'install preferred local',
+    ]],
+  ])('Docker acquires packages before one local installation when %s', (_scenario, failures, status, commands) => {
+    const result = runDockerAptFixture(failures);
+    expect(result.commands).toEqual(commands);
+    expect(result.status).toBe(status);
+    expect(result.sources.match(/Signed-By: \/keys\/ubuntu.gpg/g)).toHaveLength(2);
+    expect(result.sources.match(/Components: main universe/g)).toHaveLength(2);
+    expect(result.sources).toContain('Suites: noble noble-updates');
+    expect(result.sources).toContain('Suites: noble-security');
   });
 
   test('analysis healthcheck runs the locally compiled HTTP probe on its runtime JRE', () => {

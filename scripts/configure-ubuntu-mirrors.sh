@@ -10,16 +10,23 @@ security_list="$apt_dir/apt-security-mirrors.txt"
 # domains. APT selects a mirror per file, so prefer the working independent
 # mirror instead of repeating a DNS timeout for every index and package.
 preferred='https://mirrors.edge.kernel.org/ubuntu'
+official_only=${UNFALLATLAS_APT_OFFICIAL_ONLY:-0}
 if [ -s "$runner_list" ] &&
    grep -Eq 'https?://((azure\.)?archive|security)\.ubuntu\.com/ubuntu(/|[[:space:]]|$)' "$runner_list" &&
-   ! grep -Fxq "$(printf '%s\tpriority:0' "$preferred")" "$runner_list"; then
+   { [ "$official_only" = 1 ] || ! grep -Fxq "$(printf '%s\tpriority:0' "$preferred")" "$runner_list"; }; then
     # Preserve runner/custom mirrors and comments. Replace only our own entry.
     sed -i '\#^https://mirrors\.edge\.kernel\.org/ubuntu/\?\([[:space:]].*\)\?$#d' "$runner_list"
-    printf '\n%s\tpriority:0\n' "$preferred" >> "$runner_list"
+    if [ "$official_only" != 1 ]; then
+        printf '\n%s\tpriority:0\n' "$preferred" >> "$runner_list"
+    fi
 fi
 
 write_mirrors() {
-    printf '%s\tpriority:0\n%s\tpriority:2\n' "$preferred" "$1" > "$2"
+    if [ "$official_only" = 1 ]; then
+        printf '%s\tpriority:0\n' "$1" > "$2"
+    else
+        printf '%s\tpriority:0\n%s\tpriority:2\n' "$preferred" "$1" > "$2"
+    fi
 }
 write_mirrors 'https://archive.ubuntu.com/ubuntu' "$archive_list"
 write_mirrors 'https://security.ubuntu.com/ubuntu' "$security_list"
