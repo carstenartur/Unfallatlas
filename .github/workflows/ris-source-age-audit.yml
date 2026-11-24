@@ -1,0 +1,36 @@
+name: Audit restored RIS source ages
+
+on:
+  push:
+    branches:
+      - diagnostics/ris-source-age-20261124
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Restore the publication run's source checkpoints
+        id: ris-source-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/ris-sources
+          key: ris-sources-v1-Linux-45111898260-1
+          fail-on-cache-miss: true
+      - name: Audit ages in the exact restored cache
+        env:
+          EXACT_CACHE_HIT: ${{ steps.ris-source-cache.outputs.cache-hit }}
+        run: |
+          test "$EXACT_CACHE_HIT" = true
+          mvn -B -ntp -N generate-resources -Pris-source-age-audit

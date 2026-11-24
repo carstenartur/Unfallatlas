@@ -22,6 +22,7 @@
     "qa:location-brief-golden": "node scripts/qa-location-brief-golden-cases.js",
     "qa:location-brief-golden:prepare": "node scripts/prepare-location-brief-golden-fixtures.js",
     "qa:live-documentation-links": "node scripts/run-live-documentation-links.cjs",
+    "qa:ris-source-age-audit": "node scripts/audit-ris-source-age.js",
     "qa:pages:artifact": "node scripts/run-pages-quality-gate.cjs",
     "qa:e2e:prepare": "node scripts/prepare-extended-e2e.js && npm run build:site && node scripts/install-playwright-browsers.cjs chromium firefox webkit",
     "qa:e2e:extended": "node scripts/run-extended-e2e-isolated.js",

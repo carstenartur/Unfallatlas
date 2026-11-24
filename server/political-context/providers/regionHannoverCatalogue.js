@@ -658,4 +658,5 @@ async function collectRegionHannoverCatalogue(options = {}) {
       limits: { maxPages, maxDocuments, workBudget: workBudget === Infinity ? null : workBudget, maxDurationMs } } } };
 }
 
-module.exports = { ORIGIN, LIST_URL, SOURCE, REVISION, parseProposalHtml, parseProposalListHtml, collectRegionHannoverCatalogue };
+module.exports = { ORIGIN, LIST_URL, SOURCE, REVISION, CHECKPOINT_SCOPE, validTimestamp, validStoredRecord, validStoredDetail,
+  parseProposalHtml, parseProposalListHtml, collectRegionHannoverCatalogue };
