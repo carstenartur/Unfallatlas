@@ -38,9 +38,9 @@ def indic_upstream(source):
 def indic_fontkit(source):
     table = source.split("export const INDIC_CONFIGS = {", 1)[1].split("};", 1)[0]
     table = re.sub(r"//[^\n]*", "", table)
-    pattern = (r"(\w+): \{\s*hasOldSpec: (true|false),\s*virama: (0x[0-9A-F]+|0),"
+    pattern = (r"(\w+): \{\s*hasOldSpec: (true|false),\s*virama: (0x[0-9a-fA-F]+|0),"
                r"\s*basePos: '(\w+)',\s*rephPos: POSITIONS\.(\w+),"
-               r"\s*rephMode: '(\w+)',\s*blwfMode: '(\w+)'\s*\}")
+               r"\s*rephMode: '(\w+)',\s*blwfMode: '(\w+)',?\s*\}")
     rows = {}
     for name, old_spec, virama, base, position, reph, blwf in re.findall(pattern, table):
         if name.upper() in rows:
@@ -81,14 +81,9 @@ def fallback_cases(source, upstream):
 def verify_fallback(reference, source):
     original = fallback_cases(reference, True)
     shipped = fallback_cases(source, False)
-    # Fontkit 2.0.4 spells the Thai nikhahit case as U+0E3D. Upstream Fontkit
-    # fixed this after the pinned release, in ed87e83d97851d984558f9c219b830917f9993a5.
-    if (original.keys() - shipped.keys() != {"0X0E4D"} or
-            shipped.keys() - original.keys() != {"0X0E3D"} or
-            original.pop("0X0E4D") != "ABOVE_RIGHT" or shipped.pop("0X0E3D") != "ABOVE_RIGHT" or
-            len(original) != 51 or original != shipped):
+    if len(original) != 52 or original != shipped:
         raise ValueError("Fontkit fallback combining-class cases differ from the pinned comparison")
-    print("Fontkit fallback: 51 matching cases and the documented Thai U+0E3D/U+0E4D difference")
+    print("Fontkit fallback: 52 matching cases, including Thai U+0E4D")
 
 
 def grammar_rules(source):
@@ -133,12 +128,24 @@ def verify_grammar(name, original, source):
         if shipped[changed] != expected[:5] + expected[7:]:
             raise ValueError("Unexpected USE independent cluster")
         count = 12
+        # Fontkit expands the historical USE grammar for the Sakot category.
+        modifiers = upstream["consonant_modifiers"]
+        if modifiers[6:8] != ["H", "B"]:
+            raise ValueError("Unexpected USE consonant modifiers reference")
+        upstream["consonant_modifiers"] = modifiers[:6] + ["(", "H", "|", "Sk", ")", "B"] + modifiers[8:]
+        for cluster in ["standard_cluster", "broken_cluster"]:
+            if upstream[cluster][-1] != "final_consonants":
+                raise ValueError(f"Unexpected USE {cluster} reference")
+            upstream[cluster].insert(-1, "sakot_consonants")
+        if shipped.pop("sakot_consonants", None) != ["(", "Sk", "B", ")", "*"] or (
+                shipped.pop("sakot_terminated_cluster", None) != upstream["standard_cluster"][:-1] + ["Sk"]):
+            raise ValueError("Unexpected Fontkit USE Sakot rules")
     if upstream.pop(changed) != expected:
         raise ValueError(f"Unexpected {name} adaptation of {changed}")
     shipped.pop(changed)
     if len(upstream) != count - 1 or upstream != shipped:
         raise ValueError(f"{name} rules differ from their HarfBuzz reference")
-    print(f"Fontkit {name}: {count - 1} matching rules and the documented change to {changed}")
+    print(f"Fontkit {name}: matched {count} reference rules with the documented adaptations")
 
 
 def main(package_root):
@@ -146,6 +153,25 @@ def main(package_root):
     policy = json.loads((root / "vendor/provenance-policy.json").read_text())
     pdf = policy["verifiedBundleInventories"]["vendor/export/pdfmake.js"]
     inputs = pdf["fontkitSources"]["sections"] + pdf["fontkitSources"]["grammarInputs"]
+    package_root = Path(package_root)
+    for section in inputs:
+        record = section["record"]
+        source = (package_root / section["file"]).read_text()
+        if section.get("start"):
+            start = section["start"]
+            end = section.get("end")
+            first = source.index(start)
+            last = source.index(end, first + len(start)) + len(end) if end else len(source)
+            if source.count(start) != 1:
+                raise ValueError(f"Ambiguous Fontkit section: {section['file']}")
+            source = source[first:last]
+        if hashlib.sha256(source.encode()).hexdigest() != record["sourceSha256"]:
+            raise ValueError(f"Fontkit attributed input differs: {section['file']}")
+        if section.get("generatedFile"):
+            generated = (package_root / section["generatedFile"]).read_bytes()
+            if hashlib.sha256(generated).hexdigest() != record["generatedSha256"]:
+                raise ValueError(f"Fontkit generated state machine differs: {section['generatedFile']}")
+
     sections = {section["record"]["ref"]: section for section in inputs}
     for name in ("arabic", "indic", "fallback", "indic-grammar", "use-grammar"):
         section = sections[f"urn:unfallatlas:vendor-source:fontkit:harfbuzz-{name}"]
@@ -179,5 +205,5 @@ def main(package_root):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        sys.exit("Usage: python3 scripts/verify-fontkit-shaping.py path/to/fontkit")
+        sys.exit("Usage: python3 scripts/verify-fontkit-shaping.py path/to/fontkit-source")
     main(sys.argv[1])

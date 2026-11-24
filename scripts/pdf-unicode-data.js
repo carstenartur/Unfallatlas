@@ -41,22 +41,29 @@ function collectUnicodeData(repo, out, outer, expectedHash) {
   const bundle = fs.readFileSync(fs.existsSync(delivered)
     ? delivered : path.join(repo, 'node_modules/pdfmake/build/pdfmake.min.js'), 'utf8');
   for (const item of evidence.outputs) {
-    const modulePath = 'node_modules/' + item.package + '/dist/module.mjs';
+    const modulePath = 'node_modules/' + item.package + '/' + item.module;
     const id = 'webpack://pdfmake/./' + modulePath;
     const index = outer.sources.indexOf(id);
     const source = fs.readFileSync(path.join(repo, modulePath), 'utf8');
     if (index < 0 || outer.sources.lastIndexOf(id) !== index || source !== outer.sourcesContent[index]) {
       throw new Error('Unicode module differs from PDF source map: ' + modulePath);
     }
-    const candidates = item.encoding === 'json'
-      ? [...source.matchAll(/JSON\.parse\('([^']+)'\)/g)].map(match => match[1])
-      : [...source.matchAll(/"([A-Za-z0-9+/=]{100,})"/g)].map(match => match[1]);
-    const verified = candidates.filter(value => {
-      const bytes = Buffer.from(value, item.encoding === 'json' ? 'utf8' : 'base64');
-      return bytes.length === item.bytes && sha256(bytes) === item.sha256;
-    });
-    const value = verified[0];
-    if (verified.length !== 1 || !bundle.includes(value) || bundle.indexOf(value) !== bundle.lastIndexOf(value)) {
+    let data;
+    let embedded;
+    if (item.encoding === 'base64') {
+      embedded = [/^export default "([A-Za-z0-9+/=]+)";?$/.exec(source)?.[1]];
+      data = embedded[0] && Buffer.from(embedded[0], 'base64');
+    } else if (item.encoding === 'uint8array') {
+      embedded = [/^export default new Uint8Array\(\[([\d,]+)\]\);\n$/.exec(source)?.[1]];
+      data = embedded[0] && Buffer.from(embedded[0].split(',').map(Number));
+    } else if (item.encoding === 'object') {
+      data = Buffer.from(source);
+      embedded = [...source.matchAll(/^ {2}\w+: (\[[^\n]*\]),?$/gm)].map(match => match[1]);
+    } else {
+      throw new Error('Unknown encoded Unicode resource: ' + item.encoding);
+    }
+    if (!data || data.length !== item.bytes || sha256(data) !== item.sha256 || !embedded.length ||
+        embedded.some(value => !value || !bundle.includes(value) || bundle.indexOf(value) !== bundle.lastIndexOf(value))) {
       throw new Error('Regenerated Unicode bytes differ from the delivered PDF: ' + item.file);
     }
   }

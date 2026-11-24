@@ -19,7 +19,7 @@ const path = require('node:path');
 const { brotliDecompressSync } = require('node:zlib');
 const wrapper = fs.readFileSync(process.argv[2], 'utf8');
 const work = process.argv[3];
-const bytes = brotliDecompressSync(Buffer.from(/^module\.exports="([A-Za-z0-9+/=]+)";\n$/.exec(wrapper)[1], 'base64'), { maxOutputLength: 122784 });
+const bytes = brotliDecompressSync(Buffer.from(/^export default "([A-Za-z0-9+/]+={0,2})";\n$/.exec(wrapper)[1], 'base64'), { maxOutputLength: 122784 });
 const appendix = fs.readFileSync(path.join(work, 'rfc.txt'), 'utf8').split('Appendix A.  Static Dictionary Data\n').at(-1).split('Appendix B.')[0];
 const hex = [...appendix.matchAll(/^[ \t]*([0-9a-f]{2,})[ \t]*$/gm)].map(match => match[1]).join('');
 if (bytes.length !== 122784 || !bytes.equals(Buffer.from(hex, 'hex')) || !bytes.equals(fs.readFileSync(path.join(work, 'dictionary.bin')))) {

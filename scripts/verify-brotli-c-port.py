@@ -64,11 +64,12 @@ def reference(lib, cases):
 
 
 JS = """
-const fs = require('node:fs');
-const path = require('node:path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 const root = process.argv[1];
-const { BrotliBuildHuffmanTable } = require(path.join(root, 'dec/huffman.js'));
-const { BrotliInput, BrotliOutput } = require(path.join(root, 'dec/streams.js'));
+const { BrotliBuildHuffmanTable } = await import(pathToFileURL(path.join(root, 'dec/huffman.js')));
+const { BrotliInput, BrotliOutput } = await import(pathToFileURL(path.join(root, 'dec/streams.js')));
 const cases = JSON.parse(fs.readFileSync(0, 'utf8'));
 const tables = cases.map(([bits, depths]) => {
   const table = [];
@@ -118,7 +119,7 @@ def verify(package, archive):
         subprocess.run(["cc", "-shared", "-fPIC", "huffman.c", "streams.c", "-o", "original.so"], cwd=work, check=True)
         cases = samples()
         expected = reference(c.CDLL(str(work / "original.so")), cases)
-        js = subprocess.check_output(["node", "-e", JS, str(package.resolve())], input=json.dumps(cases).encode())
+        js = subprocess.check_output(["node", "--input-type=module", "-e", JS, str(package.resolve())], input=json.dumps(cases).encode())
         if json.loads(js) != expected:
             raise ValueError("C and JavaScript Huffman tables or memory streams differ")
         print(f"Verified {sum(map(len, expected[0]))} Huffman table entries across {len(cases)} cases and memory stream reads/writes.")

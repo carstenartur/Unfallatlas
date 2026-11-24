@@ -156,91 +156,123 @@
       ]
     },
     "vendor/export/pdfmake.js": {
-      "unicodeDataManifestSha256": "696ffbbd56ed4c15b0c7dbeb02683b5c437fa5d7ae2c47102188cca869d6cf52",
-      "owner": "pkg:npm/pdfmake@0.3.14",
-      "bundleSha256": "e095e5b991dce0eb84f1989c42a2dbf7d0672fb8510ea3fe1c958920d6d3751d",
+      "unicodeDataManifestSha256": "c51c173d8a4f2694ee99fbdd97c983736adfc8d4f79537e9ee9f28674732ea6b",
+      "owner": "pkg:npm/pdfmake@0.3.15",
+      "bundleSha256": "a3453acc05b244d2a9264d1231abf7e53f869c56a834553046be56a514a7e0f6",
       "lockFile": "vendor/pdfmake-build/npm-lock.json",
-      "lockSha256": "03de6b450be5877a0036dae5f66115b1cfb06b70645c5c2ea5177707d3625ffe",
-      "sourceMapSha256": "e93f2be331afd8c8849a8113f0d4e672156e45a9b1b972846db43dd0b933942e",
-      "componentEvidenceSha256": "8425941fd3b64117bdbcbb3b616194f091f0ab60cf0c83e4579cfc9404705e6a",
+      "lockSha256": "774707993a725893f1c7506bdbfa493394a51b2e56cb76804133b1f37b73af70",
+      "sourceMapSha256": "aa9d3452539f10bafe8661612431f9ec6b5fd4840454ab1caba5be4bad2f2baf",
+      "componentEvidenceSha256": "2a288636bdd5e80d06151bc9fdd3b8d0e89e02cefbcf668fcdda1eae1a3588d3",
       "sourceMapPurls": [
-        "pkg:npm/%40noble/ciphers@1.3.0",
-        "pkg:npm/%40noble/hashes@1.8.0",
-        "pkg:npm/%40swc/helpers@0.5.24",
-        "pkg:npm/base64-js@0.0.8",
+        "pkg:npm/%40noble/ciphers@2.4.0",
+        "pkg:npm/%40noble/hashes@2.4.0",
+        "pkg:npm/%40pdfmake/svg-to-pdfkit@0.2.0",
         "pkg:npm/base64-js@1.5.1",
-        "pkg:npm/brotli@1.3.3",
+        "pkg:npm/brotli@2.1.0",
         "pkg:npm/buffer@6.0.3",
-        "pkg:npm/clone@2.1.2",
         "pkg:npm/core-js@3.51.0",
-        "pkg:npm/dfa@1.2.0",
+        "pkg:npm/dfa@2.0.0",
         "pkg:npm/events@3.3.0",
         "pkg:npm/expose-loader@5.0.1",
-        "pkg:npm/fast-deep-equal@3.1.3",
         "pkg:npm/fflate@0.8.3",
         "pkg:npm/file-saver@2.0.5",
-        "pkg:npm/fontkit@2.0.4",
+        "pkg:npm/fontkit@3.0.0",
         "pkg:npm/ieee754@1.2.1",
-        "pkg:npm/linebreak@1.1.0",
-        "pkg:npm/pdfkit@0.20.2",
-        "pkg:npm/png-js@2.0.0",
+        "pkg:npm/linebreak@2.0.0",
+        "pkg:npm/pdfkit@0.21.0",
+        "pkg:npm/png-js@3.0.0",
         "pkg:npm/process@0.11.10",
         "pkg:npm/restructure@3.0.2",
         "pkg:npm/sax@1.6.1",
-        "pkg:npm/tiny-inflate@1.0.3",
-        "pkg:npm/unicode-properties@1.4.1",
-        "pkg:npm/unicode-trie@2.0.0",
+        "pkg:npm/unicode-properties@2.0.2",
+        "pkg:npm/unicode-trie@3.0.0",
         "pkg:npm/xmldoc@2.0.3"
       ],
       "components": [
         {
-          "purl": "pkg:npm/png-js@2.0.0",
+          "purl": "pkg:npm/png-js@3.0.0",
           "lockPath": "node_modules/png-js",
-          "resolved": "https://registry.npmjs.org/png-js/-/png-js-2.0.0.tgz",
-          "integrity": "sha512-GdzJuUMc6ZSpxFJWVxtOH1bzYHym+TOnveqUjb+VJIbZWbZzyiRGFiKhbiielfpYbgMlhHVhsJ0FTazfuRFkMA==",
+          "resolved": "https://registry.npmjs.org/png-js/-/png-js-3.0.0.tgz",
+          "integrity": "sha512-4cXXV2NPgaYdSpa/HrA3bdB9/eJrJppUW2kCYpQkmWOY9/J0B2tKa0EsDymImaDZidoV7hnp8Qx6W6vqodDXwg==",
           "spdx": "MIT",
           "licenseFile": "LICENSE",
           "licenseSha256": "bdb26a2ec815931ed6a38f3416362566204ee85ecdef96702b636402da4c75c3"
         },
         {
-          "purl": "pkg:npm/webpack@5.112.2",
+          "purl": "pkg:npm/webpack@5.113.0",
           "lockPath": "node_modules/webpack",
-          "resolved": "https://registry.npmjs.org/webpack/-/webpack-5.112.2.tgz",
-          "integrity": "sha512-B2tp1LI9D8GVpPDqprdt12ukTkXXahj9MzqSWJq4faSPgOUM7CdZaGAB6HrL/8E6UwbBpdj4vzWDbKoFnVoU6g==",
+          "resolved": "https://registry.npmjs.org/webpack/-/webpack-5.113.0.tgz",
+          "integrity": "sha512-q54iF0LNaAAdLEt3al9qMXC2zARvcx7LVKjHp+ExjCRkGx0M8TmawGHAXykXwofWzxhNzPTAh3kLVXvNg0El4A==",
           "spdx": "MIT",
           "licenseFile": "LICENSE",
           "licenseSha256": "9068a8782d2fb4c6e432cfa25334efa56f722822180570802bf86e71b6003b1e"
+        },
+        {
+          "purl": "pkg:npm/fontkit@3.0.0",
+          "lockPath": "node_modules/fontkit",
+          "resolved": "https://registry.npmjs.org/fontkit/-/fontkit-3.0.0.tgz",
+          "integrity": "sha512-sjSkmtEw6RYJcvEbd+LHHLp2HFDaXdAia2RTbaGcBu/5QaDhxz35249eH9G07E0PzrtlkPF9FYXHF6YXxcAa1w==",
+          "spdx": "MIT",
+          "licenseFile": "LICENSE",
+          "licenseSha256": "cf22b8198f0886a8d4626121579114f23141070e1fceab02ab3c1c361e163440"
+        },
+        {
+          "purl": "pkg:npm/%40pdfmake/svg-to-pdfkit@0.2.0",
+          "lockPath": "node_modules/@pdfmake/svg-to-pdfkit",
+          "resolved": "https://registry.npmjs.org/@pdfmake/svg-to-pdfkit/-/svg-to-pdfkit-0.2.0.tgz",
+          "integrity": "sha512-wDfCqF2XQXyWIEOLZZcZSGGmeWw+idJaaBS6jRHUZsak3nMtotniNBbkDj9GNeOmLM34Ewktm45vzHnWuZTSBQ==",
+          "spdx": "MIT",
+          "licenseFile": "LICENSE",
+          "licenseSha256": "56cb30504f924336749bdc5225fd1a91f1a98ddd53acf1c0cac461168f3b9524"
+        },
+        {
+          "purl": "pkg:npm/%40noble/hashes@2.4.0",
+          "lockPath": "node_modules/@noble/hashes",
+          "resolved": "https://registry.npmjs.org/@noble/hashes/-/hashes-2.4.0.tgz",
+          "integrity": "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==",
+          "spdx": "MIT",
+          "licenseFile": "LICENSE",
+          "licenseSha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec"
+        },
+        {
+          "purl": "pkg:npm/%40noble/ciphers@2.4.0",
+          "lockPath": "node_modules/@noble/ciphers",
+          "resolved": "https://registry.npmjs.org/@noble/ciphers/-/ciphers-2.4.0.tgz",
+          "integrity": "sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw==",
+          "spdx": "MIT",
+          "licenseFile": "LICENSE",
+          "licenseSha256": "f36671a5487c9c5050efacb58011c37c24c55a889803cb036cf9d9a6347c1e2d"
         }
       ],
       "webpackRuntime": {
-        "purl": "pkg:npm/webpack@5.112.2",
+        "purl": "pkg:npm/webpack@5.113.0",
         "copyright": "Copyright JS Foundation and other contributors",
         "sections": {
+          "universalModuleDefinition": "535202cb445717bb9000bfd97e1f6d1edebc2afc88ac6d88c1b781b97b6e583b",
           "bootstrap": "1fce9094b2a6710eb98d335ee57936701eb9e93c4660c9bf753ef1437e0668e7",
           "runtime/compat get default export": "9cdc7962827a130ab54b253ed99113bee036fbbbe85f0f7d4b7b1efc5c122f3b",
           "runtime/concatenation wrap": "b1267c4b73a2bdcd31ba3a254630b089f6df59b757b62a2ed930b4cd0a605ddc",
-          "runtime/define property getters": "86249dcbc1933637e47bd8638dc52489809a1d70c7ca850077d3c39cd6f9a848",
+          "runtime/define property getters": "eb35b4b30948beb75c3072874e1d0639b1cfb6c2a46e2458e00dbfa2aac95b19",
           "runtime/global": "2bf5c426fb3aa1d4ea2653861966dcdb200036389a3aa0358db12dd8d0f7f702",
           "runtime/hasOwnProperty shorthand": "f8f772e91ef01c31c24c1783cc3215e59aae137bfeb58eb444103b8452a02a21",
           "runtime/node module decorator": "14c55cddc5b0fb8be93dc05eb629543c21337b7b0c30a7661221e86c25376881",
-          "startup": "388b03602b3ef774b89a6d66bc729348827629deb84ee5c72b474573de4c2391",
-          "universalModuleDefinition": "535202cb445717bb9000bfd97e1f6d1edebc2afc88ac6d88c1b781b97b6e583b"
+          "startup": "820608d8e7b689e00318aee9fa4e8f840d2f3a217c985f0788bb0d3f4178a190"
         }
       },
       "embeddedSource": {
         "ref": "urn:unfallatlas:vendor-source:pdfmake:svg-to-pdfkit",
         "component": "svg-to-pdfkit",
-        "sourcePath": "src/3rd-party/svg-to-pdfkit/source.js",
-        "sourceSha256": "73f4f99f6606eea08eeff352440355bc2e046ed2df86ed7e702f3b1deaa058a1",
+        "sourcePath": "node_modules/@pdfmake/svg-to-pdfkit/src/index.js",
+        "sourceSha256": "d25f10560c33a8c8782ba8dec8f5f2f8567092126d210cc399e1b63dad2c2d55",
         "spdx": "MIT",
         "path": "vendor/licenses/components/pdfmake-svg-to-pdfkit-MIT.txt",
-        "sha256": "97a9a454169e8bb54afa875ba1741ac77f2a3b8cfac57e06c7e54f4467776ed8"
+        "sha256": "56cb30504f924336749bdc5225fd1a91f1a98ddd53acf1c0cac461168f3b9524"
       },
       "brotliDecoder": {
-        "purl": "pkg:npm/brotli@1.3.3",
+        "purl": "pkg:npm/brotli@2.1.0",
         "lockPath": "node_modules/brotli",
         "sourceRepository": "https://github.com/devongovett/brotli.js",
-        "sourceRef": "e36051345f6d27a56e5f39ea70d2f789b8574046",
+        "sourceRef": "4011e59a5c35bb602f3e97f114727aa662f795f7",
         "copyright": "Copyright 2013 Google Inc. All Rights Reserved.",
         "headerBytes": 599,
         "headerSha256": "e422ec4747a913fb1aa7aecf7826bb06bd49d1a0de0dca5ec55b6b06214af613",
@@ -249,14 +281,14 @@
         "licenseTextPath": "vendor/pdfmake-build/licenses/Apache-2.0.txt",
         "licenseTextSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
         "path": "vendor/licenses/components/pdfmake-brotli-decoder-Apache-2.0.txt",
-        "sha256": "8e24f1c65700e86ec6fee22884d47873816e335f5782e365f7d046f4a1c8e450",
+        "sha256": "caeb45b6a85fc2e620ca69709f09e7c62436a6164478fa3970f98894eb5f92a1",
         "files": {
-          "dec/bit_reader.js": "1c7488ebdbcb2dba8a61965f5458452fe8cac38c06c3db0cc5184408a5aacf77",
-          "dec/context.js": "5cd72c7ce643693ff902cd9c1ada003b45f70b4daec1bfb1a6a4a842efca811e",
-          "dec/decode.js": "f66d1fd1ea9e54c843b7f5f4bc02cf028f28fed69404f279f86869b097dace5e",
-          "dec/dictionary.js": "f7bd7462acad204047edc609009dfeb28239f14fe6f06ca42661f1d751382946",
-          "dec/prefix.js": "e65fb2183d6fc1058020ba55939ea08334d39ae33bf4832d952d9acab5db2d8a",
-          "dec/transform.js": "56c0ebea0ce70b4d7afa7225eca2e5c9e0046dbdc9a4d6b568c5d5f4b47f170b"
+          "dec/bit_reader.js": "612c25f6093f15d78e91bfbfc336993b10bbf09433b04d787eb8d6f4ab26a946",
+          "dec/context.js": "fd2bf2528faf83626432281b39234cd73f527409c9eace2a0ad5e1fbba456389",
+          "dec/decode.js": "590e81f2b4ef18cf8b8536f46164ff3de6a5efb2254f086a40052546fdab207e",
+          "dec/dictionary.js": "a25de9345f0cfecfc003b9d91826cb267ec347e4e63d811083866722d53cd0b3",
+          "dec/prefix.js": "065fc305a79e0f93126bb31e7f26f45fb9c7979ef44d6726e1b6c6c458ad450b",
+          "dec/transform.js": "d63e7b4c4381352276fcd6ddfc1387bc4f5bcc2dd891469aa4280bdcda04ab4c"
         },
         "dictionary": {
           "ref": "urn:unfallatlas:vendor-source:pdfmake:brotli-static-dictionary",
@@ -278,33 +310,32 @@
           "records": [
             {
               "ref": "urn:unfallatlas:vendor-source:pdfmake:brotli-port:huffman",
-              "component": "Google Brotli Huffman decoding tables adapted in brotli@1.3.3",
+              "component": "Google Brotli Huffman decoding tables adapted in brotli@2.1.0",
               "sourcePath": "node_modules/brotli/dec/huffman.js",
-              "sourceSha256": "69cb67902c20896c89ae679d7c71b1f2274b34c51d4b235865396187f6d7e572",
+              "sourceSha256": "a3c25f6418e66ec04e2c1864fab88e06f590e9b6d76cd3f0fdd319523ed954c9",
               "sourceUrl": "https://github.com/google/brotli/blob/d9a74803fa884559879e3205cfe6f257a2d85519/brotli/dec/huffman.c",
               "upstreamFileSha256": "d488817c5dd3e08fed5313896a9d3e441e06e1509bf578035cdcaca0cafcb189",
               "spdx": "Apache-2.0",
               "copyright": "Copyright 2013 Google Inc. All Rights Reserved.",
               "path": "vendor/licenses/components/pdfmake-brotli-c-ports-Apache-2.0.txt",
-              "sha256": "eb3adb6902c65a3ffca3afd941d52d13aa05a9a5b1250e19a787ccb65aef8960"
+              "sha256": "b2b111dcc11fbc0f2b47e85abf72d23f152dc49915d730a4e83bf0ab19f0c37f"
             },
             {
               "ref": "urn:unfallatlas:vendor-source:pdfmake:brotli-port:streams",
-              "component": "Google Brotli memory streams adapted in brotli@1.3.3",
+              "component": "Google Brotli memory streams adapted in brotli@2.1.0",
               "sourcePath": "node_modules/brotli/dec/streams.js",
-              "sourceSha256": "90e23fca221adbfafd4cda38934920648781f4bb65d993fd6187fb7b270513ea",
+              "sourceSha256": "2d8ad89eeefa902519e12955e7d23efd10264248e6c46e506e4da7662c396716",
               "sourceUrl": "https://github.com/google/brotli/blob/d9a74803fa884559879e3205cfe6f257a2d85519/brotli/dec/streams.c",
               "upstreamFileSha256": "4cdb662c63c9e81e3b339629a222bda13c17ff0503358ff5e81f8a3a15e0f28e",
               "spdx": "Apache-2.0",
               "copyright": "Copyright 2013 Google Inc. All Rights Reserved.",
               "path": "vendor/licenses/components/pdfmake-brotli-c-ports-Apache-2.0.txt",
-              "sha256": "eb3adb6902c65a3ffca3afd941d52d13aa05a9a5b1250e19a787ccb65aef8960"
+              "sha256": "b2b111dcc11fbc0f2b47e85abf72d23f152dc49915d730a4e83bf0ab19f0c37f"
             }
           ]
         }
       },
       "fontkitSources": {
-        "mapSha256": "312af373c0db0d3c36e425b3b791e7e7cf23ac4b6d1fb58725f16cfa00e574b3",
         "sections": [
           {
             "file": "src/utils.js",
@@ -312,16 +343,18 @@
             "licenseFile": "base64-arraybuffer-MIT.txt",
             "record": {
               "ref": "urn:unfallatlas:vendor-source:fontkit:base64-decoder",
-              "component": "Base64 decoder adapted from base64-arraybuffer in fontkit@2.0.4",
-              "sourcePath": "node_modules/fontkit/src/utils.js#decodeBase64",
-              "sourceSha256": "bb78c97f3bdd227e1a7226b19d626771ff7ff11dfea805493787b0b80b5da843",
-              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/utils.js#L30-L62",
+              "component": "Base64 decoder adapted from base64-arraybuffer in fontkit@3.0.0",
+              "sourcePath": "fontkit/src/utils.js#decodeBase64",
+              "sourceSha256": "da5c127d0ea9f675e07dfe954474fecf0b477bd12387139f61c78f388ba5f0f7",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/811d374105e6e818fc411cd7604f81661f582b1b/src/utils.js#L30-L62",
               "upstreamReferenceUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/src/index.ts",
               "licenseUrl": "https://github.com/niklasvh/base64-arraybuffer/blob/5339d8f0abed59c893e87116a785bf52acdc17aa/LICENSE",
               "copyright": "Copyright (c) 2012 Niklas von Hertzen",
               "spdx": "MIT",
               "path": "vendor/licenses/components/fontkit-base64-arraybuffer-MIT.txt",
-              "sha256": "f3eca6ff762533fa5a77caf954a143e48afa204668cf97dce758c45a9e006be3"
+              "sha256": "f3eca6ff762533fa5a77caf954a143e48afa204668cf97dce758c45a9e006be3",
+              "emittedPath": "node_modules/fontkit/dist/browser/chunks/utils-geqkccKP.js",
+              "emittedSha256": "3530e052533de6995adee83bf3a2e4d12f88f9877b23bdc9bb637f40bc798d1a"
             }
           },
           {
@@ -331,17 +364,19 @@
             "licenseFile": "HarfBuzz-arabic.txt",
             "record": {
               "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-arabic",
-              "component": "HarfBuzz Arabic shaping state table adapted in fontkit@2.0.4",
-              "sourcePath": "node_modules/fontkit/src/opentype/shapers/ArabicShaper.js#STATE_TABLE",
-              "sourceSha256": "9d624b2a89a70d07f842914aadc36320738141c8c966f5bcb73756410000ec5b",
-              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/ArabicShaper.js#L30-L52",
+              "component": "HarfBuzz Arabic shaping state table adapted in fontkit@3.0.0",
+              "sourcePath": "fontkit/src/opentype/shapers/ArabicShaper.js#STATE_TABLE",
+              "sourceSha256": "ca77165cd3ac2821730055f511784d60532f2339697d451361b8de796376f288",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/811d374105e6e818fc411cd7604f81661f582b1b/src/opentype/shapers/ArabicShaper.js#L30-L52",
               "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/7e2da035f68e46ce8f4759b67b4ed3a1b211d793/src/hb-ot-shape-complex-arabic.cc",
               "upstreamFileSha256": "d09e1a548570d0d39e6256b8ce7362e32b323a0e7252c6aec358d1945ee34074",
               "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/7e2da035f68e46ce8f4759b67b4ed3a1b211d793/src/hb-ot-shape-complex-arabic.cc#L1-L25",
               "copyright": "Copyright © 2010,2012  Google, Inc.",
               "spdx": "MIT-Modern-Variant",
               "path": "vendor/licenses/components/fontkit-HarfBuzz-arabic.txt",
-              "sha256": "e77a1bd517f4ecee2d247e092c72d9a39e49b7db723b7f0403690173fbe7cb71"
+              "sha256": "e77a1bd517f4ecee2d247e092c72d9a39e49b7db723b7f0403690173fbe7cb71",
+              "emittedPath": "node_modules/fontkit/dist/browser/shapers/ArabicShaper.js",
+              "emittedSha256": "0cae002ed8ac2bb2c17dbbc7209a1ce39adb0d809874beb3b4bd5e826008a35e"
             }
           },
           {
@@ -351,17 +386,19 @@
             "licenseFile": "HarfBuzz-indic.txt",
             "record": {
               "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-indic",
-              "component": "HarfBuzz Indic script configurations adapted in fontkit@2.0.4",
-              "sourcePath": "node_modules/fontkit/src/opentype/shapers/indic-data.js#INDIC_CONFIGS",
-              "sourceSha256": "723f4a88caf0de337cfc1cdf0f431e9cdf5783a3a8de32a4954bf2130c52309b",
-              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/indic-data.js#L56-L165",
+              "component": "HarfBuzz Indic script configurations adapted in fontkit@3.0.0",
+              "sourcePath": "fontkit/src/opentype/shapers/indic-data.js#INDIC_CONFIGS",
+              "sourceSha256": "9affab0498e84e106725c355029ba4167254cd4fb645cae9180333a7b9cf3afc",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/811d374105e6e818fc411cd7604f81661f582b1b/src/opentype/shapers/indic-data.js#L56-L165",
               "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/85630996b8afa699f7b5d19346cdf5c72fcd6e2d/src/hb-ot-shape-complex-indic.cc",
               "upstreamFileSha256": "8fd42fde574ebb25956b57aaa9d07f336d6f7d6211d6f5265d0ce70c66ec9923",
               "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/85630996b8afa699f7b5d19346cdf5c72fcd6e2d/src/hb-ot-shape-complex-indic.cc#L1-L25",
               "copyright": "Copyright © 2011,2012  Google, Inc.",
               "spdx": "MIT-Modern-Variant",
               "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
-              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
+              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded",
+              "emittedPath": "node_modules/fontkit/dist/browser/shapers/IndicShaper.js",
+              "emittedSha256": "23bbf510a0caf48fd24d8314294620268dae903570c7efebe39ad802e7fbd4e8"
             }
           },
           {
@@ -371,78 +408,74 @@
             "licenseFile": "HarfBuzz-indic.txt",
             "record": {
               "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-fallback",
-              "component": "HarfBuzz fallback combining-class rules adapted in fontkit@2.0.4",
-              "sourcePath": "node_modules/fontkit/src/layout/UnicodeLayoutEngine.js#getCombiningClass",
-              "sourceSha256": "6567654385becbfca981a9fcb8c63add3409c865db94b01a9a871a8a1c87378e",
-              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/layout/UnicodeLayoutEngine.js#L138-L249",
+              "component": "HarfBuzz fallback combining-class rules adapted in fontkit@3.0.0",
+              "sourcePath": "fontkit/src/layout/UnicodeLayoutEngine.js#getCombiningClass",
+              "sourceSha256": "2f5de8a5bde3159c9d00bdcc602e0f3fe0fec5c0548057337518b9ab04fc55dd",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/811d374105e6e818fc411cd7604f81661f582b1b/src/layout/UnicodeLayoutEngine.js#L138-L249",
               "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/8f3eebf7ee4005f9a8efaafcb7f4058cc0a3756e/src/hb-ot-shape-fallback.cc",
               "upstreamFileSha256": "cfb372c7f16592f6a8883af6466e10474cf5e0ab1371d51de94941766e6d6e00",
               "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/8f3eebf7ee4005f9a8efaafcb7f4058cc0a3756e/src/hb-ot-shape-fallback.cc#L1-L25",
               "copyright": "Copyright © 2011,2012  Google, Inc.",
               "spdx": "MIT-Modern-Variant",
               "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
-              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
+              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded",
+              "emittedPath": "node_modules/fontkit/dist/browser/formats/TTFFont.js",
+              "emittedSha256": "f7fc60c185a906cfd9cd2b67b1dce63ce21b8c1cd54774c6ceb3ff3cf9d9069a"
             }
           }
         ],
         "grammarInputs": [
           {
             "file": "src/opentype/shapers/indic.machine",
-            "generatedFile": "src/opentype/shapers/indic.json",
+            "generatedFile": "src/opentype/shapers/generated/indic.js",
             "licenseFile": "HarfBuzz-indic.txt",
             "record": {
               "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-indic-grammar",
-              "component": "HarfBuzz Indic syllable grammar adapted in the fontkit@2.0.4 state machine",
-              "sourcePath": "node_modules/fontkit/src/opentype/shapers/indic.machine",
+              "component": "HarfBuzz Indic syllable grammar adapted in the fontkit@3.0.0 state machine",
+              "sourcePath": "fontkit/src/opentype/shapers/indic.machine",
               "sourceSha256": "ace5d0eebf014c8d2112b86d9642b8eade4af9010dd23b58bed6596e0fd7c17b",
-              "generatedPath": "node_modules/fontkit/src/opentype/shapers/indic.json",
-              "generatedSha256": "903a39c0f59dca5ab4d31d14ca39bacb58786fa373b64d38af82c5749f2e16e2",
-              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/indic.machine",
+              "generatedPath": "fontkit/src/opentype/shapers/generated/indic.js",
+              "generatedSha256": "59edd5b11e740c39593cdab98e2e8b2fb884fc75420e8996b7e6bb7ca1134ac4",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/811d374105e6e818fc411cd7604f81661f582b1b/src/opentype/shapers/indic.machine",
               "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/8b5d6e755b271d0d22b31a7726d5bfbf2aae8b2f/src/hb-ot-shape-complex-indic-machine.rl",
               "upstreamFileSha256": "1572f734a736d7708cca11ea2de730c9c98d6c49ada0dca6976a4d1ba788749e",
               "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/8b5d6e755b271d0d22b31a7726d5bfbf2aae8b2f/src/hb-ot-shape-complex-indic-machine.rl#L1-L25",
               "copyright": "Copyright © 2011,2012  Google, Inc.",
               "spdx": "MIT-Modern-Variant",
               "path": "vendor/licenses/components/fontkit-HarfBuzz-indic.txt",
-              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded"
+              "sha256": "43a742c46b103b806372e3788a1e1a807384960c4ede2c9eeea680cc4ad50ded",
+              "emittedPath": "node_modules/fontkit/dist/browser/shapers/IndicShaper.js",
+              "emittedSha256": "23bbf510a0caf48fd24d8314294620268dae903570c7efebe39ad802e7fbd4e8"
             }
           },
           {
             "file": "src/opentype/shapers/use.machine",
-            "generatedFile": "src/opentype/shapers/use.json",
+            "generatedFile": "src/opentype/shapers/generated/use.js",
             "licenseFile": "HarfBuzz-use.txt",
             "record": {
               "ref": "urn:unfallatlas:vendor-source:fontkit:harfbuzz-use-grammar",
-              "component": "HarfBuzz USE syllable grammar adapted in the fontkit@2.0.4 state machine",
-              "sourcePath": "node_modules/fontkit/src/opentype/shapers/use.machine",
-              "sourceSha256": "fb1ec6f50006241999ef2faa83b198860ef023249d5509bbec3bdb7159c5a318",
-              "generatedPath": "node_modules/fontkit/src/opentype/shapers/use.json",
-              "generatedSha256": "98de30bc007d0e3fb180839e167de030dd579acd40285865d67718d713b2e9b1",
-              "sourceUrl": "https://github.com/foliojs/fontkit/blob/fbf3b9ef21eebd219eb73e666faed573af0fba09/src/opentype/shapers/use.machine",
+              "component": "HarfBuzz USE syllable grammar adapted in the fontkit@3.0.0 state machine",
+              "sourcePath": "fontkit/src/opentype/shapers/use.machine",
+              "sourceSha256": "2290231ac6b256f26003f6d261929f07c650cd755956aa89ba3deb533413e8ac",
+              "generatedPath": "fontkit/src/opentype/shapers/generated/use.js",
+              "generatedSha256": "110eb8a5ecab75eabf14304f7e6cb9a4f40370a0efa55fc27e506475aff0af08",
+              "sourceUrl": "https://github.com/foliojs/fontkit/blob/811d374105e6e818fc411cd7604f81661f582b1b/src/opentype/shapers/use.machine",
               "upstreamReferenceUrl": "https://github.com/harfbuzz/harfbuzz/blob/9b6312f9451db790db00dc2c2e27a5a1db852e72/src/hb-ot-shape-complex-use-machine.rl",
               "upstreamFileSha256": "dd71c83eca553527f716054eb7d7f2c853bb216f0b8d60b57b65a901bf8e6a9e",
               "licenseUrl": "https://github.com/harfbuzz/harfbuzz/blob/9b6312f9451db790db00dc2c2e27a5a1db852e72/src/hb-ot-shape-complex-use-machine.rl#L1-L27",
               "copyright": "Copyright © 2015  Mozilla Foundation.\nCopyright © 2015  Google, Inc.",
               "spdx": "MIT-Modern-Variant",
               "path": "vendor/licenses/components/fontkit-HarfBuzz-use.txt",
-              "sha256": "1a37cc3ab28e551778df88f0d4c95704fe7dd8a3b6ea8fad5df22d2b489d7421"
+              "sha256": "1a37cc3ab28e551778df88f0d4c95704fe7dd8a3b6ea8fad5df22d2b489d7421",
+              "emittedPath": "node_modules/fontkit/dist/browser/chunks/use-BuRt_1yp.js",
+              "emittedSha256": "14571d3a1f33a65bde932650303e49afe1de7b8a57a6741fc734e08e4ed92755"
             }
           }
         ]
       },
       "nestedPdfkitSources": {
-        "packagePath": "node_modules/@noble/hashes",
-        "bundleSha256": "797d954a516c57cf4ee8352e17611991ecc2e2799e7e4ac09434ea5ca75423fe",
-        "mapSha256": "4d3bd1849034d304d85e67eee9a437ed9eb3cea4121d9d14ecd12e8f30341d31",
-        "licensePath": "vendor/licenses/components/_noble_hashes-1.8.0-LICENSE.txt",
-        "licenseSha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
-        "files": {
-          "_md.js": "cefb1557e7715cb2117c83f82ef3e3175c7e0391c80bd5795b2d4effc45fc582",
-          "_u64.js": "e48c0cfc10810439a4807b46db136ce603a3fa09b62584f513ef2f3ca496af54",
-          "legacy.js": "4906186a82438392443e3ac2a59d0acbbec2bee2595d048c8d8c0dd6584d4bdb",
-          "sha2.js": "e729088b82e5450bff54c3a0013582aa42e1fe8f58dd31f5967f6ebe34c52299",
-          "utils.js": "4cf4c1e05affedcb4fd584a43d76ae1a3711e34a36e2251b90c27e33ecc74fad"
-        },
+        "bundleSha256": "948a15c0f0c309b247a1414b0afa5e0b6b6f375ff6bc4a4630bb2e45e9b2f06f",
+        "mapSha256": "cceef590c963e3abbcf2ad1779a410cfa16b410da99fe334681fb84fd633da1f",
         "colorProfile": {
           "ref": "urn:unfallatlas:vendor-source:pdfkit:icc:srgb2014",
           "component": "International Color Consortium sRGB2014",
@@ -460,7 +493,7 @@
           "component": "SVGO path parser adapted in PDFKit",
           "sourcePath": "node_modules/pdfkit/lib/path.js#parse",
           "sourceSha256": "c2abd7a1055c67d51916580ab8d1a71053d1021f693f4caf6c47d2197088eb6d",
-          "sourceUrl": "https://github.com/foliojs/pdfkit/blob/8d72a71c3e2b03f3253c221065e9efcc69ca5b7d/lib/path.js",
+          "sourceUrl": "https://github.com/foliojs/pdfkit/blob/8f6a364c3d2232836418807ee5b48cfb9d41ca9d/lib/path.js",
           "upstreamReferenceUrl": "https://github.com/svg/svgo/blob/747cc722d933cb49058eb32b494acd43b6a4ad03/lib/path.js",
           "upstreamFileSha256": "3d15c3a675ae7f9de103c2b4b019da4d5c9ddf62f99c849c1e2f1d661b9c722f",
           "licenseUrl": "https://github.com/svg/svgo/blob/747cc722d933cb49058eb32b494acd43b6a4ad03/LICENSE",
@@ -468,7 +501,31 @@
           "spdx": "MIT",
           "path": "vendor/licenses/components/pdfkit-SVGO-MIT.txt",
           "sha256": "d2b5640808aeec9c243152ae733cf9cca3a86189ad7817bf50335290dbb31012"
-        }
+        },
+        "packages": [
+          {
+            "packagePath": "node_modules/@noble/hashes",
+            "licensePath": "vendor/licenses/components/_noble_hashes-2.4.0-LICENSE.txt",
+            "licenseSha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
+            "files": {
+              "_md.js": "60cf3010fda89e3e4d3f0e7ff1ce249e9c467f34b4fd41b6fd6101d9f69be763",
+              "_u64.js": "b09da8c07fe8187c07649494cdb7cd0bcf13df90b506a9473d19e4d5f8c2e102",
+              "legacy.js": "690553a41af2fdd1e32ff6b534ba8508e95f1861c09c2d62fe762b6b501e09be",
+              "sha2.js": "471746bba6ec4c6238ca41358d1d3b40b6ff31cf3363f0b4d550c649c1a8e83b",
+              "utils.js": "037ad49adb78168b6b699598fd33f85f7877456b1d28b4d032e2a1a16807947c"
+            }
+          },
+          {
+            "packagePath": "node_modules/@noble/ciphers",
+            "licensePath": "vendor/licenses/components/_noble_ciphers-2.4.0-LICENSE.txt",
+            "licenseSha256": "f36671a5487c9c5050efacb58011c37c24c55a889803cb036cf9d9a6347c1e2d",
+            "files": {
+              "_polyval.js": "735b078133e0c5a97dd984a21389f152dc7958b283f52504f6f0906ded243fa5",
+              "aes.js": "941ebefe14c48cd1401ffe52f329d4e6ff14f3f596681b211a33cde21de3a90c",
+              "utils.js": "a443ec1f60d1aaa25d1b7d8c102d33c0e8e6d683ada1ad17be9c32e69170ff95"
+            }
+          }
+        ]
       }
     },
     "vendor/leaflet-image/leaflet-image.js": {
@@ -526,7 +583,7 @@
       "missingEvidence": [
         "two independently signed source-build attestations",
         "complete component and data inventory inside prebundled modules, including PDFKit and generated Unicode data",
-        "full copyright and license texts for the Brotli npm wrapper and remaining shipped Brotli files, and for the locked dfa and fontkit npm packages"
+        "full copyright and license texts for the Brotli npm wrapper and remaining shipped Brotli files, and for the locked dfa npm package"
       ],
       "migrationOptions": [
         "Rebuild pdfmake from its browser source with a checked-in npm lock, exact webpack configuration, source map and metafile-derived SBOM.",
@@ -580,7 +637,7 @@
       "command": "bash scripts/verify-docx-upstream.sh"
     },
     "vendor/export/pdfmake.js": {
-      "sha256": "e095e5b991dce0eb84f1989c42a2dbf7d0672fb8510ea3fe1c958920d6d3751d",
+      "sha256": "a3453acc05b244d2a9264d1231abf7e53f869c56a834553046be56a514a7e0f6",
       "command": "bash scripts/verify-pdfmake-upstream.sh"
     },
     "vendor/export/pdfmake-fonts.js": {

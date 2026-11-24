@@ -159,7 +159,11 @@ function pdfmakeSourcePackages(repoRoot, appLock, inventory) {
   const unresolved = new Set();
   const webpackRecords = pdfmakeWebpackRecords(inventory);
   const webpackSources = new Map(webpackRecords.map(record => [record.sourcePath, record.sourceSha256]));
-  for (const [index, source] of sourceMap.sources.entries()) {
+  const packageSources = [
+    ...sourceMap.sources,
+    ...inventory.nestedPdfkitSources.packages.map(({ packagePath }) => `${packagePath}/`),
+  ];
+  for (const [index, source] of packageSources.entries()) {
     let relative = source.replace(/^webpack:\/\/pdfmake\/\.\//, '');
     if (source.startsWith(PDF_WEBPACK_SOURCE_PREFIX)) {
       const content = sourceMap.sourcesContent?.[index];
@@ -565,11 +569,10 @@ function verifyEmbeddedSimpleheat(repoRoot, asset, lockComponents) {
   return component;
 }
 
-// pdfmake ships a modified SVG-to-PDFKit implementation inside its npm archive.
+// The SVG-to-PDFKit source is mapped directly from its pinned npm package.
 function collectEmbeddedSvgLicense(repoRoot, outputRoot, map, expected) {
-  const root = path.join(repoRoot, 'node_modules/pdfmake');
   const { sourcePath } = expected;
-  const source = fs.readFileSync(path.join(root, sourcePath));
+  const source = fs.readFileSync(path.join(repoRoot, sourcePath));
   const entries = map.sources.map((name, index) => name === 'webpack://pdfmake/./' + sourcePath ? index : -1)
     .filter(index => index >= 0);
   if (sha256Buffer(source) !== expected.sourceSha256 || map.file !== 'pdfmake.min.js' || entries.length !== 1 ||
@@ -577,11 +580,11 @@ function collectEmbeddedSvgLicense(repoRoot, outputRoot, map, expected) {
       !source.equals(Buffer.from(map.sourcesContent[entries[0]]))) {
     throw new Error('[vendor-provenance] SVG-to-PDFKit source differs from the delivered PDF bundle map');
   }
-  const license = fs.readFileSync(path.join(root, path.dirname(sourcePath), 'LICENSE'));
+  const license = fs.readFileSync(path.join(repoRoot, 'node_modules/@pdfmake/svg-to-pdfkit/LICENSE'));
   if (sha256Buffer(license) !== expected.sha256) {
     throw new Error('[vendor-provenance] SVG-to-PDFKit license SHA-256 differs from the pinned fork');
   }
-  assertCompleteLicenseText(license.toString('utf8'), expected.spdx, sourcePath);
+  assertCompleteLicenseText(license.toString('utf8').replace(/\s+/g, ' '), expected.spdx, sourcePath);
   fs.mkdirSync(path.dirname(path.join(outputRoot, expected.path)), { recursive: true });
   fs.writeFileSync(path.join(outputRoot, expected.path), license);
   return { ...expected, asset: PDF_ASSET, copyrightIncluded: true };
@@ -600,51 +603,25 @@ function brotliDecoderRecords(expected) {
   }));
 }
 
-// Fontkit's npm bundle has its own source map inside the pdfmake source map.
+// Fontkit's Rolldown output appears directly in the PDF source map. The
+// upstream rebuild independently binds the attributed source and generated
+// state machines to these exact browser modules.
 function collectFontkitSources(repoRoot, outputRoot, pdfmake, expected) {
   const fontkit = pdfmake.components.find(item => item.lockPath === 'node_modules/fontkit');
   if (!fontkit?.installedPath) throw new Error('Fontkit is missing from the PDF build lock');
   const root = path.join(repoRoot, fontkit.installedPath);
-  const browserModule = 'dist/browser-module.mjs';
-  const bundle = fs.readFileSync(path.join(root, browserModule));
-  const mapBytes = fs.readFileSync(path.join(root, browserModule + '.map'));
-  const moduleId = 'webpack://pdfmake/./node_modules/fontkit/' + browserModule;
-  const outer = pdfmake.sourceMap.sources.indexOf(moduleId);
-  if (outer < 0 || pdfmake.sourceMap.sources.lastIndexOf(moduleId) !== outer ||
-      pdfmake.sourceMap.sourcesContent[outer] !== bundle.toString('utf8') || sha256Buffer(mapBytes) !== expected.mapSha256) {
-    throw new Error('Fontkit browser module or source map differs from the PDF exporter');
-  }
-  const map = JSON.parse(mapBytes);
-  const inputs = expected.sections.map(({ file, start, end, licenseFile, record }) => {
-    const source = fs.readFileSync(path.join(root, file), 'utf8');
-    const index = map.sources.indexOf(file);
-    const begin = source.indexOf(start);
-    const endAt = end ? source.indexOf(end, begin + start.length) : source.length;
-    const section = source.slice(begin, end ? endAt + end.length : endAt);
-    if (index < 0 || map.sources.lastIndexOf(file) !== index || map.sourcesContent[index] !== source ||
-        begin < 0 || begin !== source.lastIndexOf(start) || endAt < 0 ||
-        sha256Buffer(section) !== record.sourceSha256) {
-      throw new Error('Fontkit attributed source differs: ' + file);
+  const map = pdfmake.sourceMap;
+  return [...expected.sections, ...expected.grammarInputs].map(({ licenseFile, record }) => {
+    const moduleId = 'webpack://pdfmake/./' + record.emittedPath;
+    const index = map.sources.indexOf(moduleId);
+    const relative = record.emittedPath.slice(fontkit.lockPath.length + 1);
+    const source = fs.readFileSync(path.join(root, relative), 'utf8');
+    if (index < 0 || map.sources.lastIndexOf(moduleId) !== index ||
+        map.sourcesContent[index] !== source || sha256Buffer(source) !== record.emittedSha256) {
+      throw new Error('Fontkit attributed module differs: ' + moduleId);
     }
-    return { file, licenseFile, record };
-  });
-  const deliveredPath = path.join(outputRoot, PDF_ASSET);
-  const delivered = fs.readFileSync(fs.existsSync(deliveredPath)
-    ? deliveredPath : path.join(repoRoot, 'node_modules/pdfmake/build/pdfmake.min.js'), 'utf8');
-  for (const input of expected.grammarInputs) {
-    const grammar = fs.readFileSync(path.join(root, input.file));
-    const generated = fs.readFileSync(path.join(root, input.generatedFile), 'utf8');
-    const index = map.sources.indexOf(input.generatedFile);
-    if (sha256Buffer(grammar) !== input.record.sourceSha256 || sha256Buffer(generated) !== input.record.generatedSha256 ||
-        index < 0 || map.sources.lastIndexOf(input.generatedFile) !== index || map.sourcesContent[index] !== generated ||
-        delivered.indexOf(generated) < 0 || delivered.indexOf(generated) !== delivered.lastIndexOf(generated)) {
-      throw new Error('Fontkit grammar or embedded state machine differs: ' + input.file);
-    }
-    inputs.push(input);
-  }
-  return inputs.map(({ file, licenseFile, record }) => {
     const license = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses', licenseFile));
-    if (sha256Buffer(license) !== record.sha256) throw new Error('Fontkit source license differs: ' + file);
+    if (sha256Buffer(license) !== record.sha256) throw new Error('Fontkit source license differs: ' + moduleId);
     const destination = path.join(outputRoot, record.path);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.writeFileSync(destination, license);
@@ -656,7 +633,7 @@ function collectBrotliDictionary(repoRoot, outputRoot, sourceMap, installedRoot,
   const entry = 'webpack://pdfmake/./node_modules/brotli/dec/dictionary.bin.js';
   const index = sourceMap.sources.indexOf(entry);
   const wrapper = fs.readFileSync(path.join(installedRoot, 'dec/dictionary.bin.js'), 'utf8');
-  const encoded = /^module\.exports="([A-Za-z0-9+/]+={0,2})";\n$/.exec(wrapper);
+  const encoded = /^export default "([A-Za-z0-9+/]+={0,2})";\n$/.exec(wrapper);
   if (!encoded || index < 0 || sourceMap.sources.lastIndexOf(entry) !== index || sourceMap.sourcesContent[index] !== wrapper) {
     throw new Error('Embedded Brotli dictionary does not match the npm source');
   }

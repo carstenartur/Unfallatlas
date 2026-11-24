@@ -7,11 +7,13 @@ const path = require('node:path');
 const pdfAsset = 'vendor/export/pdfmake.js';
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 
-function hashSourceRecords(expected) {
+function nobleSourceRecords(expected) {
+  const packageName = expected.packagePath.slice('node_modules/'.length);
+  const refPrefix = 'urn:unfallatlas:vendor-source:pdfkit:' + packageName.replace('@', '').replace('/', '-');
   return Object.entries(expected.files).map(([name, sourceSha256]) => ({
-    ref: 'urn:unfallatlas:vendor-source:pdfkit:noble-hashes:' + name,
-    component: '@noble/hashes in PDFKit: ' + name,
-    sourcePath: expected.packagePath + '/esm/' + name,
+    ref: refPrefix + ':' + name,
+    component: packageName + ' in PDFKit: ' + name,
+    sourcePath: expected.packagePath + '/' + name,
     sourceSha256,
     spdx: 'MIT',
     path: expected.licensePath,
@@ -20,10 +22,10 @@ function hashSourceRecords(expected) {
 }
 
 function pdfkitSourceRecords(expected) {
-  return [...hashSourceRecords(expected), expected.colorProfile, expected.pathParser];
+  return [...expected.packages.flatMap(nobleSourceRecords), expected.colorProfile, expected.pathParser];
 }
 
-// PDFKit bundles part of @noble/hashes before pdfmake runs its own Webpack build.
+// PDFKit bundles parts of both Noble packages before pdfmake runs Webpack.
 function collectPdfkitSources(repoRoot, outputRoot, pdfmake, expected) {
   const installed = lockPath => {
     const component = pdfmake.components.find(entry => entry.lockPath === lockPath);
@@ -31,7 +33,6 @@ function collectPdfkitSources(repoRoot, outputRoot, pdfmake, expected) {
     return path.join(repoRoot, component.installedPath);
   };
   const kit = installed('node_modules/pdfkit');
-  const noble = installed(expected.packagePath);
   const bundlePath = 'js/pdfkit.browser.mjs';
   const inner = fs.readFileSync(path.join(kit, bundlePath), 'utf8');
   const mapBytes = fs.readFileSync(path.join(kit, bundlePath + '.map'));
@@ -45,21 +46,24 @@ function collectPdfkitSources(repoRoot, outputRoot, pdfmake, expected) {
       converted === inner || pdfmake.sourceMap.sourcesContent[outer] !== converted) {
     throw new Error('PDFKit browser module or source map differs from the PDF exporter');
   }
-  const license = fs.readFileSync(path.join(noble, 'LICENSE'));
-  if (hash(license) !== expected.licenseSha256) throw new Error('PDFKit hash source license differs');
   const map = JSON.parse(mapBytes);
-  const hashes = hashSourceRecords(expected);
+  const nobleSources = expected.packages.flatMap(nobleSourceRecords);
   const externalPaths = map.sources.filter(source => source.startsWith('../node_modules/')).sort();
-  const verifiedPaths = hashes.map(record => '../' + record.sourcePath).sort();
+  const verifiedPaths = nobleSources.map(record => '../' + record.sourcePath).sort();
   if (JSON.stringify(externalPaths) !== JSON.stringify(verifiedPaths)) {
     throw new Error('Unexpected external sources in the PDFKit browser module');
   }
-  for (const record of hashes) {
-    const file = record.sourcePath.slice(expected.packagePath.length + 1);
-    const source = fs.readFileSync(path.join(noble, file));
-    const original = map.sourcesContent[map.sources.indexOf('../' + record.sourcePath)];
-    if (typeof original !== 'string' || hash(source) !== record.sourceSha256 || !source.equals(Buffer.from(original))) {
-      throw new Error('PDFKit nested source differs from its original: ' + file);
+  for (const noble of expected.packages) {
+    const root = installed(noble.packagePath);
+    const license = fs.readFileSync(path.join(root, 'LICENSE'));
+    if (hash(license) !== noble.licenseSha256) throw new Error('PDFKit source license differs: ' + noble.packagePath);
+    for (const record of nobleSourceRecords(noble)) {
+      const file = record.sourcePath.slice(noble.packagePath.length + 1);
+      const source = fs.readFileSync(path.join(root, file));
+      const original = map.sourcesContent[map.sources.indexOf('../' + record.sourcePath)];
+      if (typeof original !== 'string' || hash(source) !== record.sourceSha256 || !source.equals(Buffer.from(original))) {
+        throw new Error('PDFKit nested source differs from its original: ' + record.sourcePath);
+      }
     }
   }
   const profile = expected.colorProfile;
@@ -89,7 +93,7 @@ function collectPdfkitSources(repoRoot, outputRoot, pdfmake, expected) {
   const parserNotice = fs.readFileSync(path.join(repoRoot, 'vendor/pdfmake-build/licenses/SVGO-MIT.txt'));
   if (hash(parserNotice) !== parser.sha256) throw new Error('Changed SVGO original notice');
   fs.writeFileSync(path.join(outputRoot, parser.path), parserNotice);
-  return [...hashes, profile, parser].map(record => ({ ...record, asset: pdfAsset, copyrightIncluded: true }));
+  return [...nobleSources, profile, parser].map(record => ({ ...record, asset: pdfAsset, copyrightIncluded: true }));
 }
 
 module.exports = { collectPdfkitSources, pdfkitSourceRecords };

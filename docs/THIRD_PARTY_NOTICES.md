@@ -77,14 +77,13 @@ The build verifies three DOCX module paths against the exact, reproduced IIFE
 and the supplier lock. It publishes `fflate@0.8.3`, `nanoid@6.0.2` and their
 complete MIT notices. The DOCX notice also lists nine generated modules from
 the pinned Rolldown and Oxc runtimes, including Oxc’s Babel attribution.
-The PDF source map and PDF build lock identify 27
-embedded npm packages, including the remapped `xmldoc` module. The PDF asset
-also contains the modified SVG-to-PDFKit source file, which has a stable
-CycloneDX reference and pinned source and MIT license hashes. `png-js@2.0.0`
-has an MIT license file in its npm archive. The distribution pins that file
-and records the SPDX expression even though the package metadata omits it.
+The PDF source maps and build lock identify the embedded npm packages,
+including the remapped `xmldoc` module and sources from the Noble libraries
+inside PDFKit. The `@pdfmake/svg-to-pdfkit@0.2.0` source has a stable CycloneDX
+reference and pinned source and MIT license hashes. The distribution also pins
+the complete MIT notices from `fontkit@3.0.0` and `png-js@3.0.0`.
 
-Six `brotli@1.3.3` decoder files in the PDF bundle carry the 2013 Google Inc.
+Six `brotli@2.1.0` decoder files in the PDF bundle carry the 2013 Google Inc.
 copyright and Apache-2.0 header. The site build compares their PDF source-map
 contents byte-for-byte with the npm sources matching the PDF build lock.
 The notice and CycloneDX list each decoder file by source path and SHA-256
@@ -104,7 +103,7 @@ byte-for-byte to the released packages.
 | Asset | Missing proof | Supported resolution paths |
 |---|---|---|
 | `vendor/export/docx.js` | Generated-code attribution and two independently signed builds | Retain bundler evidence for generated code and attest the pinned supplier build |
-| `vendor/export/pdfmake.js` | Sources and data inside prebundled modules, full license evidence for the remaining Brotli files, `dfa` and `fontkit`, and two independently signed builds | Resolve each inner bundle and attest the pinned Webpack build |
+| `vendor/export/pdfmake.js` | Sources and data inside prebundled modules, full license evidence for the remaining Brotli files and `dfa`, and two independently signed builds | Resolve each inner bundle and attest the pinned Webpack build |
 | `vendor/export/pdfmake-fonts.js` | Independent signed font and VFS-generator evidence | Attest the source rebuilds for the four verified TTFs and their VFS container |
 | `vendor/leaflet.heat/leaflet-heat.js` | Independent signatures for the reproduced global bundle | Attest the matching Rolldown build |
 | `vendor/leaflet-image/leaflet-image.js` | Independent signatures for the reproduced Browserify bundle | Attest the matching build with locked `d3-queue@2.0.3` |

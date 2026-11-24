@@ -58,7 +58,7 @@ function runFocusedDocxTests() {
     'tests/unit/releaseDocumentContract.test.js',
     'tests/unit/numberedReleaseEvidence.test.js',
   ];
-  const result = spawnSync(process.execPath, [jest, '--runInBand', ...tests], {
+  const result = spawnSync(process.execPath, ['--experimental-vm-modules', jest, '--runInBand', ...tests], {
     cwd: ROOT,
     env: process.env,
     stdio: 'inherit',
