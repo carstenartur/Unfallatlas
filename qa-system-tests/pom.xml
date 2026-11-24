@@ -69,6 +69,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.36</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>42.7.15</version>
@@ -104,6 +110,8 @@
                         <include>${failsafe.includes}</include>
                     </includes>
                     <systemPropertyVariables>
+                        <org.slf4j.simpleLogger.showDateTime>true</org.slf4j.simpleLogger.showDateTime>
+                        <org.slf4j.simpleLogger.log.tc>debug</org.slf4j.simpleLogger.log.tc>
                         <unfallatlas.repositoryRoot>${maven.multiModuleProjectDirectory}</unfallatlas.repositoryRoot>
                         <unfallatlas.qaOutputDir>${project.build.directory}/testcontainers-logs</unfallatlas.qaOutputDir>
                         <unfallatlas.contextData>${unfallatlas.contextData}</unfallatlas.contextData>
