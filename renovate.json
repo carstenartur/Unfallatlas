@@ -6,6 +6,24 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Update the npm version installed by the canonical Maven build.",
+      "managerFilePatterns": ["/^pom\\.xml$/"],
+      "matchStrings": ["<npm\\.version>(?<currentValue>\\d+\\.\\d+\\.\\d+)</npm\\.version>"],
+      "depNameTemplate": "npm",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Keep the vendor build recipe on the same npm toolchain.",
+      "managerFilePatterns": ["/^vendor/build-lock\\.recipe\\.json$/"],
+      "matchStrings": ["\"packageManager\":\\s*\"npm@(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "npm",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
       "description": "Read the Maven Node.js version from the same bookworm-slim image tags as Docker.",
       "managerFilePatterns": ["/^pom\\.xml$/"],
       "matchStrings": ["<node\\.version>v(?<currentValue>\\d+\\.\\d+\\.\\d+)</node\\.version>"],
@@ -17,10 +35,12 @@
   ],
   "packageRules": [
     {
-      "description": "Keep the root package manager and its engine range on npm 11 until the dedicated npm migration described in #612.",
-      "matchManagers": ["npm"],
-      "matchFileNames": ["package.json"],
+      "description": "Update package metadata, the Maven installer and the vendor recipe together within npm 11 until the dedicated migration described in #612.",
+      "matchManagers": ["npm", "custom.regex"],
+      "matchFileNames": ["package.json", "pom.xml", "vendor/build-lock.recipe.json"],
       "matchPackageNames": ["npm"],
+      "groupName": "npm toolchain",
+      "groupSlug": "npm-toolchain",
       "allowedVersions": "11.x"
     },
     {

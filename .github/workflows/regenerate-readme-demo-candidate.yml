@@ -53,6 +53,8 @@ jobs:
           cache: maven
 
       - name: Regenerate and validate through the canonical Maven profile
+        env:
+          DEBUG: 'testcontainers,testcontainers:build,testcontainers:pull'
         run: mvn -B -ntp clean verify -Preadme-demo-candidate
 
       - name: Upload the validated candidate
