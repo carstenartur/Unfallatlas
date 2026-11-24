@@ -135,11 +135,11 @@ describe('public Pages distribution profile', () => {
 
   test('publishes the original license of the SVG-to-PDFKit fork embedded in the PDF export', () => {
     const notice = readJson('vendor/third-party-notices.json');
-    const source = path.join(ROOT, 'node_modules/pdfmake/src/3rd-party/svg-to-pdfkit');
+    const source = path.join(ROOT, 'node_modules/@pdfmake/svg-to-pdfkit');
     const license = notice.supplementalLicenses.find(item => item.component === 'svg-to-pdfkit');
     expect(license).toMatchObject({ spdx: 'MIT', asset: 'vendor/export/pdfmake.js' });
     expect(fs.readFileSync(path.join(OUTPUT, license.path))).toEqual(fs.readFileSync(path.join(source, 'LICENSE')));
-    const digest = crypto.createHash('sha256').update(fs.readFileSync(path.join(source, 'source.js'))).digest('hex');
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(path.join(source, 'src/index.js'))).digest('hex');
     expect(license.sourceSha256).toBe(digest);
     expect(license.ref).toBe(SVG_REF);
     expect(notice.assetAssessments.find(asset => asset.path === PDF_ASSET).containsFiles).toContain(SVG_REF);
@@ -157,9 +157,10 @@ describe('public Pages distribution profile', () => {
     const notice = readJson('vendor/third-party-notices.json');
     const pdf = notice.assetAssessments.find(asset => asset.path === 'vendor/export/pdfmake.js');
     expect(pdf).toMatchObject({ reproducible: true, provenanceComplete: false, reproductionMethod: 'bash scripts/verify-pdfmake-upstream.sh' });
-    const expected = ['base64-js@0.0.8', 'base64-js@1.5.1', 'buffer@6.0.3', 'core-js@3.51.0', 'sax@1.6.1'];
+    const expected = ['base64-js@1.5.1', 'buffer@6.0.3', 'core-js@3.51.0', 'sax@1.6.1'];
     expect(pdf.contains).toEqual(expect.arrayContaining(expected.map(name => 'pkg:npm/' + name)));
-    expect(pdf.contains).not.toContain('pkg:npm/base64-js@1.3.1');
+    expect(pdf.contains).not.toContain('pkg:npm/base64-js@0.0.8');
+    expect(pdf.contains).toContain('pkg:npm/%40pdfmake/svg-to-pdfkit@0.2.0');
     expect(pdf.contains).not.toContain('pkg:npm/sax@1.6.0');
     const sax = notice.components.find(item => item.purl === 'pkg:npm/sax@1.6.1');
     expect(sax.attestation.lockFile).toBe('vendor/pdfmake-build/npm-lock.json');

@@ -5,6 +5,7 @@ import base64
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 import subprocess
 import tarfile
@@ -64,46 +65,86 @@ def main():
 
         deps = work / "node_modules"
         deps.mkdir()
-        shaper_lock = json.loads((work / "fontkit/package-lock.json").read_bytes())["packages"]
+        fontkit = work / "fontkit"
+        shaper_lock = verify((fontkit / "package-lock.json").read_bytes(),
+                             SPEC["sources"]["fontkit"]["lockSha256"], "Fontkit lock")
+        shaper_packages = json.loads(shaper_lock)["packages"]
         app_lock = json.loads((ROOT / "package-lock.json").read_bytes())["packages"]
         for package in ["unicode-trie", "dfa"]:
             key = "node_modules/" + package
-            if app_lock[key]["integrity"] != shaper_lock[key]["integrity"]:
+            if app_lock[key]["integrity"] != shaper_packages[key]["integrity"]:
                 raise ValueError(f"Installed package lock differs from the shaper release: {package}")
-            (deps / package).symlink_to(ROOT / key, target_is_directory=True)
+        (deps / "unicode-trie").symlink_to(ROOT / "node_modules/unicode-trie", target_is_directory=True)
         (deps / "codepoints").symlink_to(work / "codepoints", target_is_directory=True)
-        # Replace only the generator's network transport. It receives the
-        # verified official bytes for its original hard-coded URL.
-        request = deps / "request"
-        request.mkdir()
-        (request / "package.json").write_text('{"name":"request","main":"index.js"}')
-        (request / "index.js").write_text(
-            "const fs=require('node:fs');module.exports=(url,callback)=>{"
-            "if(url!=='http://www.unicode.org/Public/14.0.0/ucd/LineBreak.txt')throw Error(url);"
-            "callback(null,{},fs.readFileSync(" + json.dumps(str(work / "ucd14/LineBreak.txt")) + ",'utf8'));};"
-        )
-        subprocess.run(["node", str(work / "unicode-properties/generate.js")], cwd=work, check=True)
-        # The source tarball already contains this trie; require actual regeneration.
-        (work / "linebreak/src/classes.trie").unlink()
-        subprocess.run(["node", str(work / "linebreak/src/generate_data.js")], cwd=work, check=True)
+        unicode_properties = work / "unicode-properties"
+        for file in ["data.trie", "data.js", "data.base64.trie.js"]:
+            (unicode_properties / file).unlink(missing_ok=True)
+        subprocess.run(["node", "generate.js"], cwd=unicode_properties, check=True)
 
-        shapers = work / "fontkit/src/opentype/shapers"
+        # Keep the supplier's parser and trie generator. Supply the verified
+        # Unicode release locally in place of its network transport.
+        linebreak = work / "linebreak"
+        (linebreak / "src/classes-trie-data.js").unlink(missing_ok=True)
+        linebreak_fetch = """
+            import { readFileSync } from 'node:fs';
+            globalThis.fetch = async url => {
+              if (url !== 'https://www.unicode.org/Public/15.0.0/ucd/LineBreak.txt') throw new Error(url);
+              return new Response(readFileSync(process.argv[1]));
+            };
+            await import('./src/generate_data.js');
+        """
+        subprocess.run(["node", "--input-type=module", "-e", linebreak_fetch, str(work / "ucd15/LineBreak.txt")],
+                       cwd=linebreak, check=True)
+
+        subprocess.run(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=fontkit, check=True)
+        for file in SPEC["sources"]["ucd12"]["files"]:
+            shipped = fontkit / "node_modules/codepoints/data" / file
+            if shipped.read_bytes() != (work / "ucd12" / file).read_bytes():
+                raise ValueError(f"Fontkit codepoint generator input differs from Unicode: {file}")
+        for command in ["trie:data", "trie:use", "trie:indic", "build"]:
+            subprocess.run(["npm", "run", command], cwd=fontkit, check=True)
+        subprocess.run(["python3", str(ROOT / "scripts/verify-fontkit-shaping.py"), str(fontkit)], check=True)
+
+        # The exact distribution match binds attributed source and generated
+        # state machines to the browser modules checked by the PDF inventory.
+        for target in ["browser", "node"]:
+            built = fontkit / "dist" / target
+            installed = ROOT / "node_modules/fontkit/dist" / target
+            local_files = sorted(file.relative_to(built) for file in built.rglob("*.js"))
+            release_files = sorted(file.relative_to(installed) for file in installed.rglob("*.js"))
+            if not local_files or local_files != release_files:
+                raise ValueError(f"Rebuilt Fontkit {target} module set differs")
+            for file in local_files:
+                if (built / file).read_bytes() != (installed / file).read_bytes():
+                    raise ValueError(f"Rebuilt Fontkit {target} module differs: {file}")
         for item in SPEC["fontkitReproductionOnly"]:
-            (shapers / item["file"]).unlink(missing_ok=True)
-        for generator in ["generate-data.js", "gen-indic.js", "gen-use.js"]:
-            subprocess.run(["node", str(shapers / generator)], cwd=shapers, check=True)
+            generated = fontkit / "src/opentype/shapers/generated" / item["file"]
+            data = verify(generated.read_bytes(), item["sha256"], str(generated))
+            if len(data) != item["bytes"]:
+                raise ValueError(f"Unexpected Fontkit generated bytes: {generated}")
+            if item["encoding"] == "base64":
+                bundle = ROOT / "node_modules/pdfmake/build/pdfmake.min.js"
+                if bundle.read_bytes().count(base64.b64encode(data)) != 1:
+                    raise ValueError(f"Unexpected Fontkit embedded bytes: {generated}")
+            print(f"fontkit/{item['file']}  {len(data)} bytes  {item['sha256']}")
 
-        built = (ROOT / "node_modules/pdfmake/build/pdfmake.min.js").read_bytes()
-        outputs = [(work / ("linebreak/src" if item["package"] == "linebreak" else ""),
-                    item["package"], item) for item in SPEC["outputs"]]
-        outputs.extend((shapers, "fontkit (reproduction only)", item) for item in SPEC["fontkitReproductionOnly"])
-        for directory, package, item in outputs:
-            file = directory / item["file"]
-            data = verify(file.read_bytes(), item["sha256"], item["file"])
-            embedded = base64.b64encode(data) if item["encoding"] == "base64" else data
-            if len(data) != item["bytes"] or built.count(embedded) != 1:
-                raise ValueError(f"Unexpected generated or embedded bytes: {file}")
-            print(f"{package}/{item['file']}  {len(data)} bytes  {item['sha256']}")
+        for item in SPEC["outputs"]:
+            module = work / item["package"] / item["module"]
+            data = module.read_bytes()
+            installed = ROOT / "node_modules" / item["package"] / item["module"]
+            if data != installed.read_bytes():
+                raise ValueError(f"Regenerated Unicode module differs: {installed}")
+            if item["encoding"] == "uint8array":
+                numbers = re.fullmatch(rb"export default new Uint8Array\(\[([0-9,]+)\]\);\n", data)
+                if not numbers:
+                    raise ValueError(f"Invalid Unicode trie module: {module}")
+                data = bytes(int(value) for value in numbers[1].split(b","))
+            elif item["encoding"] == "base64":
+                data = (module.parent / item["file"]).read_bytes()
+            verify(data, item["sha256"], str(module))
+            if len(data) != item["bytes"]:
+                raise ValueError(f"Unexpected regenerated Unicode bytes: {module}")
+            print(f"{item['package']}/{item['file']}  {len(data)} bytes  {item['sha256']}")
 
 
 if __name__ == "__main__":

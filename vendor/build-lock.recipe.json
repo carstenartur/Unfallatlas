@@ -16,20 +16,18 @@
     {
       "lockRef": "export.pdfmake.min",
       "package": "pdfmake",
-      "expectedVersion": "0.3.14",
+      "expectedVersion": "0.3.15",
       "sourcePath": "build/pdfmake.min.js",
       "outputPath": "vendor/export/pdfmake.js",
       "method": "byte-for-byte-copy",
       "auxiliaryInputs": [
-        "build/pdfmake.min.js.map",
-        "src/3rd-party/svg-to-pdfkit/source.js",
-        "src/3rd-party/svg-to-pdfkit/LICENSE"
+        "build/pdfmake.min.js.map"
       ]
     },
     {
       "lockRef": "export.pdfmake.font-container",
       "package": "pdfmake",
-      "expectedVersion": "0.3.14",
+      "expectedVersion": "0.3.15",
       "sourcePath": "build/vfs_fonts.js",
       "outputPath": "vendor/export/pdfmake-fonts.js",
       "method": "byte-for-byte-copy",

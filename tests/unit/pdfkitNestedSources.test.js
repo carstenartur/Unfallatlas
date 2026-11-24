@@ -8,17 +8,20 @@ const { validateVendorProvenance } = require('../../scripts/validate-vendor-prov
 
 const repo = path.resolve(__dirname, '../..');
 const asset = 'vendor/export/pdfmake.js';
-const base = 'urn:unfallatlas:vendor-source:pdfkit:noble-hashes:';
-const files = ['_md.js', '_u64.js', 'legacy.js', 'sha2.js', 'utils.js'];
+const base = 'urn:unfallatlas:vendor-source:pdfkit:noble-';
+const sources = [
+  ...['_md.js', '_u64.js', 'legacy.js', 'sha2.js', 'utils.js'].map(file => base + 'hashes:' + file),
+  ...['_polyval.js', 'aes.js', 'utils.js'].map(file => base + 'ciphers:' + file),
+];
 
-test('links five hash sources and the ICC color profile to the delivered PDF exporter', () => {
+test('links Noble hashes, ciphers and the ICC color profile to the delivered PDF exporter', () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'pdfkit-inventory-'));
   try {
     copyVendorLicenses(repo, out, undefined, copyVendorAssets(repo, out));
     const noticeFile = path.join(out, 'vendor/third-party-notices.json');
     const notice = JSON.parse(fs.readFileSync(noticeFile));
     const records = notice.supplementalLicenses.filter(record => record.ref?.startsWith(base));
-    expect(records.map(record => record.ref).sort()).toEqual(files.map(file => base + file));
+    expect(records.map(record => record.ref).sort()).toEqual([...sources].sort());
     const sbom = JSON.parse(fs.readFileSync(path.join(out, notice.sbom.path)));
     const owner = sbom.dependencies.find(entry => entry.ref === 'urn:unfallatlas:vendor-asset:' + asset);
     const profile = notice.supplementalLicenses.find(record => record.ref === 'urn:unfallatlas:vendor-source:pdfkit:icc:srgb2014');
@@ -33,7 +36,7 @@ test('links five hash sources and the ICC color profile to the delivered PDF exp
         .toContainEqual({ alg: 'SHA-256', content: record.sourceSha256 });
       expect(fs.readFileSync(path.join(out, record.path), 'utf8')).toContain('Copyright (c) 2022 Paul Miller');
     }
-    notice.supplementalLicenses = notice.supplementalLicenses.filter(record => record.ref !== base + 'sha2.js');
+    notice.supplementalLicenses = notice.supplementalLicenses.filter(record => record.ref !== base + 'hashes:sha2.js');
     fs.writeFileSync(noticeFile, JSON.stringify(notice));
     expect(() => validateVendorProvenance(noticeFile)).toThrow();
   } finally {

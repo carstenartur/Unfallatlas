@@ -2,9 +2,9 @@
 # Rebuild pdfmake's browser export, its source map and Roboto container.
 set -euo pipefail
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
-commit=fa0011f9767fde46d9828d0ce1005563c3dec902
-archive_sha=060382006e281c85b4e42f8e15593dbdedde35a745ec00a42541ec64dcb823f0
-lock_sha=03de6b450be5877a0036dae5f66115b1cfb06b70645c5c2ea5177707d3625ffe
+commit=9c0d9c96a21e20b278547380a1ec9d9e6cb4b89a
+archive_sha=cced114d012c15f9e042b6a2419f8953388623e5520a34026c8c9253262da162
+lock_sha=774707993a725893f1c7506bdbfa493394a51b2e56cb76804133b1f37b73af70
 if (( $# > 2 )); then
   echo "Usage: bash scripts/verify-pdfmake-upstream.sh [local-source-archive [local-roboto-archive]]" >&2
   exit 2
@@ -55,11 +55,10 @@ printf '%s  %s\n' "$lock_sha" package-lock.json | sha256sum --check
 npm pkg set 'devDependencies.ajv=^8.20.0'
 node --version
 npm --version
-npm ci --legacy-peer-deps --no-audit --no-fund
+npm ci --no-audit --no-fund
 bash "$repo_root/scripts/verify-xmldoc-upstream.sh" "$PWD/node_modules/xmldoc"
 bash "$repo_root/scripts/verify-brotli-dictionary-upstream.sh" "$PWD/node_modules/brotli"
 python3 "$repo_root/scripts/verify-brotli-c-port.py" "$PWD/node_modules/brotli"
-python3 "$repo_root/scripts/verify-fontkit-shaping.py" "$PWD/node_modules/fontkit"
 python3 "$repo_root/scripts/verify-pdfkit-parser.py" "$PWD/node_modules/pdfkit"
 # Compare each archived notice against every package that supplies it.
 node - "$repo_root/vendor/pdfmake-build" <<'NODE'

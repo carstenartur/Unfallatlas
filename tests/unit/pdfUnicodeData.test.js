@@ -14,12 +14,12 @@ test('binds three regenerated Unicode data resources to the delivered PDF and th
     const noticesFile = path.join(out, 'vendor/third-party-notices.json');
     const notices = JSON.parse(fs.readFileSync(noticesFile));
     const records = notices.supplementalLicenses.filter(entry => entry.ref?.startsWith('urn:unfallatlas:vendor-source:ucd:'));
-    expect(records.map(entry => entry.ref.split(':').pop()).sort()).toEqual(['classes.trie', 'data.json', 'data.trie']);
+    expect(records.map(entry => entry.ref.split(':').pop()).sort()).toEqual(['classes.trie', 'data.js', 'data.trie']);
     const sbom = JSON.parse(fs.readFileSync(path.join(out, notices.sbom.path)));
     const owner = sbom.dependencies.find(entry => entry.ref === 'urn:unfallatlas:vendor-asset:vendor/export/pdfmake.js');
     for (const record of records) {
       expect(record.spdx).toBe('Unicode-3.0');
-      const asPublished = record.ref.endsWith('classes.trie') ? '© 2021 Unicode®, Inc.' : '© 2019 Unicode®, Inc.';
+      const asPublished = record.ref.endsWith('classes.trie') ? '© 2022 Unicode®, Inc.' : '© 2019 Unicode®, Inc.';
       expect(record.copyright).toBe(asPublished);
       expect(record.licenseCopyright).toBe('Copyright © 1991-2026 Unicode, Inc.');
       const readme = fs.readFileSync(path.join(out, record.sourceNoticePath), 'utf8');

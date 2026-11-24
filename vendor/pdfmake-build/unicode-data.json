@@ -25,17 +25,17 @@
         "copyright": "© 2019 Unicode®, Inc."
       }
     },
-    "ucd14": {
-      "url": "https://www.unicode.org/Public/zipped/14.0.0/UCD.zip",
-      "sha256": "033a5276b5d7af8844589f8e3482f3977a8385e71d107d375055465178c23600",
+    "ucd15": {
+      "url": "https://www.unicode.org/Public/zipped/15.0.0/UCD.zip",
+      "sha256": "5fbde400f3e687d25cc9b0a8d30d7619e76cb2f4c3e85ba9df8ec1312cb6718c",
       "files": {
-        "LineBreak.txt": "9e06e9f35c6959fb91dcc7993f90d58523c3079bc62c6b25f828b4cdebc5d70c"
+        "LineBreak.txt": "012bca868e2c4e59a5a10a7546baf0c6fb1b2ef458c277f054915c8a49d292bf"
       },
       "notice": {
-        "file": "UCD-14.0.0-ReadMe.txt",
+        "file": "UCD-15.0.0-ReadMe.txt",
         "archivePath": "ReadMe.txt",
-        "sha256": "7316825946e47cdfb77f6c9037c611d74d58b2e55761ea0d6dfa162fa07a926a",
-        "copyright": "© 2021 Unicode®, Inc."
+        "sha256": "53672c0d0b5185e3cf04c8e970d544c3af81ae7c8eeba0b9cf6d355aa954ae1f",
+        "copyright": "© 2022 Unicode®, Inc."
       }
     },
     "codepoints": {
@@ -43,16 +43,17 @@
       "sha256": "c0400bd734f19a1707707d3cff6b468228b1e2376bb02e5e0b98b7edd66d961f"
     },
     "unicode-properties": {
-      "url": "https://codeload.github.com/devongovett/unicode-properties/tar.gz/6cc2e62ba83258584bd54bc15034afce3fb7de8e",
-      "sha256": "5eabef15ce9786002855f4d40bcaac00cbe6ef9f49f2cea1b7e0a77381201afc"
+      "url": "https://codeload.github.com/devongovett/unicode-properties/tar.gz/c1e169303248634b299154fed5068275f2fbaedc",
+      "sha256": "c4569c4b62679573de481cf78d88fbb64908a89c9d15fe66dac8dd6f74c04c9b"
     },
     "linebreak": {
-      "url": "https://codeload.github.com/devongovett/linebreaker/tar.gz/71bb535aa97229a7602752f74563f8c2d24e71de",
-      "sha256": "d6a6cac2c27ea8e91b36ce5fea110b58e6aa6a1120006f0d3876cf42ad570d6d"
+      "url": "https://codeload.github.com/devongovett/linebreaker/tar.gz/e60daad7b652ea0d33d9288f72b717de1928a739",
+      "sha256": "ca44c1d7cbc3b023c27c201385cea06e4b7a233878cc17db2c05200ae086b739"
     },
     "fontkit": {
-      "url": "https://codeload.github.com/foliojs/fontkit/tar.gz/fbf3b9ef21eebd219eb73e666faed573af0fba09",
-      "sha256": "da64e8a7ebd35162dbed4bff6dc2eeedb91d4fe3058428d09577d2715ed253c2"
+      "url": "https://codeload.github.com/foliojs/fontkit/tar.gz/811d374105e6e818fc411cd7604f81661f582b1b",
+      "sha256": "f4592b74ba765c3f8931e106eb6fc9a7cb37968b16e8454edfbd5c406a69ae70",
+      "lockSha256": "1c2841ff9e4114203d9600650e98b906ddb945399c5f5986ecf133c75b68c87c"
     }
   },
   "license": {
@@ -67,57 +68,60 @@
       "file": "data.trie",
       "package": "unicode-properties",
       "ucd": "ucd12",
+      "module": "data.base64.trie.js",
       "encoding": "base64",
-      "bytes": 9696,
-      "sha256": "90b02ee1703d7e9c3caf8721e425bbaac14222153f143e63efdf0ecb26c76daa"
+      "bytes": 12355,
+      "sha256": "8ec1e0080735ea57733a3ce36eb0d8e576d0f302127788067df5156b14ba5df1"
     },
     {
-      "file": "data.json",
+      "file": "data.js",
       "package": "unicode-properties",
       "ucd": "ucd12",
-      "encoding": "json",
-      "bytes": 2516,
-      "sha256": "d68a7653d61f8995affd7e3c82f704c9ac978ca7b3e0657dbe2ca8346946a9a0"
+      "module": "data.js",
+      "encoding": "object",
+      "bytes": 2556,
+      "sha256": "497e73713bf0571957a7d67077a2d072c5283599a5f33de5dda296acf689f06b"
     },
     {
       "file": "classes.trie",
       "package": "linebreak",
-      "ucd": "ucd14",
-      "encoding": "base64",
-      "bytes": 3870,
-      "sha256": "15cf0c0132455b0f02fd7afdc7a3d7db44d5d3ede5126f7be97ff7885ed720de"
+      "ucd": "ucd15",
+      "module": "src/classes-trie-data.js",
+      "encoding": "uint8array",
+      "bytes": 4110,
+      "sha256": "c048ca832caad6834a5e49e7ece7e3779903563bbf45eef83454c1181ef7d701"
     }
   ],
   "fontkitReproductionOnly": [
     {
       "file": "data.trie",
-      "bytes": 526,
-      "sha256": "6d735b80dcfb2270ab2d20a193aa676b82c7888b7deee1db34daee3f444c58b8",
+      "bytes": 535,
+      "sha256": "9bfee76dcb4500d3c9756ccb679df2af237f866e49cedcfc7fffb4222e88a868",
       "encoding": "base64"
     },
     {
       "file": "indic.trie",
-      "bytes": 3959,
-      "sha256": "7f86f07a1a4efe63959e8baa1d9bda1b176d9911e3545f9b3f55c410fa95c5e3",
+      "bytes": 4059,
+      "sha256": "5ce8825b6dc90bf05d8eafc9ebd3df211d8695ddb1e681e263027d005c8620d5",
       "encoding": "base64"
     },
     {
       "file": "use.trie",
-      "bytes": 3606,
-      "sha256": "16447d2fca775fcd2ea6611d43f394b944b940c1d72d696678796692dee89daa",
+      "bytes": 3635,
+      "sha256": "100a7188d5780257c7727bb3219329d8618cb54f9246c3e65816a0da9644d9af",
       "encoding": "base64"
     },
     {
-      "file": "indic.json",
-      "bytes": 43727,
-      "sha256": "903a39c0f59dca5ab4d31d14ca39bacb58786fa373b64d38af82c5749f2e16e2",
-      "encoding": "json"
+      "file": "indic.js",
+      "bytes": 43802,
+      "sha256": "59edd5b11e740c39593cdab98e2e8b2fb884fc75420e8996b7e6bb7ca1134ac4",
+      "encoding": "module"
     },
     {
-      "file": "use.json",
-      "bytes": 7290,
-      "sha256": "98de30bc007d0e3fb180839e167de030dd579acd40285865d67718d713b2e9b1",
-      "encoding": "json"
+      "file": "use.js",
+      "bytes": 8142,
+      "sha256": "110eb8a5ecab75eabf14304f7e6cb9a4f40370a0efa55fc27e506475aff0af08",
+      "encoding": "module"
     }
   ]
 }

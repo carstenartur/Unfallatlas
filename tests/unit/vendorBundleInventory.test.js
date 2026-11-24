@@ -15,10 +15,10 @@ const bundlePath = 'node_modules/docx/dist/index.iife.js';
 const lockPath = 'vendor/docx-build/npm-lock.json.gz';
 const pdfAsset = 'vendor/export/pdfmake.js';
 const svgRef = 'urn:unfallatlas:vendor-source:pdfmake:svg-to-pdfkit';
-const webpackPurl = 'pkg:npm/webpack@5.112.2';
+const webpackPurl = 'pkg:npm/webpack@5.113.0';
 const webpackSourcePrefix = 'webpack://pdfmake/webpack/';
 const brotliRefPrefix = 'urn:unfallatlas:vendor-source:pdfmake:brotli-decoder:';
-const brotliPurl = 'pkg:npm/brotli@1.3.3';
+const brotliPurl = 'pkg:npm/brotli@2.1.0';
 const leafletImageAsset = 'vendor/leaflet-image/leaflet-image.js';
 const leafletImagePurl = 'pkg:npm/leaflet-image@0.4.0';
 const d3QueuePurl = 'pkg:npm/d3-queue@2.0.3';
@@ -75,10 +75,10 @@ test('attributes the adapted Base64 decoder in Fontkit to its upstream author', 
   withVendorArtifact((root, noticePath, notice) => {
     const ref = 'urn:unfallatlas:vendor-source:fontkit:base64-decoder';
     const record = notice.supplementalLicenses.find(entry => entry.ref === ref);
-    const fontkit = notice.components.find(entry => entry.purl === 'pkg:npm/fontkit@2.0.4');
+    const fontkit = notice.components.find(entry => entry.purl === 'pkg:npm/fontkit@3.0.0');
     expect(record).toMatchObject({ asset: pdfAsset, spdx: 'MIT', copyright: 'Copyright (c) 2012 Niklas von Hertzen' });
     expect(fs.readFileSync(path.join(root, record.path), 'utf8')).toContain(record.copyright);
-    expect(fontkit.licenseTexts).toEqual([]);
+    expect(fontkit.licenseTexts).toHaveLength(1);
     expect(notice.assetAssessments.find(entry => entry.path === pdfAsset).containsFiles).toContain(ref);
     const sbom = JSON.parse(fs.readFileSync(path.join(root, notice.sbom.path)));
     expect(sbom.components.find(entry => entry['bom-ref'] === ref)).toMatchObject({
@@ -149,8 +149,8 @@ test('links HarfBuzz grammar inputs to both shipped Fontkit state machines', () 
       const ref = 'urn:unfallatlas:vendor-source:fontkit:harfbuzz-' + name + '-grammar';
       const record = notice.supplementalLicenses.find(entry => entry.ref === ref);
       expect(record).toBeDefined();
-      const generated = fs.readFileSync(path.join(repoRoot, record.generatedPath));
-      expect(record.generatedSha256).toBe(crypto.createHash('sha256').update(generated).digest('hex'));
+      const emitted = fs.readFileSync(path.join(repoRoot, record.emittedPath));
+      expect(record.emittedSha256).toBe(crypto.createHash('sha256').update(emitted).digest('hex'));
       expect(asset.containsFiles).toContain(ref);
       expect(sbom.components.find(entry => entry['bom-ref'] === ref).hashes)
         .toContainEqual({ alg: 'SHA-256', content: record.sourceSha256 });
@@ -356,7 +356,7 @@ test('publishes the Google copyright and Apache license for the six shipped Brot
       expect(license.path).toBe(records[0].path);
     }
     const noticeText = fs.readFileSync(path.join(root, records[0].path), 'utf8');
-    expect(noticeText).toContain('Brotli decoder files from brotli@1.3.3');
+    expect(noticeText).toContain('Brotli decoder files from brotli@2.1.0');
     expect(noticeText).toContain(copyright);
     for (const file of files) expect(noticeText).toContain(`dec/${file}\n`);
     const licenseStart = noticeText.indexOf('\n                                 Apache License\n');

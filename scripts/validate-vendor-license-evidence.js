@@ -77,7 +77,7 @@ function assertCompleteLicenseText(text, spdx, label) {
         throw new Error(`[vendor-license-evidence] ${label} is not a complete MIT text (${phrase})`);
       }
     }
-    if (!/THE SOFTWARE IS PROVIDED (["'])AS IS\1/.test(normalized)) {
+    if (!/THE SOFTWARE IS PROVIDED (?:(["'])AS IS\1|“AS IS”)/.test(normalized)) {
       throw new Error(`[vendor-license-evidence] ${label} is not a complete MIT text (AS IS disclaimer)`);
     }
     return;

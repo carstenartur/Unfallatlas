@@ -479,7 +479,7 @@ async function verifyRenderedMapPixels(model, contract) {
   }] of images.entries()) {
     const expected = contract.expectedMaps[index];
     const png = new PNG(fs.readFileSync(image.imageId));
-    const pixels = await new Promise(resolve => png.decode(resolve));
+    const pixels = await png.decode();
     if (png.width !== expected.width || png.height !== expected.height || sha256(pixels) !== expected.pixelSha256) throw new Error(`Final map pixels differ for role ${expected.role}`);
     bindings.push({
       role: expected.role,
