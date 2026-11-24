@@ -88,7 +88,7 @@ function combineHannoverCatalogues(city, region, { now = new Date(), additional 
 async function collectCombinedHannoverCatalogue({ now = new Date(), from = `${HANNOVER_HISTORY_START_YEAR}-01-01`,
   maxDurationMs = 58 * 60_000, workBudget, sourceCache, checkpoint, report = () => {},
   collectCity = collectHannoverCatalogue, collectRegion = collectRegionHannoverCatalogue,
-  collectAdditional = collectHannoverAdditionalSources, onExclusions = () => {}, checkpointOnly = false } = {}) {
+  collectAdditional = collectHannoverAdditionalSources, onExclusions = () => {}, checkpointOnly = false, transport } = {}) {
   if (checkpointOnly && workBudget !== 0) throw new Error('Hannover checkpoint recovery requires zero source work');
   let sourceReadAttempted = false;
   const denySourceRead = () => {
@@ -102,14 +102,16 @@ async function collectCombinedHannoverCatalogue({ now = new Date(), from = `${HA
   const outcomes = await Promise.allSettled([
     collectCity({ now, from, discovery: 'search', strict: true, maxDocuments: 50_000,
       concurrency: 8, maxDurationMs, timeoutMs: 20_000, includeLocationEvidence: true,
-      sourceCache, checkpoint, ...(checkpointOnly ? { requestText: denySourceRead } : {}), workBudget: cityBudget, report: event => report({ ...event, source: 'hannover-sim' }) }),
+      sourceCache, checkpoint, ...(transport ? { requestText: transport.read } : {}), ...(checkpointOnly ? { requestText: denySourceRead } : {}), workBudget: cityBudget, report: event => report({ ...event, source: 'hannover-sim' }) }),
     collectRegion({ now, from, maxDocuments: 50_000, maxDetails: 2000,
       maxDurationMs: Math.min(15 * 60_000, maxDurationMs), timeoutMs: 20_000,
-      sourceCache, checkpoint, ...(checkpointOnly ? { fetchHtmlImpl: denySourceRead } : {}), workBudget: regionBudget, report: event => report({ ...event, source: 'region-hannover-ris' }) })
+      sourceCache, checkpoint, ...(transport ? { fetchHtmlImpl: async (url, options) => (await transport.read(url, { ...options, maxBytes: 4 * 1024 * 1024 })).text } : {}),
+      ...(checkpointOnly ? { fetchHtmlImpl: denySourceRead } : {}), workBudget: regionBudget, report: event => report({ ...event, source: 'region-hannover-ris' }) })
       .then(region => { onExclusions(region.exclusions || []); return region; }),
     // Preserve the separately bounded Landtag/announcement discovery introduced
     // with consultation histories. Zero work budget remains entirely offline.
     collectAdditional({ now, sourceCache, checkpoint, workBudget,
+      ...(transport ? { request: async url => (await transport.read(url)).text } : {}),
       ...(checkpointOnly ? { request: denySourceRead } : {}),
       includeArchive: true, maxPages: workBudget === 0 ? 0 : 2, maxNotices: workBudget === 0 ? 0 : 4 }),
   ]);

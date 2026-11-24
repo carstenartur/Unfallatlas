@@ -199,6 +199,44 @@ fest. Zeit- oder Arbeitslimits beenden einen fortsetzbaren Durchlauf. Bereits be
 ältere Jahrgänge bleiben erhalten, auch wenn ein späterer Aufruf einen neueren Beginn
 anfordert. Die bestehenden CI-Cachepfade sichern diese Arbeitsstände mit.
 
+### Vorbereitung einer begrenzten Pages-Erneuerung
+
+Die Pages-Workflows verwenden weiterhin Quellbudget null. Die vorhandene
+Transport- und Belegprüfung ist für eine spätere Maven-Integration vorbereitet.
+Ein künftiger Start benötigt diese Integration, ein im Code festgelegtes erstes
+UTC-Datum und einen veröffentlichbaren Katalog. Das Prüfen vorhandener lokaler
+Dateien oder eines GitHub-Artefakts verlängert den Quellenprüfstand nicht.
+
+Das für diesen Modus vorgesehene Tagesbudget beträgt auf `main` je
+Stadt und UTC-Tag maximal 320 Anfragen und 128 MiB für Antwortinhalte. Die
+Hannover-Quellen teilen sich den Topf. Jeder Stadtworker sendet eine Anfrage
+zur Zeit, mit mindestens einer Sekunde zwischen den Starts. Die vorbereitete
+Zulassungsprüfung wertet GitHubs Laufhistorie aus. Die Tagesdatei wird exklusiv
+geöffnet.
+
+Vor dem Absenden bucht das Tagesjournal die maximale Antwortgröße der Anfrage.
+Bei vollständigem Erfolg wird die Differenz zu den aus dem Antwortstrom gelesenen
+Bytes wieder frei. Bei Ablehnung, Weiterleitung, überschrittener Größe,
+Abbruch oder unklarem Empfang bleibt die Reservierung belegt. `bodyBytesRead`
+und `chargedBytes` bezeichnen gelesene bzw. angerechnete Inhaltsbytes. Die
+Anzahl übertragener Netzwerkbytes einschließlich Headern und Puffern ist unbekannt.
+
+Ein `Retry-After` wird vor dem Abbruch des Antwortstroms protokolliert. Der
+Abschlusseintrag enthält die weiter geltenden Sperren je Host. Nach dem
+Starttag muss der abgeschlossene Beleg des unmittelbar vorangegangenen
+UTC-Tags vorliegen, bevor ein weiterer Abruf erlaubt ist. Nach Cacheverlust,
+Unterbrechung oder einem Tag ohne Stadtabruf pausiert diese Stadt, falls
+der Beleg fehlt. Das Alter des Datenkatalogs liefert keinen Ersatz für diesen
+Beleg. Eine fehlerhafte Antwort oder Zugangskontrolle sperrt den Host im
+laufenden Versuch.
+
+Der Quellen-Cache bewahrt die einzelnen Prüfergebnisse und Checkpoints für
+den nächsten Lauf auf. Zwei getrennt entstandene Gesamtkataloge können
+unterschiedliche Rücknahmen enthalten. Ein späterer Zeitstempel belegt
+daher nicht, dass alle früher zurückgezogenen Vorlagen weiterhin fehlen.
+Die laufübergreifende Übernahme eines solchen Gesamtkatalogs ist zurückgestellt.
+Die vierzehntägige Frist richtet sich nach dem ursprünglichen Quellenalter.
+
 ### Explizite Wiederherstellung aus Hannover-Checkpoints
 
 Wenn die amtlichen Abrufe bereits gesichert sind, aber ein nachgelagerter

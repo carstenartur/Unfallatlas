@@ -193,3 +193,23 @@ test('known SIM freshness does not invent a missing contributing Region source c
   const result = combineHannoverCatalogues(catalogue('hannover-sim'), region, { now: NOW });
   expect(result.sourceStatuses.find(status => status.source === 'region-hannover-ris').retrievedAt).toBeNull();
 });
+
+test('all scheduled Hannover collectors share the transport, including additional public sources', async () => {
+  const response = { text: '<main>öffentliche Daten</main>', status: 200 };
+  const transport = { read: jest.fn(async () => response) };
+  await collectCombinedHannoverCatalogue({ now: NOW, workBudget: 320, transport,
+    collectCity: async options => {
+      expect(await options.requestText('https://e-government.hannover-stadt.de/lhhsimwebre.nsf/Suche.xsp')).toEqual(response);
+      return catalogue('hannover-sim');
+    },
+    collectRegion: async options => {
+      expect(await options.fetchHtmlImpl('https://ris.hannit.de/public/vo040', {})).toBe(response.text);
+      return catalogue('region-hannover-ris');
+    },
+    collectAdditional: async options => {
+      expect(await options.request('https://www.landtag-niedersachsen.de/rss/drucksachen.xml')).toBe(response.text);
+      return noAdditional();
+    },
+  });
+  expect(transport.read).toHaveBeenCalledTimes(3);
+});

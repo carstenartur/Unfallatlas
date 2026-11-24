@@ -17,6 +17,7 @@ const { validLocationGeometry } = require('../js/ua.ris-catalogue').snapshotForm
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
 const { createRisSourceCheckpoint } = require('../server/political-context/services/risSourceCheckpoint');
 const { collectionProvenance } = require('../server/political-context/services/risProvenance');
+const { createRenewalTransport, REQUEST_LIMIT } = require('./ris-scheduled-renewal');
 const { validateCheckpointRetry } = require('./ris-checkpoint-retry-options');
 const { HANNOVER_HISTORY_START_YEAR, collectCombinedHannoverCatalogue, includesRegionSource, historicalCityStart } = require('../server/political-context/providers/hannoverCatalogue');
 
@@ -41,8 +42,16 @@ const ASSET_BYTES = 16 * 1024 * 1024;
 // Public manifests must not carry raw errors from source responses or local filesystem paths.
 const PUBLIC_REFRESH_FAILURE = 'Die letzte Aktualisierung der amtlichen Ratsdaten ist fehlgeschlagen.';
 
-async function collectOfficial(city, now, { previousCoverage, previousSourceStatuses, historyStartYear = historyStartYears[city], workBudget,
-  maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {}, onExclusions = () => {}, checkpointOnly = false } = {}) {
+async function collectOfficial(city, now, options = {}) {
+  const sourceDirectory = options.sourceDirectory || path.join(ROOT, '.cache', 'ris-sources');
+  const transport = options.renewalDay ? await createRenewalTransport({ day: options.renewalDay,
+    startDay: options.renewalStartDay, city, directory: sourceDirectory }) : null;
+  try { return await collectCatalogue(city, now, { ...options, sourceDirectory, transport }); }
+  finally { await transport?.close(); }
+}
+
+async function collectCatalogue(city, now, { previousCoverage, previousSourceStatuses, historyStartYear = historyStartYears[city], workBudget,
+  maxDurationMs, sourceDirectory = path.join(ROOT, '.cache', 'ris-sources'), report = () => {}, onExclusions = () => {}, checkpointOnly = false, transport } = {}) {
   if (checkpointOnly && (city !== 'hannover' || workBudget !== 0)) throw new Error('Hannover checkpoint recovery requires zero source work');
   const sourceCache = createRisSourceCache({ directory: sourceDirectory, now: () => now.getTime() });
   const checkpoint = createRisSourceCheckpoint({ directory: sourceDirectory });
@@ -51,6 +60,7 @@ async function collectOfficial(city, now, { previousCoverage, previousSourceStat
     const { collectBonnCatalogue } = require('../server/political-context/providers/bonnOparlClient');
     const catalogue = await collectBonnCatalogue({
       now, lookbackYears: now.getUTCFullYear() - historyStartYear, maxPages: 300, pageLimit: 100,
+      ...(transport ? { fetchJsonImpl: async (url, options) => JSON.parse((await transport.read(url, options)).text.replace(/^\uFEFF/, '')) } : {}),
       checkpoint, sourceCache, workBudget, maxDurationMs: maxDurationMs ?? 18 * 60_000,
       requestOptions: { timeoutMs: 20_000, maxRedirects: 0, maxBytes: 4 * 1024 * 1024 },
     });
@@ -67,7 +77,7 @@ async function collectOfficial(city, now, { previousCoverage, previousSourceStat
   }
   const catalogue = await collectCombinedHannoverCatalogue({
     now, from, maxDurationMs: maxDurationMs ?? 58 * 60_000,
-    sourceCache, checkpoint, workBudget, report: progress, onExclusions, checkpointOnly,
+    sourceCache, checkpoint, workBudget, report: progress, onExclusions, checkpointOnly, transport,
   });
   return withCollectionSettings(catalogue, { workBudget, maxDurationMs: maxDurationMs ?? 58 * 60_000 });
 }
@@ -706,7 +716,7 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
 
 async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, now,
   fetchPublished = globalThis.fetch, collect = collectFromSource, restoreOnly = false, report = () => {},
-  historyStartYear, workBudget, maxDurationMs, maxRefreshDurationMs, sourceDirectory, checkpointRetry } = {}) {
+  historyStartYear, workBudget, maxDurationMs, maxRefreshDurationMs, sourceDirectory, checkpointRetry, renewalDay } = {}) {
   const refreshStarted = performance.now();
   if (!Array.isArray(cities) || !cities.length || cities.some(city => !Object.hasOwn(SOURCE_LIMIT_MS, city))) {
     throw new Error('Supported RIS cities: bonn, hannover');
@@ -723,7 +733,11 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
     if (restoreOnly || !cities.includes('hannover')) throw new Error('Checkpoint recovery requires a Hannover refresh');
     if (workBudget !== undefined && workBudget !== 0) throw new Error('Checkpoint recovery requires zero source work');
   }
-  const sourceOptions = { workBudget: checkpointRetry ? 0 : workBudget, maxDurationMs, sourceDirectory,
+  if (renewalDay && (checkpointRetry || restoreOnly || workBudget !== undefined || !/^\d{4}-\d{2}-\d{2}$/.test(renewalDay))) {
+    throw new TypeError('Invalid scheduled renewal options');
+  }
+  if (renewalDay) workBudget = REQUEST_LIMIT;
+  const sourceOptions = { workBudget: checkpointRetry ? 0 : workBudget, maxDurationMs, sourceDirectory, renewalDay,
     ...(checkpointRetry ? { checkpointRetry, checkpointOnly: true } : {}) };
   const collectWithinBudget = (city, sourceNow, options) => {
     if (maxRefreshDurationMs === undefined) return collect(city, sourceNow, options);
@@ -754,7 +768,7 @@ async function refreshRisCatalogues({ directory = DIRECTORY, cities = CITIES, no
 }
 
 function parseRefreshArguments(args) {
-  const usage = 'Usage: node scripts/refresh-ris-catalogues.js [--city bonn|hannover] [--restore-only] [--history-start-year YYYY] [--work-budget N] [--max-duration-ms N] [--max-refresh-duration-ms N]\n' +
+  const usage = 'Usage: node scripts/refresh-ris-catalogues.js [--city bonn|hannover] [--restore-only] [--history-start-year YYYY] [--work-budget N | --scheduled-renewal-day YYYY-MM-DD] [--max-duration-ms N] [--max-refresh-duration-ms N]\n' +
     '       node scripts/refresh-ris-catalogues.js --checkpoint-retry hannover --source-cache-key KEY --min-records N\n' +
     '       node scripts/refresh-ris-catalogues.js --validate <directory> [--require-all]';
   if (args[0] === '--validate') {
@@ -765,6 +779,7 @@ function parseRefreshArguments(args) {
   let recoveryCity, sourceCacheKey;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--restore-only' && !options.restoreOnly) options.restoreOnly = true;
+    else if (args[i] === '--scheduled-renewal-day' && !options.renewalDay && /^\d{4}-\d{2}-\d{2}$/.test(args[i + 1] || '')) options.renewalDay = args[++i];
     else if (args[i] === '--city' && !options.cities && args[i + 1]) options.cities = [args[++i]];
     else if (args[i] === '--checkpoint-retry' && recoveryCity === undefined && args[i + 1]) recoveryCity = args[++i];
     else if (args[i] === '--source-cache-key' && sourceCacheKey === undefined && args[i + 1]) sourceCacheKey = args[++i];
