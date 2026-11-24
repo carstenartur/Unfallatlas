@@ -12,6 +12,7 @@ const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const { readRisSnapshot, writeRisSnapshot, enumerateSnapshotAssets, RIS_FALLBACK_MAX_AGE_MS } = require('../server/political-context/services/risSnapshot');
 const { countCatalogueLevels } = require('../server/political-context/services/risPartitionedSnapshot');
+const { applyRatsatlasLocations, nativeLocations } = require('../server/political-context/services/ratsatlasLocations');
 const { enrichRisLocations, isPetitionerContactAddress } = require('../server/political-context/services/risLocation');
 const { validLocationGeometry } = require('../js/ua.ris-catalogue').snapshotFormat;
 const { createRisSourceCache } = require('../server/political-context/services/risSourceCache');
@@ -33,7 +34,8 @@ const CITIES = Object.keys(SOURCE_LIMIT_MS);
 const HANNOVER_DISTRICT = 'Stadtbezirksrat Linden-Limmer';
 const HANNOVER_ARCHIVE_BODIES = new Set(['ratsversammlung', HANNOVER_DISTRICT.toLowerCase()]);
 // Increment when the curated Hannover site register gains matches so already assessed public snapshots are re-evaluated.
-const LOCATION_REVISIONS = { bonn: 7, hannover: 17 };
+const NATIVE_LOCATION_REVISIONS = { bonn: 7, hannover: 17 };
+const LOCATION_REVISIONS = { ...NATIVE_LOCATION_REVISIONS, hannover: 18 };
 const historyStartYears = { bonn: 2014, hannover: HANNOVER_HISTORY_START_YEAR };
 const SOURCE_RETRY_MS = 6 * 60 * 60_000;
 const MANIFEST_BYTES = 256 * 1024;
@@ -348,8 +350,8 @@ function snapshotInputs({ records, features }) {
   }
   return records.map(record => {
     const own = byRecord.get(record.id) || [];
-    const official = own.find(feature => feature.properties.accuracy === 'official');
-    const document = [...new Set((record.locations || []).filter(location => location.evidence.source === 'document').map(location => location.evidence.text))];
+    const standalone = own.find(feature => feature.properties.locationIndex === undefined);
+    const document = [...new Set(nativeLocations(record.locations || []).filter(location => location.evidence.source === 'document').map(location => location.evidence.text))];
     return { ...record,
       ...(document.length ? { locationEvidence: document, locationEvidenceTruncated: true } : {}),
       locations: (record.locations || []).map((location, index) => {
@@ -358,19 +360,20 @@ function snapshotInputs({ records, features }) {
         // label retains both without having to reverse-parse display text.
         return feature ? { ...location, geometry: feature.geometry, mapLabel: feature.properties.label } : location;
       }),
-      ...(official ? { geometry: official.geometry, locationSource: 'official', locationLabel: official.properties.label } : {}),
+      ...(standalone ? { geometry: standalone.geometry, locationSource: standalone.properties.accuracy, locationLabel: standalone.properties.label } : {}),
     };
   });
 }
 
 function reassessRetainedLocations(records, city, gazetteer, checkpointEvidence = new Map()) {
   const inputs = records.map(record => {
+    const locations = nativeLocations(record.locations || []);
     const checkpoint = checkpointEvidence.get(record.id);
-    const document = checkpoint?.paragraphs || [...new Set((record.locations || []).filter(location => location.evidence.source === 'document')
+    const document = checkpoint?.paragraphs || [...new Set(locations.filter(location => location.evidence.source === 'document')
       .map(location => location.evidence.text))];
     return {
       ...record, locationEvidence: document,
-      locationTitleEvidence: [...new Set((record.locations || []).filter(location => location.evidence.source === 'title')
+      locationTitleEvidence: [...new Set(locations.filter(location => location.evidence.source === 'title')
         .map(location => location.evidence.text))],
       // Stored quotations do not establish full document availability.
       locationEvidenceTruncated: checkpoint ? checkpoint.truncated : document.length > 0 || record.locationAssessment?.truncated === true,
@@ -381,7 +384,7 @@ function reassessRetainedLocations(records, city, gazetteer, checkpointEvidence 
   return enrichRisLocations(inputs, { city, gazetteer, maxLocationsPerRecord: Infinity }).map((record, index) => {
     let restoredAddress = false;
     const locations = record.locations.map(location => {
-      const prior = records[index].locations?.find(old => old.kind === location.kind && old.label === location.label
+      const prior = records[index].locations?.find(old => old.provenance?.provider !== 'ratsatlas-hannover' && old.kind === location.kind && old.label === location.label
         && old.evidence.source === location.evidence.source && old.evidence.text === location.evidence.text);
       // Keep the verified map evidence and its credit for unchanged matches.
       // A corrected range or a newly rejected marker must not inherit a point.
@@ -497,7 +500,7 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
         if (!prior.locations?.length && paragraphs.length && Number.isFinite(verifiedAt) && verifiedAt <= now.getTime()) {
           retainedCheckpointEvidence.set(next.id, { paragraphs, truncated: next.locationEvidenceTruncated === true });
         }
-        if (needsLocationAssessment(old.manifest) || retainedCheckpointEvidence.has(next.id)) {
+        if (needsLocationAssessment(old.manifest, NATIVE_LOCATION_REVISIONS) || retainedCheckpointEvidence.has(next.id)) {
           // Reassess only the prior snapshot's title and saved quotations;
           // newer list metadata is not a substitute for the unavailable body.
           retainedAssessmentSources.set(next.id, { ...prior, locationEvidenceUnavailable: true });
@@ -513,13 +516,14 @@ async function prepareCandidate(directory, city, now, collect, previous, report,
         ...(retainedDetails.size ? [`${retainedDetails.size} Detailabrufe sind nicht aktuell verfügbar; der zuletzt verifizierte Detailstand vom ${old.manifest.generatedAt} bleibt erhalten.`] : [])])] };
   }
   const gazetteer = await loadGazetteer(city);
-  const records = enrichRisLocations(inputs.filter(record => !retainedDetails.has(record.id)), { city, gazetteer, maxLocationsPerRecord: Infinity });
+  const assessedRecords = enrichRisLocations(inputs.filter(record => !retainedDetails.has(record.id)), { city, gazetteer, maxLocationsPerRecord: Infinity });
   const reassessed = new Map(reassessRetainedLocations([...retainedAssessmentSources.values()], city, gazetteer, retainedCheckpointEvidence)
     .map(record => [record.id, record]));
   for (const record of retainedDetails.values()) {
     const assessment = reassessed.get(record.id);
-    records.push(assessment ? { ...record, locations: assessment.locations, locationAssessment: assessment.locationAssessment } : record);
+    assessedRecords.push(assessment ? { ...record, locations: assessment.locations, locationAssessment: assessment.locationAssessment } : record);
   }
+  const records = applyRatsatlasLocations(city, assessedRecords);
   if (previous?.manifest && ((catalogue.history?.retainPreviousClock ?? catalogue.history?.interrupted) || retainedDetails.size)) {
     retainedClocks.push(previous.manifest.generatedAt);
   }
@@ -562,8 +566,8 @@ async function prepareExclusionFallback(directory, previous, exclusions, now) {
   return { directory, manifest };
 }
 
-function needsLocationAssessment(manifest) {
-  return !manifest || (manifest.locationRevision ?? 0) < LOCATION_REVISIONS[manifest.city] ||
+function needsLocationAssessment(manifest, revisions = LOCATION_REVISIONS) {
+  return !manifest || (manifest.locationRevision ?? 0) < revisions[manifest.city] ||
     manifest.locationAssessment?.attempted !== recordCount(manifest);
 }
 
@@ -575,13 +579,16 @@ async function prepareLocalAssessment(directory, selected, builtAt) {
       { now: builtAt, schemaVersion: 2 });
     return { directory, manifest };
   }
-  const records = snapshotInputs(original);
-  const gazetteer = await loadGazetteer(source.city);
+  const inputs = snapshotInputs(original);
+  // A register update is independent of the native location rules. Older
+  // snapshots still run their outstanding native assessments before the join.
+  const records = needsLocationAssessment(source, NATIVE_LOCATION_REVISIONS)
+    ? reassessRetainedLocations(inputs, source.city, await loadGazetteer(source.city)) : inputs;
   const next = await writeRisSnapshot(directory, source.city, {
     sources: source.sources, coverage: source.coverage, locationRevision: LOCATION_REVISIONS[source.city],
     ...(source.sourceStatuses === undefined ? {} : { sourceStatuses: source.sourceStatuses }),
     ...(source.withdrawalsRecordedAt === undefined ? {} : { withdrawalsRecordedAt: source.withdrawalsRecordedAt }),
-    records: reassessRetainedLocations(records, source.city, gazetteer),
+    records: applyRatsatlasLocations(source.city, records),
     generatedAt: source.generatedAt, ...(source.provenance === undefined ? {} : { provenance: source.provenance }), ...(source.refreshFailure ? { refreshFailure: source.refreshFailure } : {}),
   }, { now: builtAt, schemaVersion: 2 });
   // Local analysis does not refresh the official source or its retry/expiry
@@ -614,7 +621,7 @@ async function refreshCity({ directory, city, startedAt, clock, fetchPublished, 
     let status = restoreOnly ? 'restored' : 'current';
     let reason;
     const lastFailure = previous.manifest?.refreshFailure?.attemptedAt;
-    const upgradeLocations = needsLocationAssessment(previous.manifest);
+    const upgradeLocations = needsLocationAssessment(previous.manifest, NATIVE_LOCATION_REVISIONS);
     const previousSimStart = previous.manifest?.sourceStatuses?.find(source => source.source === 'hannover-sim')?.from
       ?? previous.manifest?.coverage.from;
     const upgradeHistory = city === 'hannover' && (previous.manifest?.coverage.scope !== 'citywide' ||

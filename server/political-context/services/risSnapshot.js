@@ -219,7 +219,7 @@ function collectSourceLocations(record, id, features, maximum = MAX_LOCATIONS_PE
       const mapLabel = suppliedMapLabel || (detail ? requiredText(`${label} — ${detail}`, 'location map label') : label);
       features.push(mapFeature(id, value.geometry, 'derived', mapLabel, locationIndex));
     }
-    return { label, kind: value.kind, evidence, mapped };
+    return { label, kind: value.kind, evidence, mapped, ...(value.provenance === undefined ? {} : { provenance: value.provenance }) };
   });
 }
 

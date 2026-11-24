@@ -12,7 +12,8 @@
   const MAX_FALLBACK_AGE = 14 * 24 * 60 * 60 * 1000;
   const MANIFEST_TTL = 5 * 60 * 1000;
   const LOCATION_GEOMETRY_TYPES = new Map([
-    ['junction', ['Point']],
+    ['junction', ['Point', 'MultiPoint']],
+    ['area', ['Polygon', 'MultiPolygon']],
     ['section', ['LineString']],
     ['street', ['LineString', 'MultiLineString']],
     ['address', ['Point']],
@@ -104,9 +105,22 @@
     return true;
   }
 
+  function validLocationProvenance(value) {
+    if (value === undefined) return true;
+    const keys = ['provider', 'revision', 'accuracy', 'method', 'sourceUrl', 'evidenceUrl', 'attribution', 'evidenceNote', 'areaId', 'retainedMention'];
+    return isObject(value) && Object.keys(value).every(key => keys.includes(key)) && value.provider === 'ratsatlas-hannover'
+      && typeof value.revision === 'string' && /^[a-f0-9]{40}$/.test(value.revision)
+      && [value.accuracy, value.method, value.attribution].every(validLocationText)
+      && [value.sourceUrl, value.evidenceUrl].every(url => validLocationText(url) && isSourceUrl(url))
+      && (value.evidenceNote === undefined || validLocationText(value.evidenceNote))
+      && (value.areaId === undefined || /^(?:bezirk|stadtteil):\d+$/.test(value.areaId))
+      && (value.retainedMention === undefined || value.retainedMention === true);
+  }
+
   function validLocation(location) {
     const evidence = location?.evidence;
-    return isObject(location) && Object.keys(location).length === 4
+    return isObject(location) && Object.keys(location).length === (location.provenance === undefined ? 4 : 5)
+      && validLocationProvenance(location.provenance)
       && validLocationText(location.label) && LOCATION_GEOMETRY_TYPES.has(location.kind) && typeof location.mapped === 'boolean'
       && isObject(evidence) && Object.keys(evidence).length === 2
       && (evidence.source === 'title' || evidence.source === 'document') && validLocationText(evidence.text);
@@ -369,6 +383,14 @@
       city: manifest.city, generatedAt: manifest.generatedAt, sha256: manifest.generation || manifest.records.sha256,
       mapSha256: manifest.generation || manifest.map.sha256, complete, stale, warnings
     };
+  }
+
+  // Report formats share the citation's reason field. Keep the precision of
+  // the displayed location when a user explicitly adopts a snapshot record.
+  function reportCitation(record) {
+    const places = (record.locations || []).filter(location => location.mapped && location.provenance)
+      .map(location => `${location.label} (${location.provenance.accuracy})`);
+    return places.length ? { ...record, reason: `Der Ratsvorgang nennt ${places.join(', ')}.` } : record;
   }
 
   function attachSnapshot(record, snapshot) {
@@ -1173,7 +1195,7 @@
             if(!reference.snapshot)return reference;
             const record=await recordFrom(part,reference.id),prior=reference.snapshot;
             if(!record || prior.city!==snapshot.city || prior.sha256!==snapshot.sha256 || (prior.mapSha256!==undefined && prior.mapSha256!==snapshot.mapSha256) || reference.url!==record.url)throw error('RIS_SNAPSHOT_REFERENCE_MISMATCH','Der Ratsvorgang gehört nicht zum aktuellen Datenstand.');
-            return record;
+            return reportCitation(record);
           }));
         }
         const { manifest, records } = await load(city, false, false);
@@ -1189,7 +1211,7 @@
             throw error('RIS_SNAPSHOT_REFERENCE_MISMATCH',
               'Der ausgewählte Ratsvorgang gehört nicht zum aktuellen geprüften Datenstand. Bitte die Recherche erneut öffnen.');
           }
-          return attachSnapshot(record, snapshot);
+          return reportCitation(attachSnapshot(record, snapshot));
         });
       },
       loadRecord, loadRecordLocations, loadRecordEvents, loadRecordRelationships, loadRecordGeometries, loadRelatedRecords, loadFeatureRecords, loadGeometry,
