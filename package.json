@@ -137,7 +137,7 @@
   },
   "overrides": {
     "@grpc/grpc-js": "1.14.7",
-    "ip-address": "10.7.6",
+    "ip-address": "10.7.7",
     "protobufjs": "7.6.6"
   }
 }
